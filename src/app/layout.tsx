@@ -1,19 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 
+import { centraleSans } from "./fonts";
 import "./globals.css";
-
-/**
- * Inter, not Arial. Arial is the brand's approved substitute for *generated
- * documents*; the interface has different constraints. Inter ships tabular
- * numerals, without which money columns in a table stop aligning by unit and
- * stop being comparable. See docs/DESIGN.md §4.1.
- */
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Plataforma Interna JDH",
@@ -48,7 +36,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={inter.variable}>{children}</body>
+      <body className={centraleSans.variable}>{children}</body>
     </html>
   );
 }
