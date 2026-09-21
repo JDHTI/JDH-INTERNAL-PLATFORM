@@ -8,14 +8,15 @@ import Breadcrumbs from "./breadcrumbs";
 
 const iconButton = cn(
   "flex size-8 shrink-0 items-center justify-center rounded-md",
-  "text-text-secondary transition-colors duration-150",
-  "hover:bg-canvas-subtle hover:text-text-primary",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+  "text-sidebar-muted transition-colors duration-150",
+  "hover:bg-sidebar-hover hover:text-sidebar-foreground",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
 );
 
 /**
- * Application header: 56px, sticky, sitting on the canvas with a hairline
- * below it. No blur — see docs/DESIGN.md §6.2.
+ * Application header: 56px, sticky, carrying the sidebar surface so the rail
+ * and the bar above the content read as one frame around the canvas. No blur
+ * — see docs/DESIGN.md §6.2.
  *
  * The right slot is deliberately empty. The reference layout puts a user menu
  * and a notification bell there; both would need a session and a notification
@@ -30,7 +31,7 @@ export default function AppHeader() {
   const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
 
   return (
-    <header className="flex h-14 w-full shrink-0 items-center gap-3 border-b border-border bg-canvas px-4">
+    <header className="flex h-14 w-full shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground">
       <button
         type="button"
         onClick={() => setMobileMenuOpen(true)}

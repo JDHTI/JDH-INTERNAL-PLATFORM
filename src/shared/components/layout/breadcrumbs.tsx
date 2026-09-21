@@ -32,6 +32,10 @@ function labelForHref(href: string, segment: string): string {
  * Trail for the current route. Area routes lead with their area; the
  * platform-wide utilities stand on their own, so there is no artificial
  * "home" crumb above either of them.
+ *
+ * Coloured with the sidebar tokens, not the canvas ones, because the header
+ * carries the sidebar surface. Dropping this on a light surface would leave
+ * it unreadable.
  */
 export default function Breadcrumbs() {
   const pathname = usePathname();
@@ -55,7 +59,7 @@ export default function Breadcrumbs() {
           <li key={crumb.href} className="flex min-w-0 items-center gap-1.5">
             {index > 0 && (
               <ChevronRight
-                className="size-3.5 shrink-0 text-text-secondary"
+                className="size-3.5 shrink-0 text-sidebar-muted"
                 aria-hidden="true"
               />
             )}
@@ -63,7 +67,7 @@ export default function Breadcrumbs() {
             {crumb.isLast ? (
               <span
                 aria-current="page"
-                className="truncate text-sm font-semibold text-text-primary"
+                className="truncate text-sm font-semibold text-sidebar-foreground"
               >
                 {crumb.label}
               </span>
@@ -71,9 +75,9 @@ export default function Breadcrumbs() {
               <Link
                 href={crumb.href}
                 className={cn(
-                  "truncate rounded-sm text-sm font-medium text-text-secondary",
-                  "transition-colors duration-150 hover:text-text-primary",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  "truncate rounded-sm text-sm font-medium text-sidebar-muted",
+                  "transition-colors duration-150 hover:text-sidebar-foreground",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
                 )}
               >
                 {crumb.label}

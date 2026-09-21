@@ -80,15 +80,18 @@ export default function SidebarAreaSwitcher() {
 
   if (isSidebarCollapsed) {
     return (
-      <div className="shrink-0 border-b border-sidebar-border p-3">
+      <div className="shrink-0 p-3">
         <button
           type="button"
           onClick={() => setSidebarCollapsed(false)}
           title={activeArea.name}
           aria-label={`${activeArea.name}. Expandir barra lateral`}
           className={cn(
-            "flex h-12 w-full items-center justify-center rounded-md",
-            "border border-sidebar-border transition-colors duration-150",
+            // Square, not the card's 48x40: the rail is sized so the frame
+            // around the 32px badge is 8px on every side rather than 8px
+            // vertically and 4px horizontally.
+            "flex size-12 items-center justify-center rounded-md",
+            "bg-sidebar-subtle transition-colors duration-150",
             "hover:bg-sidebar-hover",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
           )}
@@ -100,15 +103,15 @@ export default function SidebarAreaSwitcher() {
   }
 
   return (
-    <div className="shrink-0 border-b border-sidebar-border p-3">
+    <div className="shrink-0 p-3">
       <div ref={containerRef} className="relative">
         {/* No gap on the card itself: the name block and the chevron button
             sit flush so they read as one continuous surface, with the gap
             applied inside the collapse button instead. */}
         <div
           className={cn(
-            "flex h-12 items-center rounded-md border border-sidebar-border px-2",
-            isOpen && "bg-sidebar-hover"
+            "flex h-12 items-center rounded-md px-2 transition-colors duration-150",
+            isOpen ? "bg-sidebar-hover" : "bg-sidebar-subtle"
           )}
         >
           <button
@@ -131,7 +134,7 @@ export default function SidebarAreaSwitcher() {
             <span
               className={cn(
                 "flex h-8 min-w-0 flex-1 items-center rounded-l-sm px-2",
-                "bg-sidebar-active text-sm font-semibold text-sidebar-foreground"
+                "bg-sidebar-hover text-sm font-semibold text-sidebar-foreground"
               )}
             >
               <span className="truncate">{activeArea.name}</span>
@@ -147,8 +150,8 @@ export default function SidebarAreaSwitcher() {
             aria-label="Cambiar de área"
             className={cn(
               "flex size-8 shrink-0 items-center justify-center rounded-r-sm",
-              "bg-sidebar-active text-sidebar-foreground transition-colors duration-150",
-              "hover:bg-sidebar-hover",
+              "bg-sidebar-hover text-sidebar-foreground transition-colors duration-150",
+              "hover:bg-sidebar-active",
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
             )}
           >

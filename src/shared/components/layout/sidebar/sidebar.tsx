@@ -52,7 +52,9 @@ export default function Sidebar() {
             ? "visible translate-x-0"
             : "invisible -translate-x-full",
           "md:visible md:static md:translate-x-0 md:shrink-0 md:transition-[width]",
-          isSidebarCollapsed ? "md:w-16" : "md:w-[260px]"
+          // 72px, not 64px: 12px of rail padding plus a 48px square button
+          // gives the 32px badge an even 8px frame on all four sides.
+          isSidebarCollapsed ? "md:w-[72px]" : "md:w-[260px]"
         )}
       >
         <SidebarAreaSwitcher />
