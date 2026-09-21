@@ -168,7 +168,11 @@ export default function SidebarAreaSwitcher() {
               "border border-sidebar-border bg-sidebar shadow-lg"
             )}
           >
-            <ul className="max-h-80 overflow-y-auto">
+            <ul
+              className={cn(
+                areas.length >= 4 && "max-h-48 overflow-y-auto no-scrollbar"
+              )}
+            >
               {areas.map((area) => (
                 <li key={area.id}>
                   <AreaOption
