@@ -129,7 +129,9 @@ export const MODULES: ModuleItem[] = [
     areaId: "ti",
     category: "Operación",
     icon: LifeBuoy,
-    available: false,
+    // Real page behind it, unlike the rest of TI's modules: it's also where
+    // the header's help icon links, so it can't be a 404 (R-24).
+    available: true,
   },
   {
     id: "ti-equipos",

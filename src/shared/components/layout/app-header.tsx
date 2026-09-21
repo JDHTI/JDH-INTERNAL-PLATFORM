@@ -6,8 +6,10 @@ import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import Breadcrumbs from "./breadcrumbs";
 import { headerIconButtonClass } from "./header/header-icon-button";
+import HelpLink from "./header/help-link";
 import NotificationsMenu from "./header/notifications-menu";
 import QuickNotesMenu from "./header/quick-notes-menu";
+import TasksMenu from "./header/tasks-menu";
 
 /**
  * Application header: 60px, carrying the sidebar surface so the rail and the
@@ -20,9 +22,10 @@ import QuickNotesMenu from "./header/quick-notes-menu";
  *
  * The wordmark that used to sit here is gone: the sidebar already carries the
  * brand mark, and repeating it in the header added nothing. In its place are
- * the two actions every screen can use regardless of which area is active:
- * notifications and a personal scratch pad. Both open a real panel with
- * honest content — see the components for what "honest" means for each.
+ * the actions every screen can use regardless of which area is active: what
+ * needs the user's attention (tasks, notifications), then personal utilities
+ * (notes, help). Each opens a real panel or links to a real page — see the
+ * individual components for what "honest" means for each.
  *
  * Collapsing the rail is the area card's job, so the header carries no
  * sidebar control beyond the mobile drawer trigger, which has no counterpart
@@ -50,8 +53,10 @@ export default function AppHeader() {
       />
 
       <div className="flex shrink-0 items-center gap-1">
+        <TasksMenu />
         <NotificationsMenu />
         <QuickNotesMenu />
+        <HelpLink />
       </div>
     </header>
   );
