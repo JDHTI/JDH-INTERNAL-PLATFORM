@@ -14,6 +14,7 @@ interface SidebarRowProps {
   /** False renders a disabled "Próximamente" row instead of a link. */
   available?: boolean;
   onNavigate: () => void;
+  labelClassName?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export default function SidebarRow({
   isCollapsed,
   available = true,
   onNavigate,
+  labelClassName,
 }: SidebarRowProps) {
   const base = cn(
     "flex h-9 items-center rounded-md text-sm font-medium transition-colors duration-150",
@@ -73,7 +75,9 @@ export default function SidebarRow({
       )}
     >
       {icon}
-      {!isCollapsed && <span className="truncate">{label}</span>}
+      {!isCollapsed && (
+        <span className={cn("truncate", labelClassName)}>{label}</span>
+      )}
     </Link>
   );
 }

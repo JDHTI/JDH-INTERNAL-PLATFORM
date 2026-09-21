@@ -309,8 +309,9 @@ Ancla en 14px, no en 16px. Es una herramienta de trabajo, no un artículo de lec
 ### 4.3 Reglas
 
 - **La escalera de pesos es 400 / 500 / 700.** El 500 se reserva para etiquetas de formulario;
-  el 700 para todo énfasis. El 300 (light) existe en la familia pero no se usa en interfaz: a
-  13–14px pierde legibilidad en pantallas de bodega. Un tercer nivel de énfasis no existe.
+  el 700 para todo énfasis. El 300 (light) se limita a las etiquetas de las utilidades
+  Sugerencias y Configuración en el pie de la sidebar; no se usa en texto operativo de
+  13–14px porque pierde legibilidad en pantallas de bodega.
 - **Tracking negativo solo a 20px o más.** A 14px empeora la legibilidad en vez de mejorarla.
 - **Line-height 1.5 en cuerpo, 1.2–1.3 en títulos.** No se comprime por debajo para ganar filas.
 - **Los identificadores van en mono.** Un SKU, un consecutivo de PQRSF o un UUID en tipografía
@@ -350,7 +351,7 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 
 ```
 ┌──────────┬────────────────────────────────────┐
-│          │  Header 56px · migas + usuario     │
+│          │  Header 72px · migas + usuario     │
 │ Sidebar  ├────────────────────────────────────┤
 │  260px   │                                    │
 │          │  Área de contenido                 │
@@ -369,10 +370,11 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 > `--sidebar-muted`, `--sidebar-border`, `--sidebar-hover`, `--sidebar-active`. En claro
 > `--sidebar` es `--neutral-900`; en oscuro baja a `#151513` para no competir con el canvas.
 > Contraste medido: blanco sobre `#1d1d1b` = **16.88:1**; `--sidebar-muted` = **7.52:1**.
-- **Header:** 60px, sobre `--sidebar` con borde inferior `--sidebar-border`. Los 60px no son
-  arbitrarios: son los 12px de padding del rail más los 48px de la card de área, de modo que
-  el borde inferior del header cae exactamente donde termina la card. Si cambia uno, el otro
-  deja de alinear.
+- **Header:** 72px, sobre `--sidebar` con borde inferior `--sidebar-border`. La card empieza
+  12px debajo del borde superior del rail y mide 48px; su centro queda en y=36. El header
+  comparte esa línea media, así el breadcrumb queda alineado verticalmente con el contenido
+  de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
+  exterior de la card. El borde inferior del header queda 12px debajo del de la card.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
 
 ---
