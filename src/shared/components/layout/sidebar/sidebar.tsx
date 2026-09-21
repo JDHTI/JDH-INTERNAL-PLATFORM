@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+import SidebarAreaSwitcher from "./sidebar-area-switcher";
 import SidebarFooter from "./sidebar-footer";
-import SidebarHeader from "./sidebar-header";
 import SidebarMenu from "./sidebar-menu";
-import SidebarSearch from "./sidebar-search";
 
 export default function Sidebar() {
-  const [searchQuery, setSearchQuery] = useState("");
   const { isSidebarCollapsed, isMobileMenuOpen, setMobileMenuOpen } =
     useUiStore();
 
@@ -54,15 +52,13 @@ export default function Sidebar() {
             ? "visible translate-x-0"
             : "invisible -translate-x-full",
           "md:visible md:static md:translate-x-0 md:shrink-0 md:transition-[width]",
-          isSidebarCollapsed ? "md:w-16" : "md:w-[260px]"
+          // 72px, not 64px: 12px of rail padding plus a 48px square button
+          // gives the 32px badge an even 8px frame on all four sides.
+          isSidebarCollapsed ? "md:w-[72px]" : "md:w-[260px]"
         )}
       >
-        <SidebarHeader />
-        <SidebarSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
-        <SidebarMenu searchQuery={searchQuery} />
+        <SidebarAreaSwitcher />
+        <SidebarMenu />
         <SidebarFooter />
       </aside>
     </>

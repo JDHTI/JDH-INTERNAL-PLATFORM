@@ -258,16 +258,27 @@ Medido con verificador WCAG. **Estos números son resultados, no estimaciones.**
 ### 4.1 Familia
 
 ```css
---font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+--font-sans: var(--font-centrale), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 ```
 
-**Por qué no Arial.** Arial es el sustituto aprobado por Mercadeo de Centrale Sans **para
-documentos generados**. La interfaz tiene otras restricciones: cifras tabulares, legibilidad a
-13–14px en pantallas de bodega, y densidad. Arial no tiene cifras tabulares y su ancho variable
-hace que las columnas numéricas de una tabla bailen. Inter sí las tiene. La regla del manual de
-marca se respeta donde aplica — el PDF que sale de la plataforma va en Arial — y no se extiende
-por inercia a la UI.
+**Centrale Sans, la tipografía oficial.** Está licenciada para web y vive en
+`public/fonts/` (woff2), cargada con `next/font/local` desde `src/app/fonts.ts`.
+
+Esto revierte una decisión anterior. Mientras Centrale Sans no estuvo disponible, la UI usaba
+**Inter** y este documento argumentaba en contra de la tipografía de marca: Arial es el
+sustituto aprobado por Mercadeo **para documentos generados**, y no tiene cifras tabulares, así
+que las columnas numéricas bailan. Ese argumento aplicaba a Arial, no a Centrale Sans.
+**Centrale Sans sí trae `tnum`** — verificado leyendo la tabla GSUB del woff2, no supuesto — de
+modo que la marca y la exigencia de cifras tabulares dejan de estar en conflicto. Inter sale.
+
+La regla del manual de marca se sigue respetando donde aplica: el PDF que sale de la plataforma
+va en Arial cuando Centrale Sans no está instalada en el equipo que lo abre. La UI ya no
+necesita esa concesión porque sirve la fuente ella misma.
+
+**Pesos disponibles:** 300 light · 400 regular · 500 medium · 700 bold, cada uno con su itálica.
+**No hay 600.** El archivo bold se declara sobre el rango `600 700`, así que `font-semibold`
+resuelve al bold real en lugar de un falso bold sintetizado por el navegador.
 
 **Cifras tabulares son obligatorias** en toda columna numérica, total, precio o cantidad:
 
@@ -297,8 +308,9 @@ Ancla en 14px, no en 16px. Es una herramienta de trabajo, no un artículo de lec
 
 ### 4.3 Reglas
 
-- **La escalera de pesos es 400 / 500 / 600.** No hay 300 ni 700. El 500 se reserva para
-  etiquetas de formulario; el 600 para todo énfasis. Un tercer nivel de énfasis no existe.
+- **La escalera de pesos es 400 / 500 / 700.** El 500 se reserva para etiquetas de formulario;
+  el 700 para todo énfasis. El 300 (light) existe en la familia pero no se usa en interfaz: a
+  13–14px pierde legibilidad en pantallas de bodega. Un tercer nivel de énfasis no existe.
 - **Tracking negativo solo a 20px o más.** A 14px empeora la legibilidad en vez de mejorarla.
 - **Line-height 1.5 en cuerpo, 1.2–1.3 en títulos.** No se comprime por debajo para ganar filas.
 - **Los identificadores van en mono.** Un SKU, un consecutivo de PQRSF o un UUID en tipografía
@@ -357,7 +369,10 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 > `--sidebar-muted`, `--sidebar-border`, `--sidebar-hover`, `--sidebar-active`. En claro
 > `--sidebar` es `--neutral-900`; en oscuro baja a `#151513` para no competir con el canvas.
 > Contraste medido: blanco sobre `#1d1d1b` = **16.88:1**; `--sidebar-muted` = **7.52:1**.
-- **Header:** 56px, sticky, sobre `--canvas` con borde inferior `--border`.
+- **Header:** 60px, sobre `--sidebar` con borde inferior `--sidebar-border`. Los 60px no son
+  arbitrarios: son los 12px de padding del rail más los 48px de la card de área, de modo que
+  el borde inferior del header cae exactamente donde termina la card. Si cambia uno, el otro
+  deja de alinear.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
 
 ---
@@ -694,7 +709,7 @@ const buttonVariants = cva(
 |---|---|---|
 | 1 | ¿El azul corporativo del logo entra como acento en la UI, o la UI se mantiene monocroma? | **Abierta.** Hoy el sistema es monocromo con negro JDH como primario. Si entra el azul, necesita hex exacto y derivar escala 50–950. |
 | 2 | Validación de Mercadeo sobre la interfaz | **Pendiente.** Mercadeo es guardián con poder de bloqueo sobre plantillas de documento. Falta confirmar si su alcance cubre también la UI. |
-| 3 | ¿Centrale Sans con licencia web? | **Pendiente.** Resolvería la brecha entre marca e interfaz sin sacrificar cifras tabulares. |
+| 3 | ¿Centrale Sans con licencia web? | **Resuelta.** Los woff2 están en `public/fonts/` y la UI los sirve. Trae `tnum`, así que cerró la brecha entre marca e interfaz sin sacrificar cifras tabulares (§4.1). |
 | 4 | Extracción a paquete `@jdh/ui` | **Diferida** hasta que un segundo módulo lo requiera. |
 | 5 | Densidad configurable (cómoda / compacta) | **Diferida.** Primero medir si los usuarios lo piden. |
 
