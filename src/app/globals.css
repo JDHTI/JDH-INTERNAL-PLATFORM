@@ -1,26 +1,246 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Sistema de diseño JDH — ver docs/DESIGN.md
+   Las razones de contraste citadas aquí están medidas, no estimadas (§3.5).
+───────────────────────────────────────────────────────────────────────────── */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Capa primitiva: neutrales cálidos oficiales JDH ───────────────────────── */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --neutral-0: #ffffff;
+  --neutral-100: #f2f2f2;
+  --neutral-200: #d9d9d9;
+  --neutral-300: #c8c8c4;
+  --neutral-500: #919189;
+  --neutral-700: #343430;
+  --neutral-900: #1d1d1b;
+
+  --overlay-on-dark-04: rgba(255, 255, 255, 0.04);
+  --overlay-on-dark-08: rgba(255, 255, 255, 0.08);
+  --overlay-on-dark-12: rgba(255, 255, 255, 0.12);
+  --overlay-on-dark-64: rgba(255, 255, 255, 0.64);
+  --overlay-on-light-04: rgba(29, 29, 27, 0.04);
+  --overlay-on-light-08: rgba(29, 29, 27, 0.08);
+  --overlay-on-light-64: rgba(29, 29, 27, 0.64);
 }
+
+/* ── Capa semántica: tema claro ────────────────────────────────────────────── */
+
+:root {
+  --canvas: var(--neutral-0);
+  --canvas-subtle: var(--neutral-100);
+  --surface: var(--neutral-0);
+  --surface-raised: var(--neutral-0);
+  --surface-inverse: var(--neutral-900);
+
+  /* 16.88:1 sobre canvas, 15.08:1 sobre canvas-subtle */
+  --text-primary: var(--neutral-900);
+  /* 5.10:1 sobre canvas, 4.91:1 sobre canvas-subtle. neutral-500 falla AA aquí. */
+  --text-secondary: var(--overlay-on-light-64);
+  --text-disabled: var(--neutral-500);
+  --text-on-primary: var(--neutral-0);
+  --text-on-inverse: var(--neutral-0);
+
+  --primary: var(--neutral-900);
+  --primary-hover: var(--neutral-700);
+  --primary-subtle: var(--overlay-on-light-08);
+
+  /* Separador decorativo: no transporta información, no requiere 3:1 */
+  --border: var(--neutral-200);
+  /* Delimita controles: 3.17:1, cumple WCAG 1.4.11 */
+  --border-control: var(--neutral-500);
+  --ring: var(--neutral-900);
+
+  /* La sidebar es oscura en ambos temas: es el ancla espacial permanente, no
+     una superficie que se invierte. Con --surface-inverse quedaría blanca en
+     tema oscuro. Blanco sobre #1d1d1b = 16.88:1; secundario = 7.52:1. */
+  --sidebar: var(--neutral-900);
+  --sidebar-foreground: var(--neutral-0);
+  --sidebar-muted: var(--overlay-on-dark-64);
+  --sidebar-border: var(--overlay-on-dark-08);
+  --sidebar-hover: var(--overlay-on-dark-08);
+  --sidebar-active: var(--overlay-on-dark-12);
+
+  --success: #067647;
+  --success-surface: rgba(6, 118, 71, 0.08);
+  --warning: #b54708;
+  --warning-surface: rgba(181, 71, 8, 0.08);
+  --danger: #b42318;
+  --danger-surface: rgba(180, 35, 24, 0.08);
+  --info: #175cd3;
+  --info-surface: rgba(23, 92, 211, 0.08);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/* ── Capa semántica: tema oscuro ───────────────────────────────────────────── */
+
+.dark {
+  --canvas: var(--neutral-900);
+  --canvas-subtle: #151513;
+  --surface: color-mix(in srgb, var(--neutral-0) 4%, var(--neutral-900));
+  --surface-raised: color-mix(in srgb, var(--neutral-0) 8%, var(--neutral-900));
+  --surface-inverse: var(--neutral-0);
+
+  --text-primary: var(--neutral-0);
+  /* 7.52:1 sobre canvas */
+  --text-secondary: var(--overlay-on-dark-64);
+  --text-disabled: var(--neutral-500);
+  --text-on-primary: var(--neutral-900);
+  --text-on-inverse: var(--neutral-900);
+
+  /* El primario se invierte: la acción es siempre el extremo opuesto del lienzo */
+  --primary: var(--neutral-0);
+  --primary-hover: var(--neutral-200);
+  --primary-subtle: var(--overlay-on-dark-08);
+
+  --border: var(--overlay-on-dark-08);
+  --border-control: var(--overlay-on-dark-12);
+  --ring: var(--neutral-0);
+
+  /* En tema oscuro baja un escalón para no competir con el canvas */
+  --sidebar: #151513;
+
+  --success: #47cd89;
+  --success-surface: rgba(71, 205, 137, 0.12);
+  --warning: #fdb022;
+  --warning-surface: rgba(253, 176, 34, 0.12);
+  --danger: #f97066;
+  --danger-surface: rgba(249, 112, 102, 0.12);
+  --info: #84adff;
+  --info-surface: rgba(132, 173, 255, 0.12);
+}
+
+/* ── Puente hacia Tailwind ─────────────────────────────────────────────────── */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-canvas-subtle: var(--canvas-subtle);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inverse: var(--surface-inverse);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-on-primary: var(--text-on-primary);
+  --color-text-on-inverse: var(--text-on-inverse);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-subtle: var(--primary-subtle);
+
+  --color-border: var(--border);
+  --color-border-control: var(--border-control);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
+
+  /* Alias shadcn → tokens JDH. Los componentes que trae el CLI de shadcn usan
+     los nombres de la izquierda (bg-background, text-muted-foreground, …). Sin
+     este puente habría que reescribir cada componente al pegarlo. La capa
+     semántica de §3.3 sigue siendo la fuente de verdad. */
+  --color-background: var(--canvas);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary-foreground: var(--text-on-primary);
+  --color-secondary: var(--canvas-subtle);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--canvas-subtle);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--primary-subtle);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--text-on-primary);
+  --color-input: var(--border-control);
+
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, sans-serif;
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-canvas text-text-primary font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Cifras tabulares en toda columna numérica: sin esto los montos de una tabla
+     no se alinean por unidad y dejan de ser comparables de un vistazo. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* El anillo de foco nunca se elimina (DESIGN.md §9) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
