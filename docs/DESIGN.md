@@ -350,7 +350,7 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 
 ```
 ┌──────────┬────────────────────────────────────┐
-│          │  Header 56px · migas + usuario     │
+│          │  Header 72px · migas + usuario     │
 │ Sidebar  ├────────────────────────────────────┤
 │  260px   │                                    │
 │          │  Área de contenido                 │
@@ -369,10 +369,11 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 > `--sidebar-muted`, `--sidebar-border`, `--sidebar-hover`, `--sidebar-active`. En claro
 > `--sidebar` es `--neutral-900`; en oscuro baja a `#151513` para no competir con el canvas.
 > Contraste medido: blanco sobre `#1d1d1b` = **16.88:1**; `--sidebar-muted` = **7.52:1**.
-- **Header:** 60px, sobre `--sidebar` con borde inferior `--sidebar-border`. Los 60px no son
-  arbitrarios: son los 12px de padding del rail más los 48px de la card de área, de modo que
-  el borde inferior del header cae exactamente donde termina la card. Si cambia uno, el otro
-  deja de alinear.
+- **Header:** 72px, sobre `--sidebar` con borde inferior `--sidebar-border`. La card empieza
+  12px debajo del borde superior del rail y mide 48px; su centro queda en y=36. El header
+  comparte esa línea media, así el breadcrumb queda alineado verticalmente con el contenido
+  de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
+  exterior de la card. El borde inferior del header queda 12px debajo del de la card.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
 
 ---
