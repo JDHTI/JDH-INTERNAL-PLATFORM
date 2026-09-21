@@ -113,6 +113,20 @@ export const AREAS: Area[] = [
     icon: Calculator,
     remit: "Causación, cierres y activos fijos.",
   },
+  {
+    id: "bi",
+    name: "BI",
+    path: "/bi",
+    icon: TrendingUp,
+    remit: "Inteligencia de negocios, indicadores y análisis para la toma de decisiones.",
+  },
+  {
+    id: "comercial",
+    name: "Comercial",
+    path: "/comercial",
+    icon: Building2,
+    remit: "Ventas, clientes y seguimiento de la gestión comercial.",
+  },
 ];
 
 /**
