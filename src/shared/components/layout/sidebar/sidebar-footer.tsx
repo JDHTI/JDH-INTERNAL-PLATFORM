@@ -4,6 +4,7 @@ import { Moon, Sun } from "lucide-react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+import SidebarUserCard from "./sidebar-user-card";
 
 /**
  * Theme switch. Both modes are fully styled, so this is a real control, not a
@@ -16,7 +17,7 @@ export default function SidebarFooter() {
 
   if (isSidebarCollapsed) {
     return (
-      <div className="mt-auto shrink-0 border-t border-sidebar-border p-3">
+      <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
         <button
           type="button"
           onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -30,12 +31,14 @@ export default function SidebarFooter() {
         >
           {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </button>
+
+        <SidebarUserCard />
       </div>
     );
   }
 
   return (
-    <div className="mt-auto shrink-0 border-t border-sidebar-border p-3">
+    <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
       <div
         role="radiogroup"
         aria-label="Tema de la interfaz"
@@ -54,6 +57,8 @@ export default function SidebarFooter() {
           onSelect={() => setTheme("dark")}
         />
       </div>
+
+      <SidebarUserCard />
     </div>
   );
 }

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+import SidebarAreaSwitcher from "./sidebar-area-switcher";
 import SidebarFooter from "./sidebar-footer";
-import SidebarHeader from "./sidebar-header";
 import SidebarMenu from "./sidebar-menu";
 import SidebarSearch from "./sidebar-search";
 
@@ -57,7 +57,7 @@ export default function Sidebar() {
           isSidebarCollapsed ? "md:w-16" : "md:w-[260px]"
         )}
       >
-        <SidebarHeader />
+        <SidebarAreaSwitcher />
         <SidebarSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

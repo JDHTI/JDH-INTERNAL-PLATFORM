@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
-import { HOME_PATH, findModuleByPath } from "@/shared/config/modules.config";
+import {
+  AREAS,
+  findModuleByPath,
+} from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 
 /** Turns an unmatched URL segment into something a person can read. */
@@ -13,60 +16,44 @@ function segmentToLabel(segment: string): string {
   return decoded.charAt(0).toUpperCase() + decoded.slice(1);
 }
 
-interface Crumb {
-  href: string;
-  label: string;
-  isLast: boolean;
+function labelForHref(href: string, segment: string): string {
+  const area = AREAS.find((candidate) => candidate.path === href);
+  if (area) return area.name;
+
+  return findModuleByPath(href)?.name ?? segmentToLabel(segment);
 }
 
+/**
+ * Trail for the current route. Every route lives under an area, so the first
+ * crumb is always the area and there is no platform-level "home" above it.
+ */
 export default function Breadcrumbs() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
 
-  const crumbs: Crumb[] = segments.map((segment, index) => {
+  const crumbs = segments.map((segment, index) => {
     const href = "/" + segments.slice(0, index + 1).join("/");
     return {
       href,
-      label: findModuleByPath(href)?.name ?? segmentToLabel(segment),
+      label: labelForHref(href, segment),
       isLast: index === segments.length - 1,
     };
   });
 
-  const linkClasses = cn(
-    "truncate rounded-sm text-sm font-medium text-text-secondary",
-    "transition-colors duration-150 hover:text-text-primary",
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-  );
+  if (crumbs.length === 0) return null;
 
   return (
     <nav aria-label="Ruta de navegación" className="min-w-0 flex-1">
       <ol className="flex items-center gap-1.5 overflow-hidden">
-        <li className="shrink-0">
-          {crumbs.length === 0 ? (
-            <span
-              aria-current="page"
-              className="flex items-center gap-1.5 text-sm font-semibold text-text-primary"
-            >
-              <Home className="size-4" aria-hidden="true" />
-              Inicio
-            </span>
-          ) : (
-            <Link
-              href={HOME_PATH}
-              className={cn(linkClasses, "flex items-center")}
-              aria-label="Inicio"
-            >
-              <Home className="size-4" aria-hidden="true" />
-            </Link>
-          )}
-        </li>
-
-        {crumbs.map((crumb) => (
+        {crumbs.map((crumb, index) => (
           <li key={crumb.href} className="flex min-w-0 items-center gap-1.5">
-            <ChevronRight
-              className="size-3.5 shrink-0 text-text-secondary"
-              aria-hidden="true"
-            />
+            {index > 0 && (
+              <ChevronRight
+                className="size-3.5 shrink-0 text-text-secondary"
+                aria-hidden="true"
+              />
+            )}
+
             {crumb.isLast ? (
               <span
                 aria-current="page"
@@ -75,7 +62,14 @@ export default function Breadcrumbs() {
                 {crumb.label}
               </span>
             ) : (
-              <Link href={crumb.href} className={linkClasses}>
+              <Link
+                href={crumb.href}
+                className={cn(
+                  "truncate rounded-sm text-sm font-medium text-text-secondary",
+                  "transition-colors duration-150 hover:text-text-primary",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                )}
+              >
                 {crumb.label}
               </Link>
             )}
