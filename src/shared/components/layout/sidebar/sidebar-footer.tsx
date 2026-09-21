@@ -29,6 +29,7 @@ export default function SidebarFooter() {
               isActive={pathname === link.path}
               isCollapsed={isSidebarCollapsed}
               onNavigate={() => setMobileMenuOpen(false)}
+              labelClassName="font-light"
             />
           </li>
         ))}

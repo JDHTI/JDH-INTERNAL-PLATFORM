@@ -1,5 +1,8 @@
 "use client";
 
+import { LogOut } from "lucide-react";
+import { toast } from "sonner";
+
 import {
   PLACEHOLDER_USER,
   getInitials,
@@ -9,11 +12,8 @@ import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
 /**
- * Identity card.
- *
- * Information only, with no menu behind it: there is no session to sign out
- * of and no profile page to open yet, and a card that looks pressable but
- * does nothing is worse than a card that plainly does not.
+ * Identity card. The logout control explains that Entra must be connected
+ * before a real session can be closed.
  */
 export default function SidebarUserCard() {
   const isSidebarCollapsed = useUiStore((state) => state.isSidebarCollapsed);
@@ -48,6 +48,23 @@ export default function SidebarUserCard() {
           {user.email}
         </p>
       </div>
+      <button
+        type="button"
+        onClick={() =>
+          toast.info(
+            "El cierre de sesión estará disponible cuando se conecte Microsoft Entra."
+          )
+        }
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-sm text-sidebar-muted",
+          "transition-colors duration-150 hover:bg-sidebar-hover hover:text-sidebar-foreground",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
+        )}
+        aria-label="Cerrar sesión"
+        title="Cerrar sesión"
+      >
+        <LogOut className="size-4" aria-hidden="true" />
+      </button>
     </div>
   );
 }

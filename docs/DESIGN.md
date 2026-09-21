@@ -309,8 +309,9 @@ Ancla en 14px, no en 16px. Es una herramienta de trabajo, no un artículo de lec
 ### 4.3 Reglas
 
 - **La escalera de pesos es 400 / 500 / 700.** El 500 se reserva para etiquetas de formulario;
-  el 700 para todo énfasis. El 300 (light) existe en la familia pero no se usa en interfaz: a
-  13–14px pierde legibilidad en pantallas de bodega. Un tercer nivel de énfasis no existe.
+  el 700 para todo énfasis. El 300 (light) se limita a las etiquetas de las utilidades
+  Sugerencias y Configuración en el pie de la sidebar; no se usa en texto operativo de
+  13–14px porque pierde legibilidad en pantallas de bodega.
 - **Tracking negativo solo a 20px o más.** A 14px empeora la legibilidad en vez de mejorarla.
 - **Line-height 1.5 en cuerpo, 1.2–1.3 en títulos.** No se comprime por debajo para ganar filas.
 - **Los identificadores van en mono.** Un SKU, un consecutivo de PQRSF o un UUID en tipografía
