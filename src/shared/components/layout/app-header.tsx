@@ -1,18 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { Menu } from "lucide-react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import Breadcrumbs from "./breadcrumbs";
-
-const iconButton = cn(
-  "flex size-8 shrink-0 items-center justify-center rounded-md",
-  "text-sidebar-muted transition-colors duration-150",
-  "hover:bg-sidebar-hover hover:text-sidebar-foreground",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
-);
+import { headerIconButtonClass } from "./header/header-icon-button";
+import NotificationsMenu from "./header/notifications-menu";
+import QuickNotesMenu from "./header/quick-notes-menu";
 
 /**
  * Application header: 60px, carrying the sidebar surface so the rail and the
@@ -23,10 +18,11 @@ const iconButton = cn(
  * exactly where the area card ends: 12px of rail padding plus the card's
  * 48px. Change one and the other stops lining up.
  *
- * The right slot is deliberately empty. The reference layout puts a user menu
- * and a notification bell there; both would need a session and a notification
- * feed that do not exist yet, and a bell that never rings is a dead control.
- * Identity lives in the sidebar card instead.
+ * The wordmark that used to sit here is gone: the sidebar already carries the
+ * brand mark, and repeating it in the header added nothing. In its place are
+ * the two actions every screen can use regardless of which area is active:
+ * notifications and a personal scratch pad. Both open a real panel with
+ * honest content — see the components for what "honest" means for each.
  *
  * Collapsing the rail is the area card's job, so the header carries no
  * sidebar control beyond the mobile drawer trigger, which has no counterpart
@@ -40,7 +36,7 @@ export default function AppHeader() {
       <button
         type="button"
         onClick={() => setMobileMenuOpen(true)}
-        className={cn(iconButton, "md:hidden")}
+        className={cn(headerIconButtonClass, "md:hidden")}
         aria-label="Abrir navegación"
       >
         <Menu className="size-4" />
@@ -48,18 +44,15 @@ export default function AppHeader() {
 
       <Breadcrumbs />
 
-      {/* The white wordmark reads against the sidebar surface the header
-          carries. Dimensions are the rendered size at the source's 1200x256
-          ratio, not the source's own: the declared width drives the srcset,
-          so passing 1200 would ship a 3840px PNG for a 20px-tall mark. */}
-      <Image
-        src="/logos/text-white.png"
-        alt="Juan D. Hoyos Distribuciones"
-        width={94}
-        height={20}
-        priority
-        className="h-5 w-auto shrink-0"
+      <div
+        aria-hidden="true"
+        className="hidden h-5 w-px shrink-0 bg-sidebar-border sm:block"
       />
+
+      <div className="flex shrink-0 items-center gap-1">
+        <NotificationsMenu />
+        <QuickNotesMenu />
+      </div>
     </header>
   );
 }
