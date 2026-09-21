@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import AppHeader from "@/shared/components/layout/app-header";
 import Sidebar from "@/shared/components/layout/sidebar/sidebar";
 import QueryProvider from "@/shared/components/providers/query-provider";
+import ThemeSync from "@/shared/components/providers/theme-sync";
 
 /**
  * The application shell. The intranet is the shell: a module renders inside
@@ -16,6 +17,8 @@ export default function AppLayout({
 }) {
   return (
     <QueryProvider>
+      <ThemeSync />
+
       <div className="app-shell flex overflow-hidden bg-canvas text-text-primary">
         <Sidebar />
 

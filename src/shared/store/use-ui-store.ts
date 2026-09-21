@@ -11,6 +11,13 @@ interface UiState {
 
   setTheme: (mode: ThemeMode) => void;
   toggleTheme: () => void;
+  /**
+   * Adopts the theme the inline script already applied to <html>, without
+   * writing it back to storage. Runs once after mount, so a first-time
+   * visitor keeps following their OS preference instead of having it frozen
+   * into localStorage by the act of loading the page.
+   */
+  hydrateTheme: () => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setMobileMenuOpen: (open: boolean) => void;
@@ -37,17 +44,13 @@ function persistTheme(mode: ThemeMode): void {
   }
 }
 
-/**
- * Reads the theme the inline script in the root layout already resolved and
- * wrote to <html>, so the store starts in sync instead of flashing to light.
- */
-function readInitialTheme(): ThemeMode {
-  if (typeof document === "undefined") return "light";
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
-}
-
 export const useUiStore = create<UiState>()((set, get) => ({
-  theme: readInitialTheme(),
+  // Must be a constant, not a read of <html>. The store initializer runs on
+  // both sides: the server has no document and resolves "light", while the
+  // client reads the class the inline script already wrote and can resolve
+  // "dark". React then hydrates a tree that disagrees with the server HTML.
+  // ThemeSync reconciles this after mount instead.
+  theme: "light",
   isSidebarCollapsed: false,
   isMobileMenuOpen: false,
 
@@ -62,6 +65,14 @@ export const useUiStore = create<UiState>()((set, get) => ({
     applyThemeToDom(next);
     persistTheme(next);
     set({ theme: next });
+  },
+
+  hydrateTheme: () => {
+    if (typeof document === "undefined") return;
+    const mode: ThemeMode = document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+    if (mode !== get().theme) set({ theme: mode });
   },
 
   toggleSidebar: () =>
