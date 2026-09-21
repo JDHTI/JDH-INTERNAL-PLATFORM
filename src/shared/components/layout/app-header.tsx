@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Menu } from "lucide-react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
@@ -46,6 +47,19 @@ export default function AppHeader() {
       </button>
 
       <Breadcrumbs />
+
+      {/* The white wordmark reads against the sidebar surface the header
+          carries. Dimensions are the rendered size at the source's 1200x256
+          ratio, not the source's own: the declared width drives the srcset,
+          so passing 1200 would ship a 3840px PNG for a 20px-tall mark. */}
+      <Image
+        src="/logos/text-white.png"
+        alt="Juan D. Hoyos Distribuciones"
+        width={94}
+        height={20}
+        priority
+        className="h-5 w-auto shrink-0"
+      />
     </header>
   );
 }

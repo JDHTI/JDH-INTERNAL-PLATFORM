@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -50,24 +51,43 @@ export default function Breadcrumbs() {
     };
   });
 
-  if (crumbs.length === 0) return null;
-
   return (
     <nav aria-label="Ruta de navegación" className="min-w-0 flex-1">
-      <ol className="flex items-center gap-1.5 overflow-hidden">
-        {crumbs.map((crumb, index) => (
-          <li key={crumb.href} className="flex min-w-0 items-center gap-1.5">
-            {index > 0 && (
-              <ChevronRight
-                className="size-3.5 shrink-0 text-sidebar-muted"
-                aria-hidden="true"
-              />
-            )}
+      <ol className="flex items-center gap-2 overflow-hidden">
+        {/* The mark opens every trail and is a real link home, not an
+            ornament parked in front of the crumbs. */}
+        <li className="flex shrink-0 items-center">
+          <Link
+            href="/"
+            aria-label="Inicio"
+            className="flex items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
+          >
+            {/* Sized at what it actually renders, not at the source's
+                1024px: the declared width is what drives the srcset, so
+                intrinsic dimensions here would ship a 2048px PNG for a 20px
+                mark. The link carries the label, so the image is decorative. */}
+            <Image
+              src="/logos/mark-white.png"
+              alt=""
+              width={26}
+              height={26}
+              priority
+              className="size-6.5"
+            />
+          </Link>
+        </li>
+
+        {crumbs.map((crumb) => (
+          <li key={crumb.href} className="flex min-w-0 items-center gap-2">
+            <ChevronRight
+              className="size-4 shrink-0 text-sidebar-muted"
+              aria-hidden="true"
+            />
 
             {crumb.isLast ? (
               <span
                 aria-current="page"
-                className="truncate text-sm font-semibold text-sidebar-foreground"
+                className="truncate text-base font-semibold text-sidebar-foreground"
               >
                 {crumb.label}
               </span>
@@ -75,7 +95,7 @@ export default function Breadcrumbs() {
               <Link
                 href={crumb.href}
                 className={cn(
-                  "truncate rounded-sm text-sm font-medium text-sidebar-muted",
+                  "truncate rounded-sm text-base font-medium text-sidebar-muted",
                   "transition-colors duration-150 hover:text-sidebar-foreground",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
                 )}
