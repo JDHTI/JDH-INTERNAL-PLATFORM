@@ -14,9 +14,13 @@ const iconButton = cn(
 );
 
 /**
- * Application header: 56px, sticky, carrying the sidebar surface so the rail
- * and the bar above the content read as one frame around the canvas. No blur
- * — see docs/DESIGN.md §6.2.
+ * Application header: 60px, carrying the sidebar surface so the rail and the
+ * bar above the content read as one frame around the canvas. No blur — see
+ * docs/DESIGN.md §6.2.
+ *
+ * The height is 60px rather than a round 56px so its bottom edge lands
+ * exactly where the area card ends: 12px of rail padding plus the card's
+ * 48px. Change one and the other stops lining up.
  *
  * The right slot is deliberately empty. The reference layout puts a user menu
  * and a notification bell there; both would need a session and a notification
@@ -31,7 +35,7 @@ export default function AppHeader() {
   const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
 
   return (
-    <header className="flex h-14 w-full shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground">
+    <header className="flex h-15 w-full shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground">
       <button
         type="button"
         onClick={() => setMobileMenuOpen(true)}

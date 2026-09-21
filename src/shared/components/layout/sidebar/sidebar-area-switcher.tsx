@@ -91,7 +91,7 @@ export default function SidebarAreaSwitcher() {
             // around the 32px badge is 8px on every side rather than 8px
             // vertically and 4px horizontally.
             "flex size-12 items-center justify-center rounded-md",
-            "bg-sidebar-subtle transition-colors duration-150",
+            "border border-sidebar-border bg-sidebar-subtle transition-colors duration-150",
             "hover:bg-sidebar-hover",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
           )}
@@ -110,7 +110,8 @@ export default function SidebarAreaSwitcher() {
             applied inside the collapse button instead. */}
         <div
           className={cn(
-            "flex h-12 items-center rounded-md px-2 transition-colors duration-150",
+            "flex h-12 items-center rounded-md border border-sidebar-border px-2",
+            "transition-colors duration-150",
             isOpen ? "bg-sidebar-hover" : "bg-sidebar-subtle"
           )}
         >
@@ -163,7 +164,7 @@ export default function SidebarAreaSwitcher() {
           <div
             id={panelId}
             className={cn(
-              "absolute inset-x-0 top-full z-50 mt-0.5 overflow-hidden rounded-md",
+              "absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-md",
               "border border-sidebar-border bg-sidebar shadow-lg"
             )}
           >

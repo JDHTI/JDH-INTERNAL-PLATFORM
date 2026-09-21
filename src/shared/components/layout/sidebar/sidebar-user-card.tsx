@@ -21,8 +21,18 @@ export default function SidebarUserCard() {
 
   if (isSidebarCollapsed) {
     return (
-      <div className="flex justify-center">
+      // Square with the same 8px frame as the collapsed area card, so the top
+      // and bottom of the rail bookend each other.
+      <div
+        className="flex size-12 items-center justify-center rounded-md border border-sidebar-border"
+        title={`${user.displayName} · ${user.email}`}
+      >
         <UserAvatar user={user} />
+        {/* The avatar is decorative, and `title` on a non-interactive element
+            is not reliably announced, so the identity is spelled out here. */}
+        <span className="sr-only">
+          {user.displayName}, {user.email}
+        </span>
       </div>
     );
   }

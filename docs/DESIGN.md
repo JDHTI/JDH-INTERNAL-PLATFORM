@@ -357,7 +357,10 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
 > `--sidebar-muted`, `--sidebar-border`, `--sidebar-hover`, `--sidebar-active`. En claro
 > `--sidebar` es `--neutral-900`; en oscuro baja a `#151513` para no competir con el canvas.
 > Contraste medido: blanco sobre `#1d1d1b` = **16.88:1**; `--sidebar-muted` = **7.52:1**.
-- **Header:** 56px, sticky, sobre `--canvas` con borde inferior `--border`.
+- **Header:** 60px, sobre `--sidebar` con borde inferior `--sidebar-border`. Los 60px no son
+  arbitrarios: son los 12px de padding del rail más los 48px de la card de área, de modo que
+  el borde inferior del header cae exactamente donde termina la card. Si cambia uno, el otro
+  deja de alinear.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
 
 ---
