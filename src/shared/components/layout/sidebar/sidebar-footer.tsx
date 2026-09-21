@@ -1,23 +1,40 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 
+import { UTILITY_LINKS } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+import SidebarRow from "./sidebar-row";
 import SidebarUserCard from "./sidebar-user-card";
 
-/**
- * Theme switch. Both modes are fully styled, so this is a real control, not a
- * decoration: the choice persists to localStorage and the root layout replays
- * it before first paint.
- */
 export default function SidebarFooter() {
-  const { theme, setTheme, isSidebarCollapsed } = useUiStore();
+  const pathname = usePathname();
+  const { theme, setTheme, isSidebarCollapsed, setMobileMenuOpen } =
+    useUiStore();
   const isDark = theme === "dark";
 
-  if (isSidebarCollapsed) {
-    return (
-      <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
+  return (
+    <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
+      {/* Platform-wide destinations: they stay put as the user moves between
+          areas, so they sit outside the area module list. */}
+      <ul className="space-y-0.5">
+        {UTILITY_LINKS.map((link) => (
+          <li key={link.id}>
+            <SidebarRow
+              href={link.path}
+              label={link.name}
+              icon={link.icon}
+              isActive={pathname === link.path}
+              isCollapsed={isSidebarCollapsed}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+          </li>
+        ))}
+      </ul>
+
+      {isSidebarCollapsed ? (
         <button
           type="button"
           onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -31,32 +48,26 @@ export default function SidebarFooter() {
         >
           {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </button>
-
-        <SidebarUserCard />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
-      <div
-        role="radiogroup"
-        aria-label="Tema de la interfaz"
-        className="flex items-center gap-1 rounded-md border border-sidebar-border p-1"
-      >
-        <ThemeOption
-          label="Claro"
-          icon={<Sun className="size-3.5" aria-hidden="true" />}
-          isSelected={!isDark}
-          onSelect={() => setTheme("light")}
-        />
-        <ThemeOption
-          label="Oscuro"
-          icon={<Moon className="size-3.5" aria-hidden="true" />}
-          isSelected={isDark}
-          onSelect={() => setTheme("dark")}
-        />
-      </div>
+      ) : (
+        <div
+          role="radiogroup"
+          aria-label="Tema de la interfaz"
+          className="flex items-center gap-1 rounded-md border border-sidebar-border p-1"
+        >
+          <ThemeOption
+            label="Claro"
+            icon={<Sun className="size-3.5" aria-hidden="true" />}
+            isSelected={!isDark}
+            onSelect={() => setTheme("light")}
+          />
+          <ThemeOption
+            label="Oscuro"
+            icon={<Moon className="size-3.5" aria-hidden="true" />}
+            isSelected={isDark}
+            onSelect={() => setTheme("dark")}
+          />
+        </div>
+      )}
 
       <SidebarUserCard />
     </div>

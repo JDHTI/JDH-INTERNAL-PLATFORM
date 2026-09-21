@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import SidebarAreaSwitcher from "./sidebar-area-switcher";
 import SidebarFooter from "./sidebar-footer";
 import SidebarMenu from "./sidebar-menu";
-import SidebarSearch from "./sidebar-search";
 
 export default function Sidebar() {
-  const [searchQuery, setSearchQuery] = useState("");
   const { isSidebarCollapsed, isMobileMenuOpen, setMobileMenuOpen } =
     useUiStore();
 
@@ -58,11 +56,7 @@ export default function Sidebar() {
         )}
       >
         <SidebarAreaSwitcher />
-        <SidebarSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
-        <SidebarMenu searchQuery={searchQuery} />
+        <SidebarMenu />
         <SidebarFooter />
       </aside>
     </>

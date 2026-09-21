@@ -23,12 +23,17 @@ import { cn } from "@/shared/lib/utils";
  * The active area comes from the URL, not from stored state: every route
  * belongs to an area, so a deep link or a refresh lands with the right area
  * already selected and there is nothing to keep in sync.
+ *
+ * The card and the chevron are two sibling buttons with two different jobs:
+ * pressing the card collapses the rail, pressing the chevron opens the area
+ * list. They are siblings rather than nested because a button inside a button
+ * is invalid markup and browsers resolve it unpredictably.
  */
 export default function SidebarAreaSwitcher() {
   const pathname = usePathname();
   const panelId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const chevronRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const { isSidebarCollapsed, setSidebarCollapsed, setMobileMenuOpen } =
@@ -49,9 +54,9 @@ export default function SidebarAreaSwitcher() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setIsOpen(false);
-      // Returning focus to the trigger keeps keyboard users where they were,
+      // Returning focus to the chevron keeps keyboard users where they were,
       // instead of dropping focus back to the top of the document.
-      triggerRef.current?.focus();
+      chevronRef.current?.focus();
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -62,98 +67,123 @@ export default function SidebarAreaSwitcher() {
     };
   }, [isOpen]);
 
-  const handleTriggerClick = () => {
-    // On the 64px rail there is no room for the panel, so the first press
-    // expands the sidebar and the second opens the list.
-    if (isSidebarCollapsed) {
-      setSidebarCollapsed(false);
-      return;
-    }
-    setIsOpen((open) => !open);
-  };
-
   const ActiveIcon = activeArea.icon;
 
-  return (
-    <div
-      ref={containerRef}
-      className="relative shrink-0 border-b border-sidebar-border p-3"
+  const areaBadge = (
+    <span
+      className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-sidebar-active"
+      aria-hidden="true"
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleTriggerClick}
-        aria-expanded={isSidebarCollapsed ? undefined : isOpen}
-        aria-controls={isOpen ? panelId : undefined}
-        aria-label={
-          isSidebarCollapsed
-            ? `Área actual: ${activeArea.name}. Expandir barra lateral para cambiar`
-            : undefined
-        }
-        title={isSidebarCollapsed ? activeArea.name : undefined}
-        className={cn(
-          "flex w-full items-center rounded-md border border-sidebar-border",
-          "transition-colors duration-150 hover:bg-sidebar-hover",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
-          isSidebarCollapsed ? "justify-center p-1.5" : "gap-2.5 p-2",
-          isOpen && "bg-sidebar-hover"
-        )}
-      >
-        <span
-          className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-sidebar-active"
-          aria-hidden="true"
-        >
-          <ActiveIcon className="size-4 text-sidebar-foreground" />
-        </span>
+      <ActiveIcon className="size-4 text-sidebar-foreground" />
+    </span>
+  );
 
-        {!isSidebarCollapsed && (
-          <>
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-[11px] leading-tight text-sidebar-muted">
-                Área
-              </span>
-              <span className="block truncate text-sm font-semibold text-sidebar-foreground">
-                {activeArea.name}
-              </span>
-            </span>
-            <ChevronsUpDown
-              className="size-4 shrink-0 text-sidebar-muted"
-              aria-hidden="true"
-            />
-          </>
-        )}
-      </button>
-
-      {isOpen && !isSidebarCollapsed && (
-        <div
-          id={panelId}
+  if (isSidebarCollapsed) {
+    return (
+      <div className="shrink-0 border-b border-sidebar-border p-3">
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(false)}
+          title={activeArea.name}
+          aria-label={`${activeArea.name}. Expandir barra lateral`}
           className={cn(
-            "absolute inset-x-3 top-full z-50 mt-1 overflow-hidden rounded-md",
-            "border border-sidebar-border bg-sidebar shadow-lg"
+            "flex h-12 w-full items-center justify-center rounded-md",
+            "border border-sidebar-border transition-colors duration-150",
+            "hover:bg-sidebar-hover",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
           )}
         >
-          <p className="border-b border-sidebar-border px-3 py-2 text-[11px] font-medium text-sidebar-muted">
-            Áreas asignadas
-          </p>
-          <ul className="max-h-72 overflow-y-auto py-1">
-            {areas.map((area) => (
-              <li key={area.id}>
-                <AreaOption
-                  area={area}
-                  isActive={area.id === activeArea.id}
-                  onSelect={() => {
-                    // Closed here rather than by watching the pathname: the
-                    // click is the event, and an effect that reacts to the
-                    // route would just be a slower way to say the same thing.
-                    setIsOpen(false);
-                    setMobileMenuOpen(false);
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
+          {areaBadge}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shrink-0 border-b border-sidebar-border p-3">
+      <div ref={containerRef} className="relative">
+        {/* No gap on the card itself: the name block and the chevron button
+            sit flush so they read as one continuous surface, with the gap
+            applied inside the collapse button instead. */}
+        <div
+          className={cn(
+            "flex h-12 items-center rounded-md border border-sidebar-border px-2",
+            isOpen && "bg-sidebar-hover"
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setSidebarCollapsed(true);
+            }}
+            title="Colapsar barra lateral"
+            // The visible area name is part of the accessible name so the
+            // control still matches what a voice user would say out loud
+            // (WCAG 2.5.3), with the action appended.
+            aria-label={`${activeArea.name}. Colapsar barra lateral`}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-sm",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
+            )}
+          >
+            {areaBadge}
+            <span
+              className={cn(
+                "flex h-8 min-w-0 flex-1 items-center rounded-l-sm px-2",
+                "bg-sidebar-active text-sm font-semibold text-sidebar-foreground"
+              )}
+            >
+              <span className="truncate">{activeArea.name}</span>
+            </span>
+          </button>
+
+          <button
+            ref={chevronRef}
+            type="button"
+            onClick={() => setIsOpen((open) => !open)}
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? panelId : undefined}
+            aria-label="Cambiar de área"
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-r-sm",
+              "bg-sidebar-active text-sidebar-foreground transition-colors duration-150",
+              "hover:bg-sidebar-hover",
+              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
+            )}
+          >
+            <ChevronsUpDown className="size-4" aria-hidden="true" />
+          </button>
         </div>
-      )}
+
+        {isOpen && (
+          <div
+            id={panelId}
+            className={cn(
+              "absolute inset-x-0 top-full z-50 mt-0.5 overflow-hidden rounded-md",
+              "border border-sidebar-border bg-sidebar shadow-lg"
+            )}
+          >
+            <ul className="max-h-80 overflow-y-auto">
+              {areas.map((area) => (
+                <li key={area.id}>
+                  <AreaOption
+                    area={area}
+                    isActive={area.id === activeArea.id}
+                    onSelect={() => {
+                      // Closed here rather than by watching the pathname: the
+                      // click is the event, and an effect that reacts to the
+                      // route would just be a slower way to say the same thing.
+                      setIsOpen(false);
+                      setMobileMenuOpen(false);
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -175,14 +205,21 @@ function AreaOption({
       onClick={onSelect}
       aria-current={isActive ? "true" : undefined}
       className={cn(
-        "flex items-center gap-2.5 px-3 py-2 text-sm transition-colors duration-150",
+        // Same 48px height as the card, so the open panel reads as a
+        // continuation of it rather than a different kind of list.
+        "flex h-12 items-center gap-2 px-2 text-sm transition-colors duration-150",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground",
         isActive
           ? "bg-sidebar-active text-sidebar-foreground"
           : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
       )}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-sidebar-active"
+        aria-hidden="true"
+      >
+        <Icon className="size-4" />
+      </span>
       <span className="min-w-0 flex-1 truncate font-medium">{area.name}</span>
       {isActive && (
         <>

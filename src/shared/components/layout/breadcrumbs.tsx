@@ -7,6 +7,7 @@ import { ChevronRight } from "lucide-react";
 import {
   AREAS,
   findModuleByPath,
+  findUtilityLinkByPath,
 } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 
@@ -20,12 +21,17 @@ function labelForHref(href: string, segment: string): string {
   const area = AREAS.find((candidate) => candidate.path === href);
   if (area) return area.name;
 
-  return findModuleByPath(href)?.name ?? segmentToLabel(segment);
+  return (
+    findModuleByPath(href)?.name ??
+    findUtilityLinkByPath(href)?.name ??
+    segmentToLabel(segment)
+  );
 }
 
 /**
- * Trail for the current route. Every route lives under an area, so the first
- * crumb is always the area and there is no platform-level "home" above it.
+ * Trail for the current route. Area routes lead with their area; the
+ * platform-wide utilities stand on their own, so there is no artificial
+ * "home" crumb above either of them.
  */
 export default function Breadcrumbs() {
   const pathname = usePathname();

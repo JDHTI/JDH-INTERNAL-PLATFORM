@@ -14,12 +14,14 @@ import {
   KeyRound,
   Landmark,
   Laptop,
+  Lightbulb,
   LifeBuoy,
   Megaphone,
   MessageSquareWarning,
   Palette,
   ReceiptText,
   Server,
+  Settings,
   Target,
   TrendingUp,
   type LucideIcon,
@@ -46,7 +48,10 @@ export const MODULE_CATEGORIES = [
   "Reportes",
   "Documentación",
   "Maestros",
-  "Configuración",
+  // Not "Configuración": that label already belongs to the platform-wide
+  // utility link in the footer, and two different things under one word in
+  // the same sidebar is a coin toss for the user.
+  "Administración",
 ] as const;
 
 export type ModuleCategory = (typeof MODULE_CATEGORIES)[number];
@@ -140,7 +145,7 @@ export const MODULES: ModuleItem[] = [
     name: "Accesos y permisos",
     path: "/ti/accesos",
     areaId: "ti",
-    category: "Configuración",
+    category: "Administración",
     icon: KeyRound,
     available: false,
   },
@@ -281,6 +286,37 @@ export const MODULES: ModuleItem[] = [
     available: false,
   },
 ];
+
+/**
+ * Platform-wide destinations that do not belong to any single area. They sit
+ * in the sidebar footer, above the theme switch, and stay in place as the
+ * user moves between areas.
+ */
+export interface UtilityLink {
+  id: string;
+  name: string;
+  path: string;
+  icon: LucideIcon;
+}
+
+export const UTILITY_LINKS: UtilityLink[] = [
+  {
+    id: "sugerencias",
+    name: "Sugerencias",
+    path: "/sugerencias",
+    icon: Lightbulb,
+  },
+  {
+    id: "configuracion",
+    name: "Configuración",
+    path: "/configuracion",
+    icon: Settings,
+  },
+];
+
+export function findUtilityLinkByPath(path: string): UtilityLink | undefined {
+  return UTILITY_LINKS.find((link) => link.path === path);
+}
 
 export const DEFAULT_AREA = AREAS[0];
 
