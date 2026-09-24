@@ -9,7 +9,7 @@ import type { Area } from "@/features/areas/types/area.types";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
-const AREA_PAGE_SIZE = 9;
+const AREA_PAGE_SIZE = 7;
 
 /**
  * Area switcher.
@@ -208,10 +208,10 @@ function AreaSwitcherCard({
           >
             <ul
               aria-label={`Áreas, página ${visiblePage + 1} de ${pageCount}`}
-              className="max-h-[27rem] overflow-y-auto overscroll-contain no-scrollbar"
+              className="max-h-[21rem] snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar"
             >
               {visibleAreas.map((area) => (
-                <li key={area.id}>
+                <li key={area.id} className="snap-start">
                   <AreaOption
                     area={area}
                     isActive={area.id === activeArea.id}
