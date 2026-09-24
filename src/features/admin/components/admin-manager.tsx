@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { createElement, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Pencil,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Trash2,
   Users,
   X,
@@ -37,9 +39,14 @@ import {
 } from "@/features/admin/services/admin.service";
 import type { AreaDraft } from "@/features/admin/types/admin.types";
 import { areaToDraft } from "@/features/admin/types/admin.types";
+import {
+  AREA_ICON_OPTIONS,
+  DEFAULT_AREA_ICON,
+  resolveAreaIcon,
+} from "@/features/areas/area-icons";
 import { Button } from "@/shared/components/ui/button";
-import { DialogError } from "@/shared/components/ui/dialog";
-import { Field, Textarea } from "@/shared/components/ui/field";
+import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -49,8 +56,7 @@ type AdminSection = "areas" | "usuarios";
 const EMPTY_AREA: AreaDraft = {
   slug: "",
   name: "",
-  remit: "",
-  icon: "",
+  icon: DEFAULT_AREA_ICON,
   sort_order: "0",
   responsible_email: "",
 };
@@ -129,8 +135,7 @@ export default function AdminManager({
     const sortOrder = Number.parseInt(areaDraft.sort_order, 10);
     const payload = {
       name: areaDraft.name.trim(),
-      remit: areaDraft.remit.trim() || null,
-      icon: areaDraft.icon.trim() || null,
+      icon: areaDraft.icon.trim() || DEFAULT_AREA_ICON,
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
       responsible_email: areaDraft.responsible_email.trim() || null,
     };
@@ -200,21 +205,32 @@ export default function AdminManager({
         </Link>
       </nav>
 
-      {error && <DialogError message={error} />}
+      {!areaFormOpen && error && <DialogError message={error} />}
+
+      <Dialog
+        open={areaFormOpen}
+        onOpenChange={(open) => {
+          setAreaFormOpen(open);
+          if (!open) setError(null);
+        }}
+        title={editingAreaSlug ? "Editar área" : "Nueva área"}
+        description="Define el acceso, la identidad visual y el orden de esta área."
+        isForm
+      >
+        {error && <DialogError message={error} />}
+        <AreaForm
+          draft={areaDraft}
+          users={users ?? []}
+          editing={Boolean(editingAreaSlug)}
+          busy={busy === "area"}
+          onChange={setAreaDraft}
+          onSubmit={saveArea}
+          onCancel={() => setAreaFormOpen(false)}
+        />
+      </Dialog>
 
       {section === "areas" ? (
         <div className="space-y-4">
-          {areaFormOpen && (
-            <AreaForm
-              draft={areaDraft}
-              users={users ?? []}
-              editing={Boolean(editingAreaSlug)}
-              busy={busy === "area"}
-              onChange={setAreaDraft}
-              onSubmit={saveArea}
-              onCancel={() => setAreaFormOpen(false)}
-            />
-          )}
           {areasQuery.isPending ? (
             <LoadingBlock label="Cargando áreas" />
           ) : areasQuery.isError ? (
@@ -228,24 +244,32 @@ export default function AdminManager({
                   <h2 className="font-semibold">Áreas ({areas.length})</h2>
                   <p className="text-xs text-text-secondary">Selecciona un área para administrar su equipo.</p>
                 </div>
-                <ul className="divide-y divide-border">
+                <ul className="max-h-96 divide-y divide-border overflow-y-auto overscroll-contain">
                   {areas.map((area) => (
-                    <li key={area.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSlug(area.slug)}
-                        className={cn(
-                          "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-canvas-subtle",
-                          activeArea?.slug === area.slug && "bg-canvas-subtle"
-                        )}
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{area.name}</span>
-                          <span className="block truncate text-xs text-text-secondary">/{area.slug}</span>
-                        </span>
-                        <span className="shrink-0 text-xs tabular text-text-secondary">#{area.sort_order}</span>
-                      </button>
-                    </li>
+                      <li key={area.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSlug(area.slug)}
+                          className={cn(
+                            "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-canvas-subtle",
+                            activeArea?.slug === area.slug && "bg-canvas-subtle"
+                          )}
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary">
+                              {createElement(resolveAreaIcon(area.icon), {
+                                className: "size-4",
+                                "aria-hidden": true,
+                              })}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium">{area.name}</span>
+                              <span className="block truncate text-xs text-text-secondary">/{area.slug}</span>
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs tabular text-text-secondary">#{area.sort_order}</span>
+                        </button>
+                      </li>
                   ))}
                 </ul>
               </section>
@@ -311,17 +335,16 @@ function AreaForm({
   onCancel: () => void;
 }) {
   const update = (field: keyof AreaDraft, value: string) => onChange({ ...draft, [field]: value });
+  const [iconQuery, setIconQuery] = useState("");
+  const selectedIconName = draft.icon || DEFAULT_AREA_ICON;
+  const filteredIcons = useMemo(() => {
+    const query = iconQuery.trim().toLowerCase();
+    if (!query) return AREA_ICON_OPTIONS;
+    return AREA_ICON_OPTIONS.filter(({ name }) => name.toLowerCase().includes(query));
+  }, [iconQuery]);
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-semibold">{editing ? "Editar área" : "Crear área"}</h2>
-          <p className="text-sm text-text-secondary">El identificador se usa en la URL y no cambia después de crearla.</p>
-        </div>
-        <Button variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Cancelar">
-          <X aria-hidden="true" />
-        </Button>
-      </div>
+    <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Nombre" htmlFor="area-name">
           <Input id="area-name" value={draft.name} onChange={(event) => update("name", event.target.value)} required />
@@ -338,21 +361,86 @@ function AreaForm({
         <Field label="Orden" htmlFor="area-order" optional>
           <Input id="area-order" type="number" value={draft.sort_order} onChange={(event) => update("sort_order", event.target.value)} />
         </Field>
-        <Field label="Icono Lucide" htmlFor="area-icon" optional>
-          <Input id="area-icon" value={draft.icon} onChange={(event) => update("icon", event.target.value)} placeholder="Users" />
-        </Field>
         <div className="md:col-span-2">
-          <Field label="Propósito del área" htmlFor="area-remit" optional>
-            <Textarea id="area-remit" value={draft.remit} onChange={(event) => update("remit", event.target.value)} maxLength={300} />
+          <Field
+            label="Icono del área"
+            htmlFor="area-icon-search"
+            hint="Busca y selecciona una opción; se mostrará en el selector y en la navegación."
+          >
+            <div className="space-y-2">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
+                  aria-hidden="true"
+                />
+                <Input
+                  id="area-icon-search"
+                  value={iconQuery}
+                  onChange={(event) => setIconQuery(event.target.value)}
+                  placeholder="Buscar icono por nombre…"
+                  className="pl-9"
+                />
+              </div>
+              <div
+                role="group"
+                aria-label="Iconos disponibles"
+                className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto rounded-md border border-border-control p-2 sm:grid-cols-6"
+              >
+                {filteredIcons.length > 0 ? (
+                  filteredIcons.map(({ name, icon: Icon }) => {
+                    const isSelected = selectedIconName === name;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        aria-pressed={isSelected}
+                        title={`Usar icono ${name}`}
+                        onClick={() => update("icon", name)}
+                        className={cn(
+                          "relative flex min-w-0 flex-col items-center gap-1 rounded-md border px-1.5 py-2 text-text-secondary transition-colors",
+                          "hover:border-primary hover:bg-primary-subtle hover:text-primary",
+                          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                          isSelected
+                            ? "border-primary bg-primary-subtle text-primary"
+                            : "border-transparent"
+                        )}
+                      >
+                        <Icon className="size-5" aria-hidden="true" />
+                        <span className="w-full truncate text-center text-[10px] leading-tight">{name}</span>
+                        {isSelected && (
+                          <Check className="absolute right-1 top-1 size-3" aria-hidden="true" />
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="col-span-full px-2 py-4 text-center text-sm text-text-secondary">
+                    No encontramos iconos con ese nombre.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-text-secondary">
+                <span className="flex size-7 items-center justify-center rounded-md bg-primary-subtle text-primary">
+                  {createElement(resolveAreaIcon(selectedIconName), {
+                    className: "size-4",
+                    "aria-hidden": true,
+                  })}
+                </span>
+                <span>
+                  Seleccionado: <strong className="font-medium text-text-primary">{selectedIconName}</strong>
+                </span>
+              </div>
+            </div>
           </Field>
         </div>
       </div>
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+
+      <DialogFooter>
+        <Button variant="outline" type="button" onClick={onCancel}>Cancelar</Button>
         <Button type="submit" disabled={busy}>
           <Save aria-hidden="true" /> {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear área"}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }
@@ -426,7 +514,7 @@ function AreaDetails({
           <div className="min-w-0 space-y-1">
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-text-secondary">Área seleccionada</p>
             <h2 className="truncate text-xl font-semibold">{area.name}</h2>
-            <p className="text-sm text-text-secondary">/{area.slug}{area.remit ? ` · ${area.remit}` : ""}</p>
+            <p className="text-sm text-text-secondary">/{area.slug}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onEdit}><Pencil aria-hidden="true" /> Editar</Button>
