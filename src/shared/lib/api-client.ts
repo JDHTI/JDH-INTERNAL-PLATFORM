@@ -4,12 +4,18 @@
  * so every request only has to send credentials. With AUTH_DEV_BYPASS on, a
  * request without cookies acts as the API's development administrator.
  */
-const API_URL = (
+export const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
 ).replace(/\/+$/, "");
 
 /** Where the browser starts the SSO flow when the session is missing. */
 export const LOGIN_URL = `${API_URL}/auth/login`;
+
+export const PROFILE_PHOTO_URL = `${API_URL}/auth/me/photo`;
+
+export async function logoutSession(): Promise<void> {
+  await apiFetch<void>("/auth/logout", { method: "POST" });
+}
 
 /** The API answers every error with `{"detail": "..."}` in Spanish. */
 export class ApiError extends Error {
