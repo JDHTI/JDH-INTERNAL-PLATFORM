@@ -54,6 +54,7 @@
   /* Delimita controles: 3.17:1, cumple WCAG 1.4.11 */
   --border-control: var(--neutral-500);
   --ring: var(--neutral-900);
+  --ring-control: var(--neutral-500);
 
   /* La sidebar es oscura en ambos temas: es el ancla espacial permanente, no
      una superficie que se invierte. Con --surface-inverse quedaría blanca en
@@ -112,6 +113,7 @@
   --border: var(--overlay-on-dark-08);
   --border-control: var(--overlay-on-dark-12);
   --ring: var(--neutral-0);
+  --ring-control: var(--neutral-300);
 
   /* En tema oscuro baja un escalón para no competir con el canvas */
   --sidebar: #151513;
@@ -148,6 +150,7 @@
   --color-border: var(--border);
   --color-border-control: var(--border-control);
   --color-ring: var(--ring);
+  --color-ring-control: var(--ring-control);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
