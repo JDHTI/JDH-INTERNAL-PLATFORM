@@ -1,6 +1,16 @@
+import { notFound } from "next/navigation";
 import { MessageSquareWarning } from "lucide-react";
 
-export default function PqrsfPage() {
+import { isAvailableModule } from "@/shared/config/areas.config";
+
+export default async function PqrsfPage({
+  params,
+}: {
+  params: Promise<{ area: string }>;
+}) {
+  const { area } = await params;
+  if (!isAvailableModule(area, "pqrsf")) notFound();
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">

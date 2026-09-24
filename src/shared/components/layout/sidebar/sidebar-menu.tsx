@@ -3,10 +3,9 @@
 import { usePathname } from "next/navigation";
 import { LayoutGrid } from "lucide-react";
 
+import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import {
-  DEFAULT_AREA,
   MODULE_CATEGORIES,
-  findAreaByPathname,
   getModulesByArea,
 } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
@@ -15,9 +14,23 @@ import SidebarRow from "./sidebar-row";
 export default function SidebarMenu() {
   const pathname = usePathname();
   const { isSidebarCollapsed, setMobileMenuOpen } = useUiStore();
+  const { area: activeArea, isPending } = useActiveArea();
 
-  const activeArea = findAreaByPathname(pathname) ?? DEFAULT_AREA;
-  const areaModules = getModulesByArea(activeArea.id);
+  if (!activeArea) {
+    return (
+      <div className="flex-1 space-y-2 px-3 py-2" aria-busy={isPending}>
+        {isPending &&
+          [0, 1, 2].map((row) => (
+            <div
+              key={row}
+              className="h-9 animate-pulse rounded-md bg-sidebar-subtle"
+            />
+          ))}
+      </div>
+    );
+  }
+
+  const areaModules = getModulesByArea(activeArea.slug);
 
   const grouped = MODULE_CATEGORIES.map((category) => ({
     category,
@@ -45,12 +58,7 @@ export default function SidebarMenu() {
         </li>
       </ul>
 
-      {grouped.length === 0 ? (
-        <p className="px-2 text-xs text-sidebar-muted">
-          {activeArea.name} todavía no tiene módulos declarados.
-        </p>
-      ) : (
-        grouped.map(({ category, modules }) => (
+      {grouped.map(({ category, modules }) => (
           <div key={category} className="space-y-1">
             {!isSidebarCollapsed && (
               <h2 className="px-2 text-[11px] font-semibold tracking-wider text-sidebar-muted uppercase select-none">
@@ -74,8 +82,7 @@ export default function SidebarMenu() {
               ))}
             </ul>
           </div>
-        ))
-      )}
+        ))}
     </nav>
   );
 }

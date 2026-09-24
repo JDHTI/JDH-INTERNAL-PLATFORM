@@ -1,5 +1,3 @@
-import { AREAS, type Area } from "./areas.config";
-
 /**
  * Shape of the signed-in user. Field names follow Microsoft Graph's `/me`
  * response so wiring Entra later is a mapping, not a refactor:
@@ -13,8 +11,6 @@ export interface SessionUser {
   jobTitle: string | null;
   /** Null is the normal production case too: plenty of Entra users have no photo. */
   photoUrl: string | null;
-  /** Areas this user is assigned to. Drives what the area switcher lists. */
-  areaIds: string[];
 }
 
 /**
@@ -30,17 +26,7 @@ export const PLACEHOLDER_USER: SessionUser = {
   email: "usuario@jdh.com.co",
   jobTitle: null,
   photoUrl: null,
-  areaIds: AREAS.map((area) => area.id),
 };
-
-/**
- * Areas the user may enter. Today every area is granted through the
- * placeholder; once Entra groups are mapped to areas this keeps its signature
- * and the switcher narrows on its own.
- */
-export function getAccessibleAreas(user: SessionUser): Area[] {
-  return AREAS.filter((area) => user.areaIds.includes(area.id));
-}
 
 /** Initials for the avatar fallback, e.g. "Usuario de prueba" → "UP". */
 export function getInitials(displayName: string): string {

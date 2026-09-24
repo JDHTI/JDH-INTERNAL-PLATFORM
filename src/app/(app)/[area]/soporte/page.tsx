@@ -1,6 +1,16 @@
+import { notFound } from "next/navigation";
 import { LifeBuoy } from "lucide-react";
 
-export default function SoporteTiPage() {
+import { isAvailableModule } from "@/shared/config/areas.config";
+
+export default async function SoporteTiPage({
+  params,
+}: {
+  params: Promise<{ area: string }>;
+}) {
+  const { area } = await params;
+  if (!isAvailableModule(area, "soporte")) notFound();
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">

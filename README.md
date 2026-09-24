@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# internal-platform-ui
 
-## Getting Started
+Intranet de la Plataforma Interna JDH (Next.js 16, App Router, Tailwind v4).
+Contrato visual: [`docs/DESIGN.md`](docs/DESIGN.md). Guía para agentes y comandos:
+[`CLAUDE.md`](CLAUDE.md).
 
-First, run the development server:
+## Arranque
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local   # ajusta NEXT_PUBLIC_API_URL si hace falta
+pnpm dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Configuración
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000/api/v1` | Base de `internal-platform-api`, con el prefijo de versión. Se incrusta al compilar: cambiarla exige reiniciar `pnpm dev`. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Todas las llamadas pasan por `src/shared/lib/api-client.ts`. En desarrollo
+envía `X-Dev-User-Email` con el correo de `PLACEHOLDER_USER`
+(`src/shared/config/session.mock.ts`), que la API acepta solo con
+`AUTH_DEV_BYPASS=true` y `ENVIRONMENT=dev`. Cuando se conecte Entra, ese header
+se cambia por `Authorization: Bearer <token>` en ese mismo archivo.
 
-## Learn More
+## Áreas y gestor documental
 
-To learn more about Next.js, take a look at the following resources:
+- Las áreas salen de `GET /areas`, ya filtradas por acceso. Todas las rutas de
+  área viven bajo `src/app/(app)/[area]/`: un área nueva en la base de datos
+  tiene resumen y gestor documental sin tocar código. Un slug inexistente da
+  404; un área sin acceso muestra a quién pedirlo.
+- El icono del área es un nombre de lucide-react. Los nombres admitidos están en
+  `src/features/areas/area-icons.ts`; uno desconocido cae a un icono neutro.
+- Los módulos por área siguen en `src/shared/config/areas.config.ts`, indexados
+  por slug. El módulo «Gestor documental» (`/{slug}/documentos`) se genera para
+  cada área.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Para ver las 8 áreas con el usuario de prueba, agrega `usuario@jdh.com.co` a
+`PLATFORM_ADMIN_EMAILS` en el `.env` de la API. Sin eso no ve ninguna área hasta
+que un administrador lo haga miembro, lo que sirve para probar la segmentación.

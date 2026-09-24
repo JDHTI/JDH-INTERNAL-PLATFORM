@@ -234,6 +234,13 @@ Medido con verificador WCAG. **Estos números son resultados, no estimaciones.**
 | Error | #b42318 — **6.57** ✅ | #f97066 — **6.06** ✅ |
 | Info | #175cd3 — **5.99** ✅ | #84adff — **7.56** ✅ |
 
+**Confirmación de borrado (botón `danger` sólido, solo dentro del modal)**
+
+| Tema | Texto / Fondo | Ratio |
+|---|---|---|
+| Claro | `--text-on-primary` #ffffff / `--danger` #b42318 | **6.57** ✅ |
+| Oscuro | `--text-on-primary` #1d1d1b / `--danger` #f97066 | **6.06** ✅ |
+
 ### 3.6 Reglas de color
 
 - **`--neutral-500` (#919189) nunca es color de texto en tema claro.** Falla AA sobre blanco
