@@ -46,6 +46,7 @@ import {
 } from "@/features/areas/area-icons";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -355,10 +356,21 @@ function AreaForm({
           <Input id="area-slug" value={draft.slug} onChange={(event) => update("slug", event.target.value)} disabled={editing} required />
         </Field>
         <Field label="Responsable" htmlFor="area-responsible" optional hint="Solo aparecen usuarios habilitados.">
-          <select id="area-responsible" className="h-9 w-full rounded-md border border-border-control bg-transparent px-2.5 text-sm" value={draft.responsible_email} onChange={(event) => update("responsible_email", event.target.value)}>
-            <option value="">Sin responsable</option>
-            {users.map((user) => user.email && <option key={user.id} value={user.email}>{user.name} · {user.email}</option>)}
-          </select>
+          <Dropdown
+            id="area-responsible"
+            value={draft.responsible_email}
+            onValueChange={(value) => update("responsible_email", value)}
+            options={[
+              { value: "", label: "Sin responsable" },
+              ...users
+                .filter((user) => Boolean(user.email))
+                .map((user) => ({
+                  value: user.email as string,
+                  label: `${user.name} · ${user.email}`,
+                })),
+            ]}
+            aria-label="Responsable"
+          />
         </Field>
         <Field label="Orden" htmlFor="area-order" optional>
           <Input id="area-order" type="number" value={draft.sort_order} onChange={(event) => update("sort_order", event.target.value)} />
@@ -559,14 +571,27 @@ function AreaDetails({
             <p className="text-sm text-text-secondary">Asigna usuarios habilitados a esta área.</p>
           </div>
           <form onSubmit={addMember} className="grid gap-2 sm:grid-cols-[1fr_0.8fr_auto]">
-            <select className="h-9 min-w-0 rounded-md border border-border-control bg-transparent px-2.5 text-sm" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} aria-label="Usuario">
-              <option value="">Selecciona un usuario</option>
-              {users.map((user) => <option key={user.id} value={user.email ?? ""}>{user.name} · {user.email}</option>)}
-            </select>
-            <select className="h-9 min-w-0 rounded-md border border-border-control bg-transparent px-2.5 text-sm" value={effectiveMemberRoleId} onChange={(event) => setMemberRoleId(event.target.value)} aria-label="Rol">
-              <option value="">Selecciona un rol</option>
-              {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-            </select>
+            <Dropdown
+              value={memberEmail}
+              onValueChange={setMemberEmail}
+              options={users
+                .filter((user) => Boolean(user.email))
+                .map((user) => ({
+                  value: user.email as string,
+                  label: `${user.name} · ${user.email}`,
+                }))}
+              placeholder="Selecciona un usuario"
+              aria-label="Usuario"
+              disabled={users.length === 0}
+            />
+            <Dropdown
+              value={effectiveMemberRoleId}
+              onValueChange={setMemberRoleId}
+              options={roles.map((role) => ({ value: role.id, label: role.name }))}
+              placeholder="Selecciona un rol"
+              aria-label="Rol"
+              disabled={roles.length === 0}
+            />
             <Button type="submit" size="icon-sm" disabled={busy === "member" || !memberEmail || !effectiveMemberRoleId} aria-label="Agregar miembro"><Plus aria-hidden="true" /></Button>
           </form>
           {membersPending ? <LoadingBlock label="Cargando miembros" compact /> : members.length === 0 ? <p className="text-sm text-text-secondary">Aún no hay miembros asignados.</p> : (
@@ -575,9 +600,14 @@ function AreaDetails({
                 <li key={member.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                   <span className="min-w-0"><span className="block truncate font-medium">{member.user.display_name ?? "Sin nombre"}</span><span className="block truncate text-xs text-text-secondary">{member.user.email ?? "Sin correo"}</span></span>
                   <span className="flex shrink-0 items-center gap-1">
-                    <select className="h-8 max-w-32 rounded-md border border-border-control bg-transparent px-2 text-xs" value={member.role.id} onChange={(event) => onRun("member-role", () => updateAreaMember(area.slug, member.id, event.target.value))} aria-label={`Rol de ${member.user.display_name ?? "miembro"}`}>
-                      {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                    </select>
+                    <Dropdown
+                      className="w-32"
+                      size="sm"
+                      value={member.role.id}
+                      onValueChange={(value) => onRun("member-role", () => updateAreaMember(area.slug, member.id, value))}
+                      options={roles.map((role) => ({ value: role.id, label: role.name }))}
+                      aria-label={`Rol de ${member.user.display_name ?? "miembro"}`}
+                    />
                     <Button variant="ghost" size="icon-sm" onClick={() => removeMember(member.id, member.user.display_name ?? member.user.email ?? "miembro")} aria-label={`Retirar ${member.user.display_name ?? "miembro"}`}><Trash2 aria-hidden="true" /></Button>
                   </span>
                 </li>
