@@ -244,7 +244,7 @@ export default function AdminManager({
                   <h2 className="font-semibold">Áreas ({areas.length})</h2>
                   <p className="text-xs text-text-secondary">Selecciona un área para administrar su equipo.</p>
                 </div>
-                <ul className="max-h-[28rem] snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
+                <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
                   {areas.map((area) => (
                       <li
                         key={area.id}
