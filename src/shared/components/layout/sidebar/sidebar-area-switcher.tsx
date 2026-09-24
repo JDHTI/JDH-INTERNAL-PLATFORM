@@ -2,18 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Check, ChevronsUpDown } from "lucide-react";
 
-import {
-  DEFAULT_AREA,
-  findAreaByPathname,
-  type Area,
-} from "@/shared/config/areas.config";
-import {
-  PLACEHOLDER_USER,
-  getAccessibleAreas,
-} from "@/shared/config/session.mock";
+import { useActiveArea } from "@/features/areas/hooks/use-areas";
+import type { Area } from "@/features/areas/types/area.types";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -30,7 +22,40 @@ import { cn } from "@/shared/lib/utils";
  * is invalid markup and browsers resolve it unpredictably.
  */
 export default function SidebarAreaSwitcher() {
-  const pathname = usePathname();
+  const { area, areas, isPending } = useActiveArea();
+
+  if (!area) {
+    // Same 48px footprint as the card, so the rail does not jump when the
+    // areas arrive. With no areas at all the root page explains why.
+    return (
+      <div className="shrink-0 p-3">
+        <div
+          className={cn(
+            "flex h-12 items-center rounded-md border border-sidebar-border bg-sidebar-subtle px-2",
+            isPending && "animate-pulse"
+          )}
+          aria-busy={isPending}
+        >
+          {!isPending && (
+            <span className="truncate px-2 text-sm text-sidebar-muted">
+              Sin áreas asignadas
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return <AreaSwitcherCard activeArea={area} areas={areas} />;
+}
+
+function AreaSwitcherCard({
+  activeArea,
+  areas,
+}: {
+  activeArea: Area;
+  areas: Area[];
+}) {
   const panelId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const chevronRef = useRef<HTMLButtonElement>(null);
@@ -38,9 +63,6 @@ export default function SidebarAreaSwitcher() {
 
   const { isSidebarCollapsed, setSidebarCollapsed, setMobileMenuOpen } =
     useUiStore();
-
-  const activeArea = findAreaByPathname(pathname) ?? DEFAULT_AREA;
-  const areas = getAccessibleAreas(PLACEHOLDER_USER);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,7 +190,11 @@ export default function SidebarAreaSwitcher() {
               "border border-sidebar-border bg-sidebar shadow-lg"
             )}
           >
-            <ul className="max-h-80 overflow-y-auto">
+            <ul
+              className={cn(
+                areas.length >= 4 && "max-h-48 overflow-y-auto no-scrollbar"
+              )}
+            >
               {areas.map((area) => (
                 <li key={area.id}>
                   <AreaOption

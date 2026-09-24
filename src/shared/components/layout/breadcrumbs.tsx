@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
+import { useAreas } from "@/features/areas/hooks/use-areas";
+import type { Area } from "@/features/areas/types/area.types";
 import {
-  AREAS,
   findModuleByPath,
   findUtilityLinkByPath,
 } from "@/shared/config/areas.config";
@@ -18,8 +19,8 @@ function segmentToLabel(segment: string): string {
   return decoded.charAt(0).toUpperCase() + decoded.slice(1);
 }
 
-function labelForHref(href: string, segment: string): string {
-  const area = AREAS.find((candidate) => candidate.path === href);
+function labelForHref(href: string, segment: string, areas: Area[]): string {
+  const area = areas.find((candidate) => candidate.path === href);
   if (area) return area.name;
 
   return (
@@ -40,13 +41,14 @@ function labelForHref(href: string, segment: string): string {
  */
 export default function Breadcrumbs() {
   const pathname = usePathname();
+  const { data: areas = [] } = useAreas();
   const segments = pathname.split("/").filter(Boolean);
 
   const crumbs = segments.map((segment, index) => {
     const href = "/" + segments.slice(0, index + 1).join("/");
     return {
       href,
-      label: labelForHref(href, segment),
+      label: labelForHref(href, segment, areas),
       isLast: index === segments.length - 1,
     };
   });

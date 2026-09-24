@@ -3,45 +3,30 @@ import {
   Banknote,
   BookOpen,
   Building2,
-  Calculator,
   CalendarCheck,
   CalendarClock,
-  ClipboardCheck,
   ClipboardList,
   FolderOpen,
-  HandCoins,
   Handshake,
   KeyRound,
-  Landmark,
   Laptop,
   Lightbulb,
   LifeBuoy,
-  Megaphone,
   MessageSquareWarning,
   Palette,
   ReceiptText,
-  Server,
   Settings,
   Target,
   TrendingUp,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
-/**
- * An area is a company department with its own space and its own assigned
- * people. Every route in the platform belongs to exactly one area, so the
- * sidebar always has an area in context and the URL is the source of truth
- * for which one is active.
+/*
+ * Areas themselves come from the API (features/areas). This file keeps what
+ * the API does not know about: the module catalog of each area, indexed by
+ * area slug, and the platform-wide utility links.
  */
-export interface Area {
-  id: string;
-  name: string;
-  path: string;
-  /** Square mark in the switcher. Chosen for what the department does. */
-  icon: LucideIcon;
-  /** One line describing the area's remit, shown on its overview page. */
-  remit: string;
-}
 
 export const MODULE_CATEGORIES = [
   "Operación",
@@ -60,7 +45,7 @@ export interface ModuleItem {
   id: string;
   name: string;
   path: string;
-  areaId: string;
+  areaSlug: string;
   category: ModuleCategory;
   icon: LucideIcon;
   /**
@@ -70,55 +55,12 @@ export interface ModuleItem {
   available: boolean;
 }
 
-export const AREAS: Area[] = [
-  {
-    id: "ti",
-    name: "TI",
-    path: "/ti",
-    icon: Server,
-    remit: "Infraestructura, soporte y accesos de la compañía.",
-  },
-  {
-    id: "calidad",
-    name: "Calidad",
-    path: "/calidad",
-    icon: ClipboardCheck,
-    remit: "PQRSF, auditorías y documentación del sistema de gestión.",
-  },
-  {
-    id: "tesoreria",
-    name: "Tesorería",
-    path: "/tesoreria",
-    icon: Landmark,
-    remit: "Pagos, bancos y disponibilidad de efectivo.",
-  },
-  {
-    id: "cartera",
-    name: "Cartera",
-    path: "/cartera",
-    icon: HandCoins,
-    remit: "Recaudo, acuerdos de pago y edades de cartera.",
-  },
-  {
-    id: "mercadeo",
-    name: "Mercadeo",
-    path: "/mercadeo",
-    icon: Megaphone,
-    remit: "Campañas, material POP y marca.",
-  },
-  {
-    id: "contabilidad",
-    name: "Contabilidad",
-    path: "/contabilidad",
-    icon: Calculator,
-    remit: "Causación, cierres y activos fijos.",
-  },
-];
-
 /**
  * Module catalog. Only PQRSF is scoped for the MVP; the rest are declared so
  * the navigation shows the real shape of each area, and are marked
  * unavailable so they render as disabled rows rather than links to nowhere.
+ * The document manager is not listed here: every area gets it, see
+ * `getModulesByArea`.
  */
 export const MODULES: ModuleItem[] = [
   // ── TI ──
@@ -126,7 +68,7 @@ export const MODULES: ModuleItem[] = [
     id: "ti-soporte",
     name: "Solicitudes de soporte",
     path: "/ti/soporte",
-    areaId: "ti",
+    areaSlug: "ti",
     category: "Operación",
     icon: LifeBuoy,
     // Real page behind it, unlike the rest of TI's modules: it's also where
@@ -137,7 +79,7 @@ export const MODULES: ModuleItem[] = [
     id: "ti-equipos",
     name: "Inventario de equipos",
     path: "/ti/equipos",
-    areaId: "ti",
+    areaSlug: "ti",
     category: "Operación",
     icon: Laptop,
     available: false,
@@ -146,7 +88,7 @@ export const MODULES: ModuleItem[] = [
     id: "ti-accesos",
     name: "Accesos y permisos",
     path: "/ti/accesos",
-    areaId: "ti",
+    areaSlug: "ti",
     category: "Administración",
     icon: KeyRound,
     available: false,
@@ -157,7 +99,7 @@ export const MODULES: ModuleItem[] = [
     id: "calidad-pqrsf",
     name: "PQRSF",
     path: "/calidad/pqrsf",
-    areaId: "calidad",
+    areaSlug: "calidad",
     category: "Operación",
     icon: MessageSquareWarning,
     available: true,
@@ -166,18 +108,9 @@ export const MODULES: ModuleItem[] = [
     id: "calidad-auditorias",
     name: "Auditorías",
     path: "/calidad/auditorias",
-    areaId: "calidad",
+    areaSlug: "calidad",
     category: "Operación",
     icon: ClipboardList,
-    available: false,
-  },
-  {
-    id: "calidad-sig",
-    name: "Documentos SIG",
-    path: "/calidad/documentos",
-    areaId: "calidad",
-    category: "Documentación",
-    icon: FolderOpen,
     available: false,
   },
 
@@ -186,7 +119,7 @@ export const MODULES: ModuleItem[] = [
     id: "tesoreria-pagos",
     name: "Pagos a proveedores",
     path: "/tesoreria/pagos",
-    areaId: "tesoreria",
+    areaSlug: "tesoreria",
     category: "Operación",
     icon: Banknote,
     available: false,
@@ -195,7 +128,7 @@ export const MODULES: ModuleItem[] = [
     id: "tesoreria-conciliacion",
     name: "Conciliación bancaria",
     path: "/tesoreria/conciliacion",
-    areaId: "tesoreria",
+    areaSlug: "tesoreria",
     category: "Operación",
     icon: ArrowLeftRight,
     available: false,
@@ -204,7 +137,7 @@ export const MODULES: ModuleItem[] = [
     id: "tesoreria-flujo",
     name: "Flujo de caja",
     path: "/tesoreria/flujo-de-caja",
-    areaId: "tesoreria",
+    areaSlug: "tesoreria",
     category: "Reportes",
     icon: TrendingUp,
     available: false,
@@ -215,7 +148,7 @@ export const MODULES: ModuleItem[] = [
     id: "cartera-cxc",
     name: "Cuentas por cobrar",
     path: "/cartera/cuentas-por-cobrar",
-    areaId: "cartera",
+    areaSlug: "cartera",
     category: "Operación",
     icon: ReceiptText,
     available: false,
@@ -224,7 +157,7 @@ export const MODULES: ModuleItem[] = [
     id: "cartera-acuerdos",
     name: "Acuerdos de pago",
     path: "/cartera/acuerdos",
-    areaId: "cartera",
+    areaSlug: "cartera",
     category: "Operación",
     icon: Handshake,
     available: false,
@@ -233,7 +166,7 @@ export const MODULES: ModuleItem[] = [
     id: "cartera-edades",
     name: "Edades de cartera",
     path: "/cartera/edades",
-    areaId: "cartera",
+    areaSlug: "cartera",
     category: "Reportes",
     icon: CalendarClock,
     available: false,
@@ -244,7 +177,7 @@ export const MODULES: ModuleItem[] = [
     id: "mercadeo-campanas",
     name: "Campañas",
     path: "/mercadeo/campanas",
-    areaId: "mercadeo",
+    areaSlug: "mercadeo",
     category: "Operación",
     icon: Target,
     available: false,
@@ -253,7 +186,7 @@ export const MODULES: ModuleItem[] = [
     id: "mercadeo-pop",
     name: "Material POP",
     path: "/mercadeo/material-pop",
-    areaId: "mercadeo",
+    areaSlug: "mercadeo",
     category: "Documentación",
     icon: Palette,
     available: false,
@@ -264,7 +197,7 @@ export const MODULES: ModuleItem[] = [
     id: "contabilidad-causacion",
     name: "Causación",
     path: "/contabilidad/causacion",
-    areaId: "contabilidad",
+    areaSlug: "contabilidad",
     category: "Operación",
     icon: BookOpen,
     available: false,
@@ -273,7 +206,7 @@ export const MODULES: ModuleItem[] = [
     id: "contabilidad-cierres",
     name: "Cierres mensuales",
     path: "/contabilidad/cierres",
-    areaId: "contabilidad",
+    areaSlug: "contabilidad",
     category: "Operación",
     icon: CalendarCheck,
     available: false,
@@ -282,12 +215,53 @@ export const MODULES: ModuleItem[] = [
     id: "contabilidad-activos",
     name: "Activos fijos",
     path: "/contabilidad/activos-fijos",
-    areaId: "contabilidad",
+    areaSlug: "contabilidad",
     category: "Maestros",
     icon: Building2,
     available: false,
   },
 ];
+
+export const DOCUMENTS_SEGMENT = "documentos";
+
+/**
+ * The document manager exists in every area the API returns, including one
+ * created in the database after this file was written, so it is generated
+ * from the slug rather than declared area by area.
+ */
+export function documentsModule(areaSlug: string): ModuleItem {
+  return {
+    id: `${areaSlug}-documentos`,
+    name: "Gestor documental",
+    path: `/${areaSlug}/${DOCUMENTS_SEGMENT}`,
+    areaSlug,
+    category: "Documentación",
+    icon: FolderOpen,
+    available: true,
+  };
+}
+
+export function getModulesByArea(areaSlug: string): ModuleItem[] {
+  return [
+    ...MODULES.filter((module) => module.areaSlug === areaSlug),
+    documentsModule(areaSlug),
+  ];
+}
+
+export function findModuleByPath(path: string): ModuleItem | undefined {
+  const [, areaSlug] = path.split("/");
+  if (!areaSlug) return undefined;
+  return getModulesByArea(areaSlug).find((module) => module.path === path);
+}
+
+/**
+ * Module pages live under the dynamic `[area]` segment, so `/[area]/pqrsf`
+ * would also answer for /ti/pqrsf. A page calls this to exist only where the
+ * catalog declares it.
+ */
+export function isAvailableModule(areaSlug: string, segment: string): boolean {
+  return findModuleByPath(`/${areaSlug}/${segment}`)?.available === true;
+}
 
 /**
  * Platform-wide destinations that do not belong to any single area. They sit
@@ -316,26 +290,13 @@ export const UTILITY_LINKS: UtilityLink[] = [
   },
 ];
 
+export const ADMIN_LINK: UtilityLink = {
+  id: "administracion",
+  name: "Panel administrador",
+  path: "/administracion",
+  icon: ShieldCheck,
+};
+
 export function findUtilityLinkByPath(path: string): UtilityLink | undefined {
-  return UTILITY_LINKS.find((link) => link.path === path);
-}
-
-export const DEFAULT_AREA = AREAS[0];
-
-export function findAreaById(areaId: string): Area | undefined {
-  return AREAS.find((area) => area.id === areaId);
-}
-
-/** Resolves the area that owns a pathname, e.g. /calidad/pqrsf → Calidad. */
-export function findAreaByPathname(pathname: string): Area | undefined {
-  const [, firstSegment] = pathname.split("/");
-  return AREAS.find((area) => area.id === firstSegment);
-}
-
-export function findModuleByPath(path: string): ModuleItem | undefined {
-  return MODULES.find((module) => module.path === path);
-}
-
-export function getModulesByArea(areaId: string): ModuleItem[] {
-  return MODULES.filter((module) => module.areaId === areaId);
+  return [...UTILITY_LINKS, ADMIN_LINK].find((link) => link.path === path);
 }

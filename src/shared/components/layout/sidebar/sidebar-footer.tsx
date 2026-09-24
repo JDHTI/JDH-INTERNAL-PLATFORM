@@ -3,7 +3,8 @@
 import { usePathname } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 
-import { UTILITY_LINKS } from "@/shared/config/areas.config";
+import { ADMIN_LINK, UTILITY_LINKS } from "@/shared/config/areas.config";
+import { useSession } from "@/features/session/hooks/use-session";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
@@ -13,6 +14,7 @@ export default function SidebarFooter() {
   const pathname = usePathname();
   const { theme, setTheme, isSidebarCollapsed, setMobileMenuOpen } =
     useUiStore();
+  const { data: user } = useSession();
   const isDark = theme === "dark";
 
   return (
@@ -29,9 +31,23 @@ export default function SidebarFooter() {
               isActive={pathname === link.path}
               isCollapsed={isSidebarCollapsed}
               onNavigate={() => setMobileMenuOpen(false)}
+              labelClassName="font-light"
             />
           </li>
         ))}
+        {user?.role === "admin" && (
+          <li>
+            <SidebarRow
+              href={ADMIN_LINK.path}
+              label={ADMIN_LINK.name}
+              icon={ADMIN_LINK.icon}
+              isActive={pathname.startsWith(ADMIN_LINK.path)}
+              isCollapsed={isSidebarCollapsed}
+              onNavigate={() => setMobileMenuOpen(false)}
+              labelClassName="font-light"
+            />
+          </li>
+        )}
       </ul>
 
       {isSidebarCollapsed ? (
