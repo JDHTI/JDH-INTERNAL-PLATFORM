@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CloudOff, Lock } from "lucide-react";
 
+import SessionRequired from "@/features/areas/components/session-required";
 import { useAreas } from "@/features/areas/hooks/use-areas";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
-import { errorMessage } from "@/shared/lib/api-client";
+import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 /**
  * Every screen belongs to an area, so the root has no content of its own and
@@ -29,6 +30,10 @@ export default function RootPage() {
         <div className="h-4 w-80 max-w-full animate-pulse rounded-sm bg-canvas-subtle" />
       </div>
     );
+  }
+
+  if (error instanceof ApiError && error.status === 401) {
+    return <SessionRequired message={error.detail} />;
   }
 
   if (error) {

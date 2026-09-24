@@ -27,9 +27,6 @@ export default function AreaOverview({ slug }: { slug: string }) {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{area.name}</h1>
-        {area.remit && (
-          <p className="text-sm text-text-secondary">{area.remit}</p>
-        )}
         {area.responsible && (
           <p className="text-sm text-text-secondary">
             Responsable:{" "}

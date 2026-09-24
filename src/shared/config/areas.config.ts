@@ -18,6 +18,7 @@ import {
   Settings,
   Target,
   TrendingUp,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -289,6 +290,13 @@ export const UTILITY_LINKS: UtilityLink[] = [
   },
 ];
 
+export const ADMIN_LINK: UtilityLink = {
+  id: "administracion",
+  name: "Panel administrador",
+  path: "/administracion",
+  icon: ShieldCheck,
+};
+
 export function findUtilityLinkByPath(path: string): UtilityLink | undefined {
-  return UTILITY_LINKS.find((link) => link.path === path);
+  return [...UTILITY_LINKS, ADMIN_LINK].find((link) => link.path === path);
 }

@@ -18,11 +18,15 @@ pnpm dev                     # http://localhost:3000
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000/api/v1` | Base de `internal-platform-api`, con el prefijo de versión. Se incrusta al compilar: cambiarla exige reiniciar `pnpm dev`. |
 
-Todas las llamadas pasan por `src/shared/lib/api-client.ts`. En desarrollo
-envía `X-Dev-User-Email` con el correo de `PLACEHOLDER_USER`
-(`src/shared/config/session.mock.ts`), que la API acepta solo con
-`AUTH_DEV_BYPASS=true` y `ENVIRONMENT=dev`. Cuando se conecte Entra, ese header
-se cambia por `Authorization: Bearer <token>` en ese mismo archivo.
+Todas las llamadas pasan por `src/shared/lib/api-client.ts` con
+`credentials: "include"`. La sesión es el SSO de Entra de la API: los tokens
+viven en cookies HttpOnly del dominio de la API, y el navegador las adjunta solo.
+Un 401 muestra el acceso a `${NEXT_PUBLIC_API_URL}/auth/login`.
+
+En desarrollo, con `AUTH_DEV_BYPASS=true` en la API, un request sin cookies actúa
+como su administrador de desarrollo, que ve todas las áreas. Como las cookies
+viajan entre orígenes, la API necesita el origen del UI en `CORS_ORIGINS`
+(explícito, no `*`).
 
 ## Áreas y gestor documental
 
@@ -36,6 +40,5 @@ se cambia por `Authorization: Bearer <token>` en ese mismo archivo.
   por slug. El módulo «Gestor documental» (`/{slug}/documentos`) se genera para
   cada área.
 
-Para ver las 8 áreas con el usuario de prueba, agrega `usuario@jdh.com.co` a
-`PLATFORM_ADMIN_EMAILS` en el `.env` de la API. Sin eso no ve ninguna área hasta
-que un administrador lo haga miembro, lo que sirve para probar la segmentación.
+Quién ve qué área lo decide la API: el rol `admin` ve todas; el resto, las áreas
+donde es miembro o responsable.

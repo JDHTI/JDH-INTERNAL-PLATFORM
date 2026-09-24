@@ -14,12 +14,18 @@ export const areaKeys = {
   detail: (slug: string) => [...areaKeys.all, "detail", slug] as const,
 };
 
+// No session, no access and no such area are answers, not transient failures.
+const retryTransient = (count: number, error: Error) =>
+  !(error instanceof ApiError && [401, 403, 404].includes(error.status)) &&
+  count < 1;
+
 /** Areas the signed-in user may enter. The API does the filtering. */
 export function useAreas() {
   return useQuery({
     queryKey: areaKeys.list(),
     queryFn: listAreas,
     staleTime: 5 * 60_000,
+    retry: retryTransient,
   });
 }
 
@@ -28,10 +34,7 @@ export function useArea(slug: string) {
     queryKey: areaKeys.detail(slug),
     queryFn: () => getArea(slug),
     staleTime: 5 * 60_000,
-    // 403 and 404 are answers, not transient failures.
-    retry: (count, error) =>
-      !(error instanceof ApiError && [401, 403, 404].includes(error.status)) &&
-      count < 1,
+    retry: retryTransient,
   });
 }
 
