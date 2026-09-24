@@ -244,14 +244,17 @@ export default function AdminManager({
                   <h2 className="font-semibold">Áreas ({areas.length})</h2>
                   <p className="text-xs text-text-secondary">Selecciona un área para administrar su equipo.</p>
                 </div>
-                <ul className="max-h-96 divide-y divide-border overflow-y-auto overscroll-contain">
+                <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
                   {areas.map((area) => (
-                      <li key={area.id}>
+                      <li
+                        key={area.id}
+                        className="h-16 snap-start border-b border-border last:border-b-0"
+                      >
                         <button
                           type="button"
                           onClick={() => setSelectedSlug(area.slug)}
                           className={cn(
-                            "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-canvas-subtle",
+                            "flex h-full w-full items-center gap-3 px-4 text-left transition-colors hover:bg-canvas-subtle",
                             activeArea?.slug === area.slug && "bg-canvas-subtle"
                           )}
                         >
@@ -267,7 +270,6 @@ export default function AdminManager({
                               <span className="block truncate text-xs text-text-secondary">/{area.slug}</span>
                             </span>
                           </span>
-                          <span className="shrink-0 text-xs tabular text-text-secondary">#{area.sort_order}</span>
                         </button>
                       </li>
                   ))}
