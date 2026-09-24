@@ -11,7 +11,6 @@ import type { AreaDto } from "@/features/areas/types/area.types";
 export interface AreaCreatePayload {
   slug: string;
   name: string;
-  remit?: string | null;
   icon?: string | null;
   sort_order?: number;
   responsible_email?: string | null;
@@ -19,7 +18,6 @@ export interface AreaCreatePayload {
 
 export interface AreaUpdatePayload {
   name?: string;
-  remit?: string | null;
   icon?: string | null;
   sort_order?: number;
   responsible_email?: string | null;

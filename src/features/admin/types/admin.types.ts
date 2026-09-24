@@ -39,7 +39,6 @@ export interface UserPageDto {
 export interface AreaDraft {
   slug: string;
   name: string;
-  remit: string;
   icon: string;
   sort_order: string;
   responsible_email: string;
@@ -49,7 +48,6 @@ export function areaToDraft(area?: AreaDto): AreaDraft {
   return {
     slug: area?.slug ?? "",
     name: area?.name ?? "",
-    remit: area?.remit ?? "",
     icon: area?.icon ?? "",
     sort_order: String(area?.sort_order ?? 0),
     responsible_email: area?.responsible?.email ?? "",
