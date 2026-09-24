@@ -2,12 +2,14 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+
+const AREA_PAGE_SIZE = 9;
 
 /**
  * Area switcher.
@@ -60,9 +62,20 @@ function AreaSwitcherCard({
   const containerRef = useRef<HTMLDivElement>(null);
   const chevronRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [areaPage, setAreaPage] = useState(0);
 
   const { isSidebarCollapsed, setSidebarCollapsed, setMobileMenuOpen } =
     useUiStore();
+
+  const pageCount = Math.max(1, Math.ceil(areas.length / AREA_PAGE_SIZE));
+  const activeAreaIndex = areas.findIndex((area) => area.id === activeArea.id);
+  const activeAreaPage =
+    activeAreaIndex >= 0 ? Math.floor(activeAreaIndex / AREA_PAGE_SIZE) : 0;
+  const visiblePage = Math.min(areaPage, pageCount - 1);
+  const visibleAreas = areas.slice(
+    visiblePage * AREA_PAGE_SIZE,
+    (visiblePage + 1) * AREA_PAGE_SIZE
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -167,7 +180,10 @@ function AreaSwitcherCard({
           <button
             ref={chevronRef}
             type="button"
-            onClick={() => setIsOpen((open) => !open)}
+            onClick={() => {
+              setAreaPage(activeAreaPage);
+              setIsOpen((open) => !open);
+            }}
             aria-expanded={isOpen}
             aria-controls={isOpen ? panelId : undefined}
             aria-label="Cambiar de área"
@@ -191,11 +207,10 @@ function AreaSwitcherCard({
             )}
           >
             <ul
-              className={cn(
-                areas.length >= 4 && "max-h-48 overflow-y-auto no-scrollbar"
-              )}
+              aria-label={`Áreas, página ${visiblePage + 1} de ${pageCount}`}
+              className="max-h-[27rem] overflow-y-auto overscroll-contain no-scrollbar"
             >
-              {areas.map((area) => (
+              {visibleAreas.map((area) => (
                 <li key={area.id}>
                   <AreaOption
                     area={area}
@@ -211,12 +226,49 @@ function AreaSwitcherCard({
                 </li>
               ))}
             </ul>
+            {pageCount > 1 && (
+              <nav
+                className="flex items-center justify-between border-t border-sidebar-border px-2 py-1.5"
+                aria-label="Paginación de áreas"
+              >
+                <button
+                  type="button"
+                  onClick={() => setAreaPage((page) => Math.max(0, page - 1))}
+                  disabled={visiblePage === 0}
+                  aria-label="Áreas anteriores"
+                  className={paginationButtonClass}
+                >
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                </button>
+                <span className="text-xs text-sidebar-muted" aria-live="polite">
+                  {visiblePage + 1} / {pageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAreaPage((page) => Math.min(pageCount - 1, page + 1))
+                  }
+                  disabled={visiblePage === pageCount - 1}
+                  aria-label="Más áreas"
+                  className={paginationButtonClass}
+                >
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </button>
+              </nav>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const paginationButtonClass = cn(
+  "flex size-7 items-center justify-center rounded-md text-sidebar-muted transition-colors",
+  "hover:bg-sidebar-hover hover:text-sidebar-foreground",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
+  "disabled:pointer-events-none disabled:opacity-40"
+);
 
 function AreaOption({
   area,
