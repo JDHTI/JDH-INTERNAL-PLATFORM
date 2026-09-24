@@ -1,13 +1,15 @@
-import { PLACEHOLDER_USER } from "@/shared/config/session.mock";
-
 /**
- * Single HTTP client for internal-platform-api. Every request goes through
- * `apiFetch`, so swapping the dev identity header for the Entra bearer token
- * is a change to `authHeaders` and nothing else.
+ * Single HTTP client for internal-platform-api. The session is the API's
+ * Entra SSO: tokens live in HttpOnly cookies the browser attaches on its own,
+ * so every request only has to send credentials. With AUTH_DEV_BYPASS on, a
+ * request without cookies acts as the API's development administrator.
  */
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
 ).replace(/\/+$/, "");
+
+/** Where the browser starts the SSO flow when the session is missing. */
+export const LOGIN_URL = `${API_URL}/auth/login`;
 
 /** The API answers every error with `{"detail": "..."}` in Spanish. */
 export class ApiError extends Error {
@@ -20,24 +22,19 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  // TODO(entra): replace with `Authorization: Bearer <access token>`. The API
-  // accepts this header only while AUTH_DEV_BYPASS is on.
-  return { "X-Dev-User-Email": PLACEHOLDER_USER.email };
-}
-
 /**
  * FastAPI returns `detail` as a string for domain errors and as a list of
  * issues for 422 validation errors. Both end up as one readable sentence.
  */
 function readDetail(body: unknown, status: number): string {
+  // The identity module answers 401 in English; the session message is ours.
+  if (status === 401) return "Tu sesión no es válida o venció. Vuelve a iniciar sesión.";
   const detail = (body as { detail?: unknown } | null)?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const first = detail[0] as { msg?: unknown };
     if (typeof first?.msg === "string") return first.msg;
   }
-  if (status === 401) return "Tu sesión no es válida. Vuelve a iniciar sesión.";
   return "No se pudo completar la solicitud. Intenta de nuevo.";
 }
 
@@ -65,12 +62,14 @@ export async function apiFetch<T>(
   try {
     response = await fetch(url, {
       ...init,
+      // The SSO cookies belong to the API's origin; without this the browser
+      // leaves them out of cross-origin requests.
+      credentials: "include",
       headers: {
         Accept: "application/json",
         ...(body !== undefined && !isForm
           ? { "Content-Type": "application/json" }
           : {}),
-        ...authHeaders(),
         ...headers,
       },
       body:

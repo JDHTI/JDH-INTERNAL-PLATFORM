@@ -8,6 +8,7 @@ import { Button } from "@/shared/components/ui/button";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useArea } from "../hooks/use-areas";
+import SessionRequired from "./session-required";
 
 /**
  * Resolves the URL's area before rendering it. The session lives in the
@@ -33,6 +34,10 @@ export default function AreaGate({
   }
 
   if (error instanceof ApiError && error.status === 404) notFound();
+
+  if (error instanceof ApiError && error.status === 401) {
+    return <SessionRequired message={error.detail} />;
+  }
 
   if (error instanceof ApiError && error.status === 403) {
     return (
