@@ -9,7 +9,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { CheckCircle2, TriangleAlert, X } from "lucide-react";
+import { Camera, CheckCircle2, TriangleAlert, X } from "lucide-react";
 
 import {
   ApiError,
@@ -117,6 +117,7 @@ export default function PublicPqrsfForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [focusErrorSummary, setFocusErrorSummary] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
   const successHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -215,6 +216,11 @@ export default function PublicPqrsfForm() {
     setSubmitError(null);
   };
 
+  const resetFileInputs = () => {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  };
+
   const updateRequestType = (requestTypeId: string) => {
     setValues((current) => ({
       ...current,
@@ -222,7 +228,7 @@ export default function PublicPqrsfForm() {
       reason: "",
     }));
     setFiles([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    resetFileInputs();
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.request_type_id;
@@ -259,9 +265,27 @@ export default function PublicPqrsfForm() {
     clearFieldError("images");
   };
 
+  const handleCameraCapture = (event: ChangeEvent<HTMLInputElement>) => {
+    const capturedFiles = Array.from(event.currentTarget.files ?? []);
+    if (capturedFiles.length === 0) return;
+
+    const nextFiles = [...files, ...capturedFiles];
+    const message = validateFiles(nextFiles);
+
+    setSubmitError(null);
+    event.currentTarget.value = "";
+    if (message) {
+      setFieldErrors((current) => ({ ...current, images: message }));
+      return;
+    }
+
+    setFiles(nextFiles);
+    clearFieldError("images");
+  };
+
   const removeFiles = () => {
     setFiles([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    resetFileInputs();
     clearFieldError("images");
   };
 
@@ -307,7 +331,7 @@ export default function PublicPqrsfForm() {
       setValues({ ...INITIAL_VALUES });
       setFiles([]);
       setFieldErrors({});
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      resetFileInputs();
     } catch (error) {
       const serverFieldErrors = error instanceof ApiError
         ? readFieldErrors(error.issues)
@@ -326,20 +350,17 @@ export default function PublicPqrsfForm() {
     setFiles([]);
     setFieldErrors({});
     setSubmitError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    resetFileInputs();
   };
 
   return (
     <main className="min-h-dvh bg-canvas text-text-primary">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 md:py-12">
         <header className="space-y-2">
-          <p className="text-[13px] font-medium text-text-secondary">JDH · Atención al ciudadano</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Presenta tu PQRSF</h1>
+          <p className="text-[13px] font-medium text-text-secondary">JDH Presenta tu PQRSF</p>
+          <h1 className="text-2xl font-semibold tracking-tight">¡Queremos escucharte!</h1>
           <p className="max-w-prose text-sm text-text-secondary">
-            Envía una petición, queja, reclamo, sugerencia o felicitación. Completa la información para recibir tu número de radicado.
-          </p>
-          <p className="text-[13px] text-text-secondary">
-            <span className="text-danger" aria-hidden="true">*</span> Campos obligatorios
+            En nuestra empresa valoramos sus comentarios y sugerencias. Este formulario nos permite mejorar continuamente nuestros productos y servicios. Por favor, diligencie la siguiente información para brindarte una respuesta adecuada.
           </p>
         </header>
 
@@ -584,22 +605,47 @@ export default function PublicPqrsfForm() {
                       hint="JPG, JPEG, PNG o WebP. Máximo 5 archivos de 5 MiB cada uno y 25 MiB en total."
                       className="sm:col-span-2"
                     >
-                      <input
-                        ref={fileInputRef}
-                        id="pqrsf-images"
-                        name="images"
-                        type="file"
-                        multiple
-                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                        onChange={handleFilesChange}
-                        aria-invalid={Boolean(fieldErrors.images)}
-                        aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
-                        className={cn(
-                          "min-h-11 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 py-1.5 text-sm text-text-primary file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-text-on-primary sm:min-h-9",
-                          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                          fieldErrors.images && "border-danger"
-                        )}
-                      />
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <input
+                          ref={fileInputRef}
+                          id="pqrsf-images"
+                          name="images"
+                          type="file"
+                          multiple
+                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                          onChange={handleFilesChange}
+                          aria-invalid={Boolean(fieldErrors.images)}
+                          aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
+                          className={cn(
+                            "min-h-11 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 py-1.5 text-sm text-text-primary file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-text-on-primary sm:min-h-9",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                            fieldErrors.images && "border-danger"
+                          )}
+                        />
+                        <input
+                          ref={cameraInputRef}
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                          capture="environment"
+                          onChange={handleCameraCapture}
+                          aria-label="Tomar una foto de evidencia"
+                          tabIndex={-1}
+                          className="sr-only"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="min-h-11 w-full sm:min-h-9 sm:w-auto"
+                          aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
+                        >
+                          <Camera aria-hidden="true" />
+                          Tomar foto
+                        </Button>
+                      </div>
+                      <p className="text-[13px] text-text-secondary">
+                        En el celular, “Tomar foto” abrirá la cámara y solicitará permiso si es necesario.
+                      </p>
                       {files.length > 0 && (
                         <div className="flex flex-col gap-2 rounded-md bg-canvas-subtle p-3">
                           <ul className="space-y-1 text-[13px]" aria-label="Archivos seleccionados">
