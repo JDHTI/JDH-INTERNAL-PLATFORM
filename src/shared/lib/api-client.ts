@@ -21,17 +21,36 @@ export async function logoutSession(): Promise<void> {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    readonly detail: string
+    readonly detail: string,
+    readonly issues: ApiValidationIssue[] = []
   ) {
     super(detail);
     this.name = "ApiError";
   }
 }
 
+export interface ApiValidationIssue {
+  loc?: Array<string | number>;
+  msg?: string;
+  type?: string;
+}
+
 /**
  * FastAPI returns `detail` as a string for domain errors and as a list of
  * issues for 422 validation errors. Both end up as one readable sentence.
  */
+function readIssues(body: unknown): ApiValidationIssue[] {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (!Array.isArray(detail)) return [];
+
+  return detail.filter(
+    (issue): issue is ApiValidationIssue =>
+      typeof issue === "object" && issue !== null &&
+      (Array.isArray((issue as ApiValidationIssue).loc) ||
+        typeof (issue as ApiValidationIssue).msg === "string")
+  );
+}
+
 function readDetail(body: unknown, status: number): string {
   // The identity module answers 401 in English; the session message is ours.
   if (status === 401) return "Tu sesión no es válida o venció. Vuelve a iniciar sesión.";
@@ -50,11 +69,13 @@ interface ApiRequest extends Omit<RequestInit, "body"> {
   query?: Query;
   /** Plain objects are sent as JSON; FormData is sent as multipart. */
   body?: unknown;
+  /** Public endpoints must not receive the Entra session cookie. */
+  publicRequest?: boolean;
 }
 
 export async function apiFetch<T>(
   path: string,
-  { query, body, headers, ...init }: ApiRequest = {}
+  { query, body, headers, publicRequest: isPublic = false, ...init }: ApiRequest = {}
 ): Promise<T> {
   const url = new URL(API_URL + path);
   for (const [key, value] of Object.entries(query ?? {})) {
@@ -68,9 +89,9 @@ export async function apiFetch<T>(
   try {
     response = await fetch(url, {
       ...init,
-      // The SSO cookies belong to the API's origin; without this the browser
-      // leaves them out of cross-origin requests.
-      credentials: "include",
+      // Authenticated requests need the API's Entra SSO cookie. Public
+      // requests explicitly omit it, even when the browser has one.
+      credentials: isPublic ? "omit" : "include",
       headers: {
         Accept: "application/json",
         ...(body !== undefined && !isForm
@@ -97,7 +118,11 @@ export async function apiFetch<T>(
 
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new ApiError(response.status, readDetail(payload, response.status));
+    throw new ApiError(
+      response.status,
+      readDetail(payload, response.status),
+      readIssues(payload)
+    );
   }
   return payload as T;
 }
