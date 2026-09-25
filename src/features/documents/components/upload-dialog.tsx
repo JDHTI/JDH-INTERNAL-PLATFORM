@@ -20,7 +20,7 @@ import {
   parseTags,
 } from "../lib/format";
 import type { Folder } from "../types/document.types";
-import { TagColorButton } from "./tag-chip";
+import { TagInput } from "./tag-input";
 
 export default function UploadDialog({
   slug,
@@ -84,7 +84,9 @@ function UploadForm({
   const [fileError, setFileError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
+  const [draftColor, setDraftColor] = useState<string | null>(null);
   // Colors picked here wait for the upload: coloring a tag of a document
   // that was never created would change the area for nothing. null means
   // "remove the color the area has".
@@ -93,18 +95,36 @@ function UploadForm({
   const areaColors = useTagColors(slug);
   const saveTagColor = useSaveTagColor(slug);
 
-  const tagList = [...new Set(parseTags(tags).map(normalizeTag))];
   const colorOf = (tag: string) =>
     tag in pendingColors
       ? (pendingColors[tag] ?? undefined)
       : areaColors.data?.get(tag);
 
-  const saveColors = async (uploadedTags: string[]) => {
+  /** New chips take the square's color, which then resets for the next one. */
+  const withDraftColor = (added: string[], colors: Record<string, string | null>) =>
+    draftColor
+      ? { ...colors, ...Object.fromEntries(added.map((tag) => [tag, draftColor])) }
+      : colors;
+
+  const addTags = (added: string[]) => {
+    setTags((current) => [...new Set([...current, ...added])]);
+    setPendingColors((current) => withDraftColor(added, current));
+    setDraftColor(null);
+  };
+
+  const removeTag = (tag: string) => {
+    setTags((current) => current.filter((item) => item !== tag));
+    setPendingColors((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => key !== tag))
+    );
+  };
+
+  const saveColors = async (uploadedTags: string[], colors: Record<string, string | null>) => {
     const changes = uploadedTags.filter(
-      (tag) => tag in pendingColors && pendingColors[tag] !== (areaColors.data?.get(tag) ?? null)
+      (tag) => tag in colors && colors[tag] !== (areaColors.data?.get(tag) ?? null)
     );
     const results = await Promise.allSettled(
-      changes.map((tag) => saveTagColor.mutateAsync({ tag, color: pendingColors[tag] }))
+      changes.map((tag) => saveTagColor.mutateAsync({ tag, color: colors[tag] }))
     );
     const failed = changes.filter((_, index) => results[index].status === "rejected");
     if (failed.length > 0) {
@@ -121,6 +141,12 @@ function UploadForm({
     setFileError(problem);
     if (problem || !file) return;
 
+    // Text still in the field is a tag too; it has not become a chip only
+    // because the person went straight to "Subir".
+    const typed = parseTags(tagDraft).map(normalizeTag);
+    const finalTags = [...new Set([...tags, ...typed])];
+    const finalColors = withDraftColor(typed, pendingColors);
+
     upload.mutate(
       {
         folderId: folder.id,
@@ -128,13 +154,13 @@ function UploadForm({
           file,
           name: name.trim() || undefined,
           description: description.trim() || undefined,
-          tags: parseTags(tags).join(",") || undefined,
+          tags: finalTags.join(",") || undefined,
         },
       },
       {
         onSuccess: async (document) => {
           // The API's tags, not the typed ones: they are what colors key on.
-          await saveColors(document.tags);
+          await saveColors(document.tags, finalColors);
           toast.success(`«${document.name}» quedó en ${folder.name}.`);
           onDone();
         },
@@ -198,41 +224,24 @@ function UploadForm({
         label="Etiquetas"
         htmlFor={`${id}-tags`}
         optional
-        hint="Separadas por comas, por ejemplo: contratos, 2026."
+        hint="Enter o coma para agregar. El cuadro elige el color; clic en una etiqueta para cambiarlo."
       >
-        <Input
+        <TagInput
           id={`${id}-tags`}
-          value={tags}
-          onChange={(event) => setTags(event.target.value)}
+          describedBy={`${id}-tags-hint`}
+          tags={tags}
+          draft={tagDraft}
+          onDraftChange={setTagDraft}
+          draftColor={draftColor}
+          onDraftColorChange={setDraftColor}
+          onAdd={addTags}
+          onRemove={removeTag}
+          colorOf={colorOf}
+          onTagColorChange={(tag, color) =>
+            setPendingColors((current) => ({ ...current, [tag]: color }))
+          }
         />
       </Field>
-
-      {tagList.length > 0 && (
-        <div className="space-y-1.5">
-          <p id={`${id}-colors`} className="text-[13px] font-medium">
-            Color de las etiquetas
-            <span className="font-normal text-text-secondary"> (opcional)</span>
-          </p>
-          <ul aria-labelledby={`${id}-colors`} className="flex flex-wrap gap-1">
-            {tagList.map((tag) => (
-              <li key={tag} className="min-w-0">
-                <TagColorButton
-                  tag={tag}
-                  color={colorOf(tag)}
-                  onSave={(color) =>
-                    setPendingColors((current) => ({ ...current, [tag]: color }))
-                  }
-                  scopeNote="Se guarda al subir el documento y aplica en todo el área."
-                />
-              </li>
-            ))}
-          </ul>
-          <p className="text-[13px] text-text-secondary">
-            Haz clic en una etiqueta para elegir su color. Las que ya tienen
-            color en el área lo muestran.
-          </p>
-        </div>
-      )}
 
       <DialogError message={upload.error ? errorMessage(upload.error) : null} />
 
