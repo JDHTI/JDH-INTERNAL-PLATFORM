@@ -617,7 +617,7 @@ export default function PublicPqrsfForm() {
                           aria-invalid={Boolean(fieldErrors.images)}
                           aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
                           className={cn(
-                            "min-h-11 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 py-1.5 text-sm text-text-primary file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-text-on-primary sm:min-h-9",
+                            "h-11 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 py-1.5 text-sm text-text-primary file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-text-on-primary sm:h-9",
                             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                             fieldErrors.images && "border-danger"
                           )}
@@ -636,7 +636,7 @@ export default function PublicPqrsfForm() {
                           type="button"
                           variant="outline"
                           onClick={() => cameraInputRef.current?.click()}
-                          className="min-h-11 w-full sm:min-h-9 sm:w-auto"
+                          className="h-11 w-full sm:h-9 sm:w-auto"
                           aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
                         >
                           <Camera aria-hidden="true" />
