@@ -8,6 +8,7 @@ import type {
   DownloadLink,
   Folder,
   FolderInput,
+  TagColor,
   UploadInput,
 } from "../types/document.types";
 
@@ -86,6 +87,25 @@ export function updateDocument(
 
 export function deleteDocument(documentId: string): Promise<void> {
   return apiFetch<void>(`/documents/${documentId}`, { method: "DELETE" });
+}
+
+export function listTagColors(slug: string): Promise<TagColor[]> {
+  return apiFetch<TagColor[]>(`${areaPath(slug)}/tag-colors`);
+}
+
+/** Creates or replaces. The tag goes in the body because it may contain "/". */
+export function setTagColor(slug: string, tag: string, color: string): Promise<TagColor> {
+  return apiFetch<TagColor>(`${areaPath(slug)}/tag-colors`, {
+    method: "PUT",
+    body: { tag, color },
+  });
+}
+
+export function clearTagColor(slug: string, tag: string): Promise<void> {
+  return apiFetch<void>(`${areaPath(slug)}/tag-colors`, {
+    method: "DELETE",
+    query: { tag },
+  });
 }
 
 /** The link expires in minutes: request it on click, never cache it. */

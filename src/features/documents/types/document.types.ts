@@ -65,6 +65,16 @@ export interface DocumentUpdateInput {
   tags?: string[];
 }
 
+/** One per (area, tag): coloring a tag colors it on every document of the area. */
+export interface TagColor {
+  /** Normalized like the tags on documents: lowercase, single spaces. */
+  tag: string;
+  /** "#rrggbb", lowercase. */
+  color: string;
+  updated_by: string;
+  updated_at: string;
+}
+
 export interface DownloadLink {
   url: string;
   filename: string;
