@@ -5,14 +5,22 @@ import { Download, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 
 import { formatBytes, formatDate } from "../lib/format";
-import FileTypeIcon, { fileFamilyLabel } from "./file-type-icon";
 import type { DocumentItem, Folder } from "../types/document.types";
+import FileTypeIcon, { fileFamilyLabel } from "./file-type-icon";
+import { TagColorButton } from "./tag-chip";
 
 interface RowActions {
   onDownload: (document: DocumentItem) => void;
   onEdit: (document: DocumentItem) => void;
   onDelete: (document: DocumentItem) => void;
   downloadingId: string | null;
+}
+
+interface TagColoring {
+  /** Tag → "#rrggbb" for the area. */
+  tagColors: Map<string, string>;
+  /** Rejects with the API error; the popover shows it. */
+  onTagColorChange: (tag: string, color: string | null) => Promise<void>;
 }
 
 /**
@@ -25,13 +33,17 @@ export default function DocumentsTable({
   documents,
   folders,
   showFolder,
+  tagColors,
+  onTagColorChange,
   ...actions
 }: {
   documents: DocumentItem[];
   folders: Folder[];
   /** Search results span folders, so they say where each one lives. */
   showFolder: boolean;
-} & RowActions) {
+} & RowActions &
+  TagColoring) {
+  const coloring = { tagColors, onTagColorChange };
   const folderName = (id: string) =>
     folders.find((folder) => folder.id === id)?.name ?? "";
 
@@ -93,7 +105,7 @@ export default function DocumentsTable({
                   {formatBytes(document.size_bytes)}
                 </td>
                 <td className="px-3 py-2">
-                  <Tags tags={document.tags} />
+                  <Tags tags={document.tags} {...coloring} />
                 </td>
                 <td className="px-3 py-2">
                   <time dateTime={document.created_at} className="tabular block">
@@ -134,7 +146,7 @@ export default function DocumentsTable({
                 </p>
               </div>
             </div>
-            <Tags tags={document.tags} />
+            <Tags tags={document.tags} {...coloring} />
             <RowButtons document={document} {...actions} />
           </li>
         ))}
@@ -143,18 +155,24 @@ export default function DocumentsTable({
   );
 }
 
-function Tags({ tags }: { tags: string[] }) {
+function Tags({
+  tags,
+  tagColors,
+  onTagColorChange,
+}: { tags: string[] } & TagColoring) {
   if (tags.length === 0) {
     return <span className="text-text-secondary">Sin etiquetas</span>;
   }
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Etiquetas">
       {tags.map((tag) => (
-        <li
-          key={tag}
-          className="rounded-sm bg-canvas-subtle px-2 py-0.5 text-[13px] font-medium"
-        >
-          {tag}
+        <li key={tag} className="min-w-0">
+          <TagColorButton
+            tag={tag}
+            color={tagColors.get(tag)}
+            onSave={(color) => onTagColorChange(tag, color)}
+            scopeNote="Cambia en todos los documentos del área que tengan esta etiqueta."
+          />
         </li>
       ))}
     </ul>

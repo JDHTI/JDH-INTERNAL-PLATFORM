@@ -558,6 +558,23 @@ Esquina inferior derecha, `--radius-lg`, elevación 2, ancho máximo 400px.
 Éxito 4s, error **persistente hasta descarte** — un error que se va solo es un error que nadie leyó.
 Máximo tres apilados. `role="status"` para éxito, `role="alert"` para error.
 
+### 7.7 Etiquetas con color
+
+El color de una etiqueta lo elige el área (`#rrggbb` libre, guardado en la API), así que el
+sistema no puede verificar cada par de antemano. Lo que se fija es la receta, que pasa AA con
+**cualquier** color:
+
+- Fondo: el color al **14%** sobre `--surface` en claro y al **24%** en oscuro
+  (`color-mix`). Un punto de 8px con el color sólido a la izquierda del texto.
+- Texto: siempre `--text-primary`, nunca el color elegido. Peor caso medido: #1d1d1b sobre
+  negro al 14% (#dbdbdb) = **12.19**; blanco sobre blanco al 24% (#5a5a59) = **6.90**.
+- El color es un dato del usuario que llega por `style`, no un hex del componente, y no
+  rompe la regla de §3.6.
+- La etiqueta sin color conserva `--canvas-subtle`, sin punto.
+- El selector (`ColorPicker`, compartido) acepta hex o RGB y abre la paleta del sistema. Los
+  **recientes** son de cada persona (`localStorage`, `jdh-recent-colors`, máximo 8) y se
+  registran al guardar, no mientras se arrastra.
+
 ---
 
 ## 8. Los cuatro estados obligatorios
