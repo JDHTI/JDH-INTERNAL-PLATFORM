@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 
 import { useDismissablePanel } from "@/shared/hooks/use-dismissable-panel";
 import { cn } from "@/shared/lib/utils";
@@ -22,6 +22,8 @@ type DropdownProps = Omit<
   placeholder?: React.ReactNode;
   size?: "default" | "sm";
   panelClassName?: string;
+  clearable?: boolean;
+  clearLabel?: string;
 };
 
 function firstEnabledIndex(options: DropdownOption[]) {
@@ -40,6 +42,8 @@ export function Dropdown({
   placeholder = "Selecciona una opción",
   size = "default",
   panelClassName,
+  clearable = false,
+  clearLabel = "Limpiar selección",
   disabled,
   id,
   ...buttonProps
@@ -75,6 +79,13 @@ export function Dropdown({
   const selectOption = (option: DropdownOption) => {
     if (option.disabled) return;
     onValueChange(option.value);
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const clearSelection = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onValueChange("");
     setIsOpen(false);
     triggerRef.current?.focus();
   };
@@ -132,7 +143,8 @@ export function Dropdown({
           "transition-colors duration-150 outline-none hover:bg-canvas-subtle",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-control",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-          size === "sm" ? "h-8 px-2 text-xs" : "h-9 px-2.5 text-sm"
+          size === "sm" ? "h-8 px-2 text-xs" : "h-9 px-2.5 text-sm",
+          clearable && value && "pr-16"
         )}
       >
         <span className={cn("min-w-0 truncate", !selectedOption && "text-text-secondary")}>
@@ -143,6 +155,17 @@ export function Dropdown({
           aria-hidden="true"
         />
       </button>
+
+      {clearable && value && !disabled && (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          onClick={clearSelection}
+          className="absolute right-8 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      )}
 
       {isOpen && (
         <div
