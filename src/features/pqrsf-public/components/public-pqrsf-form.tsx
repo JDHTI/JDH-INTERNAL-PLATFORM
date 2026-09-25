@@ -357,13 +357,10 @@ export default function PublicPqrsfForm() {
     <main className="min-h-dvh bg-canvas text-text-primary">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 md:py-12">
         <header className="space-y-2">
-          <p className="text-[13px] font-medium text-text-secondary">JDH · Atención al ciudadano</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Presenta tu PQRSF</h1>
+          <p className="text-[13px] font-medium text-text-secondary">JDH Presenta tu PQRSF</p>
+          <h1 className="text-2xl font-semibold tracking-tight">¡Queremos escucharte!</h1>
           <p className="max-w-prose text-sm text-text-secondary">
-            Envía una petición, queja, reclamo, sugerencia o felicitación. Completa la información para recibir tu número de radicado.
-          </p>
-          <p className="text-[13px] text-text-secondary">
-            <span className="text-danger" aria-hidden="true">*</span> Campos obligatorios
+            En nuestra empresa valoramos sus comentarios y sugerencias. Este formulario nos permite mejorar continuamente nuestros productos y servicios. Por favor, diligencie la siguiente información para brindarte una respuesta adecuada.
           </p>
         </header>
 
