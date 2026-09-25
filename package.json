@@ -14,6 +14,7 @@
     "@tanstack/react-query-devtools": "^5.103.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "colombia-territorial": "1.1.0",
     "lucide-react": "^1.47.0",
     "next": "16.3.5",
     "react": "19.2.8",

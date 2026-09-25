@@ -18,9 +18,15 @@ import {
 } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/field";
+import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
 
+import {
+  COLOMBIA_DEPARTMENTS,
+  getColombiaCities,
+} from "../data/colombia-territorial";
 import {
   getPqrsfCatalog,
   submitPqrsfRequest,
@@ -170,6 +176,10 @@ export default function PublicPqrsfForm() {
     () => catalog?.request_types.find((type) => type.id === values.request_type_id),
     [catalog, values.request_type_id]
   );
+  const cityOptions = useMemo(
+    () => getColombiaCities(values.department),
+    [values.department]
+  );
 
   useEffect(() => {
     if (submission) successHeadingRef.current?.focus();
@@ -191,6 +201,17 @@ export default function PublicPqrsfForm() {
   const updateValue = (field: PqrsfTextField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
     clearFieldError(field);
+    setSubmitError(null);
+  };
+
+  const updateDepartment = (department: string) => {
+    setValues((current) => ({ ...current, department, city: "" }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.department;
+      delete next.city;
+      return next;
+    });
     setSubmitError(null);
   };
 
@@ -317,6 +338,9 @@ export default function PublicPqrsfForm() {
           <p className="max-w-prose text-sm text-text-secondary">
             Envía una petición, queja, reclamo, sugerencia o felicitación. Completa la información para recibir tu número de radicado.
           </p>
+          <p className="text-[13px] text-text-secondary">
+            <span className="text-danger" aria-hidden="true">*</span> Campos obligatorios
+          </p>
         </header>
 
         {catalogState === "loading" && <CatalogLoading />}
@@ -350,49 +374,43 @@ export default function PublicPqrsfForm() {
                     label="Tipo de solicitud"
                     error={fieldErrors.request_type_id}
                   >
-                    <select
+                    <Dropdown
                       id="pqrsf-request-type"
                       name="request_type_id"
-                      required
+                      options={catalog.request_types.map((type) => ({
+                        value: type.id,
+                        label: type.name,
+                      }))}
                       value={values.request_type_id}
-                      onChange={(event) => updateRequestType(event.target.value)}
+                      onValueChange={updateRequestType}
                       onBlur={() => handleBlur("request_type_id")}
                       aria-invalid={Boolean(fieldErrors.request_type_id)}
+                      aria-required="true"
+                      aria-label="Tipo de solicitud"
                       aria-describedby={describedBy("pqrsf-request-type", Boolean(fieldErrors.request_type_id))}
-                      className={selectClassName(Boolean(fieldErrors.request_type_id))}
-                    >
-                      <option value="" disabled>
-                        Selecciona una opción
-                      </option>
-                      {catalog.request_types.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Selecciona una opción"
+                      clearable
+                      clearLabel="Quitar tipo de solicitud"
+                    />
                   </FormField>
 
                   <FormField id="pqrsf-site" label="Sede" error={fieldErrors.site_id}>
-                    <select
+                    <Dropdown
                       id="pqrsf-site"
                       name="site_id"
-                      required
+                      options={catalog.sites.map((site) => ({
+                        value: site.id,
+                        label: site.name,
+                      }))}
                       value={values.site_id}
-                      onChange={(event) => updateValue("site_id", event.target.value)}
+                      onValueChange={(value) => updateValue("site_id", value)}
                       onBlur={() => handleBlur("site_id")}
                       aria-invalid={Boolean(fieldErrors.site_id)}
+                      aria-required="true"
+                      aria-label="Sede"
                       aria-describedby={describedBy("pqrsf-site", Boolean(fieldErrors.site_id))}
-                      className={selectClassName(Boolean(fieldErrors.site_id))}
-                    >
-                      <option value="" disabled>
-                        Selecciona una sede
-                      </option>
-                      {catalog.sites.map((site) => (
-                        <option key={site.id} value={site.id}>
-                          {site.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Selecciona una sede"
+                    />
                   </FormField>
 
                   <FormField id="pqrsf-full-name" label="Nombre completo" error={fieldErrors.full_name}>
@@ -467,28 +485,34 @@ export default function PublicPqrsfForm() {
                   </FormField>
 
                   <FormField id="pqrsf-department" label="Departamento" error={fieldErrors.department}>
-                    <InputField
+                    <SearchableDropdown
                       id="pqrsf-department"
                       name="department"
                       value={values.department}
-                      autoComplete="address-level1"
-                      maxLength={FIELD_LIMITS.department}
-                      error={fieldErrors.department}
-                      onChange={(event) => updateValue("department", event.target.value)}
+                      options={COLOMBIA_DEPARTMENTS}
+                      onValueChange={updateDepartment}
                       onBlur={() => handleBlur("department")}
+                      placeholder="Escribe para buscar un departamento"
+                      invalid={Boolean(fieldErrors.department)}
+                      required
+                      describedBy={describedBy("pqrsf-department", Boolean(fieldErrors.department))}
                     />
                   </FormField>
 
                   <FormField id="pqrsf-city" label="Ciudad" error={fieldErrors.city}>
-                    <InputField
+                    <SearchableDropdown
                       id="pqrsf-city"
                       name="city"
                       value={values.city}
-                      autoComplete="address-level2"
-                      maxLength={FIELD_LIMITS.city}
-                      error={fieldErrors.city}
-                      onChange={(event) => updateValue("city", event.target.value)}
+                      options={cityOptions}
+                      onValueChange={(value) => updateValue("city", value)}
                       onBlur={() => handleBlur("city")}
+                      placeholder={values.department ? "Escribe para buscar una ciudad" : "Selecciona primero un departamento"}
+                      emptyMessage={values.department ? "No hay ciudades con ese nombre." : "Selecciona primero un departamento."}
+                      disabled={!values.department}
+                      invalid={Boolean(fieldErrors.city)}
+                      required
+                      describedBy={describedBy("pqrsf-city", Boolean(fieldErrors.city))}
                     />
                   </FormField>
 
@@ -636,8 +660,9 @@ function FormField({
 }) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="block text-[13px] font-medium">
+      <label htmlFor={id} className="block text-[13px] font-medium leading-[1.4] tracking-normal">
         {label}
+        {!optional && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
         {optional && <span className="font-normal text-text-secondary"> (opcional)</span>}
       </label>
       {children}
@@ -944,13 +969,6 @@ function describedBy(id: string, hasHint: boolean, hasError = false) {
 
 function fieldInputId(field: PqrsfErrorField) {
   return `pqrsf-${field.replaceAll("_", "-")}`;
-}
-
-function selectClassName(hasError: boolean) {
-  return cn(
-    "min-h-11 h-9 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2.5 text-sm text-text-primary outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-9",
-    hasError && "border-danger"
-  );
 }
 
 function formatFileSize(bytes: number) {
