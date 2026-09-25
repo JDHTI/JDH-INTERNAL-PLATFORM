@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 
 import { useDismissablePanel } from "@/shared/hooks/use-dismissable-panel";
 import { cn } from "@/shared/lib/utils";
@@ -22,8 +22,6 @@ type DropdownProps = Omit<
   placeholder?: React.ReactNode;
   size?: "default" | "sm";
   panelClassName?: string;
-  clearable?: boolean;
-  clearLabel?: string;
 };
 
 function firstEnabledIndex(options: DropdownOption[]) {
@@ -42,8 +40,6 @@ export function Dropdown({
   placeholder = "Selecciona una opción",
   size = "default",
   panelClassName,
-  clearable = false,
-  clearLabel = "Limpiar selección",
   disabled,
   id,
   ...buttonProps
@@ -83,13 +79,6 @@ export function Dropdown({
     triggerRef.current?.focus();
   };
 
-  const clearSelection = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    onValueChange("");
-    setIsOpen(false);
-    triggerRef.current?.focus();
-  };
-
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "Tab") {
       setIsOpen(false);
@@ -109,10 +98,7 @@ export function Dropdown({
     if (event.key === "Home" || event.key === "End") {
       if (!isOpen) return;
       event.preventDefault();
-      const index =
-        event.key === "Home"
-          ? firstEnabledIndex(options)
-          : [...options].findLastIndex((option) => !option.disabled);
+      const index = event.key === "Home" ? firstEnabledIndex(options) : [...options].findLastIndex((option) => !option.disabled);
       setHighlightedIndex(index);
       return;
     }
@@ -145,36 +131,18 @@ export function Dropdown({
           "flex w-full items-center justify-between gap-2 rounded-md border border-border-control bg-transparent text-left text-text-primary",
           "transition-colors duration-150 outline-none hover:bg-canvas-subtle",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-control",
-          "aria-invalid:border-danger",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-          size === "sm"
-            ? "h-8 px-2 text-xs"
-            : "min-h-11 h-9 px-2.5 text-sm sm:min-h-9",
-          clearable && value && "pr-16"
+          size === "sm" ? "h-8 px-2 text-xs" : "h-9 px-2.5 text-sm"
         )}
       >
         <span className={cn("min-w-0 truncate", !selectedOption && "text-text-secondary")}>
           {selectedOption?.label ?? placeholder}
         </span>
         <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-text-secondary transition-transform",
-            isOpen && "rotate-180"
-          )}
+          className={cn("size-4 shrink-0 text-text-secondary transition-transform", isOpen && "rotate-180")}
           aria-hidden="true"
         />
       </button>
-
-      {clearable && value && !disabled && (
-        <button
-          type="button"
-          aria-label={clearLabel}
-          onClick={clearSelection}
-          className="absolute right-8 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
-      )}
 
       {isOpen && (
         <div
@@ -207,9 +175,7 @@ export function Dropdown({
               )}
             >
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              {option.value === value && (
-                <Check className="size-4 shrink-0" aria-hidden="true" />
-              )}
+              {option.value === value && <Check className="size-4 shrink-0" aria-hidden="true" />}
             </button>
           ))}
         </div>

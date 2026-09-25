@@ -78,6 +78,18 @@
   --info: #175cd3;
   --info-surface: rgba(23, 92, 211, 0.08);
 
+  /* Familias de formato (§3.7): el color que la gente ya asocia a cada tipo
+     de archivo. Reusan los tonos de estado para no sumar matices; solo la
+     imagen trae uno propio. La marca interior va en --file-mark sobre cada
+     uno: 5.43:1 o más (imagen: blanco sobre #6941c6 = 6.62:1). */
+  --file-pdf: var(--danger);
+  --file-doc: var(--info);
+  --file-sheet: var(--success);
+  --file-slide: var(--warning);
+  --file-image: #6941c6;
+  --file-other: var(--neutral-700);
+  --file-mark: var(--neutral-0);
+
   /* Modales (§7.4): backdrop sin blur y elevación 3 (§6.2). En oscuro la
      sombra no se ve y la elevación la da --surface con su borde. */
   --backdrop: rgba(29, 29, 27, 0.4);
@@ -126,6 +138,15 @@
   --danger-surface: rgba(249, 112, 102, 0.12);
   --info: #84adff;
   --info-surface: rgba(132, 173, 255, 0.12);
+
+  /* #1d1d1b sobre #b692f6 = 6.78:1; sobre #c8c8c4 = 10.06:1 */
+  --file-pdf: var(--danger);
+  --file-doc: var(--info);
+  --file-sheet: var(--success);
+  --file-slide: var(--warning);
+  --file-image: #b692f6;
+  --file-other: var(--neutral-300);
+  --file-mark: var(--neutral-900);
 }
 
 /* ── Puente hacia Tailwind ─────────────────────────────────────────────────── */
@@ -168,6 +189,14 @@
   --color-danger-surface: var(--danger-surface);
   --color-info: var(--info);
   --color-info-surface: var(--info-surface);
+
+  --color-file-pdf: var(--file-pdf);
+  --color-file-doc: var(--file-doc);
+  --color-file-sheet: var(--file-sheet);
+  --color-file-slide: var(--file-slide);
+  --color-file-image: var(--file-image);
+  --color-file-other: var(--file-other);
+  --color-file-mark: var(--file-mark);
 
   --color-backdrop: var(--backdrop);
   --shadow-modal: var(--shadow-modal);

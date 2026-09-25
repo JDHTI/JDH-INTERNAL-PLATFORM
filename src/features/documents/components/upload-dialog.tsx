@@ -9,16 +9,18 @@ import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
-import { useUploadDocument } from "../hooks/use-documents";
+import { useSaveTagColor, useTagColors, useUploadDocument } from "../hooks/use-documents";
 import {
   ACCEPT_ATTRIBUTE,
   ALLOWED_EXTENSIONS,
   MAX_UPLOAD_BYTES,
   fileExtension,
   formatBytes,
+  normalizeTag,
   parseTags,
 } from "../lib/format";
 import type { Folder } from "../types/document.types";
+import { TagInput } from "./tag-input";
 
 export default function UploadDialog({
   slug,
@@ -82,14 +84,68 @@ function UploadForm({
   const [fileError, setFileError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
+  const [draftColor, setDraftColor] = useState<string | null>(null);
+  // Colors picked here wait for the upload: coloring a tag of a document
+  // that was never created would change the area for nothing. null means
+  // "remove the color the area has".
+  const [pendingColors, setPendingColors] = useState<Record<string, string | null>>({});
   const upload = useUploadDocument(slug);
+  const areaColors = useTagColors(slug);
+  const saveTagColor = useSaveTagColor(slug);
+
+  const colorOf = (tag: string) =>
+    tag in pendingColors
+      ? (pendingColors[tag] ?? undefined)
+      : areaColors.data?.get(tag);
+
+  /** New chips take the square's color, which then resets for the next one. */
+  const withDraftColor = (added: string[], colors: Record<string, string | null>) =>
+    draftColor
+      ? { ...colors, ...Object.fromEntries(added.map((tag) => [tag, draftColor])) }
+      : colors;
+
+  const addTags = (added: string[]) => {
+    setTags((current) => [...new Set([...current, ...added])]);
+    setPendingColors((current) => withDraftColor(added, current));
+    setDraftColor(null);
+  };
+
+  const removeTag = (tag: string) => {
+    setTags((current) => current.filter((item) => item !== tag));
+    setPendingColors((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => key !== tag))
+    );
+  };
+
+  const saveColors = async (uploadedTags: string[], colors: Record<string, string | null>) => {
+    const changes = uploadedTags.filter(
+      (tag) => tag in colors && colors[tag] !== (areaColors.data?.get(tag) ?? null)
+    );
+    const results = await Promise.allSettled(
+      changes.map((tag) => saveTagColor.mutateAsync({ tag, color: colors[tag] }))
+    );
+    const failed = changes.filter((_, index) => results[index].status === "rejected");
+    if (failed.length > 0) {
+      toast.error(
+        `El documento se subió, pero no se guardó el color de: ${failed.join(", ")}. Cámbialo desde la tabla.`,
+        { duration: Infinity }
+      );
+    }
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const problem = validateFile(file);
     setFileError(problem);
     if (problem || !file) return;
+
+    // Text still in the field is a tag too; it has not become a chip only
+    // because the person went straight to "Subir".
+    const typed = parseTags(tagDraft).map(normalizeTag);
+    const finalTags = [...new Set([...tags, ...typed])];
+    const finalColors = withDraftColor(typed, pendingColors);
 
     upload.mutate(
       {
@@ -98,11 +154,13 @@ function UploadForm({
           file,
           name: name.trim() || undefined,
           description: description.trim() || undefined,
-          tags: parseTags(tags).join(",") || undefined,
+          tags: finalTags.join(",") || undefined,
         },
       },
       {
-        onSuccess: (document) => {
+        onSuccess: async (document) => {
+          // The API's tags, not the typed ones: they are what colors key on.
+          await saveColors(document.tags, finalColors);
           toast.success(`«${document.name}» quedó en ${folder.name}.`);
           onDone();
         },
@@ -166,12 +224,22 @@ function UploadForm({
         label="Etiquetas"
         htmlFor={`${id}-tags`}
         optional
-        hint="Separadas por comas, por ejemplo: contratos, 2026."
+        hint="Enter o coma para agregar. El cuadro elige el color; clic en una etiqueta para cambiarlo."
       >
-        <Input
+        <TagInput
           id={`${id}-tags`}
-          value={tags}
-          onChange={(event) => setTags(event.target.value)}
+          describedBy={`${id}-tags-hint`}
+          tags={tags}
+          draft={tagDraft}
+          onDraftChange={setTagDraft}
+          draftColor={draftColor}
+          onDraftColorChange={setDraftColor}
+          onAdd={addTags}
+          onRemove={removeTag}
+          colorOf={colorOf}
+          onTagColorChange={(tag, color) =>
+            setPendingColors((current) => ({ ...current, [tag]: color }))
+          }
         />
       </Field>
 
@@ -181,8 +249,8 @@ function UploadForm({
         <Button variant="outline" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={upload.isPending}>
-          {upload.isPending ? "Subiendo…" : "Subir documento"}
+        <Button type="submit" disabled={upload.isPending || saveTagColor.isPending}>
+          {upload.isPending || saveTagColor.isPending ? "Subiendo…" : "Subir documento"}
         </Button>
       </DialogFooter>
     </form>

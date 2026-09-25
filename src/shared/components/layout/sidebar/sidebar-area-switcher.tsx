@@ -9,7 +9,7 @@ import type { Area } from "@/features/areas/types/area.types";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
-const AREA_PAGE_SIZE = 9;
+const AREA_PAGE_SIZE = 7;
 
 /**
  * Area switcher.
@@ -33,7 +33,7 @@ export default function SidebarAreaSwitcher() {
       <div className="shrink-0 p-3">
         <div
           className={cn(
-            "flex h-12 items-center rounded-md border border-sidebar-border bg-sidebar-subtle px-2",
+            "flex h-12 items-center rounded-md border-[0.5px] border-sidebar-border bg-sidebar-subtle px-2",
             isPending && "animate-pulse"
           )}
           aria-busy={isPending}
@@ -126,7 +126,7 @@ function AreaSwitcherCard({
             // around the 32px badge is 8px on every side rather than 8px
             // vertically and 4px horizontally.
             "flex size-12 items-center justify-center rounded-md",
-            "border border-sidebar-border bg-sidebar-subtle transition-colors duration-150",
+            "border-[0.5px] border-sidebar-border bg-sidebar-active transition-colors duration-150",
             "hover:bg-sidebar-hover",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
           )}
@@ -145,9 +145,9 @@ function AreaSwitcherCard({
             applied inside the collapse button instead. */}
         <div
           className={cn(
-            "flex h-12 items-center rounded-md border border-sidebar-border px-2",
+            "flex h-12 items-center rounded-md border-[0.5px] border-sidebar-border px-2",
             "transition-colors duration-150",
-            isOpen ? "bg-sidebar-hover" : "bg-sidebar-subtle"
+            isOpen ? "bg-sidebar-active" : "bg-sidebar-subtle"
           )}
         >
           <button
@@ -170,7 +170,7 @@ function AreaSwitcherCard({
             <span
               className={cn(
                 "flex h-8 min-w-0 flex-1 items-center rounded-l-sm px-2",
-                "bg-sidebar-hover text-sm font-semibold text-sidebar-foreground"
+                "bg-sidebar-active text-sm font-semibold text-sidebar-muted"
               )}
             >
               <span className="truncate">{activeArea.name}</span>
@@ -189,7 +189,7 @@ function AreaSwitcherCard({
             aria-label="Cambiar de área"
             className={cn(
               "flex size-8 shrink-0 items-center justify-center rounded-r-sm",
-              "bg-sidebar-hover text-sidebar-foreground transition-colors duration-150",
+              "bg-sidebar-active text-sidebar-muted transition-colors duration-150",
               "hover:bg-sidebar-active",
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
             )}
@@ -202,16 +202,16 @@ function AreaSwitcherCard({
           <div
             id={panelId}
             className={cn(
-              "absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-md",
-              "border border-sidebar-border bg-sidebar shadow-lg"
+              "absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md",
+              "border-[0.5px] border-sidebar-border bg-sidebar shadow-lg"
             )}
           >
             <ul
               aria-label={`Áreas, página ${visiblePage + 1} de ${pageCount}`}
-              className="max-h-[27rem] overflow-y-auto overscroll-contain no-scrollbar"
+              className="max-h-[21rem] snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar"
             >
               {visibleAreas.map((area) => (
-                <li key={area.id}>
+                <li key={area.id} className="snap-start">
                   <AreaOption
                     area={area}
                     isActive={area.id === activeArea.id}
