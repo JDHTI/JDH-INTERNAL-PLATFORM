@@ -9,16 +9,18 @@ import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
-import { useUploadDocument } from "../hooks/use-documents";
+import { useSaveTagColor, useTagColors, useUploadDocument } from "../hooks/use-documents";
 import {
   ACCEPT_ATTRIBUTE,
   ALLOWED_EXTENSIONS,
   MAX_UPLOAD_BYTES,
   fileExtension,
   formatBytes,
+  normalizeTag,
   parseTags,
 } from "../lib/format";
 import type { Folder } from "../types/document.types";
+import { TagColorButton } from "./tag-chip";
 
 export default function UploadDialog({
   slug,
@@ -83,7 +85,35 @@ function UploadForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
+  // Colors picked here wait for the upload: coloring a tag of a document
+  // that was never created would change the area for nothing. null means
+  // "remove the color the area has".
+  const [pendingColors, setPendingColors] = useState<Record<string, string | null>>({});
   const upload = useUploadDocument(slug);
+  const areaColors = useTagColors(slug);
+  const saveTagColor = useSaveTagColor(slug);
+
+  const tagList = [...new Set(parseTags(tags).map(normalizeTag))];
+  const colorOf = (tag: string) =>
+    tag in pendingColors
+      ? (pendingColors[tag] ?? undefined)
+      : areaColors.data?.get(tag);
+
+  const saveColors = async (uploadedTags: string[]) => {
+    const changes = uploadedTags.filter(
+      (tag) => tag in pendingColors && pendingColors[tag] !== (areaColors.data?.get(tag) ?? null)
+    );
+    const results = await Promise.allSettled(
+      changes.map((tag) => saveTagColor.mutateAsync({ tag, color: pendingColors[tag] }))
+    );
+    const failed = changes.filter((_, index) => results[index].status === "rejected");
+    if (failed.length > 0) {
+      toast.error(
+        `El documento se subió, pero no se guardó el color de: ${failed.join(", ")}. Cámbialo desde la tabla.`,
+        { duration: Infinity }
+      );
+    }
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -102,7 +132,9 @@ function UploadForm({
         },
       },
       {
-        onSuccess: (document) => {
+        onSuccess: async (document) => {
+          // The API's tags, not the typed ones: they are what colors key on.
+          await saveColors(document.tags);
           toast.success(`«${document.name}» quedó en ${folder.name}.`);
           onDone();
         },
@@ -175,14 +207,41 @@ function UploadForm({
         />
       </Field>
 
+      {tagList.length > 0 && (
+        <div className="space-y-1.5">
+          <p id={`${id}-colors`} className="text-[13px] font-medium">
+            Color de las etiquetas
+            <span className="font-normal text-text-secondary"> (opcional)</span>
+          </p>
+          <ul aria-labelledby={`${id}-colors`} className="flex flex-wrap gap-1">
+            {tagList.map((tag) => (
+              <li key={tag} className="min-w-0">
+                <TagColorButton
+                  tag={tag}
+                  color={colorOf(tag)}
+                  onSave={(color) =>
+                    setPendingColors((current) => ({ ...current, [tag]: color }))
+                  }
+                  scopeNote="Se guarda al subir el documento y aplica en todo el área."
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="text-[13px] text-text-secondary">
+            Haz clic en una etiqueta para elegir su color. Las que ya tienen
+            color en el área lo muestran.
+          </p>
+        </div>
+      )}
+
       <DialogError message={upload.error ? errorMessage(upload.error) : null} />
 
       <DialogFooter>
         <Button variant="outline" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={upload.isPending}>
-          {upload.isPending ? "Subiendo…" : "Subir documento"}
+        <Button type="submit" disabled={upload.isPending || saveTagColor.isPending}>
+          {upload.isPending || saveTagColor.isPending ? "Subiendo…" : "Subir documento"}
         </Button>
       </DialogFooter>
     </form>
