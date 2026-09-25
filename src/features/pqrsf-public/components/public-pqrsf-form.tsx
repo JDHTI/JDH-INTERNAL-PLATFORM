@@ -9,7 +9,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { CheckCircle2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, TriangleAlert, X } from "lucide-react";
 
 import {
   ApiError,
@@ -374,24 +374,34 @@ export default function PublicPqrsfForm() {
                     label="Tipo de solicitud"
                     error={fieldErrors.request_type_id}
                   >
-                    <Dropdown
-                      id="pqrsf-request-type"
-                      name="request_type_id"
-                      options={catalog.request_types.map((type) => ({
-                        value: type.id,
-                        label: type.name,
-                      }))}
-                      value={values.request_type_id}
-                      onValueChange={updateRequestType}
-                      onBlur={() => handleBlur("request_type_id")}
-                      aria-invalid={Boolean(fieldErrors.request_type_id)}
-                      aria-required="true"
-                      aria-label="Tipo de solicitud"
-                      aria-describedby={describedBy("pqrsf-request-type", Boolean(fieldErrors.request_type_id))}
-                      placeholder="Selecciona una opción"
-                      clearable
-                      clearLabel="Quitar tipo de solicitud"
-                    />
+                    <div className="relative">
+                      <Dropdown
+                        id="pqrsf-request-type"
+                        name="request_type_id"
+                        options={catalog.request_types.map((type) => ({
+                          value: type.id,
+                          label: type.name,
+                        }))}
+                        value={values.request_type_id}
+                        onValueChange={updateRequestType}
+                        onBlur={() => handleBlur("request_type_id")}
+                        aria-invalid={Boolean(fieldErrors.request_type_id)}
+                        aria-required="true"
+                        aria-label="Tipo de solicitud"
+                        aria-describedby={describedBy("pqrsf-request-type", Boolean(fieldErrors.request_type_id))}
+                        placeholder="Selecciona una opción"
+                      />
+                      {values.request_type_id && (
+                        <button
+                          type="button"
+                          aria-label="Quitar tipo de solicitud"
+                          onClick={() => updateRequestType("")}
+                          className="absolute right-8 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
                   </FormField>
 
                   <FormField id="pqrsf-site" label="Sede" error={fieldErrors.site_id}>
