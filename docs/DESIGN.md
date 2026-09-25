@@ -128,6 +128,7 @@ Los componentes **solo** consumen estos tokens. Un hex dentro de un componente e
 | `--ring` | Anillo de foco |
 | `--success` / `--warning` / `--danger` / `--info` | Estados semánticos |
 | `--*-surface` | Fondo teñido del estado correspondiente (badges, alerts) |
+| `--file-*` | Íconos de formato del gestor documental, y nada más (§3.7) |
 
 ### 3.4 Mapeo por tema
 
@@ -241,6 +242,16 @@ Medido con verificador WCAG. **Estos números son resultados, no estimaciones.**
 | Claro | `--text-on-primary` #ffffff / `--danger` #b42318 | **6.57** ✅ |
 | Oscuro | `--text-on-primary` #1d1d1b / `--danger` #f97066 | **6.06** ✅ |
 
+**Íconos de formato (marca `--file-mark` sobre la hoja; ver §3.7)**
+
+PDF, Word, hoja de cálculo y presentación reusan `--danger`, `--info`, `--success` y
+`--warning`, así que sus ratios son los de la tabla de estados. Los dos tonos propios:
+
+| Familia | Claro: #ffffff sobre | Oscuro: #1d1d1b sobre |
+|---|---|---|
+| Imagen `--file-image` | #6941c6 — **6.62** ✅ | #b692f6 — **6.78** ✅ |
+| Otros `--file-other` | #343430 — **12.50** ✅ | #c8c8c4 — **10.06** ✅ |
+
 ### 3.6 Reglas de color
 
 - **`--neutral-500` (#919189) nunca es color de texto en tema claro.** Falla AA sobre blanco
@@ -257,6 +268,28 @@ Medido con verificador WCAG. **Estos números son resultados, no estimaciones.**
 - **Sin gradientes decorativos.** La profundidad viene de la alternancia de superficie.
 - **Sin hex inline.** Si un componente necesita un color que no está en §3.3, el sistema está
   incompleto: se discute el token, no se parchea el componente.
+
+### 3.7 Familias de formato
+
+El gestor documental muestra cada archivo con una hoja de esquina doblada coloreada por
+familia: la convención que la gente ya trae de Office y del explorador de archivos, así que
+se reconoce el tipo antes de leer la extensión.
+
+| Token | Familia | Extensiones |
+|---|---|---|
+| `--file-pdf` → `--danger` | PDF | pdf |
+| `--file-doc` → `--info` | Documento | doc, docx |
+| `--file-sheet` → `--success` | Hoja de cálculo | xls, xlsx, xlsm, csv |
+| `--file-slide` → `--warning` | Presentación | ppt, pptx |
+| `--file-image` | Imagen | png, jpg, jpeg |
+| `--file-other` | Comprimido, texto | zip, txt |
+| `--file-mark` | Marca interior (líneas, cuadrícula, paisaje…) | todas |
+
+- **Solo dentro del ícono de formato.** Estos tokens no pintan texto, fondos de fila ni
+  badges. Que el PDF use el rojo de `--danger` no lo convierte en un error: el color vive
+  dentro de una hoja de 20×24px y nunca fuera de ella.
+- **La extensión siempre va escrita al lado.** El color no es la única señal (§3.6).
+- Un formato nuevo se asigna a una familia existente; una familia nueva se discute aquí.
 
 ---
 
