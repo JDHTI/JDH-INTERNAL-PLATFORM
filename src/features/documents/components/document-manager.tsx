@@ -163,7 +163,7 @@ export default function DocumentManager({ slug }: { slug: string }) {
             onSubmit={(event) => event.preventDefault()}
             className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end"
           >
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor={`${searchId}-q`} className="block text-[13px] font-medium">
                 Buscar en {area?.name ?? "el área"}
               </label>
@@ -175,7 +175,7 @@ export default function DocumentManager({ slug }: { slug: string }) {
                 placeholder="Nombre, archivo o descripción"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor={`${searchId}-tags`} className="block text-[13px] font-medium">
                 Etiquetas
               </label>
