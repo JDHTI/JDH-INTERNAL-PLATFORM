@@ -574,6 +574,9 @@ sistema no puede verificar cada par de antemano. Lo que se fija es la receta, qu
 - El selector (`ColorPicker`, compartido) acepta hex o RGB y abre la paleta del sistema. Los
   **recientes** son de cada persona (`localStorage`, `jdh-recent-colors`, máximo 8) y se
   registran al guardar, no mientras se arrastra.
+- Al subir, las etiquetas se escriben como chips en un solo campo: Enter o coma agrega, el
+  cuadro de color incrustado a la derecha del campo elige el color de la próxima, y clic en
+  un chip lo cambia. El color va en la misma fila que la etiqueta, no en una sección aparte.
 
 ---
 
