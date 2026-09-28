@@ -41,13 +41,16 @@ export function DueLabel({
           {due.label}
         </Badge>
       )}
-      <span className="tabular whitespace-nowrap">
-        {due.date}
-        {/* Closed cases keep the date for the record; how far it is no longer matters. */}
-        {!item.closed_at && (
-          <span className="text-[13px] text-text-secondary"> · {due.relative}</span>
-        )}
-      </span>
+      <span className="tabular whitespace-nowrap">{due.date}</span>
+      {/* Closed cases keep the date for the record; how far it is no longer
+          matters. In the table the relative day takes its own line so the
+          column stays narrow. */}
+      {!item.closed_at && (
+        <span className="text-[13px] whitespace-nowrap text-text-secondary">
+          {layout === "inline" && "· "}
+          {due.relative}
+        </span>
+      )}
     </span>
   );
 }
