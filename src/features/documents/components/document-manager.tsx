@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useArea } from "@/features/areas/hooks/use-areas";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
+import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -20,7 +21,6 @@ import {
 import { parseTags } from "../lib/format";
 import { getDownloadLink } from "../services/documents.service";
 import type { DocumentItem, Folder } from "../types/document.types";
-import ConfirmDeleteDialog from "./confirm-delete-dialog";
 import DocumentsTable from "./documents-table";
 import EditDocumentDialog from "./edit-document-dialog";
 import FolderDialog from "./folder-dialog";
