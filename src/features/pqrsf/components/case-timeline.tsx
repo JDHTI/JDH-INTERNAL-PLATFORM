@@ -31,8 +31,12 @@ function describe(event: CaseEvent, item: PqrsfCase, catalog: TrackingCatalog): 
           : "Creó el caso";
     case "assigned": {
       const to = text(event.data, "to_user_id");
-      if (!to) return "Quitó el responsable";
-      // The event stores ids only; the current assignee is the one name known here.
+      const fromName = text(event.data, "from_name");
+      if (!to) return fromName ? `Quitó a ${fromName} como responsable` : "Quitó el responsable";
+      const toName = text(event.data, "to_name");
+      if (toName) return fromName ? `Reasignó de ${fromName} a ${toName}` : `Asignó a ${toName}`;
+      // Events older than the stored names only carry ids: the current
+      // assignee is the one name known here.
       return item.assignee?.id === to ? `Asignó a ${personName(item.assignee)}` : "Cambió el responsable";
     }
     case "status_changed":

@@ -33,6 +33,7 @@ function filterQuery(filters: CaseFilters): Query {
     site_id: filters.site_id,
     open_only: filters.open_only,
     overdue: filters.overdue,
+    due_today: filters.due_today,
     received_from: filters.received_from,
     received_to: filters.received_to,
     q: filters.q,
@@ -127,7 +128,7 @@ export function getSummary(filters: CaseFilters): Promise<CaseSummary> {
 export function exportCases(filters: CaseFilters): Promise<void> {
   return apiDownload("/pqrsf/cases/export", {
     query: filterQuery(filters),
-    // Used when CORS hides Content-Disposition; mirrors the API's own name.
+    // The API's Content-Disposition name wins; this is only the fallback.
     fallbackName: `pqrsf-seguimiento-${new Date().toISOString().slice(0, 10)}.csv`,
   });
 }

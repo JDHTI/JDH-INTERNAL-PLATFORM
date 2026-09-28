@@ -323,7 +323,6 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         views={availableViews(isManager)}
         active={view}
         counts={(item) => viewCount(item, allSummary.data, mineSummary.data)}
-        dueToday={allSummary.data?.due_today}
         onSelect={(next) => update({ view: next })}
       />
 
@@ -566,25 +565,27 @@ function FilterField({
 
 /**
  * Views are the spreadsheet's saved filters, one tap each, with their count.
- * "Vencen hoy" is a counter only: the API filters overdue cases but not the
- * ones due today, and a button that shows something else would lie.
+ * The two deadline views tint their count when it is not zero, next to the
+ * view's name, so the urgent pile is visible before anyone opens it.
  */
+const URGENT_TONE: Partial<Record<InboxView, string>> = {
+  vencidos: "bg-danger-badge text-danger",
+  "vencen-hoy": "bg-warning-badge text-warning",
+};
+
 function ViewBar({
   views,
   active,
   counts,
-  dueToday,
   onSelect,
 }: {
   views: InboxView[];
   active: InboxView;
   counts: (view: InboxView) => number | undefined;
-  dueToday: number | undefined;
   onSelect: (view: InboxView) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-      <nav aria-label="Vistas rápidas" className="-mx-1 overflow-x-auto px-1 pb-1 lg:pb-0">
+    <nav aria-label="Vistas rápidas" className="-mx-1 overflow-x-auto px-1 pb-1">
         <ul className="flex gap-1">
           {views.map((view) => {
             const count = counts(view);
@@ -608,8 +609,10 @@ function ViewBar({
                   {VIEW_LABELS[view]}
                   <span
                     className={cn(
-                      "tabular min-w-6 rounded-sm px-1.5 text-center text-[13px] text-text-primary",
-                      isActive ? "bg-surface" : "bg-canvas-subtle"
+                      "tabular min-w-6 rounded-sm px-1.5 text-center text-[13px]",
+                      count && URGENT_TONE[view]
+                        ? URGENT_TONE[view]
+                        : cn("text-text-primary", isActive ? "bg-surface" : "bg-canvas-subtle")
                     )}
                   >
                     {count ?? "–"}
@@ -620,15 +623,6 @@ function ViewBar({
           })}
         </ul>
       </nav>
-      {dueToday !== undefined && dueToday > 0 && (
-        <p className="flex items-center gap-2 text-[13px] text-text-secondary">
-          <span className="tabular rounded-sm bg-warning-badge px-2 py-0.5 font-medium text-warning">
-            {dueToday} {dueToday === 1 ? "caso vence" : "casos vencen"} hoy
-          </span>
-          Ordena por «Vence» para verlos primero.
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -717,6 +711,10 @@ function Results({
     vencidos: {
       title: "No hay casos vencidos",
       body: "Ningún caso abierto pasó su fecha límite.",
+    },
+    "vencen-hoy": {
+      title: "Ningún caso vence hoy",
+      body: "Los casos abiertos con fecha límite de hoy aparecen aquí. Revisa «Vencidos» para los que ya pasaron.",
     },
     abiertos: {
       title: "No hay casos abiertos",

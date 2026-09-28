@@ -6,7 +6,14 @@ import type { CaseFilters, CaseSort, CaseSummary } from "../types/pqrsf.types";
  * filter in the old spreadsheet could not.
  */
 
-export const INBOX_VIEWS = ["mios", "sin-asignar", "vencidos", "abiertos", "todos"] as const;
+export const INBOX_VIEWS = [
+  "mios",
+  "sin-asignar",
+  "vencidos",
+  "vencen-hoy",
+  "abiertos",
+  "todos",
+] as const;
 export type InboxView = (typeof INBOX_VIEWS)[number];
 
 export const PAGE_SIZES = [25, 50, 100] as const;
@@ -117,6 +124,7 @@ export const VIEW_LABELS: Record<InboxView, string> = {
   mios: "Mis casos",
   "sin-asignar": "Sin asignar",
   vencidos: "Vencidos",
+  "vencen-hoy": "Vencen hoy",
   abiertos: "Abiertos",
   todos: "Todos",
 };
@@ -125,6 +133,7 @@ const VIEW_FILTERS: Record<InboxView, Partial<CaseFilters>> = {
   mios: { mine: true, open_only: true },
   "sin-asignar": { unassigned: true, open_only: true },
   vencidos: { overdue: true },
+  "vencen-hoy": { due_today: true },
   abiertos: { open_only: true },
   todos: {},
 };
@@ -158,6 +167,8 @@ export function viewCount(
       return all?.unassigned;
     case "vencidos":
       return all?.overdue;
+    case "vencen-hoy":
+      return all?.due_today;
     case "abiertos":
       return all?.open;
     case "todos":

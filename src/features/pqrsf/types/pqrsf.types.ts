@@ -77,6 +77,8 @@ export interface CaseItem {
   response_days: number | null;
   difference_days: number | null;
   is_late: boolean;
+  /** Unanswered, in an open case, past its due date. */
+  is_overdue: boolean;
   delay_cause: string | null;
   delay_detail: string | null;
 }
@@ -219,6 +221,7 @@ export interface CaseFilters {
   site_id?: string;
   open_only?: boolean;
   overdue?: boolean;
+  due_today?: boolean;
   received_from?: string;
   received_to?: string;
   q?: string;

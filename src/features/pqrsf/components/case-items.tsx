@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FilePlus2, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, FilePlus2, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import StatePanel from "@/shared/components/state-panel";
@@ -221,13 +221,20 @@ export default function CaseItems({
   );
 }
 
-/*
- * No per-document "overdue" badge: the API flags overdue on the case, not on
- * each document, and recomputing it here would duplicate its rule.
- */
+/** `is_overdue` is the API's call: unanswered, open case, past its date. */
 function ItemDue({ document }: { document: CaseItem }) {
   if (!document.due_on) return <span className="text-text-secondary">Sin fecha</span>;
-  return <>{formatDate(document.due_on)}</>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {document.is_overdue && (
+        <Badge tone="danger">
+          <AlertTriangle aria-hidden="true" />
+          Vencido
+        </Badge>
+      )}
+      {formatDate(document.due_on)}
+    </span>
+  );
 }
 
 function Difference({ document }: { document: CaseItem }) {
