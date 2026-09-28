@@ -17,6 +17,8 @@ import {
   useDeleteFolder,
   useDocumentSearch,
   useFolders,
+  useSaveTagColor,
+  useTagColors,
 } from "../hooks/use-documents";
 import { parseTags } from "../lib/format";
 import { getDownloadLink } from "../services/documents.service";
@@ -28,6 +30,7 @@ import FolderPanel from "./folder-panel";
 import UploadDialog from "./upload-dialog";
 
 const PAGE_SIZE = 20;
+const NO_COLORS = new Map<string, string>();
 
 /** Error toasts stay until dismissed: an error that leaves on its own went unread. */
 const persistentError = (message: string) =>
@@ -83,6 +86,19 @@ export default function DocumentManager({ slug }: { slug: string }) {
 
   const deleteFolder = useDeleteFolder(slug);
   const deleteDocument = useDeleteDocument(slug);
+  // Without colors the tags still render, just uncolored: a failed lookup
+  // should not block the documents themselves.
+  const tagColors = useTagColors(slug);
+  const saveTagColor = useSaveTagColor(slug);
+
+  const changeTagColor = async (tag: string, color: string | null) => {
+    await saveTagColor.mutateAsync({ tag, color });
+    toast.success(
+      color
+        ? `«${tag}» cambió de color en todo el área.`
+        : `«${tag}» volvió al color por defecto.`
+    );
+  };
 
   const download = async (document: DocumentItem) => {
     setDownloadingId(document.id);
@@ -163,7 +179,7 @@ export default function DocumentManager({ slug }: { slug: string }) {
             onSubmit={(event) => event.preventDefault()}
             className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end"
           >
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor={`${searchId}-q`} className="block text-[13px] font-medium">
                 Buscar en {area?.name ?? "el área"}
               </label>
@@ -175,7 +191,7 @@ export default function DocumentManager({ slug }: { slug: string }) {
                 placeholder="Nombre, archivo o descripción"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor={`${searchId}-tags`} className="block text-[13px] font-medium">
                 Etiquetas
               </label>
@@ -211,6 +227,8 @@ export default function DocumentManager({ slug }: { slug: string }) {
               setDocumentToDelete(document);
             }}
             downloadingId={downloadingId}
+            tagColors={tagColors.data ?? NO_COLORS}
+            onTagColorChange={changeTagColor}
           />
 
           {data && data.total > 0 && (
@@ -344,6 +362,8 @@ function DocumentsArea({
   onEdit: (document: DocumentItem) => void;
   onDelete: (document: DocumentItem) => void;
   downloadingId: string | null;
+  tagColors: Map<string, string>;
+  onTagColorChange: (tag: string, color: string | null) => Promise<void>;
 }) {
   // No folder yet: the folder panel's empty state already says what to do.
   if (!isEnabled) return null;

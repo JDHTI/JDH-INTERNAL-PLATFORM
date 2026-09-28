@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
@@ -32,18 +33,23 @@ import TasksMenu from "./header/tasks-menu";
  * on small screens.
  */
 export default function AppHeader() {
+  const pathname = usePathname();
   const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
+  const isAdministration =
+    pathname === "/administracion" || pathname.startsWith("/administracion/");
 
   return (
     <header className="flex h-18 w-full shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-3 text-sidebar-foreground">
-      <button
-        type="button"
-        onClick={() => setMobileMenuOpen(true)}
-        className={cn(headerIconButtonClass, "md:hidden")}
-        aria-label="Abrir navegación"
-      >
-        <Menu className="size-4" />
-      </button>
+      {!isAdministration && (
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(true)}
+          className={cn(headerIconButtonClass, "md:hidden")}
+          aria-label="Abrir navegación"
+        >
+          <Menu className="size-4" />
+        </button>
+      )}
 
       <Breadcrumbs />
 

@@ -129,6 +129,7 @@ Los componentes **solo** consumen estos tokens. Un hex dentro de un componente e
 | `--success` / `--warning` / `--danger` / `--info` | Estados semánticos |
 | `--*-surface` | Fondo teñido del estado correspondiente (alerts) |
 | `--*-badge` | El mismo tinte, opaco: fondo de badges (§7.5) |
+| `--file-*` | Íconos de formato del gestor documental, y nada más (§3.7) |
 
 ### 3.4 Mapeo por tema
 
@@ -257,6 +258,16 @@ lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobr
 | Claro | `--text-on-primary` #ffffff / `--danger` #b42318 | **6.57** ✅ |
 | Oscuro | `--text-on-primary` #1d1d1b / `--danger` #f97066 | **6.06** ✅ |
 
+**Íconos de formato (marca `--file-mark` sobre la hoja; ver §3.7)**
+
+PDF, Word, hoja de cálculo y presentación reusan `--danger`, `--info`, `--success` y
+`--warning`, así que sus ratios son los de la tabla de estados. Los dos tonos propios:
+
+| Familia | Claro: #ffffff sobre | Oscuro: #1d1d1b sobre |
+|---|---|---|
+| Imagen `--file-image` | #6941c6 — **6.62** ✅ | #b692f6 — **6.78** ✅ |
+| Otros `--file-other` | #343430 — **12.50** ✅ | #c8c8c4 — **10.06** ✅ |
+
 ### 3.6 Reglas de color
 
 - **`--neutral-500` (#919189) nunca es color de texto en tema claro.** Falla AA sobre blanco
@@ -273,6 +284,28 @@ lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobr
 - **Sin gradientes decorativos.** La profundidad viene de la alternancia de superficie.
 - **Sin hex inline.** Si un componente necesita un color que no está en §3.3, el sistema está
   incompleto: se discute el token, no se parchea el componente.
+
+### 3.7 Familias de formato
+
+El gestor documental muestra cada archivo con una hoja de esquina doblada coloreada por
+familia: la convención que la gente ya trae de Office y del explorador de archivos, así que
+se reconoce el tipo antes de leer la extensión.
+
+| Token | Familia | Extensiones |
+|---|---|---|
+| `--file-pdf` → `--danger` | PDF | pdf |
+| `--file-doc` → `--info` | Documento | doc, docx |
+| `--file-sheet` → `--success` | Hoja de cálculo | xls, xlsx, xlsm, csv |
+| `--file-slide` → `--warning` | Presentación | ppt, pptx |
+| `--file-image` | Imagen | png, jpg, jpeg |
+| `--file-other` | Comprimido, texto | zip, txt |
+| `--file-mark` | Marca interior (líneas, cuadrícula, paisaje…) | todas |
+
+- **Solo dentro del ícono de formato.** Estos tokens no pintan texto, fondos de fila ni
+  badges. Que el PDF use el rojo de `--danger` no lo convierte en un error: el color vive
+  dentro de una hoja de 20×24px y nunca fuera de ella.
+- **La extensión siempre va escrita al lado.** El color no es la única señal (§3.6).
+- Un formato nuevo se asigna a una familia existente; una familia nueva se discute aquí.
 
 ---
 
@@ -541,6 +574,26 @@ conoce la convención — y el que entra mañana no la conoce.
 Esquina inferior derecha, `--radius-lg`, elevación 2, ancho máximo 400px.
 Éxito 4s, error **persistente hasta descarte** — un error que se va solo es un error que nadie leyó.
 Máximo tres apilados. `role="status"` para éxito, `role="alert"` para error.
+
+### 7.7 Etiquetas con color
+
+El color de una etiqueta lo elige el área (`#rrggbb` libre, guardado en la API), así que el
+sistema no puede verificar cada par de antemano. Lo que se fija es la receta, que pasa AA con
+**cualquier** color:
+
+- Fondo: el color al **14%** sobre `--surface` en claro y al **24%** en oscuro
+  (`color-mix`). Un punto de 8px con el color sólido a la izquierda del texto.
+- Texto: siempre `--text-primary`, nunca el color elegido. Peor caso medido: #1d1d1b sobre
+  negro al 14% (#dbdbdb) = **12.19**; blanco sobre blanco al 24% (#5a5a59) = **6.90**.
+- El color es un dato del usuario que llega por `style`, no un hex del componente, y no
+  rompe la regla de §3.6.
+- La etiqueta sin color conserva `--canvas-subtle`, sin punto.
+- El selector (`ColorPicker`, compartido) acepta hex o RGB y abre la paleta del sistema. Los
+  **recientes** son de cada persona (`localStorage`, `jdh-recent-colors`, máximo 8) y se
+  registran al guardar, no mientras se arrastra.
+- Al subir, las etiquetas se escriben como chips en un solo campo: Enter o coma agrega, el
+  cuadro de color incrustado a la derecha del campo elige el color de la próxima, y clic en
+  un chip lo cambia. El color va en la misma fila que la etiqueta, no en una sección aparte.
 
 ---
 

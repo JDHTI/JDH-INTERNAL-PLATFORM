@@ -38,6 +38,15 @@ export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
 
+/**
+ * The API's form of a tag: lowercase, whitespace collapsed. Colors are keyed
+ * by it, so "Contratos " typed in the upload form finds the color that
+ * "contratos" already has.
+ */
+export function normalizeTag(tag: string): string {
+  return tag.split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+}
+
 /** "Contratos, 2026 ,contratos" → ["Contratos", "2026"]. */
 export function parseTags(text: string): string[] {
   const seen = new Set<string>();

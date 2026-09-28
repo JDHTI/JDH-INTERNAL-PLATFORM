@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CloudOff,
   Columns3,
+  ExternalLink,
   FileDown,
   Inbox,
   Loader2,
@@ -286,6 +287,20 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
     <div className="space-y-4">
       <InboxHeading>
         <div className="flex shrink-0 flex-wrap gap-2 lg:flex-nowrap lg:justify-end">
+          {/* The customers' entry point: staff open it to check what the
+              customer sees or to file on someone's behalf. Own tab, so the
+              inbox and its filters stay where they were. */}
+          <Link
+            href="/pqrsf"
+            target="_blank"
+            rel="noopener"
+            title="Se abre en otra pestaña"
+            className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-11")}
+          >
+            <ExternalLink aria-hidden="true" />
+            Formulario público
+            <span className="sr-only"> (se abre en otra pestaña)</span>
+          </Link>
           {isManager && (
             <Link
               href={`/${area}/pqrsf/configuracion`}

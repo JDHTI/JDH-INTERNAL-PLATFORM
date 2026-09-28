@@ -6,6 +6,8 @@ import { Button } from "@/shared/components/ui/button";
 
 import { formatBytes, formatDate } from "../lib/format";
 import type { DocumentItem, Folder } from "../types/document.types";
+import FileTypeIcon, { fileFamilyLabel } from "./file-type-icon";
+import { TagColorButton } from "./tag-chip";
 
 interface RowActions {
   onDownload: (document: DocumentItem) => void;
@@ -14,37 +16,52 @@ interface RowActions {
   downloadingId: string | null;
 }
 
+interface TagColoring {
+  /** Tag → "#rrggbb" for the area. */
+  tagColors: Map<string, string>;
+  /** Rejects with the API error; the popover shows it. */
+  onTagColorChange: (tag: string, color: string | null) => Promise<void>;
+}
+
 /**
  * Desktop: a dense table (DESIGN.md §7.3). Phone: one card per document with
- * the three fields that decide the next move (name, type and size, date),
+ * the format icon and the fields that decide the next move (name, type and
+ * size, date),
  * because an eight-column table does not fit 375px (§10).
  */
 export default function DocumentsTable({
   documents,
   folders,
   showFolder,
+  tagColors,
+  onTagColorChange,
   ...actions
 }: {
   documents: DocumentItem[];
   folders: Folder[];
   /** Search results span folders, so they say where each one lives. */
   showFolder: boolean;
-} & RowActions) {
+} & RowActions &
+  TagColoring) {
+  const coloring = { tagColors, onTagColorChange };
   const folderName = (id: string) =>
     folders.find((folder) => folder.id === id)?.name ?? "";
 
   return (
     <>
       {/* Fixed layout so the name column absorbs the squeeze (and truncates
-          with a tooltip) instead of pushing the actions out of view. Type
-          and size share a cell, and so do date and author: each pair is read
-          together anyway, and five columns fit where seven did not. */}
+          with a tooltip) instead of pushing the actions out of view. Format
+          and size get a column each so each one scans down on its own; date
+          and author still share a cell because they are read together.
+          Cells are vertically centered: a row with a description or a
+          wrapped tag list grows, and the rest of the row follows its middle. */}
       <div className="hidden overflow-hidden rounded-lg border border-border md:block">
         <table className="w-full table-fixed text-sm">
           <thead className="bg-canvas-subtle text-left text-[11px] font-semibold tracking-[0.06em] text-text-secondary uppercase">
             <tr>
               <th scope="col" className="px-3 py-2">Nombre</th>
-              <th scope="col" className="w-28 px-3 py-2">Archivo</th>
+              <th scope="col" className="w-24 px-3 py-2">Formato</th>
+              <th scope="col" className="w-24 px-3 py-2 text-right">Peso</th>
               <th scope="col" className="w-40 px-3 py-2">Etiquetas</th>
               <th scope="col" className="w-44 px-3 py-2">Subido</th>
               <th scope="col" className="w-[7.5rem] px-3 py-2">
@@ -54,7 +71,7 @@ export default function DocumentsTable({
           </thead>
           <tbody className="divide-y divide-border">
             {documents.map((document) => (
-              <tr key={document.id} className="h-10 align-top hover:bg-primary-subtle">
+              <tr key={document.id} className="h-10 align-middle hover:bg-primary-subtle">
                 <td className="px-3 py-2">
                   <span className="block truncate font-medium" title={document.name}>
                     {document.name}
@@ -74,15 +91,21 @@ export default function DocumentsTable({
                   )}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <span className="block font-mono text-[13px] uppercase">
-                    {document.extension}
-                  </span>
-                  <span className="tabular block text-[13px] text-text-secondary">
-                    {formatBytes(document.size_bytes)}
+                  <span
+                    className="flex items-center gap-2"
+                    title={fileFamilyLabel(document.extension)}
+                  >
+                    <FileTypeIcon extension={document.extension} />
+                    <span className="font-mono text-[13px] uppercase">
+                      {document.extension}
+                    </span>
                   </span>
                 </td>
+                <td className="tabular px-3 py-2 text-right whitespace-nowrap">
+                  {formatBytes(document.size_bytes)}
+                </td>
                 <td className="px-3 py-2">
-                  <Tags tags={document.tags} />
+                  <Tags tags={document.tags} {...coloring} />
                 </td>
                 <td className="px-3 py-2">
                   <time dateTime={document.created_at} className="tabular block">
@@ -107,20 +130,23 @@ export default function DocumentsTable({
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border md:hidden">
         {documents.map((document) => (
           <li key={document.id} className="space-y-2 p-3">
-            <div className="min-w-0">
-              <p className="truncate font-medium">{document.name}</p>
-              <p className="tabular text-[13px] text-text-secondary">
-                <span className="font-mono uppercase">{document.extension}</span>
-                {" · "}
-                {formatBytes(document.size_bytes)}
-                {" · "}
-                <time dateTime={document.created_at}>
-                  {formatDate(document.created_at)}
-                </time>
-                {showFolder && ` · ${folderName(document.folder_id)}`}
-              </p>
+            <div className="flex items-center gap-3">
+              <FileTypeIcon extension={document.extension} />
+              <div className="min-w-0">
+                <p className="truncate font-medium">{document.name}</p>
+                <p className="tabular text-[13px] text-text-secondary">
+                  <span className="font-mono uppercase">{document.extension}</span>
+                  {" · "}
+                  {formatBytes(document.size_bytes)}
+                  {" · "}
+                  <time dateTime={document.created_at}>
+                    {formatDate(document.created_at)}
+                  </time>
+                  {showFolder && ` · ${folderName(document.folder_id)}`}
+                </p>
+              </div>
             </div>
-            <Tags tags={document.tags} />
+            <Tags tags={document.tags} {...coloring} />
             <RowButtons document={document} {...actions} />
           </li>
         ))}
@@ -129,18 +155,24 @@ export default function DocumentsTable({
   );
 }
 
-function Tags({ tags }: { tags: string[] }) {
+function Tags({
+  tags,
+  tagColors,
+  onTagColorChange,
+}: { tags: string[] } & TagColoring) {
   if (tags.length === 0) {
     return <span className="text-text-secondary">Sin etiquetas</span>;
   }
   return (
     <ul className="flex flex-wrap gap-1" aria-label="Etiquetas">
       {tags.map((tag) => (
-        <li
-          key={tag}
-          className="rounded-sm bg-canvas-subtle px-2 py-0.5 text-[13px] font-medium"
-        >
-          {tag}
+        <li key={tag} className="min-w-0">
+          <TagColorButton
+            tag={tag}
+            color={tagColors.get(tag)}
+            onSave={(color) => onTagColorChange(tag, color)}
+            scopeNote="Cambia en todos los documentos del área que tengan esta etiqueta."
+          />
         </li>
       ))}
     </ul>

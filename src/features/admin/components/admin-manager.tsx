@@ -4,6 +4,7 @@ import { createElement, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -44,7 +45,7 @@ import {
   DEFAULT_AREA_ICON,
   resolveAreaIcon,
 } from "@/features/areas/area-icons";
-import { Button } from "@/shared/components/ui/button";
+import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
@@ -181,12 +182,21 @@ export default function AdminManager({
             Gestiona las áreas de la organización, sus roles y las personas que tienen acceso.
           </p>
         </div>
-        {section === "areas" && (
-          <Button onClick={openCreateArea}>
-            <Plus aria-hidden="true" />
-            Nueva área
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <ArrowLeft aria-hidden="true" />
+            Volver a la plataforma
+          </Link>
+          {section === "areas" && (
+            <Button onClick={openCreateArea}>
+              <Plus aria-hidden="true" />
+              Nueva área
+            </Button>
+          )}
+        </div>
       </header>
 
       <nav aria-label="Secciones de administración" className="flex gap-1 border-b border-border">

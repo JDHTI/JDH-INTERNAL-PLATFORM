@@ -8,11 +8,14 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  clearTagColor,
   createFolder,
   deleteDocument,
   deleteFolder,
   listFolders,
+  listTagColors,
   searchDocuments,
+  setTagColor,
   updateDocument,
   updateFolder,
   uploadDocument,
@@ -30,7 +33,31 @@ export const documentKeys = {
   searches: (slug: string) => [...documentKeys.all, "search", slug] as const,
   search: (params: DocumentSearchParams) =>
     [...documentKeys.searches(params.area), params] as const,
+  tagColors: (slug: string) => [...documentKeys.all, "tag-colors", slug] as const,
 };
+
+/** Tag → "#rrggbb" for the area. Tags without a color are absent. */
+export function useTagColors(slug: string) {
+  return useQuery({
+    queryKey: documentKeys.tagColors(slug),
+    queryFn: () => listTagColors(slug),
+    select: (colors) => new Map(colors.map((item) => [item.tag, item.color])),
+  });
+}
+
+/**
+ * `color: null` returns the tag to the default look. Only the color list is
+ * refreshed: documents keep the same tags, so their listings stay valid.
+ */
+export function useSaveTagColor(slug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tag, color }: { tag: string; color: string | null }) =>
+      color ? setTagColor(slug, tag, color).then(() => undefined) : clearTagColor(slug, tag),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: documentKeys.tagColors(slug) }),
+  });
+}
 
 export function useFolders(slug: string) {
   return useQuery({
