@@ -12,6 +12,7 @@ import {
   findUtilityLinkByPath,
 } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
+import { useBreadcrumbStore } from "@/shared/store/use-breadcrumb-store";
 
 /** Turns an unmatched URL segment into something a person can read. */
 function segmentToLabel(segment: string): string {
@@ -19,11 +20,17 @@ function segmentToLabel(segment: string): string {
   return decoded.charAt(0).toUpperCase() + decoded.slice(1);
 }
 
-function labelForHref(href: string, segment: string, areas: Area[]): string {
+function labelForHref(
+  href: string,
+  segment: string,
+  areas: Area[],
+  registered: Record<string, string>
+): string {
   const area = areas.find((candidate) => candidate.path === href);
   if (area) return area.name;
 
   return (
+    registered[href] ??
     findModuleByPath(href)?.name ??
     findUtilityLinkByPath(href)?.name ??
     segmentToLabel(segment)
@@ -42,13 +49,14 @@ function labelForHref(href: string, segment: string, areas: Area[]): string {
 export default function Breadcrumbs() {
   const pathname = usePathname();
   const { data: areas = [] } = useAreas();
+  const registered = useBreadcrumbStore((state) => state.labels);
   const segments = pathname.split("/").filter(Boolean);
 
   const crumbs = segments.map((segment, index) => {
     const href = "/" + segments.slice(0, index + 1).join("/");
     return {
       href,
-      label: labelForHref(href, segment, areas),
+      label: labelForHref(href, segment, areas, registered),
       isLast: index === segments.length - 1,
     };
   });

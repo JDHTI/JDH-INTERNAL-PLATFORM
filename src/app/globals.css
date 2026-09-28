@@ -78,6 +78,14 @@
   --info: #175cd3;
   --info-surface: rgba(23, 92, 211, 0.08);
 
+  /* Fondo de badge (§7.5): el mismo tinte que --*-surface pero opaco. Uno
+     translúcido se oscurece sobre la fila en hover y la alerta cae a 4.16:1;
+     opaco queda fijo: éxito 5.08, alerta 4.83, error 5.75, info 5.32. */
+  --success-badge: color-mix(in srgb, var(--success) 8%, var(--neutral-0));
+  --warning-badge: color-mix(in srgb, var(--warning) 8%, var(--neutral-0));
+  --danger-badge: color-mix(in srgb, var(--danger) 8%, var(--neutral-0));
+  --info-badge: color-mix(in srgb, var(--info) 8%, var(--neutral-0));
+
   /* Familias de formato (§3.7): el color que la gente ya asocia a cada tipo
      de archivo. Reusan los tonos de estado para no sumar matices; solo la
      imagen trae uno propio. La marca interior va en --file-mark sobre cada
@@ -139,6 +147,12 @@
   --info: #84adff;
   --info-surface: rgba(132, 173, 255, 0.12);
 
+  /* Éxito 6.66, alerta 7.17, error 5.10, info 6.11 */
+  --success-badge: color-mix(in srgb, var(--success) 12%, var(--neutral-900));
+  --warning-badge: color-mix(in srgb, var(--warning) 12%, var(--neutral-900));
+  --danger-badge: color-mix(in srgb, var(--danger) 12%, var(--neutral-900));
+  --info-badge: color-mix(in srgb, var(--info) 12%, var(--neutral-900));
+
   /* #1d1d1b sobre #b692f6 = 6.78:1; sobre #c8c8c4 = 10.06:1 */
   --file-pdf: var(--danger);
   --file-doc: var(--info);
@@ -189,6 +203,10 @@
   --color-danger-surface: var(--danger-surface);
   --color-info: var(--info);
   --color-info-surface: var(--info-surface);
+  --color-success-badge: var(--success-badge);
+  --color-warning-badge: var(--warning-badge);
+  --color-danger-badge: var(--danger-badge);
+  --color-info-badge: var(--info-badge);
 
   --color-file-pdf: var(--file-pdf);
   --color-file-doc: var(--file-doc);

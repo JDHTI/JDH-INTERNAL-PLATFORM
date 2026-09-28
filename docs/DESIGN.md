@@ -127,7 +127,8 @@ Los componentes **solo** consumen estos tokens. Un hex dentro de un componente e
 | `--border-control` | Borde de controles interactivos (inputs, selects) |
 | `--ring` | Anillo de foco |
 | `--success` / `--warning` / `--danger` / `--info` | Estados semánticos |
-| `--*-surface` | Fondo teñido del estado correspondiente (badges, alerts) |
+| `--*-surface` | Fondo teñido del estado correspondiente (alerts) |
+| `--*-badge` | El mismo tinte, opaco: fondo de badges (§7.5) |
 | `--file-*` | Íconos de formato del gestor documental, y nada más (§3.7) |
 
 ### 3.4 Mapeo por tema
@@ -234,6 +235,21 @@ Medido con verificador WCAG. **Estos números son resultados, no estimaciones.**
 | Alerta | #b54708 — **5.43** ✅ | #fdb022 — **9.17** ✅ |
 | Error | #b42318 — **6.57** ✅ | #f97066 — **6.06** ✅ |
 | Info | #175cd3 — **5.99** ✅ | #84adff — **7.56** ✅ |
+
+**Badges de estado (texto `--{estado}` sobre `--{estado}-badge`)**
+
+El fondo `--*-surface` es translúcido: sobre una fila en hover (`--primary-subtle`) se oscurece
+y la alerta cae a **4.16** ❌. Por eso el badge usa `--*-badge`, el mismo tinte mezclado con el
+lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobre
+`--neutral-900`), que no cambia bajo la fila.
+
+| Estado | Claro | Oscuro |
+|---|---|---|
+| Éxito | #067647 / #ebf4f0 · **5.08** ✅ | #47cd89 / #223228 · **6.66** ✅ |
+| Alerta | #b54708 / #f9f0eb · **4.83** ✅ | #fdb022 / #382f1c · **7.17** ✅ |
+| Error | #b42318 / #f9edec · **5.75** ✅ | #f97066 / #372724 · **5.10** ✅ |
+| Info | #175cd3 / #ecf2fc · **5.32** ✅ | #84adff / #292e36 · **6.11** ✅ |
+| Neutro | #1d1d1b / `--canvas-subtle` #f2f2f2 · **15.08** ✅ | #ffffff / #151513 · **18.28** ✅ |
 
 **Confirmación de borrado (botón `danger` sólido, solo dentro del modal)**
 
@@ -548,7 +564,8 @@ Es la pantalla dominante de la plataforma. Su calidad determina la percepción d
 
 ### 7.5 Badges de estado
 
-`--radius-sm`, padding `2px 8px`, `caption` peso 500, fondo `--{estado}-surface`, texto `--{estado}`.
+`--radius-sm`, padding `2px 8px`, `caption` peso 500, fondo `--{estado}-badge`, texto `--{estado}`.
+Neutro: fondo `--canvas-subtle`, texto `--text-primary`. Componente: `shared/components/ui/badge.tsx`.
 **Siempre con etiqueta textual.** Un punto de color sin texto no comunica nada a quien no
 conoce la convención — y el que entra mañana no la conoce.
 

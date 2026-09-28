@@ -63,7 +63,11 @@ function readDetail(body: unknown, status: number): string {
   return "No se pudo completar la solicitud. Intenta de nuevo.";
 }
 
-type Query = Record<string, string | number | undefined | null>;
+/** An array repeats the key (`status_id=a&status_id=b`), as FastAPI expects. */
+export type Query = Record<
+  string,
+  string | number | boolean | string[] | undefined | null
+>;
 
 interface ApiRequest extends Omit<RequestInit, "body"> {
   query?: Query;
@@ -73,16 +77,72 @@ interface ApiRequest extends Omit<RequestInit, "body"> {
   publicRequest?: boolean;
 }
 
+function buildUrl(path: string, query: Query | undefined): URL {
+  const url = new URL(API_URL + path);
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (Array.isArray(value)) {
+      for (const item of value) url.searchParams.append(key, item);
+    } else if (value !== undefined && value !== null && value !== "" && value !== false) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url;
+}
+
+/** A file the API streams, with the name its Content-Disposition gives. */
+export async function apiBlob(
+  path: string,
+  query?: Query
+): Promise<{ blob: Blob; filename: string | null }> {
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, query), { credentials: "include" });
+  } catch {
+    throw new ApiError(
+      0,
+      "No hay conexión con la plataforma. Revisa tu red e intenta de nuevo."
+    );
+  }
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    throw new ApiError(response.status, readDetail(payload, response.status));
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  return {
+    blob: await response.blob(),
+    filename: encoded ? decodeURIComponent(encoded) : null,
+  };
+}
+
+/**
+ * Hands a streamed file (CSV export, attachments) to the browser as a
+ * download. Going through fetch instead of a plain link keeps the API's
+ * error message on screen instead of navigating to raw JSON.
+ */
+export async function apiDownload(
+  path: string,
+  { query, fallbackName }: { query?: Query; fallbackName: string }
+): Promise<void> {
+  const { blob, filename } = await apiBlob(path, query);
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename ?? fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked on the next tick: some browsers start reading the blob only
+  // after the click handler returns.
+  setTimeout(() => URL.revokeObjectURL(href), 0);
+}
+
 export async function apiFetch<T>(
   path: string,
   { query, body, headers, publicRequest: isPublic = false, ...init }: ApiRequest = {}
 ): Promise<T> {
-  const url = new URL(API_URL + path);
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
-    }
-  }
+  const url = buildUrl(path, query);
 
   const isForm = body instanceof FormData;
   let response: Response;
