@@ -2,7 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CloudOff, Copy, FileQuestion, Lock, Pencil, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Check,
+  CloudOff,
+  Copy,
+  FileQuestion,
+  Lock,
+  Pencil,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import StatePanel from "@/shared/components/state-panel";
@@ -20,11 +31,12 @@ import {
 } from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
 import type { PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
-import { DueLabel, StatusBadge } from "./case-badges";
-import { AssignDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
+import { DueLabel } from "./case-badges";
+import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
 import CaseTimeline from "./case-timeline";
 import IntakeRequestSection from "./intake-request";
+import { StatusMenu } from "./status-menu";
 
 export default function CaseDetailScreen({ area, caseId }: { area: string; caseId: string }) {
   const detail = useCaseDetail(caseId);
@@ -104,7 +116,7 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
   return (
     <div className="space-y-6">
       {back}
-      <CaseHeader item={item} catalog={catalog.data} />
+      <CaseHeader area={area} item={item} catalog={catalog.data} />
 
       {/* The facts sit beside the work only on very wide screens. Below that
           they become a strip on top, so the documents table keeps the full
@@ -131,8 +143,18 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
   );
 }
 
-function CaseHeader({ item, catalog }: { item: PqrsfCase; catalog: TrackingCatalog }) {
-  const [dialog, setDialog] = useState<"status" | "assign" | "edit" | null>(null);
+function CaseHeader({
+  area,
+  item,
+  catalog,
+}: {
+  area: string;
+  item: PqrsfCase;
+  catalog: TrackingCatalog;
+}) {
+  const router = useRouter();
+  const [dialog, setDialog] = useState<"status" | "assign" | "edit" | "delete" | null>(null);
+  const [statusTarget, setStatusTarget] = useState<string | undefined>();
   const [copied, setCopied] = useState(false);
   const isClosed = item.closed_at !== null;
   const { can_work: canWork, can_assign: canAssign } = item.permissions;
@@ -165,15 +187,31 @@ function CaseHeader({ item, catalog }: { item: PqrsfCase; catalog: TrackingCatal
             >
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
             </Button>
-            <StatusBadge status={item.status} />
+            <StatusMenu
+              item={item}
+              catalog={catalog}
+              onNeedsDialog={(statusId) => {
+                setStatusTarget(statusId);
+                setDialog("status");
+              }}
+            />
           </div>
           <p className="text-sm text-text-secondary">
             {item.request_type.name} · {originLabel(item.origin)} · Recibido el{" "}
             <span className="tabular">{formatDate(item.received_on)}</span>
-            {item.legacy?.original_consecutive !== undefined &&
-              String(item.legacy.original_consecutive) !== item.code && (
-                <> · En el Excel era {String(item.legacy.original_consecutive)}</>
-              )}
+            {/* Numbers people may still quote: the code before the per-site
+                numbering and, for imported cases, the P.13.F.01 number. */}
+            {item.legacy?.previous_code && (
+              <>
+                {" "}· Antes <span className="font-mono">{item.legacy.previous_code}</span>
+              </>
+            )}
+            {item.legacy?.original_consecutive != null && (
+              <>
+                {" "}· Consecutivo Excel{" "}
+                <span className="tabular">{String(item.legacy.original_consecutive)}</span>
+              </>
+            )}
           </p>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-text-secondary">Vence</span>
@@ -194,9 +232,11 @@ function CaseHeader({ item, catalog }: { item: PqrsfCase; catalog: TrackingCatal
               {item.assignee ? "Reasignar" : "Asignar"}
             </Button>
           )}
-          {canWork && (
-            <Button className="max-md:h-11" onClick={() => setDialog("status")}>
-              {isClosed ? "Reabrir caso" : "Cambiar estado"}
+          {/* Tinted, not solid: the solid red is saved for the confirmation. */}
+          {item.permissions.can_delete && (
+            <Button variant="danger" className="max-md:h-11" onClick={() => setDialog("delete")}>
+              <Trash2 aria-hidden="true" />
+              Eliminar
             </Button>
           )}
         </div>
@@ -208,7 +248,8 @@ function CaseHeader({ item, catalog }: { item: PqrsfCase; catalog: TrackingCatal
           <time dateTime={item.closed_at!} title={formatDateTime(item.closed_at!)} className="tabular">
             {formatDateTime(item.closed_at!).split(",")[0]}
           </time>
-          . El caso queda de solo lectura: se puede comentar{canWork ? " o reabrir" : ""}.
+          . El caso queda de solo lectura: se puede comentar
+          {canWork ? " o reabrir desde su estado" : ""}.
         </p>
       )}
       {!canWork && !isClosed && (
@@ -219,13 +260,27 @@ function CaseHeader({ item, catalog }: { item: PqrsfCase; catalog: TrackingCatal
       )}
 
       {dialog === "status" && (
-        <StatusDialog item={item} catalog={catalog} open onOpenChange={() => setDialog(null)} />
+        <StatusDialog
+          item={item}
+          catalog={catalog}
+          initialStatusId={statusTarget}
+          open
+          onOpenChange={() => setDialog(null)}
+        />
       )}
       {dialog === "assign" && (
         <AssignDialog item={item} open onOpenChange={() => setDialog(null)} />
       )}
       {dialog === "edit" && (
         <EditCaseDialog item={item} catalog={catalog} open onOpenChange={() => setDialog(null)} />
+      )}
+      {dialog === "delete" && (
+        <DeleteCaseDialog
+          item={item}
+          open
+          onOpenChange={() => setDialog(null)}
+          onDeleted={() => router.replace(inboxHref(area))}
+        />
       )}
     </header>
   );

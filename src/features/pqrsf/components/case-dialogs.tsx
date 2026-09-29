@@ -14,7 +14,9 @@ import { errorMessage } from "@/shared/lib/api-client";
 import {
   useAddItem,
   useAssignCase,
+  useCaseDetail,
   useChangeStatus,
+  useDeleteCase,
   useUpdateCase,
 } from "../hooks/use-pqrsf";
 import { personName, todayIso } from "../lib/format";
@@ -25,6 +27,7 @@ import type {
   TrackingCatalog,
   UpdateCaseInput,
 } from "../types/pqrsf.types";
+import { Thumbnail } from "./intake-request";
 import { AssigneePicker, DocumentTypePicker, SuggestionInput } from "./pickers";
 
 function Submit({ isPending, children }: { isPending: boolean; children: React.ReactNode }) {
@@ -48,11 +51,14 @@ export function StatusDialog({
   catalog,
   open,
   onOpenChange,
+  initialStatusId,
 }: {
   item: PqrsfCase;
   catalog: TrackingCatalog;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Preselected target, when the choice was already made in a menu. */
+  initialStatusId?: string;
 }) {
   const id = useId();
   const mutation = useChangeStatus(item.id);
@@ -60,6 +66,7 @@ export function StatusDialog({
   const isClosed = item.closed_at !== null;
   // A reopened case is back at work, not back at the inbox: «En curso» when it exists.
   const [statusId, setStatusId] = useState(() => {
+    if (initialStatusId) return initialStatusId;
     if (!isClosed) return "";
     const open = targets.filter((status) => !status.is_terminal);
     return (open.find((status) => status.code === "en_curso") ?? open.at(-1))?.id ?? "";
@@ -441,6 +448,155 @@ export function EditCaseDialog({
           </Button>
         </DialogFooter>
       </form>
+    </Dialog>
+  );
+}
+
+// ── Deletion ──
+
+/**
+ * The one irreversible action on a case, so it asks why: the reason stays in
+ * the history next to who deleted it, even though the case is gone. Solid red
+ * only on the confirm button (DESIGN.md §7.1).
+ */
+export function DeleteCaseDialog({
+  item,
+  open,
+  onOpenChange,
+  onDeleted,
+}: {
+  item: PqrsfCase;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeleted: () => void;
+}) {
+  const id = useId();
+  const mutation = useDeleteCase(item.id);
+  const [reason, setReason] = useState("");
+
+  const close = (next: boolean) => {
+    if (mutation.isPending) return;
+    if (!next) {
+      mutation.reset();
+      setReason("");
+    }
+    onOpenChange(next);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={close}
+      isForm
+      title={`Eliminar ${item.code}`}
+      description="Se borran el caso y sus documentos solicitados. No se puede deshacer."
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!reason.trim()) return;
+          mutation.mutate(reason.trim(), {
+            onSuccess: () => {
+              toast.success(`${item.code} fue eliminado. Su historial se conserva.`);
+              onDeleted();
+            },
+          });
+        }}
+      >
+        <ul className="space-y-1 rounded-md bg-canvas-subtle px-3 py-2 text-sm">
+          <li>
+            {item.request_type.name} de {item.customer_name ?? "cliente sin nombre"}, en estado{" "}
+            {item.status.name}.
+          </li>
+          <li>
+            El historial del caso no se borra: queda quién lo eliminó, cuándo y por qué.
+          </li>
+          {item.request_id && (
+            <li>La solicitud original del formulario público y sus adjuntos se conservan.</li>
+          )}
+        </ul>
+        <Field
+          label="Motivo"
+          htmlFor={`${id}-reason`}
+          hint="Por ejemplo: duplicado de otro caso, registro de prueba."
+        >
+          <Textarea
+            id={`${id}-reason`}
+            value={reason}
+            required
+            maxLength={2000}
+            onChange={(event) => setReason(event.target.value)}
+            aria-describedby={`${id}-reason-hint`}
+          />
+        </Field>
+        <DialogError message={mutation.error ? errorMessage(mutation.error) : null} />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => close(false)} disabled={mutation.isPending}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending || !reason.trim()}
+            className="bg-danger text-text-on-primary hover:bg-danger/90"
+          >
+            {mutation.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Eliminar caso
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
+  );
+}
+
+// ── Attachments ──
+
+/**
+ * What the customer attached in the public form, without leaving the inbox.
+ * The list does not carry attachments, so the case is loaded on open.
+ */
+export function AttachmentsDialog({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: PqrsfCase;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const detail = useCaseDetail(item.id);
+  const attachments = detail.data?.request?.attachments ?? [];
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Adjuntos de ${item.code}`}
+      description="Clic en un archivo para descargarlo."
+    >
+      {detail.isPending ? (
+        <p className="flex items-center gap-2 text-sm text-text-secondary">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Cargando adjuntos
+        </p>
+      ) : detail.error ? (
+        <DialogError message={errorMessage(detail.error)} />
+      ) : attachments.length === 0 ? (
+        <p className="text-sm text-text-secondary">La solicitud no trae adjuntos.</p>
+      ) : (
+        <ul className="grid grid-cols-2 gap-3">
+          {attachments.map((attachment) => (
+            <li key={attachment.id}>
+              <Thumbnail caseId={item.id} attachment={attachment} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Cerrar
+        </Button>
+      </DialogFooter>
     </Dialog>
   );
 }

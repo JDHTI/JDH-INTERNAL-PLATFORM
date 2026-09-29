@@ -368,7 +368,7 @@ function RequestTypesTable({ catalog }: { catalog: TrackingCatalog }) {
 
   return (
     <SettingsTable
-      caption="El prefijo arma el consecutivo (P-2026-00012). Cambiarlo no reescribe los códigos ya emitidos. Sin seguimiento, el caso recibe consecutivo pero no fecha límite."
+      caption="El prefijo abre el consecutivo, seguido del año y la sigla de la sucursal (P26AC0012). Cambiarlo no reescribe los códigos ya emitidos. Sin seguimiento, el caso recibe consecutivo pero no fecha límite."
       headers={[
         { label: "Tipo" },
         { label: "Prefijo" },

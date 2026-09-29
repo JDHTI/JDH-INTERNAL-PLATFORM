@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, ImageOff, Loader2 } from "lucide-react";
+import { Download, FileText, ImageOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { errorMessage } from "@/shared/lib/api-client";
@@ -74,14 +74,16 @@ export default function IntakeRequestSection({
   );
 }
 
-function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeAttachment }) {
+export function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeAttachment }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [isDownloading, setDownloading] = useState(false);
+  const isImage = attachment.content_type.startsWith("image/");
 
   // Attachments sit behind the session, so the image cannot be a plain URL:
   // it is fetched with credentials and shown from a local object URL.
   useEffect(() => {
+    if (!isImage) return;
     let url: string | null = null;
     let cancelled = false;
     getAttachmentBlob(caseId, attachment.id)
@@ -95,7 +97,7 @@ function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeA
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [caseId, attachment.id]);
+  }, [caseId, attachment.id, isImage]);
 
   const download = async () => {
     setDownloading(true);
@@ -117,7 +119,12 @@ function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeA
       className="group block w-full overflow-hidden rounded-md border border-border text-left hover:border-border-control"
     >
       <span className="flex aspect-[4/3] items-center justify-center bg-canvas-subtle">
-        {src ? (
+        {!isImage ? (
+          <span className="flex flex-col items-center gap-1 text-text-secondary">
+            <FileText className="size-6" aria-hidden="true" />
+            <span className="text-[13px] font-medium uppercase">{attachment.extension}</span>
+          </span>
+        ) : src ? (
           // eslint-disable-next-line @next/next/no-img-element -- object URL, next/image cannot optimize it
           <img src={src} alt="" className="size-full object-cover" />
         ) : failed ? (

@@ -1,6 +1,8 @@
 import { apiBlob, apiDownload, apiFetch, type Query } from "@/shared/lib/api-client";
 
 import type {
+  ActivityFilters,
+  ActivityPage,
   CaseDetail,
   CaseEvent,
   CaseFilters,
@@ -12,6 +14,7 @@ import type {
   Dependency,
   DocumentType,
   ItemInput,
+  LastSeen,
   Person,
   PqrsfCase,
   RequestType,
@@ -170,6 +173,38 @@ export function changeStatus(
 
 export function markRead(id: string): Promise<PqrsfCase> {
   return apiFetch<PqrsfCase>(`${casePath(id)}/read`, { method: "POST" });
+}
+
+export function deleteCase(id: string, reason: string | null): Promise<void> {
+  return apiFetch<void>(casePath(id), { method: "DELETE", body: { reason } });
+}
+
+// ── History ──
+
+/** Fire-and-forget: the API skips repeats within 30 minutes. */
+export function recordInboxVisit(): Promise<void> {
+  return apiFetch<void>("/pqrsf/activity/visits", { method: "POST" });
+}
+
+export function listActivity(
+  filters: ActivityFilters,
+  before: string | null,
+  limit = 50
+): Promise<ActivityPage> {
+  return apiFetch<ActivityPage>("/pqrsf/activity", {
+    query: {
+      before: before ?? undefined,
+      limit,
+      event_type: filters.event_type,
+      actor_user_id: filters.actor_user_id,
+      case_code: filters.case_code,
+      include_access: filters.include_access,
+    },
+  });
+}
+
+export function getLastSeen(): Promise<LastSeen[]> {
+  return apiFetch<LastSeen[]>("/pqrsf/activity/last-seen");
 }
 
 export function addComment(id: string, body: string): Promise<CaseEvent> {

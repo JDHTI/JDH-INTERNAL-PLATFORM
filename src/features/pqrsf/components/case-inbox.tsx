@@ -4,16 +4,18 @@ import { useEffect, useEffectEvent, useId, useState, useSyncExternalStore } from
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  ChevronDown,
   CloudOff,
   Columns3,
+  Copy,
   ExternalLink,
   FileDown,
+  Globe,
   Inbox,
   Loader2,
   Lock,
   Plus,
   SearchX,
-  Settings2,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -21,14 +23,16 @@ import { toast } from "sonner";
 
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { DateRangePicker, formatIsoRange } from "@/shared/components/ui/date-range-picker";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
+import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useCases, useCatalog, useSummary } from "../hooks/use-pqrsf";
-import { formatDate, personName } from "../lib/format";
+import { useCases, useCatalog, useRecordInboxVisit, useSummary } from "../hooks/use-pqrsf";
+import { personName, todayIso } from "../lib/format";
 import {
   availableViews,
   hasRefinements,
@@ -47,9 +51,12 @@ import { exportCases } from "../services/pqrsf.service";
 import type { CaseSort, Person, TrackingCatalog } from "../types/pqrsf.types";
 import CasesTable, { OPTIONAL_COLUMNS, type OptionalColumn } from "./cases-table";
 import ChecklistMenu from "./checklist-menu";
-import { AssigneePicker } from "./pickers";
+import { AssigneeSelect } from "./pickers";
 
 const persistentError = (message: string) => toast.error(message, { duration: Infinity });
+
+/** Base width of a dropdown in the filter row; it grows to fill the row. */
+const FIELD_BASIS = "flex-[1_1_10rem]";
 
 // ── Optional columns, remembered per browser ──
 
@@ -134,8 +141,7 @@ function InboxHeading({ children }: { children?: React.ReactNode }) {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">PQRSF</h1>
         <p className="text-sm text-text-secondary">
-          Seguimiento de peticiones, quejas, reclamos, sugerencias y felicitaciones. Reemplaza el
-          formato P.13.F.01.
+          Seguimiento de peticiones, quejas, reclamos, sugerencias y felicitaciones.
         </p>
       </div>
       {children}
@@ -149,6 +155,8 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
   const searchParams = useSearchParams();
   const formId = useId();
   const isManager = catalog.is_manager;
+  // «Who entered the inbox» for the history, so nobody can say they never saw it.
+  useRecordInboxVisit();
 
   const state = parseInboxState(new URLSearchParams(searchParams.toString()));
   const view = resolveView(state.view, isManager);
@@ -249,17 +257,11 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
       label: `Sucursal: ${nameOf(catalog.sites, state.site_id) ?? "Sucursal"}`,
       clear: () => update({ site_id: undefined }),
     });
-  if (state.received_from)
+  if (state.received_from || state.received_to)
     chips.push({
-      key: "from",
-      label: `Recibido desde ${formatDate(state.received_from)}`,
-      clear: () => update({ received_from: undefined }),
-    });
-  if (state.received_to)
-    chips.push({
-      key: "to",
-      label: `Recibido hasta ${formatDate(state.received_to)}`,
-      clear: () => update({ received_to: undefined }),
+      key: "received",
+      label: `Recepción: ${formatIsoRange({ from: state.received_from, to: state.received_to })}`,
+      clear: () => update({ received_from: undefined, received_to: undefined }),
     });
   if (state.q)
     chips.push({
@@ -268,8 +270,11 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
       clear: () => update({ q: undefined }),
     });
 
-  // The search box stays visible on phones, so it does not count as folded.
-  const refinementCount = chips.filter((chip) => chip.key !== "q").length;
+  const advancedCount = [
+    state.dependency_id,
+    state.site_id,
+    isManager ? state.assignee_user_id : undefined,
+  ].filter(Boolean).length;
   const selectedStatuses = state.status_id;
   const statusSummary =
     selectedStatuses.length === 0
@@ -287,29 +292,7 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
     <div className="space-y-4">
       <InboxHeading>
         <div className="flex shrink-0 flex-wrap gap-2 lg:flex-nowrap lg:justify-end">
-          {/* The customers' entry point: staff open it to check what the
-              customer sees or to file on someone's behalf. Own tab, so the
-              inbox and its filters stay where they were. */}
-          <Link
-            href="/pqrsf"
-            target="_blank"
-            rel="noopener"
-            title="Se abre en otra pestaña"
-            className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-11")}
-          >
-            <ExternalLink aria-hidden="true" />
-            Formulario público
-            <span className="sr-only"> (se abre en otra pestaña)</span>
-          </Link>
-          {isManager && (
-            <Link
-              href={`/${area}/pqrsf/configuracion`}
-              className={cn(buttonVariants({ variant: "ghost" }), "max-md:h-11")}
-            >
-              <Settings2 aria-hidden="true" />
-              Configuración
-            </Link>
-          )}
+          <PublicFormMenu />
           <Button
             variant="secondary"
             onClick={exportCurrent}
@@ -345,32 +328,21 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         role="search"
         aria-label="Filtros de casos"
         onSubmit={(event) => event.preventDefault()}
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(14rem,2fr)_repeat(3,minmax(0,1fr))]"
+        className="space-y-3"
       >
-        <FilterField label="Buscar" htmlFor={`${formId}-q`} className="sm:col-span-2 lg:col-span-1">
+        {/* Every field grows from its own base width, so the row fills the
+            width it has and wraps whole fields, never half of one. */}
+        <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <FilterField label="Buscar" htmlFor={`${formId}-q`} className="flex-[1.6_1_16rem]">
           <Input
             id={`${formId}-q`}
             type="search"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Consecutivo, cliente, NIT, proveedor, asunto"
+            placeholder="Consecutivo, cliente, NIT, asunto"
           />
         </FilterField>
-        {/* On a phone the seven refinements would push every case below the
-            fold, so they fold behind one button that says how many are on. */}
-        <Button
-          variant="outline"
-          className="h-11 md:hidden"
-          aria-expanded={showFilters}
-          aria-controls={`${formId}-refine`}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <SlidersHorizontal aria-hidden="true" />
-          {showFilters ? "Ocultar filtros" : "Filtros"}
-          {refinementCount > 0 && <span className="tabular">({refinementCount})</span>}
-        </Button>
-        <div id={`${formId}-refine`} className={cn("contents", !showFilters && "max-md:hidden")}>
-        <FilterField label="Estado" htmlFor={`${formId}-status`}>
+        <FilterField label="Estado" htmlFor={`${formId}-status`} className={FIELD_BASIS}>
           <ChecklistMenu
             id={`${formId}-status`}
             label="Estado"
@@ -380,7 +352,7 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
             onChange={(next) => update({ status_id: next })}
           />
         </FilterField>
-        <FilterField label="Tipo" htmlFor={`${formId}-type`}>
+        <FilterField label="Tipo" htmlFor={`${formId}-type`} className={FIELD_BASIS}>
           <Dropdown
             id={`${formId}-type`}
             aria-label="Tipo de solicitud"
@@ -392,65 +364,91 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
             ]}
           />
         </FilterField>
-        {isManager && (
-          <FilterField label="Responsable" htmlFor={`${formId}-assignee`}>
-            <AssigneePicker
-              id={`${formId}-assignee`}
-              value={
-                state.assignee_user_id
-                  ? (assigneeFilter ?? { id: state.assignee_user_id, display_name: assigneeLabel, email: null })
-                  : null
-              }
-              onChange={(person) => {
-                setAssigneeFilter(person);
-                update({ assignee_user_id: person?.id });
-              }}
-              placeholder="Cualquiera"
+        <FilterField label="Recepción" htmlFor={`${formId}-received`} className="flex-[1.3_1_14rem]">
+          <DateRangePicker
+            id={`${formId}-received`}
+            label="Fecha de recepción"
+            value={{ from: state.received_from, to: state.received_to }}
+            max={todayIso()}
+            onChange={(range) => update({ received_from: range.from, received_to: range.to })}
+          />
+        </FilterField>
+        {/* The less used filters stay folded; the button says how many are
+            on while the panel is closed. */}
+        <Button
+          variant="outline"
+          className="flex-none max-md:h-11"
+          aria-expanded={showFilters}
+          aria-controls={`${formId}-advanced`}
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          <SlidersHorizontal aria-hidden="true" />
+          Filtros avanzados
+          {advancedCount > 0 && <span className="tabular">({advancedCount})</span>}
+          <ChevronDown
+            className={cn("text-text-secondary transition-transform", showFilters && "rotate-180")}
+            aria-hidden="true"
+          />
+        </Button>
+        {/* Columns only exist in the desktop table; phones show cards. */}
+        <div className="hidden w-44 flex-none md:block">
+          <ChecklistMenu
+            id={`${formId}-columns`}
+            label="Columnas opcionales"
+            summary={columns.length ? `${columns.length} columnas más` : "Más columnas"}
+            icon={<Columns3 className="size-4 text-text-secondary" aria-hidden="true" />}
+            options={OPTIONAL_COLUMNS.map((column) => ({ value: column.id, label: column.label }))}
+            selected={columns}
+            onChange={(next) => setColumns(next as OptionalColumn[])}
+            align="right"
+          />
+        </div>
+        </div>
+        <div
+          id={`${formId}-advanced`}
+          hidden={!showFilters}
+          className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
+          <FilterField label="Dependencia" htmlFor={`${formId}-dependency`}>
+            <Dropdown
+              id={`${formId}-dependency`}
+              aria-label="Dependencia"
+              value={state.dependency_id ?? ""}
+              onValueChange={(value) => update({ dependency_id: value || undefined })}
+              options={[
+                { value: "", label: "Todas las dependencias" },
+                ...catalog.dependencies.map((item) => ({ value: item.id, label: item.name })),
+              ]}
             />
           </FilterField>
-        )}
-        <FilterField label="Dependencia" htmlFor={`${formId}-dependency`}>
-          <Dropdown
-            id={`${formId}-dependency`}
-            aria-label="Dependencia"
-            value={state.dependency_id ?? ""}
-            onValueChange={(value) => update({ dependency_id: value || undefined })}
-            options={[
-              { value: "", label: "Todas las dependencias" },
-              ...catalog.dependencies.map((item) => ({ value: item.id, label: item.name })),
-            ]}
-          />
-        </FilterField>
-        <FilterField label="Sucursal" htmlFor={`${formId}-site`}>
-          <Dropdown
-            id={`${formId}-site`}
-            aria-label="Sucursal"
-            value={state.site_id ?? ""}
-            onValueChange={(value) => update({ site_id: value || undefined })}
-            options={[
-              { value: "", label: "Todas las sucursales" },
-              ...catalog.sites.map((site) => ({ value: site.id, label: site.name })),
-            ]}
-          />
-        </FilterField>
-        <FilterField label="Recibido desde" htmlFor={`${formId}-from`}>
-          <Input
-            id={`${formId}-from`}
-            type="date"
-            value={state.received_from ?? ""}
-            max={state.received_to}
-            onChange={(event) => update({ received_from: event.target.value || undefined })}
-          />
-        </FilterField>
-        <FilterField label="Recibido hasta" htmlFor={`${formId}-to`}>
-          <Input
-            id={`${formId}-to`}
-            type="date"
-            value={state.received_to ?? ""}
-            min={state.received_from}
-            onChange={(event) => update({ received_to: event.target.value || undefined })}
-          />
-        </FilterField>
+          <FilterField label="Sucursal" htmlFor={`${formId}-site`}>
+            <Dropdown
+              id={`${formId}-site`}
+              aria-label="Sucursal"
+              value={state.site_id ?? ""}
+              onValueChange={(value) => update({ site_id: value || undefined })}
+              options={[
+                { value: "", label: "Todas las sucursales" },
+                ...catalog.sites.map((site) => ({ value: site.id, label: site.name })),
+              ]}
+            />
+          </FilterField>
+          {isManager && (
+            <FilterField label="Responsable" htmlFor={`${formId}-assignee`}>
+              <AssigneeSelect
+                id={`${formId}-assignee`}
+                value={
+                  state.assignee_user_id
+                    ? (assigneeFilter ?? { id: state.assignee_user_id, display_name: assigneeLabel, email: null })
+                    : null
+                }
+                onChange={(person) => {
+                  setAssigneeFilter(person);
+                  update({ assignee_user_id: person?.id });
+                }}
+              />
+            </FilterField>
+          )}
         </div>
       </form>
 
@@ -482,18 +480,6 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
             filtros adicionales.
           </p>
         )}
-        <div className="hidden w-44 shrink-0 md:block">
-          <ChecklistMenu
-            id={`${formId}-columns`}
-            label="Columnas opcionales"
-            summary={columns.length ? `${columns.length} columnas más` : "Más columnas"}
-            icon={<Columns3 className="size-4 text-text-secondary" aria-hidden="true" />}
-            options={OPTIONAL_COLUMNS.map((column) => ({ value: column.id, label: column.label }))}
-            selected={columns}
-            onChange={(next) => setColumns(next as OptionalColumn[])}
-            align="right"
-          />
-        </div>
       </div>
 
       <section aria-labelledby={`${formId}-results`} className="space-y-3">
@@ -503,6 +489,7 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         <Results
           query={cases}
           area={area}
+          catalog={catalog}
           sort={state.sort}
           onSortChange={(sort: CaseSort) => update({ sort })}
           columns={columns}
@@ -554,6 +541,48 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * The customers' entry point: staff open it to check what the customer sees,
+ * or copy the link to send it. The address is built from the current origin,
+ * so it is right in every environment the platform runs in.
+ */
+function PublicFormMenu() {
+  const publicFormUrl = () => `${window.location.origin}/pqrsf`;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicFormUrl());
+      toast.success("Vínculo del formulario copiado.");
+    } catch {
+      persistentError(`No se pudo copiar. El vínculo es ${publicFormUrl()}`);
+    }
+  };
+
+  return (
+    <Menu
+      align="end"
+      triggerClassName={cn(buttonVariants({ variant: "ghost" }), "max-md:h-11")}
+      trigger={
+        <>
+          <Globe aria-hidden="true" />
+          Formulario público
+          <ChevronDown aria-hidden="true" />
+        </>
+      }
+    >
+      {/* Own tab, so the inbox and its filters stay where they were. */}
+      <MenuItem onClick={() => window.open(publicFormUrl(), "_blank", "noopener")}>
+        <ExternalLink aria-hidden="true" />
+        Abrir en otra pestaña
+      </MenuItem>
+      <MenuItem onClick={copyLink}>
+        <Copy aria-hidden="true" />
+        Copiar vínculo
+      </MenuItem>
+    </Menu>
   );
 }
 
@@ -644,6 +673,7 @@ function ViewBar({
 function Results({
   query,
   area,
+  catalog,
   sort,
   onSortChange,
   columns,
@@ -655,6 +685,7 @@ function Results({
 }: {
   query: ReturnType<typeof useCases>;
   area: string;
+  catalog: TrackingCatalog;
   sort: CaseSort;
   onSortChange: (sort: CaseSort) => void;
   columns: OptionalColumn[];
@@ -688,6 +719,7 @@ function Results({
     return (
       <CasesTable
         area={area}
+        catalog={catalog}
         cases={items}
         sort={sort}
         onSortChange={onSortChange}

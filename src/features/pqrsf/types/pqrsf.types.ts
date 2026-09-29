@@ -48,6 +48,8 @@ export interface Site {
   id: string;
   code: string;
   name: string;
+  /** Site part of the consecutive (the AC of P26AC0001). */
+  abbreviation: string;
   is_active: boolean;
 }
 
@@ -109,14 +111,19 @@ export interface PqrsfCase {
   request_id: string | null;
   first_read_at: string | null;
   closed_at: string | null;
-  legacy: { responsable?: string; original_consecutive?: string | number } & Record<
+  legacy: {
+    responsable?: string;
+    original_consecutive?: string | number;
+    /** Code before the per-site numbering (P-2026-00012). */
+    previous_code?: string;
+  } & Record<
     string,
     unknown
   > | null;
   items: CaseItem[];
   item_count: number;
   responded_count: number;
-  permissions: { can_work: boolean; can_assign: boolean };
+  permissions: { can_work: boolean; can_assign: boolean; can_delete: boolean };
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +140,9 @@ export interface CaseEvent {
     | "item_added"
     | "item_updated"
     | "item_removed"
+    | "deleted"
+    | "viewed"
+    | "inbox_opened"
     | string;
   actor: Person | null;
   from_status_id: string | null;
@@ -140,6 +150,30 @@ export interface CaseEvent {
   note: string | null;
   data: Record<string, unknown>;
   created_at: string;
+}
+
+/** Entry of the module history; `case_id` is null once the case is deleted. */
+export interface ActivityEvent extends CaseEvent {
+  case_id: string | null;
+  case_code: string | null;
+}
+
+export interface ActivityPage {
+  items: ActivityEvent[];
+  /** Pass as `before` to get the next, older page; null at the end. */
+  next_before: string | null;
+}
+
+export interface ActivityFilters {
+  event_type?: string[];
+  actor_user_id?: string;
+  case_code?: string;
+  include_access?: boolean;
+}
+
+export interface LastSeen {
+  user: Person;
+  last_seen_at: string;
 }
 
 export interface IntakeAttachment {

@@ -9,6 +9,7 @@ import {
   getModulesByArea,
 } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
+import SidebarModuleGroup from "./sidebar-module-group";
 import SidebarRow from "./sidebar-row";
 
 export default function SidebarMenu() {
@@ -69,15 +70,19 @@ export default function SidebarMenu() {
             <ul className="space-y-0.5">
               {modules.map((module) => (
                 <li key={module.id}>
-                  <SidebarRow
-                    href={module.path}
-                    label={module.name}
-                    icon={module.icon}
-                    isActive={pathname === module.path}
-                    isCollapsed={isSidebarCollapsed}
-                    available={module.available}
-                    onNavigate={closeDrawer}
-                  />
+                  {module.subItems && module.available && !isSidebarCollapsed ? (
+                    <SidebarModuleGroup module={module} onNavigate={closeDrawer} />
+                  ) : (
+                    <SidebarRow
+                      href={module.path}
+                      label={module.name}
+                      icon={module.icon}
+                      isActive={pathname === module.path}
+                      isCollapsed={isSidebarCollapsed}
+                      available={module.available}
+                      onNavigate={closeDrawer}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

@@ -7,12 +7,12 @@ import type { CaseFilters, CaseSort, CaseSummary } from "../types/pqrsf.types";
  */
 
 export const INBOX_VIEWS = [
+  "todos",
+  "abiertos",
   "mios",
   "sin-asignar",
   "vencidos",
   "vencen-hoy",
-  "abiertos",
-  "todos",
 ] as const;
 export type InboxView = (typeof INBOX_VIEWS)[number];
 
@@ -107,13 +107,12 @@ export function serializeInboxState(state: InboxState): string {
 }
 
 /**
- * A collaborator works their own cases, so that is where they land; a
- * manager lands on everything still open. "Sin asignar" is a manager's view:
- * nobody else can act on an unassigned case.
+ * Everyone lands on «Todos», managers or not; a view in the URL wins. "Sin
+ * asignar" is a manager's view: nobody else can act on an unassigned case.
  */
 export function resolveView(view: InboxView | undefined, isManager: boolean): InboxView {
-  if (view === "sin-asignar" && !isManager) return "mios";
-  return view ?? (isManager ? "abiertos" : "mios");
+  if (view === "sin-asignar" && !isManager) return "todos";
+  return view ?? "todos";
 }
 
 export function availableViews(isManager: boolean): InboxView[] {
