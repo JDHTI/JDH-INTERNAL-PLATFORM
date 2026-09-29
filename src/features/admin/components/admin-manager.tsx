@@ -255,11 +255,14 @@ export default function AdminManager({
                   <h2 className="font-semibold">Áreas ({areas.length})</h2>
                   <p className="text-xs text-text-secondary">Selecciona un área para administrar su equipo.</p>
                 </div>
+                {/* The list shows exactly six 64px rows. Separators go on top of
+                    each row: a bottom border on the sixth would sit against the
+                    card edge whenever the list scrolls. */}
                 <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
                   {areas.map((area) => (
                       <li
                         key={area.id}
-                        className="h-16 snap-start border-b border-border last:border-b-0"
+                        className="h-16 snap-start border-t border-border first:border-t-0"
                       >
                         <button
                           type="button"
