@@ -12,7 +12,7 @@ export interface RequestType {
   prefix: string;
   requires_follow_up: boolean;
   sla_days: number | null;
-  allows_reason: boolean;
+  allows_document_request: boolean;
   allows_attachments: boolean;
   is_active: boolean;
 }
@@ -198,8 +198,10 @@ export interface IntakeRequest {
   department: string;
   city: string;
   email: string;
-  reason: string | null;
+  subject: string | null;
   description: string;
+  /** The customer asked for documents; the case already lists them as items. */
+  document_request: boolean;
   attachments: IntakeAttachment[];
   created_at: string;
 }

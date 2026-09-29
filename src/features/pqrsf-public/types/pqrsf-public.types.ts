@@ -2,7 +2,8 @@ export interface PqrsfRequestType {
   id: string;
   code: string;
   name: string;
-  allows_reason: boolean;
+  /** Only petitions: the customer can say they are asking for documents. */
+  allows_document_request: boolean;
   allows_attachments: boolean;
 }
 
@@ -12,9 +13,22 @@ export interface PqrsfSite {
   name: string;
 }
 
+export interface PqrsfDocumentOption {
+  id: string;
+  name: string;
+}
+
+export interface PqrsfDocumentCategory {
+  id: string;
+  code: string;
+  name: string;
+  documents: PqrsfDocumentOption[];
+}
+
 export interface PqrsfCatalog {
   request_types: PqrsfRequestType[];
   sites: PqrsfSite[];
+  document_categories: PqrsfDocumentCategory[];
 }
 
 export interface PqrsfFormValues {
@@ -27,12 +41,15 @@ export interface PqrsfFormValues {
   department: string;
   city: string;
   email: string;
+  subject: string;
   description: string;
-  reason: string;
+  document_request: boolean;
+  document_category_id: string;
+  document_type_ids: string[];
+  document_other: string;
 }
 
-export interface PqrsfSubmission extends Omit<PqrsfFormValues, "reason"> {
-  reason?: string;
+export interface PqrsfSubmission extends PqrsfFormValues {
   images?: File[];
 }
 
@@ -42,5 +59,10 @@ export interface PqrsfReceipt {
   created_at: string;
 }
 
-export type PqrsfTextField = keyof PqrsfFormValues;
-export type PqrsfErrorField = PqrsfTextField | "images";
+/** Fields that hold a string, the ones the generic text handlers work on. */
+export type PqrsfTextField = {
+  [Field in keyof PqrsfFormValues]: PqrsfFormValues[Field] extends string ? Field : never;
+}[keyof PqrsfFormValues];
+
+/** Where an error can be shown: a text field, the attachments or the document choice. */
+export type PqrsfErrorField = PqrsfTextField | "images" | "documents";

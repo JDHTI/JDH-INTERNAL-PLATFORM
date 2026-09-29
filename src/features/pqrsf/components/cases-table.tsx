@@ -34,7 +34,7 @@ export const OPTIONAL_COLUMNS = [
   { id: "supplier", label: "Proveedor" },
   { id: "dependency", label: "Dependencia" },
   { id: "requester", label: "Usuario" },
-  { id: "type", label: "Tipo" },
+  { id: "documents", label: "Documentos" },
   { id: "origin", label: "Origen" },
 ] as const;
 
@@ -121,11 +121,13 @@ export default function CasesTable({
               {show("supplier") && <th scope="col" className="px-3 py-2">Proveedor</th>}
               {show("dependency") && <th scope="col" className="px-3 py-2">Dependencia</th>}
               {show("requester") && <th scope="col" className="px-3 py-2">Usuario</th>}
-              <th scope="col" className="px-3 py-2 text-right whitespace-nowrap">Documentos</th>
+              {show("documents") && (
+                <th scope="col" className="px-3 py-2 text-right whitespace-nowrap">Documentos</th>
+              )}
               <th scope="col" className="px-3 py-2">Ejecutivo comercial</th>
               <th scope="col" className="px-3 py-2">Responsable</th>
               <th scope="col" className="px-3 py-2">Sucursal</th>
-              {show("type") && <th scope="col" className="px-3 py-2">Tipo</th>}
+              <th scope="col" className="px-3 py-2">Tipo</th>
               {show("origin") && <th scope="col" className="px-3 py-2">Origen</th>}
               {header("due_on", "Vence", "right")}
               <th scope="col" className="px-3 py-2">Estado</th>
@@ -181,9 +183,11 @@ export default function CasesTable({
                     <Clipped text={item.requester_name} />
                   </td>
                 )}
-                <td className="px-3 py-1 text-right">
-                  <Documents item={item} />
-                </td>
+                {show("documents") && (
+                  <td className="px-3 py-1 text-right">
+                    <Documents item={item} />
+                  </td>
+                )}
                 <td className="max-w-44 px-3 py-1">
                   <Clipped text={item.sales_executive_name} />
                 </td>
@@ -193,7 +197,7 @@ export default function CasesTable({
                   <AssigneeCell item={item} />
                 </td>
                 <td className="px-3 py-1">{item.site?.name ?? <Empty />}</td>
-                {show("type") && <td className="px-3 py-1">{item.request_type.name}</td>}
+                <td className="px-3 py-1">{item.request_type.name}</td>
                 {show("origin") && <td className="px-3 py-1">{originLabel(item.origin)}</td>}
                 <td className="px-3 py-1 text-right">
                   <DueLabel item={item} layout="row" />

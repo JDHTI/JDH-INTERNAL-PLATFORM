@@ -27,10 +27,18 @@ export function submitPqrsfRequest(
   form.append("department", input.department);
   form.append("city", input.city);
   form.append("email", input.email);
+  form.append("subject", input.subject);
   form.append("description", input.description);
 
-  if (input.reason) {
-    form.append("reason", input.reason);
+  if (input.document_request) {
+    form.append("document_request", "true");
+    form.append("document_category_id", input.document_category_id);
+    for (const id of input.document_type_ids) {
+      form.append("document_type_ids", id);
+    }
+    if (input.document_other) {
+      form.append("document_other", input.document_other);
+    }
   }
 
   for (const image of input.images ?? []) {
