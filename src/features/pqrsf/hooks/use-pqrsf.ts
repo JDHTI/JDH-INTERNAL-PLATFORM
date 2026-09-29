@@ -76,6 +76,16 @@ export function useCatalog(includeInactive = false) {
   });
 }
 
+/**
+ * Several people work the same inbox, so its rows and counters poll while the
+ * tab is visible and catch up when the tab comes back into focus. A hidden
+ * tab asks nothing (refetchIntervalInBackground stays false).
+ */
+const INBOX_POLLING = {
+  refetchInterval: 60_000,
+  refetchOnWindowFocus: true,
+} as const;
+
 export function useCases(params: CaseListParams, enabled = true) {
   return useQuery({
     queryKey: pqrsfKeys.list(params),
@@ -84,6 +94,7 @@ export function useCases(params: CaseListParams, enabled = true) {
     // Keeps the rows on screen while the next page or filter loads, instead
     // of flashing back to the skeleton on every keystroke.
     placeholderData: keepPreviousData,
+    ...INBOX_POLLING,
   });
 }
 
@@ -92,6 +103,7 @@ export function useSummary(filters: CaseFilters, enabled = true) {
     queryKey: pqrsfKeys.summary(filters),
     queryFn: () => getSummary(filters),
     enabled,
+    ...INBOX_POLLING,
   });
 }
 
