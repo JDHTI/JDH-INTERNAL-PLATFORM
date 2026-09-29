@@ -6,10 +6,9 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type FormEvent,
 } from "react";
-import { Camera, CheckCircle2, TriangleAlert, X } from "lucide-react";
+import { CheckCircle2, TriangleAlert, X } from "lucide-react";
 
 import {
   ApiError,
@@ -27,6 +26,7 @@ import {
   COLOMBIA_DEPARTMENTS,
   getColombiaCities,
 } from "../data/colombia-territorial";
+import { validateFiles } from "../lib/attachments";
 import {
   getPqrsfCatalog,
   submitPqrsfRequest,
@@ -39,6 +39,9 @@ import type {
   PqrsfRequestType,
   PqrsfTextField,
 } from "../types/pqrsf-public.types";
+import AttachmentsField from "./attachments-field";
+import DocumentRequestFields, { DOCUMENT_OTHER_LIMIT } from "./document-request-fields";
+import { FormField, describedBy } from "./form-field";
 
 const INITIAL_VALUES: PqrsfFormValues = {
   request_type_id: "",
@@ -50,15 +53,13 @@ const INITIAL_VALUES: PqrsfFormValues = {
   department: "",
   city: "",
   email: "",
+  subject: "",
   description: "",
-  reason: "",
+  document_request: false,
+  document_category_id: "",
+  document_type_ids: [],
+  document_other: "",
 };
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const MAX_TOTAL_FILE_SIZE = 25 * 1024 * 1024;
-const MAX_FILE_COUNT = 5;
-const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
-const ACCEPTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   request_type_id: "Tipo de solicitud",
@@ -70,8 +71,11 @@ const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   department: "Departamento",
   city: "Ciudad",
   email: "Correo electrónico",
+  subject: "Asunto",
   description: "Descripción",
-  reason: "Motivo",
+  document_category_id: "Categoría del documento",
+  documents: "Documentos",
+  document_other: "Otro documento",
   images: "Archivos adjuntos",
 };
 
@@ -83,8 +87,9 @@ const FIELD_LIMITS: Partial<Record<PqrsfTextField, number>> = {
   department: 80,
   city: 80,
   email: 254,
+  subject: 200,
   description: 4000,
-  reason: 4000,
+  document_other: DOCUMENT_OTHER_LIMIT,
 };
 
 const ERROR_FIELDS: PqrsfErrorField[] = [
@@ -97,8 +102,11 @@ const ERROR_FIELDS: PqrsfErrorField[] = [
   "department",
   "city",
   "email",
+  "subject",
+  "document_category_id",
+  "documents",
+  "document_other",
   "description",
-  "reason",
   "images",
 ];
 
@@ -116,8 +124,6 @@ export default function PublicPqrsfForm() {
   const [submission, setSubmission] = useState<PqrsfReceipt | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [focusErrorSummary, setFocusErrorSummary] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
   const successHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
@@ -181,6 +187,11 @@ export default function PublicPqrsfForm() {
     () => getColombiaCities(values.department),
     [values.department]
   );
+  // A document request is a petition the customer flagged: it has no evidence
+  // to attach, the documents asked for take their place.
+  const isDocumentRequest = Boolean(
+    selectedType?.allows_document_request && values.document_request
+  );
 
   useEffect(() => {
     if (submission) successHeadingRef.current?.focus();
@@ -190,103 +201,93 @@ export default function PublicPqrsfForm() {
     if (focusErrorSummary > 0) errorSummaryRef.current?.focus();
   }, [focusErrorSummary]);
 
-  const clearFieldError = (field: PqrsfErrorField) => {
+  const clearFieldErrors = (...fields: PqrsfErrorField[]) => {
     setFieldErrors((current) => {
-      if (!(field in current)) return current;
+      if (!fields.some((field) => field in current)) return current;
       const next = { ...current };
-      delete next[field];
+      for (const field of fields) delete next[field];
       return next;
     });
   };
 
+  // Fields are checked when the form is sent, never on leaving them: a message
+  // under a field the person has not reached yet only gets in the way. An error
+  // stays until that field is edited.
   const updateValue = (field: PqrsfTextField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
-    clearFieldError(field);
+    clearFieldErrors(field);
     setSubmitError(null);
   };
 
   const updateDepartment = (department: string) => {
     setValues((current) => ({ ...current, department, city: "" }));
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.department;
-      delete next.city;
-      return next;
-    });
+    clearFieldErrors("department", "city");
     setSubmitError(null);
-  };
-
-  const resetFileInputs = () => {
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   const updateRequestType = (requestTypeId: string) => {
     setValues((current) => ({
       ...current,
       request_type_id: requestTypeId,
-      reason: "",
+      document_request: false,
+      document_category_id: "",
+      document_type_ids: [],
+      document_other: "",
     }));
     setFiles([]);
-    resetFileInputs();
-    setFieldErrors((current) => {
-      const next = { ...current };
-      delete next.request_type_id;
-      delete next.reason;
-      delete next.images;
-      return next;
-    });
+    clearFieldErrors(
+      "request_type_id",
+      "document_category_id",
+      "documents",
+      "document_other",
+      "images"
+    );
     setSubmitError(null);
   };
 
-  const handleBlur = (field: PqrsfTextField) => {
-    const message = validateField(field, values, selectedType);
-    setFieldErrors((current) => {
-      const next = { ...current };
-      if (message) next[field] = message;
-      else delete next[field];
-      return next;
-    });
+  const updateDocumentRequest = (checked: boolean) => {
+    setValues((current) => ({
+      ...current,
+      document_request: checked,
+      document_category_id: "",
+      document_type_ids: [],
+      document_other: "",
+    }));
+    // Evidence and documents exclude each other.
+    if (checked) setFiles([]);
+    clearFieldErrors("document_category_id", "documents", "document_other", "images");
+    setSubmitError(null);
   };
 
-  const handleFilesChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFiles = Array.from(event.currentTarget.files ?? []);
-    const message = validateFiles(nextFiles);
-
+  const updateDocumentCategory = (categoryId: string) => {
+    setValues((current) => ({
+      ...current,
+      document_category_id: categoryId,
+      document_type_ids: [],
+    }));
+    clearFieldErrors("document_category_id", "documents");
     setSubmitError(null);
-    if (message) {
-      setFiles([]);
-      event.currentTarget.value = "";
-      setFieldErrors((current) => ({ ...current, images: message }));
-      return;
-    }
+  };
 
+  const toggleDocument = (documentId: string, checked: boolean) => {
+    setValues((current) => ({
+      ...current,
+      document_type_ids: checked
+        ? [...current.document_type_ids, documentId]
+        : current.document_type_ids.filter((id) => id !== documentId),
+    }));
+    clearFieldErrors("documents");
+    setSubmitError(null);
+  };
+
+  const updateFiles = (nextFiles: File[]) => {
     setFiles(nextFiles);
-    clearFieldError("images");
-  };
-
-  const handleCameraCapture = (event: ChangeEvent<HTMLInputElement>) => {
-    const capturedFiles = Array.from(event.currentTarget.files ?? []);
-    if (capturedFiles.length === 0) return;
-
-    const nextFiles = [...files, ...capturedFiles];
-    const message = validateFiles(nextFiles);
-
     setSubmitError(null);
-    event.currentTarget.value = "";
-    if (message) {
-      setFieldErrors((current) => ({ ...current, images: message }));
-      return;
-    }
-
-    setFiles(nextFiles);
-    clearFieldError("images");
   };
 
-  const removeFiles = () => {
-    setFiles([]);
-    resetFileInputs();
-    clearFieldError("images");
+  const setFilesError = (message: string | null) => {
+    if (message) setFieldErrors((current) => ({ ...current, images: message }));
+    else clearFieldErrors("images");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -311,8 +312,6 @@ export default function PublicPqrsfForm() {
       const receipt = await submitPqrsfRequest(
         {
           ...values,
-          request_type_id: values.request_type_id,
-          site_id: values.site_id,
           full_name: values.full_name.trim(),
           business_name: values.business_name.trim(),
           nit: values.nit.trim(),
@@ -320,9 +319,13 @@ export default function PublicPqrsfForm() {
           department: values.department.trim(),
           city: values.city.trim(),
           email: values.email.trim(),
+          subject: values.subject.trim(),
           description: values.description.trim(),
-          reason: selectedType.allows_reason ? values.reason.trim() : undefined,
-          images: selectedType.allows_attachments ? files : [],
+          document_request: isDocumentRequest,
+          document_category_id: isDocumentRequest ? values.document_category_id : "",
+          document_type_ids: isDocumentRequest ? values.document_type_ids : [],
+          document_other: isDocumentRequest ? values.document_other.trim() : "",
+          images: selectedType.allows_attachments && !isDocumentRequest ? files : [],
         },
         crypto.randomUUID()
       );
@@ -331,7 +334,6 @@ export default function PublicPqrsfForm() {
       setValues({ ...INITIAL_VALUES });
       setFiles([]);
       setFieldErrors({});
-      resetFileInputs();
     } catch (error) {
       const serverFieldErrors = error instanceof ApiError
         ? readFieldErrors(error.issues)
@@ -350,7 +352,6 @@ export default function PublicPqrsfForm() {
     setFiles([]);
     setFieldErrors({});
     setSubmitError(null);
-    resetFileInputs();
   };
 
   return (
@@ -405,7 +406,6 @@ export default function PublicPqrsfForm() {
                         }))}
                         value={values.request_type_id}
                         onValueChange={updateRequestType}
-                        onBlur={() => handleBlur("request_type_id")}
                         aria-invalid={Boolean(fieldErrors.request_type_id)}
                         aria-required="true"
                         aria-label="Tipo de solicitud"
@@ -435,7 +435,6 @@ export default function PublicPqrsfForm() {
                       }))}
                       value={values.site_id}
                       onValueChange={(value) => updateValue("site_id", value)}
-                      onBlur={() => handleBlur("site_id")}
                       aria-invalid={Boolean(fieldErrors.site_id)}
                       aria-required="true"
                       aria-label="Sede"
@@ -453,7 +452,6 @@ export default function PublicPqrsfForm() {
                       maxLength={FIELD_LIMITS.full_name}
                       error={fieldErrors.full_name}
                       onChange={(event) => updateValue("full_name", event.target.value)}
-                      onBlur={() => handleBlur("full_name")}
                     />
                   </FormField>
 
@@ -467,7 +465,6 @@ export default function PublicPqrsfForm() {
                       maxLength={FIELD_LIMITS.email}
                       error={fieldErrors.email}
                       onChange={(event) => updateValue("email", event.target.value)}
-                      onBlur={() => handleBlur("email")}
                     />
                   </FormField>
 
@@ -480,7 +477,6 @@ export default function PublicPqrsfForm() {
                       maxLength={FIELD_LIMITS.business_name}
                       error={fieldErrors.business_name}
                       onChange={(event) => updateValue("business_name", event.target.value)}
-                      onBlur={() => handleBlur("business_name")}
                     />
                   </FormField>
 
@@ -493,7 +489,6 @@ export default function PublicPqrsfForm() {
                       maxLength={FIELD_LIMITS.nit}
                       error={fieldErrors.nit}
                       onChange={(event) => updateValue("nit", event.target.value)}
-                      onBlur={() => handleBlur("nit")}
                     />
                   </FormField>
 
@@ -511,7 +506,6 @@ export default function PublicPqrsfForm() {
                       maxLength={FIELD_LIMITS.address}
                       error={fieldErrors.address}
                       onChange={(event) => updateValue("address", event.target.value)}
-                      onBlur={() => handleBlur("address")}
                     />
                   </FormField>
 
@@ -522,7 +516,6 @@ export default function PublicPqrsfForm() {
                       value={values.department}
                       options={COLOMBIA_DEPARTMENTS}
                       onValueChange={updateDepartment}
-                      onBlur={() => handleBlur("department")}
                       placeholder="Escribe para buscar un departamento"
                       invalid={Boolean(fieldErrors.department)}
                       required
@@ -537,7 +530,6 @@ export default function PublicPqrsfForm() {
                       value={values.city}
                       options={cityOptions}
                       onValueChange={(value) => updateValue("city", value)}
-                      onBlur={() => handleBlur("city")}
                       placeholder={values.department ? "Escribe para buscar una ciudad" : "Selecciona primero un departamento"}
                       emptyMessage={values.department ? "No hay ciudades con ese nombre." : "Selecciona primero un departamento."}
                       disabled={!values.department}
@@ -546,6 +538,65 @@ export default function PublicPqrsfForm() {
                       describedBy={describedBy("pqrsf-city", Boolean(fieldErrors.city))}
                     />
                   </FormField>
+
+                  <FormField
+                    id="pqrsf-subject"
+                    label="Asunto"
+                    error={fieldErrors.subject}
+                    hint="Resume en pocas palabras qué necesitas."
+                    className="sm:col-span-2"
+                  >
+                    <Input
+                      id="pqrsf-subject"
+                      name="subject"
+                      required
+                      value={values.subject}
+                      maxLength={FIELD_LIMITS.subject}
+                      aria-invalid={Boolean(fieldErrors.subject)}
+                      aria-describedby={describedBy("pqrsf-subject", true, Boolean(fieldErrors.subject))}
+                      onChange={(event) => updateValue("subject", event.target.value)}
+                      className={cn("min-h-11 sm:min-h-9", fieldErrors.subject && "border-danger")}
+                    />
+                  </FormField>
+
+                  {selectedType?.allows_document_request && (
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="pqrsf-document-request"
+                        className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-md border border-border p-3 text-sm"
+                      >
+                        <input
+                          id="pqrsf-document-request"
+                          type="checkbox"
+                          className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                          checked={values.document_request}
+                          onChange={(event) => updateDocumentRequest(event.target.checked)}
+                        />
+                        <span className="min-w-0">
+                          <span className="font-medium">Solicito un documento o certificado</span>
+                          <span className="text-text-secondary"> (opcional)</span>
+                          <span className="mt-0.5 block text-[13px] text-text-secondary">
+                            Márcalo si lo que necesitas es recibir un certificado, una ficha técnica u otro documento de JDH.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
+                  {isDocumentRequest && catalog.document_categories.length > 0 && (
+                    <DocumentRequestFields
+                      categories={catalog.document_categories}
+                      categoryId={values.document_category_id}
+                      documentIds={values.document_type_ids}
+                      other={values.document_other}
+                      categoryError={fieldErrors.document_category_id}
+                      documentsError={fieldErrors.documents}
+                      otherError={fieldErrors.document_other}
+                      onCategoryChange={updateDocumentCategory}
+                      onToggleDocument={toggleDocument}
+                      onOtherChange={(value) => updateValue("document_other", value)}
+                    />
+                  )}
 
                   <FormField
                     id="pqrsf-description"
@@ -560,9 +611,8 @@ export default function PublicPqrsfForm() {
                       value={values.description}
                       maxLength={FIELD_LIMITS.description}
                       aria-invalid={Boolean(fieldErrors.description)}
-                      aria-describedby={describedBy("pqrsf-description", Boolean(fieldErrors.description))}
+                      aria-describedby={describedBy("pqrsf-description", false, Boolean(fieldErrors.description))}
                       onChange={(event) => updateValue("description", event.target.value)}
-                      onBlur={() => handleBlur("description")}
                       className={cn(
                         "min-h-32 resize-y sm:min-h-28",
                         fieldErrors.description && "border-danger"
@@ -570,104 +620,13 @@ export default function PublicPqrsfForm() {
                     />
                   </FormField>
 
-                  {selectedType?.allows_reason && (
-                    <FormField
-                      id="pqrsf-reason"
-                      label="Motivo"
-                      error={fieldErrors.reason}
-                      hint="Explica qué ocurrió o qué respuesta necesitas."
-                      className="sm:col-span-2"
-                    >
-                      <Textarea
-                        id="pqrsf-reason"
-                        name="reason"
-                        required
-                        value={values.reason}
-                        maxLength={FIELD_LIMITS.reason}
-                        aria-invalid={Boolean(fieldErrors.reason)}
-                        aria-describedby={describedBy("pqrsf-reason", true, Boolean(fieldErrors.reason))}
-                        onChange={(event) => updateValue("reason", event.target.value)}
-                        onBlur={() => handleBlur("reason")}
-                        className={cn(
-                          "min-h-28 resize-y",
-                          fieldErrors.reason && "border-danger"
-                        )}
-                      />
-                    </FormField>
-                  )}
-
-                  {selectedType?.allows_attachments && (
-                    <FormField
-                      id="pqrsf-images"
-                      label="Archivos adjuntos"
-                      optional
+                  {selectedType?.allows_attachments && !isDocumentRequest && (
+                    <AttachmentsField
+                      files={files}
                       error={fieldErrors.images}
-                      hint="JPG, JPEG, PNG o WebP. Máximo 5 archivos de 5 MiB cada uno y 25 MiB en total."
-                      className="sm:col-span-2"
-                    >
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        <input
-                          ref={fileInputRef}
-                          id="pqrsf-images"
-                          name="images"
-                          type="file"
-                          multiple
-                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                          onChange={handleFilesChange}
-                          aria-invalid={Boolean(fieldErrors.images)}
-                          aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
-                          className={cn(
-                            "h-11 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 py-1.5 text-sm text-text-primary file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-text-on-primary sm:h-9",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                            fieldErrors.images && "border-danger"
-                          )}
-                        />
-                        <input
-                          ref={cameraInputRef}
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                          capture="environment"
-                          onChange={handleCameraCapture}
-                          aria-label="Tomar una foto de evidencia"
-                          tabIndex={-1}
-                          className="sr-only"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => cameraInputRef.current?.click()}
-                          className="h-11 w-full sm:h-9 sm:w-auto"
-                          aria-describedby={describedBy("pqrsf-images", true, Boolean(fieldErrors.images))}
-                        >
-                          <Camera aria-hidden="true" />
-                          Tomar foto
-                        </Button>
-                      </div>
-                      <p className="text-[13px] text-text-secondary">
-                        En el celular, “Tomar foto” abrirá la cámara y solicitará permiso si es necesario.
-                      </p>
-                      {files.length > 0 && (
-                        <div className="flex flex-col gap-2 rounded-md bg-canvas-subtle p-3">
-                          <ul className="space-y-1 text-[13px]" aria-label="Archivos seleccionados">
-                            {files.map((file) => (
-                              <li key={`${file.name}-${file.lastModified}`} className="flex min-w-0 items-center justify-between gap-3">
-                                <span className="min-w-0 truncate">{file.name}</span>
-                                <span className="shrink-0 text-text-secondary">{formatFileSize(file.size)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="min-h-11 self-start sm:min-h-8"
-                            onClick={removeFiles}
-                          >
-                            Quitar archivos
-                          </Button>
-                        </div>
-                      )}
-                    </FormField>
+                      onFilesChange={updateFiles}
+                      onError={setFilesError}
+                    />
                   )}
                 </div>
 
@@ -697,45 +656,6 @@ export default function PublicPqrsfForm() {
   );
 }
 
-function FormField({
-  id,
-  label,
-  optional = false,
-  hint,
-  error,
-  className,
-  children,
-}: {
-  id: string;
-  label: string;
-  optional?: boolean;
-  hint?: string;
-  error?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="block text-[13px] font-medium leading-[1.4] tracking-normal">
-        {label}
-        {!optional && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
-        {optional && <span className="font-normal text-text-secondary"> (opcional)</span>}
-      </label>
-      {children}
-      {hint && (
-        <p id={`${id}-hint`} className="text-[13px] text-text-secondary">
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p id={`${id}-error`} className="text-[13px] text-danger">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function InputField({
   id,
   name,
@@ -746,7 +666,6 @@ function InputField({
   maxLength,
   error,
   onChange,
-  onBlur,
 }: {
   id: string;
   name: string;
@@ -757,7 +676,6 @@ function InputField({
   maxLength?: number;
   error?: string;
   onChange: React.ChangeEventHandler<HTMLInputElement>;
-  onBlur: React.FocusEventHandler<HTMLInputElement>;
 }) {
   return (
     <Input
@@ -770,9 +688,8 @@ function InputField({
       inputMode={inputMode}
       maxLength={maxLength}
       aria-invalid={Boolean(error)}
-      aria-describedby={describedBy(id, Boolean(error))}
+      aria-describedby={describedBy(id, false, Boolean(error))}
       onChange={onChange}
-      onBlur={onBlur}
       className={cn("min-h-11 sm:min-h-9", error && "border-danger")}
     />
   );
@@ -902,43 +819,53 @@ function SuccessState({
   );
 }
 
+const REQUIRED_TEXT_FIELDS: PqrsfTextField[] = [
+  "request_type_id",
+  "site_id",
+  "full_name",
+  "business_name",
+  "nit",
+  "address",
+  "department",
+  "city",
+  "email",
+  "subject",
+  "description",
+];
+
 function validateForm(
   values: PqrsfFormValues,
   selectedType: PqrsfRequestType | undefined,
   files: File[]
 ): FieldErrors {
-  const fields: PqrsfErrorField[] = [
-    "request_type_id",
-    "site_id",
-    "full_name",
-    "business_name",
-    "nit",
-    "address",
-    "department",
-    "city",
-    "email",
-    "description",
-  ];
-  if (selectedType?.allows_reason) fields.push("reason");
-  if (selectedType?.allows_attachments && files.length > 0) fields.push("images");
-
   const errors: FieldErrors = {};
-  for (const field of fields) {
-    const message = validateField(field, values, selectedType, files);
+  for (const field of REQUIRED_TEXT_FIELDS) {
+    const message = validateField(field, values, selectedType);
     if (message) errors[field] = message;
+  }
+
+  if (selectedType?.allows_document_request && values.document_request) {
+    if (!values.document_category_id) {
+      errors.document_category_id = "Selecciona la categoría del documento.";
+    } else if (values.document_type_ids.length === 0 && !values.document_other.trim()) {
+      errors.documents = "Marca al menos un documento o escríbelo en «Otro documento».";
+    }
+    const otherLimit = FIELD_LIMITS.document_other;
+    if (otherLimit && values.document_other.trim().length > otherLimit) {
+      errors.document_other = `${FIELD_LABELS.document_other} admite máximo ${otherLimit} caracteres.`;
+    }
+  } else if (selectedType?.allows_attachments && files.length > 0) {
+    const message = validateFiles(files);
+    if (message) errors.images = message;
   }
   return errors;
 }
 
 function validateField(
-  field: PqrsfErrorField,
+  field: PqrsfTextField,
   values: PqrsfFormValues,
-  selectedType: PqrsfRequestType | undefined,
-  files: File[] = []
+  selectedType: PqrsfRequestType | undefined
 ): string | null {
-  if (field === "images") return validateFiles(files);
-  if (field === "reason" && !selectedType?.allows_reason) return null;
-
   const value = values[field].trim();
   if (!value) return `Completa ${FIELD_LABELS[field].toLowerCase()}.`;
 
@@ -955,32 +882,6 @@ function validateField(
     return `${FIELD_LABELS[field]} admite máximo ${maxLength} caracteres.`;
   }
 
-  return null;
-}
-
-function validateFiles(files: File[]): string | null {
-  if (files.length > MAX_FILE_COUNT) {
-    return `Selecciona máximo ${MAX_FILE_COUNT} archivos.`;
-  }
-
-  let totalSize = 0;
-  for (const file of files) {
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    if (!extension || !ACCEPTED_EXTENSIONS.has(extension)) {
-      return `${file.name} no es una imagen permitida. Usa JPG, JPEG, PNG o WebP.`;
-    }
-    if (file.type && !ACCEPTED_MIME_TYPES.has(file.type.toLowerCase())) {
-      return `${file.name} tiene un tipo MIME no permitido.`;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return `${file.name} supera el límite de 5 MiB.`;
-    }
-    totalSize += file.size;
-  }
-
-  if (totalSize > MAX_TOTAL_FILE_SIZE) {
-    return "El tamaño total de los archivos no puede superar 25 MiB.";
-  }
   return null;
 }
 
@@ -1016,19 +917,8 @@ function submissionErrorMessage(error: unknown): string {
   }
 }
 
-function describedBy(id: string, hasHint: boolean, hasError = false) {
-  const ids = [];
-  if (hasHint) ids.push(`${id}-hint`);
-  if (hasError) ids.push(`${id}-error`);
-  return ids.length > 0 ? ids.join(" ") : undefined;
-}
-
 function fieldInputId(field: PqrsfErrorField) {
   return `pqrsf-${field.replaceAll("_", "-")}`;
-}
-
-function formatFileSize(bytes: number) {
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
 }
 
 function formatCreatedAt(value: string) {

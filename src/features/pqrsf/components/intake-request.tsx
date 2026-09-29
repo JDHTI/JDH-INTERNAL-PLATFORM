@@ -31,7 +31,8 @@ export default function IntakeRequestSection({
     ["Dirección", `${request.address}, ${request.city} (${request.department})`],
     ["Sede", request.site.name],
   ];
-  if (request.reason) rows.push(["Motivo", request.reason]);
+  if (request.subject) rows.push(["Asunto", request.subject]);
+  if (request.document_request) rows.push(["Tipo de petición", "Solicitud de documentos"]);
 
   return (
     <section aria-labelledby="intake-heading" className="space-y-3">
