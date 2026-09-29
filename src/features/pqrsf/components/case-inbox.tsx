@@ -15,6 +15,7 @@ import {
   Loader2,
   Lock,
   Plus,
+  RefreshCw,
   SearchX,
   SlidersHorizontal,
   X,
@@ -196,6 +197,18 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
   const allSummary = useSummary({ status_id: [] });
   const mineSummary = useSummary({ status_id: [], mine: true });
 
+  // Only the button's own request spins the icon; the background polling
+  // stays still, so the screen does not move once a minute.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([cases.refetch(), allSummary.refetch(), mineSummary.refetch()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const exportCurrent = async () => {
     setIsExporting(true);
     try {
@@ -292,6 +305,20 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
     <div className="space-y-4">
       <InboxHeading>
         <div className="flex shrink-0 flex-wrap gap-2 lg:flex-nowrap lg:justify-end">
+          <Button
+            variant="ghost"
+            onClick={refresh}
+            disabled={isRefreshing}
+            className="max-md:h-11"
+            title={
+              cases.dataUpdatedAt
+                ? `Actualizado a las ${new Date(cases.dataUpdatedAt).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" })}. Se actualiza solo cada minuto.`
+                : undefined
+            }
+          >
+            <RefreshCw className={cn(isRefreshing && "animate-spin")} aria-hidden="true" />
+            Actualizar
+          </Button>
           <PublicFormMenu />
           <Button
             variant="secondary"
@@ -384,7 +411,11 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         >
           <SlidersHorizontal aria-hidden="true" />
           Filtros avanzados
-          {advancedCount > 0 && <span className="tabular">({advancedCount})</span>}
+          {/* Always rendered: a count that appears would widen the button and
+              rewrap the whole row. */}
+          <span className={cn("tabular", advancedCount === 0 && "invisible")}>
+            ({advancedCount})
+          </span>
           <ChevronDown
             className={cn("text-text-secondary transition-transform", showFilters && "rotate-180")}
             aria-hidden="true"
@@ -452,23 +483,29 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
         </div>
       </form>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* One line at a fixed height whatever the filters: chips scroll
+          sideways instead of wrapping, so the table never jumps when a
+          filter is added or removed. */}
+      <div className="flex h-10 items-center max-md:h-13">
         {chips.length > 0 ? (
-          <ul className="flex flex-wrap items-center gap-2" aria-label="Filtros activos">
+          <ul
+            className="-mx-0.5 flex min-w-0 items-center gap-2 overflow-x-auto px-0.5 py-1"
+            aria-label="Filtros activos"
+          >
             {chips.map((chip) => (
-              <li key={chip.key}>
+              <li key={chip.key} className="shrink-0">
                 <button
                   type="button"
                   onClick={chip.clear}
                   aria-label={`Quitar filtro ${chip.label}`}
-                  className="inline-flex h-8 max-w-72 items-center gap-1 rounded-sm bg-canvas-subtle pr-1.5 pl-2 text-[13px] font-medium hover:bg-primary-subtle max-md:h-11"
+                  className="inline-flex h-8 max-w-72 items-center gap-1 rounded-sm bg-canvas-subtle pr-1.5 pl-2 text-[13px] font-medium hover:bg-primary-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control max-md:h-11"
                 >
                   <span className="truncate">{chip.label}</span>
                   <X className="size-3.5 shrink-0" aria-hidden="true" />
                 </button>
               </li>
             ))}
-            <li>
+            <li className="shrink-0">
               <Button variant="ghost" size="sm" onClick={clearRefinements} className="max-md:h-11">
                 Limpiar filtros
               </Button>
@@ -629,8 +666,10 @@ function ViewBar({
   onSelect: (view: InboxView) => void;
 }) {
   return (
-    <nav aria-label="Vistas rápidas" className="-mx-1 overflow-x-auto px-1 pb-1">
-        <ul className="flex gap-1">
+    <nav aria-label="Vistas rápidas" className="overflow-x-auto pb-1">
+        {/* One control, not a row of buttons: the views sit flush with no
+            gap, and only the selected one carries a fill. */}
+        <ul className="flex w-max overflow-hidden rounded-md">
           {views.map((view) => {
             const count = counts(view);
             const isActive = view === active;
@@ -641,8 +680,10 @@ function ViewBar({
                   aria-pressed={isActive}
                   onClick={() => onSelect(view)}
                   className={cn(
-                    "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap max-md:h-11",
+                    "flex h-9 items-center gap-2 px-3 text-sm font-medium whitespace-nowrap max-md:h-11",
                     "transition-colors duration-150",
+                    // Inset, because the frame clips anything drawn outside it.
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring-control",
                     // Selected, not a second primary action: the same grammar
                     // as a selected table row (DESIGN.md §7.3).
                     isActive
@@ -819,11 +860,7 @@ export function InboxSkeleton() {
       <span className="sr-only">Cargando PQRSF</span>
       <div className="h-8 w-40 animate-pulse rounded-md bg-canvas-subtle" />
       <div className="h-4 w-96 max-w-full animate-pulse rounded-sm bg-canvas-subtle" />
-      <div className="flex gap-2">
-        {[0, 1, 2, 3, 4].map((item) => (
-          <div key={item} className="h-9 w-28 animate-pulse rounded-md bg-canvas-subtle" />
-        ))}
-      </div>
+      <div className="h-9 w-[36rem] max-w-full animate-pulse rounded-md bg-canvas-subtle" />
       <TableSkeleton />
     </div>
   );
