@@ -40,6 +40,7 @@ import {
 } from "@/features/admin/services/admin.service";
 import type { AreaDraft } from "@/features/admin/types/admin.types";
 import { areaToDraft } from "@/features/admin/types/admin.types";
+import MastersBrowser from "@/features/masters/components/masters-browser";
 import {
   AREA_ICON_OPTIONS,
   DEFAULT_AREA_ICON,
@@ -53,7 +54,7 @@ import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-type AdminSection = "areas" | "usuarios";
+type AdminSection = "areas" | "usuarios" | "maestros";
 
 const EMPTY_AREA: AreaDraft = {
   slug: "",
@@ -179,7 +180,8 @@ export default function AdminManager({
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">Panel administrador</h1>
           <p className="max-w-2xl text-sm text-text-secondary">
-            Gestiona las áreas de la organización, sus roles y las personas que tienen acceso.
+            Gestiona las áreas de la organización, sus roles, las personas que tienen acceso y los
+            maestros compartidos que usa toda la plataforma.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -213,6 +215,13 @@ export default function AdminManager({
           className={tabClass(section === "usuarios")}
         >
           Directorio de usuarios
+        </Link>
+        <Link
+          href="/administracion/maestros"
+          onClick={() => setSection("maestros")}
+          className={tabClass(section === "maestros")}
+        >
+          Maestros
         </Link>
       </nav>
 
@@ -255,11 +264,14 @@ export default function AdminManager({
                   <h2 className="font-semibold">Áreas ({areas.length})</h2>
                   <p className="text-xs text-text-secondary">Selecciona un área para administrar su equipo.</p>
                 </div>
+                {/* The list shows exactly six 64px rows. Separators go on top of
+                    each row: a bottom border on the sixth would sit against the
+                    card edge whenever the list scrolls. */}
                 <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
                   {areas.map((area) => (
                       <li
                         key={area.id}
-                        className="h-16 snap-start border-b border-border last:border-b-0"
+                        className="h-16 snap-start border-t border-border first:border-t-0"
                       >
                         <button
                           type="button"
@@ -304,6 +316,8 @@ export default function AdminManager({
             </div>
           )}
         </div>
+      ) : section === "maestros" ? (
+        <MastersBrowser />
       ) : (
         <UsersDirectory
           users={users ?? []}
