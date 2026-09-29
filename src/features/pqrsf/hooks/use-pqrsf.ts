@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -16,12 +18,16 @@ import {
   createDependency,
   createDocumentType,
   createStatus,
+  deleteCase,
   getCase,
   getCatalog,
+  getLastSeen,
   getSuggestions,
   getSummary,
+  listActivity,
   listCases,
   markRead,
+  recordInboxVisit,
   removeItem,
   searchAssignees,
   updateCase,
@@ -32,6 +38,7 @@ import {
   updateStatus,
 } from "../services/pqrsf.service";
 import type {
+  ActivityFilters,
   CaseDetail,
   CaseFilters,
   CaseListParams,
@@ -55,6 +62,9 @@ export const pqrsfKeys = {
   suggestions: (field: SuggestionField, q: string) =>
     [...pqrsfKeys.all, "suggestions", field, q] as const,
   assignees: (q: string) => [...pqrsfKeys.all, "assignees", q] as const,
+  activities: () => [...pqrsfKeys.all, "activity"] as const,
+  activity: (filters: ActivityFilters) => [...pqrsfKeys.activities(), filters] as const,
+  lastSeen: () => [...pqrsfKeys.all, "last-seen"] as const,
 };
 
 /** Catalogs change rarely and every screen needs them: loaded once, kept. */
@@ -204,6 +214,49 @@ export function useAddComment(id: string) {
         current ? { ...current, events: [...current.events, event] } : current
       ),
   });
+}
+
+/**
+ * The inbox and the history refresh; the case's own entry is left to expire,
+ * because removing it while its screen is still mounted refetches a 404.
+ */
+export function useDeleteCase(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: string | null) => deleteCase(id, reason),
+    onSuccess: () => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.summaries() }),
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.activities() }),
+      ]);
+    },
+  });
+}
+
+/** Module history, newest first; each page continues from the last entry. */
+export function useActivity(filters: ActivityFilters) {
+  return useInfiniteQuery({
+    queryKey: pqrsfKeys.activity(filters),
+    queryFn: ({ pageParam }) => listActivity(filters, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_before,
+    retry: false,
+  });
+}
+
+export function useLastSeen() {
+  return useQuery({ queryKey: pqrsfKeys.lastSeen(), queryFn: getLastSeen, retry: false });
+}
+
+/**
+ * Leaves the «entered the inbox» record once per mount. A failure is not the
+ * person's problem, so it stays silent.
+ */
+export function useRecordInboxVisit() {
+  useEffect(() => {
+    recordInboxVisit().catch(() => {});
+  }, []);
 }
 
 export function useCreateCase() {

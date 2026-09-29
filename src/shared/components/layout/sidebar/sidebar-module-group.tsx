@@ -1,0 +1,138 @@
+"use client";
+
+import { useId, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ChevronDown } from "lucide-react";
+
+import { useCatalog } from "@/features/pqrsf/hooks/use-pqrsf";
+import type { ModuleItem } from "@/shared/config/areas.config";
+import { cn } from "@/shared/lib/utils";
+import SidebarRow from "./sidebar-row";
+
+interface SidebarModuleGroupProps {
+  module: ModuleItem;
+  onNavigate: () => void;
+}
+
+/**
+ * A module with pages under it. Same two-control card as the area switcher:
+ * the label navigates to the module, the chevron opens its pages, and the
+ * whole square is highlighted while it is open.
+ *
+ * Link and chevron are siblings, not nested, for the same reason as in the
+ * area switcher: a button inside a link is invalid markup.
+ *
+ * The rail collapsed shows just the module link; the pages are reachable from
+ * the module's own screen.
+ */
+export default function SidebarModuleGroup({
+  module,
+  onNavigate,
+}: SidebarModuleGroupProps) {
+  const pathname = usePathname();
+  const panelId = useId();
+  const { data: catalog } = useCatalog();
+  // null = the user has not touched it, so it follows the route: inside the
+  // module the pages are shown, elsewhere they are tucked away.
+  const [toggled, setToggled] = useState<boolean | null>(null);
+
+  const subItems = (module.subItems ?? []).filter(
+    (item) => !item.managerOnly || catalog?.is_manager
+  );
+  const isInside =
+    pathname === module.path || pathname.startsWith(`${module.path}/`);
+  const isOpen = subItems.length > 0 && (toggled ?? isInside);
+  const isModulePage = pathname === module.path;
+  const Icon = module.icon;
+
+  if (subItems.length === 0) {
+    return (
+      <SidebarRow
+        href={module.path}
+        label={module.name}
+        icon={module.icon}
+        isActive={isModulePage}
+        isCollapsed={false}
+        onNavigate={onNavigate}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex h-9 items-center transition-colors duration-150",
+          // Squared underneath while the pages are open, so the row and its
+          // tray read as one component.
+          isOpen ? "rounded-t-md" : "rounded-md",
+          (isOpen || isModulePage) && "bg-sidebar-active"
+        )}
+      >
+        <Link
+          href={module.path}
+          onClick={onNavigate}
+          aria-current={isModulePage ? "page" : undefined}
+          className={cn(
+            "flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-1 text-sm font-medium",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
+            "text-sidebar-foreground"
+          )}
+        >
+          <span
+            className="flex size-7 shrink-0 items-center justify-center"
+            aria-hidden="true"
+          >
+            <Icon className="size-4" />
+          </span>
+          <span className="truncate">{module.name}</span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setToggled(!isOpen)}
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? panelId : undefined}
+          aria-label={`Páginas de ${module.name}`}
+          className={cn(
+            // Flat on the row until the pointer is over it: no contrast at rest.
+            "mr-1 flex size-7 shrink-0 items-center justify-center rounded-sm text-sidebar-muted transition-colors duration-150",
+            "hover:bg-sidebar-foreground/20 hover:text-sidebar-foreground",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
+          )}
+        >
+          <ChevronDown
+            className={cn(
+              "size-4 transition-transform duration-150",
+              isOpen && "rotate-180"
+            )}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+
+      {isOpen && (
+        // A step lighter than the sidebar but under the row's own fill, so the
+        // pages read as a tray under the module and not as more rows of the
+        // same level; flush with the row above and rounded only at the bottom.
+        // No padding: the selected page fills the row edge to edge.
+        <ul id={panelId} className="overflow-hidden rounded-b-md bg-sidebar-subtle">
+          {subItems.map((item) => (
+            <li key={item.id}>
+              <SidebarRow
+                href={item.path}
+                label={item.name}
+                icon={item.icon}
+                isActive={pathname === item.path}
+                isCollapsed={false}
+                onNavigate={onNavigate}
+                className="rounded-none"
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

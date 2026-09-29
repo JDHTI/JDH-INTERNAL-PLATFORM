@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FolderOpen,
   Handshake,
+  History,
   KeyRound,
   Laptop,
   Lightbulb,
@@ -41,6 +42,15 @@ export const MODULE_CATEGORIES = [
 
 export type ModuleCategory = (typeof MODULE_CATEGORIES)[number];
 
+export interface ModuleSubItem {
+  id: string;
+  name: string;
+  path: string;
+  icon: LucideIcon;
+  /** Only shown to the module's managers; the page itself enforces it too. */
+  managerOnly?: boolean;
+}
+
 export interface ModuleItem {
   id: string;
   name: string;
@@ -53,6 +63,8 @@ export interface ModuleItem {
    * link. A nav item must never point at a route that does not exist.
    */
   available: boolean;
+  /** Pages under the module; they turn its row into an expandable one. */
+  subItems?: ModuleSubItem[];
 }
 
 /**
@@ -103,6 +115,22 @@ export const MODULES: ModuleItem[] = [
     category: "Operación",
     icon: MessageSquareWarning,
     available: true,
+    subItems: [
+      {
+        id: "calidad-pqrsf-historial",
+        name: "Historial",
+        path: "/calidad/pqrsf/historial",
+        icon: History,
+        managerOnly: true,
+      },
+      {
+        id: "calidad-pqrsf-configuracion",
+        name: "Configuración",
+        path: "/calidad/pqrsf/configuracion",
+        icon: Settings,
+        managerOnly: true,
+      },
+    ],
   },
   {
     id: "calidad-auditorias",

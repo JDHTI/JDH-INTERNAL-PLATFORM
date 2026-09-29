@@ -8,64 +8,15 @@ import { Textarea } from "@/shared/components/ui/field";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useAddComment } from "../hooks/use-pqrsf";
-import { formatDate, formatDateTime, formatRelativeTime, personName } from "../lib/format";
+import { actorName, describeEvent, isAccessEvent } from "../lib/event-text";
+import { formatDateTime, formatRelativeTime } from "../lib/format";
 import type { CaseEvent, PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
-
-function text(data: Record<string, unknown>, key: string): string | null {
-  const value = data[key];
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-/** One sentence per event, in the words a coordinator would use. */
-function describe(event: CaseEvent, item: PqrsfCase, catalog: TrackingCatalog): string {
-  const status = (id: string | null) =>
-    catalog.statuses.find((entry) => entry.id === id)?.name ?? "otro estado";
-  const document = text(event.data, "document") ?? "un documento";
-
-  switch (event.event_type) {
-    case "created":
-      return event.data.origin === "import"
-        ? "Importó el caso desde el Excel P.13.F.01"
-        : event.data.origin === "public_form"
-          ? "Recibió la solicitud del formulario público"
-          : "Creó el caso";
-    case "assigned": {
-      const to = text(event.data, "to_user_id");
-      const fromName = text(event.data, "from_name");
-      if (!to) return fromName ? `Quitó a ${fromName} como responsable` : "Quitó el responsable";
-      const toName = text(event.data, "to_name");
-      if (toName) return fromName ? `Reasignó de ${fromName} a ${toName}` : `Asignó a ${toName}`;
-      // Events older than the stored names only carry ids: the current
-      // assignee is the one name known here.
-      return item.assignee?.id === to ? `Asignó a ${personName(item.assignee)}` : "Cambió el responsable";
-    }
-    case "status_changed":
-      return `Cambió el estado de ${status(event.from_status_id)} a ${status(event.to_status_id)}`;
-    case "read":
-      return event.to_status_id ? `Leyó el caso y quedó en ${status(event.to_status_id)}` : "Leyó el caso";
-    case "comment":
-      return "Comentó";
-    case "item_added":
-      return `Agregó el documento «${document}»`;
-    case "item_updated": {
-      const responded = text(event.data, "responded_on");
-      return responded
-        ? `Registró la respuesta de «${document}» con fecha ${formatDate(responded)}`
-        : `Editó el documento «${document}»`;
-    }
-    case "item_removed":
-      return `Quitó el documento «${document}»`;
-    case "updated":
-      return "Editó los datos del caso";
-    default:
-      return "Registró un cambio";
-  }
-}
 
 /**
  * The audit trail the spreadsheet never had: who did what and when, oldest
- * first so it reads as the story of the case. Anyone who sees the case can
- * comment, including whoever raised it.
+ * first so it reads as the story of the case. Openings («abrió el caso») are
+ * part of it, lighter, so nobody can say they never saw the request. Anyone
+ * who sees the case can comment, including whoever raised it.
  */
 export default function CaseTimeline({
   item,
@@ -97,9 +48,11 @@ export default function CaseTimeline({
                 aria-hidden="true"
                 className="absolute top-2 -left-[3px] size-[5px] rounded-full bg-border-control"
               />
-              <p className="text-sm">
-                <span className="font-medium">{event.actor ? personName(event.actor) : "Sistema"}</span>{" "}
-                {describe(event, item, catalog).replace(/^./, (first) => first.toLowerCase())}
+              <p className={isAccessEvent(event) ? "text-[13px] text-text-secondary" : "text-sm"}>
+                <span className={isAccessEvent(event) ? undefined : "font-medium"}>
+                  {actorName(event)}
+                </span>{" "}
+                {describeEvent(event, catalog, item.assignee)}
               </p>
               {event.note && (
                 <p

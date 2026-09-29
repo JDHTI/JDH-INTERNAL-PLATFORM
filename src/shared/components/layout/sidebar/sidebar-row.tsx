@@ -15,6 +15,7 @@ interface SidebarRowProps {
   available?: boolean;
   onNavigate: () => void;
   labelClassName?: string;
+  className?: string;
 }
 
 /**
@@ -30,10 +31,12 @@ export default function SidebarRow({
   available = true,
   onNavigate,
   labelClassName,
+  className,
 }: SidebarRowProps) {
   const base = cn(
     "flex h-9 items-center rounded-md text-sm font-medium transition-colors duration-150",
-    isCollapsed ? "w-full justify-center" : "gap-2.5 px-2"
+    isCollapsed ? "w-full justify-center" : "gap-2.5 px-2",
+    className
   );
 
   const icon = <Icon className="size-4 shrink-0" aria-hidden="true" />;

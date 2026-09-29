@@ -170,7 +170,7 @@ function AreaSwitcherCard({
             <span
               className={cn(
                 "flex h-8 min-w-0 flex-1 items-center rounded-l-sm px-2",
-                "bg-sidebar-active text-sm font-semibold text-sidebar-muted"
+                "bg-sidebar-active text-sm font-semibold text-sidebar-foreground"
               )}
             >
               <span className="truncate">{activeArea.name}</span>
@@ -189,8 +189,11 @@ function AreaSwitcherCard({
             aria-label="Cambiar de área"
             className={cn(
               "flex size-8 shrink-0 items-center justify-center rounded-r-sm",
+              // The card behind it is already bg-sidebar-active while open, so
+              // the hover and open states need a lighter fill to be visible.
               "bg-sidebar-active text-sidebar-muted transition-colors duration-150",
-              "hover:bg-sidebar-active",
+              "hover:bg-sidebar-foreground/20 hover:text-sidebar-foreground",
+              "aria-expanded:bg-sidebar-foreground/20 aria-expanded:text-sidebar-foreground",
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
             )}
           >
@@ -293,7 +296,7 @@ function AreaOption({
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground",
         isActive
           ? "bg-sidebar-active text-sidebar-foreground"
-          : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-hover"
       )}
     >
       <span

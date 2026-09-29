@@ -13,16 +13,41 @@ export function StatusBadge({ status }: { status: Pick<CaseStatus, "code" | "nam
 /**
  * The due date has to read without reading: overdue and due-today carry a
  * badge with icon and word, the date and the relative day stay as text.
+ * `row` is the table's: one line, so every row keeps the same height, with
+ * the relative day in the tooltip.
  */
 export function DueLabel({
   item,
   layout = "stacked",
 }: {
   item: Pick<PqrsfCase, "due_on" | "is_overdue" | "closed_at">;
-  layout?: "stacked" | "inline";
+  layout?: "stacked" | "inline" | "row";
 }) {
   const due = dueInfo(item);
-  if (!due) return <span className="text-text-secondary">Sin fecha límite</span>;
+  if (!due) {
+    return (
+      <span className="whitespace-nowrap text-text-secondary">
+        {layout === "row" ? "Sin fecha" : "Sin fecha límite"}
+      </span>
+    );
+  }
+
+  if (layout === "row") {
+    const relative = item.closed_at
+      ? undefined
+      : `${item.is_overdue ? "Venció" : "Vence"} ${due.relative}`;
+    return (
+      <span className="inline-flex items-center justify-end gap-2 whitespace-nowrap" title={relative}>
+        {due.label && (
+          <Badge tone={due.tone}>
+            {due.tone === "danger" ? <AlertTriangle aria-hidden="true" /> : <Clock aria-hidden="true" />}
+            {due.label}
+          </Badge>
+        )}
+        <span className="tabular">{due.date}</span>
+      </span>
+    );
+  }
 
   return (
     <span
