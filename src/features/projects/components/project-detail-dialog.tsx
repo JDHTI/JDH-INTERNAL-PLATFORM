@@ -9,23 +9,27 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
-import { Field, Textarea } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
+import { Field } from "@/shared/components/ui/field";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useSetArchived, useUpdateProject, type ProjectChange } from "../hooks/use-projects";
 import { formatDateTime } from "../lib/format";
 import type { Project, ProjectFolder, UpdateProjectInput } from "../types/project.types";
+import {
+  DateFields,
+  dateRangeError,
+  SavedOnBlurInput,
+  SavedOnBlurTextarea,
+} from "./editable-fields";
 import OwnerSelect from "./owner-select";
 import PresenceAvatars from "./presence-avatars";
 import { ColorSwatches } from "./project-color";
 import { useProjectsContext } from "./projects-context";
 
 /**
- * A project's page. Every field saves on its own, the moment it changes
- * (text fields when they lose focus), so there is no "Guardar" to forget.
- * Someone else's edit lands here live; a field being typed in keeps the
- * typed text until it is left, and then the last save wins.
+ * A project's settings: everything but its blocks and tasks, which live on
+ * its board. Every field saves on its own, the moment it changes (text
+ * fields when they lose focus), so there is no "Guardar" to forget.
  */
 export default function ProjectDetailDialog({
   project,
@@ -46,7 +50,7 @@ export default function ProjectDetailDialog({
       open={isOpen}
       onOpenChange={(open) => !open && onClose()}
       isForm
-      title={project?.name ?? "Proyecto no disponible"}
+      title={project ? "Ajustes del proyecto" : "Proyecto no disponible"}
     >
       {isOpen &&
         (project ? (
@@ -97,16 +101,14 @@ function ProjectFields({
       optimistic: optimistic ?? (input as ProjectChange["optimistic"]),
     });
 
-  const saveDates = (start: string, end: string | null) => {
+  const saveDates = (start: string | null, end: string | null) => {
     if (!start) {
       setDateError("El proyecto necesita una fecha de inicio.");
       return;
     }
-    if (end && end < start) {
-      setDateError("La fecha de fin no puede ser anterior a la de inicio.");
-      return;
-    }
-    setDateError(null);
+    const rangeError = dateRangeError(start, end);
+    setDateError(rangeError);
+    if (rangeError) return;
     const input: UpdateProjectInput = {};
     if (start !== project.start_date) input.start_date = start;
     if (end !== project.end_date) input.end_date = end;
@@ -230,7 +232,7 @@ function ProjectFields({
 
       <p className="text-[13px] text-text-secondary">
         {/* No closing period: the time already ends in "p. m.". */}
-        Creado por {project.created_by}. Último cambio de {project.updated_by} el{" "}
+        Creado por {project.created_by}. Última actualización de {project.updated_by} el{" "}
         <time dateTime={project.updated_at}>{formatDateTime(project.updated_at)}</time>
       </p>
 
@@ -264,107 +266,4 @@ function ProjectFields({
       </div>
     </div>
   );
-}
-
-/**
- * Dates commit when the field loses focus, not on change: typing a year in
- * a date input passes through dates nobody meant (0002-…), and saving each
- * one would publish it to everyone watching.
- */
-function DateFields({
-  id,
-  start,
-  end,
-  error,
-  onCommit,
-}: {
-  id: string;
-  start: string;
-  end: string | null;
-  error: string | null;
-  onCommit: (start: string, end: string | null) => void;
-}) {
-  const [draft, setDraft] = useState<{ start: string; end: string } | null>(null);
-  const shown = draft ?? { start, end: end ?? "" };
-
-  const commit = () => {
-    if (!draft) return;
-    onCommit(draft.start, draft.end || null);
-    setDraft(null);
-  };
-
-  return (
-    <>
-      <Field label="Fecha de inicio" htmlFor={`${id}-start`} error={error}>
-        <Input
-          id={`${id}-start`}
-          type="date"
-          value={shown.start}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-start-error` : undefined}
-          onChange={(event) => setDraft({ ...shown, start: event.target.value })}
-          onBlur={commit}
-        />
-      </Field>
-      <Field label="Fecha de fin" htmlFor={`${id}-end`} optional>
-        <Input
-          id={`${id}-end`}
-          type="date"
-          value={shown.end}
-          min={shown.start || undefined}
-          onChange={(event) => setDraft({ ...shown, end: event.target.value })}
-          onBlur={commit}
-        />
-      </Field>
-    </>
-  );
-}
-
-/**
- * Shows the saved value until the field is edited; from the first keystroke
- * to leaving it, the typed text wins over anything arriving live.
- */
-function useDraft(value: string, onCommit: (text: string) => void) {
-  const [draft, setDraft] = useState<string | null>(null);
-  return {
-    value: draft ?? value,
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDraft(event.target.value),
-    onBlur: () => {
-      if (draft !== null) onCommit(draft);
-      setDraft(null);
-    },
-  };
-}
-
-function SavedOnBlurInput({
-  value,
-  onCommit,
-  ...props
-}: Omit<React.ComponentProps<"input">, "value" | "onChange" | "onBlur"> & {
-  value: string;
-  onCommit: (text: string) => void;
-}) {
-  const draft = useDraft(value, onCommit);
-  return (
-    <Input
-      {...props}
-      {...draft}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-    />
-  );
-}
-
-function SavedOnBlurTextarea({
-  value,
-  onCommit,
-  ...props
-}: Omit<React.ComponentProps<"textarea">, "value" | "onChange" | "onBlur"> & {
-  value: string;
-  onCommit: (text: string) => void;
-}) {
-  const draft = useDraft(value, onCommit);
-  return <Textarea {...props} {...draft} className="min-h-28" />;
 }

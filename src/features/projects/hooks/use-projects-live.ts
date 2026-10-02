@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { isNewer, removeFolder, removeProject, upsertFolder, upsertProject } from "../lib/cache";
+import { isNewer, removeById, upsertFolder, upsertVersioned } from "../lib/cache";
 import { liveUrl } from "../services/projects.service";
 import type {
   LiveServerMessage,
   LiveStatus,
   PresenceMember,
   Project,
+  ProjectBlock,
   ProjectFolder,
+  ProjectTask,
 } from "../types/project.types";
-import { projectKeys } from "./use-projects";
+import { forgetProject, projectKeys } from "./use-projects";
 
 const PING_EVERY_MS = 20_000;
 /** Waits between reconnects; the last one repeats until the server is back. */
@@ -57,6 +59,9 @@ export function useProjectsLive(slug: string, focus: Focus) {
     const refetchAll = () => {
       void queryClient.invalidateQueries({ queryKey: foldersKey });
       void queryClient.invalidateQueries({ queryKey: projectsKey });
+      // Every open board too: the prefix matches each project's lists.
+      void queryClient.invalidateQueries({ queryKey: [...projectKeys.area(slug), "blocks"] });
+      void queryClient.invalidateQueries({ queryKey: [...projectKeys.area(slug), "tasks"] });
     };
 
     // A read already in flight left the server before this event's write,
@@ -93,7 +98,7 @@ export function useProjectsLive(slug: string, focus: Focus) {
           return;
         case "folder.deleted":
           queryClient.setQueryData<ProjectFolder[]>(foldersKey, (list) =>
-            removeFolder(list, message.data.id)
+            removeById(list, message.data.id)
           );
           keepIfFetching(foldersKey);
           return;
@@ -101,16 +106,40 @@ export function useProjectsLive(slug: string, focus: Focus) {
         case "project.updated":
           // The version rule drops stale events and our own echo alike.
           queryClient.setQueryData<Project[]>(projectsKey, (list) =>
-            isNewer(list, message.data) ? upsertProject(list, message.data) : list
+            isNewer(list, message.data) ? upsertVersioned(list, message.data) : list
           );
           keepIfFetching(projectsKey);
           return;
         case "project.deleted":
-          queryClient.setQueryData<Project[]>(projectsKey, (list) =>
-            removeProject(list, message.data.id)
-          );
+          // Its blocks and tasks go with it; the API only announces the project.
+          forgetProject(queryClient, slug, message.data.id);
           keepIfFetching(projectsKey);
           return;
+        case "block.created":
+        case "block.updated":
+        case "block.deleted":
+        case "task.created":
+        case "task.updated":
+        case "task.deleted": {
+          const isBlock = message.type.startsWith("block.");
+          const key = isBlock
+            ? projectKeys.blocks(slug, message.data.project_id)
+            : projectKeys.tasks(slug, message.data.project_id);
+          // Only boards someone has open hold these lists; the rest load fresh.
+          if (!queryClient.getQueryData(key)) return;
+          if (message.type.endsWith(".deleted")) {
+            queryClient.setQueryData<{ id: string }[]>(key, (list) =>
+              removeById(list, message.data.id)
+            );
+          } else {
+            const item = message.data as ProjectBlock | ProjectTask;
+            queryClient.setQueryData<(ProjectBlock | ProjectTask)[]>(key, (list) =>
+              isNewer(list, item) ? upsertVersioned(list, item) : list
+            );
+          }
+          keepIfFetching(key);
+          return;
+        }
         case "presence":
           setMembers(message.members);
           return;

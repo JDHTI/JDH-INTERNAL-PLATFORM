@@ -1,18 +1,24 @@
-import type { Project, ProjectFolder } from "../types/project.types";
+import type { ProjectFolder } from "../types/project.types";
 
 /*
- * Pure updates of the two cached lists. Both the REST responses and the live
+ * Pure updates of the cached lists. Both the REST responses and the live
  * events go through here, so applying the same change twice (our own echo)
- * leaves the list as it was.
+ * leaves the list as it was. Projects, blocks and tasks all carry a version
+ * that grows on every write, and share these.
  */
+
+interface Versioned {
+  id: string;
+  version: number;
+}
 
 /**
  * Inserts or replaces by id, but never with an older version: a late event
  * must not undo a newer write we already hold.
  */
-export function upsertProject(list: Project[] | undefined, next: Project): Project[] | undefined {
+export function upsertVersioned<T extends Versioned>(list: T[] | undefined, next: T): T[] | undefined {
   if (!list) return list;
-  const index = list.findIndex((project) => project.id === next.id);
+  const index = list.findIndex((item) => item.id === next.id);
   if (index === -1) return [...list, next];
   if (next.version < list[index]!.version) return list;
   const copy = list.slice();
@@ -21,21 +27,21 @@ export function upsertProject(list: Project[] | undefined, next: Project): Proje
 }
 
 /** A live update applies only when it is newer than what we hold. */
-export function isNewer(list: Project[] | undefined, next: Project): boolean {
-  const current = list?.find((project) => project.id === next.id);
+export function isNewer<T extends Versioned>(list: T[] | undefined, next: T): boolean {
+  const current = list?.find((item) => item.id === next.id);
   return !current || next.version > current.version;
 }
 
-export function patchProject(
-  list: Project[] | undefined,
+export function patchById<T extends Versioned>(
+  list: T[] | undefined,
   id: string,
-  patch: Partial<Project>
-): Project[] | undefined {
-  return list?.map((project) => (project.id === id ? { ...project, ...patch } : project));
+  patch: Partial<T>
+): T[] | undefined {
+  return list?.map((item) => (item.id === id ? { ...item, ...patch } : item));
 }
 
-export function removeProject(list: Project[] | undefined, id: string): Project[] | undefined {
-  return list?.filter((project) => project.id !== id);
+export function removeById<T extends { id: string }>(list: T[] | undefined, id: string): T[] | undefined {
+  return list?.filter((item) => item.id !== id);
 }
 
 const byName = (a: ProjectFolder, b: ProjectFolder) =>
@@ -49,11 +55,4 @@ export function upsertFolder(
   if (!list) return list;
   const rest = list.filter((folder) => folder.id !== next.id);
   return [...rest, next].sort(byName);
-}
-
-export function removeFolder(
-  list: ProjectFolder[] | undefined,
-  id: string
-): ProjectFolder[] | undefined {
-  return list?.filter((folder) => folder.id !== id);
 }

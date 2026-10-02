@@ -1,6 +1,11 @@
 import { API_URL, apiFetch } from "@/shared/lib/api-client";
 
 import type {
+  BlockInput,
+  CreateTaskInput,
+  ProjectBlock,
+  ProjectTask,
+  UpdateTaskInput,
   CreateProjectInput,
   FolderInput,
   Person,
@@ -82,6 +87,60 @@ export function restoreProject(slug: string, id: string): Promise<Project> {
 
 export function deleteProject(slug: string, id: string): Promise<void> {
   return apiFetch<void>(projectPath(slug, id), { method: "DELETE" });
+}
+
+// ── Blocks and tasks of one project ──
+
+export function listBlocks(slug: string, projectId: string): Promise<ProjectBlock[]> {
+  return apiFetch<ProjectBlock[]>(`${projectPath(slug, projectId)}/blocks`);
+}
+
+export function createBlock(
+  slug: string,
+  projectId: string,
+  input: BlockInput & { name: string }
+): Promise<ProjectBlock> {
+  return apiFetch<ProjectBlock>(`${projectPath(slug, projectId)}/blocks`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateBlock(slug: string, blockId: string, input: BlockInput): Promise<ProjectBlock> {
+  return apiFetch<ProjectBlock>(`${areaPath(slug)}/project-blocks/${blockId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function deleteBlock(slug: string, blockId: string): Promise<void> {
+  return apiFetch<void>(`${areaPath(slug)}/project-blocks/${blockId}`, { method: "DELETE" });
+}
+
+export function listTasks(slug: string, projectId: string): Promise<ProjectTask[]> {
+  return apiFetch<ProjectTask[]>(`${projectPath(slug, projectId)}/tasks`);
+}
+
+export function createTask(
+  slug: string,
+  projectId: string,
+  input: CreateTaskInput
+): Promise<ProjectTask> {
+  return apiFetch<ProjectTask>(`${projectPath(slug, projectId)}/tasks`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateTask(slug: string, taskId: string, input: UpdateTaskInput): Promise<ProjectTask> {
+  return apiFetch<ProjectTask>(`${areaPath(slug)}/project-tasks/${taskId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function deleteTask(slug: string, taskId: string): Promise<void> {
+  return apiFetch<void>(`${areaPath(slug)}/project-tasks/${taskId}`, { method: "DELETE" });
 }
 
 /** Active users who can own a project of the area. */

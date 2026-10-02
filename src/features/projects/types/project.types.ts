@@ -31,10 +31,15 @@ export interface CatalogOption {
   label: string;
 }
 
+export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
 export interface ProjectCatalog {
   statuses: CatalogOption[];
   priorities: CatalogOption[];
   colors: CatalogOption[];
+  /** The board's columns, in order. */
+  task_statuses?: CatalogOption[];
 }
 
 /**
@@ -87,10 +92,89 @@ export interface Project {
   archived_at: string | null;
   /** Grows on every write; a live event older than what we hold is stale. */
   version: number;
+  /** Tasks in total and done; they move the version (and updated_at) too. */
+  task_count?: number;
+  done_count?: number;
   created_by: string;
   updated_by: string;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * The level between a project and its tasks: a phase, a deliverable or a
+ * feature, depending on who uses it. Named for none of them on purpose.
+ */
+export interface ProjectBlock {
+  id: string;
+  area_id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  start_date: string | null;
+  end_date: string | null;
+  position: number;
+  task_count: number;
+  done_count: number;
+  version: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectTask {
+  id: string;
+  area_id: string;
+  project_id: string;
+  block_id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  owner: Person | null;
+  start_date: string | null;
+  end_date: string | null;
+  /** Order inside its column (project + status). */
+  position: number;
+  version: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlockInput {
+  name?: string;
+  description?: string | null;
+  color?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  position?: number;
+}
+
+export interface CreateTaskInput {
+  block_id: string;
+  name: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  owner_user_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface UpdateTaskInput {
+  block_id?: string;
+  name?: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  owner_user_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  position?: number;
 }
 
 export interface FolderInput {
@@ -166,6 +250,22 @@ export type LiveServerMessage =
       changed?: string[];
     }
   | { type: "project.deleted"; data: { id: string; folder_id: string } }
+  | {
+      type: "block.created" | "block.updated";
+      data: ProjectBlock;
+      actor: LiveActor;
+      at: string;
+      changed?: string[];
+    }
+  | { type: "block.deleted"; data: { id: string; project_id: string } }
+  | {
+      type: "task.created" | "task.updated";
+      data: ProjectTask;
+      actor: LiveActor;
+      at: string;
+      changed?: string[];
+    }
+  | { type: "task.deleted"; data: { id: string; project_id: string; block_id: string } }
   | { type: "presence"; members: PresenceMember[] }
   | { type: "sync.required" }
   | { type: "pong" };

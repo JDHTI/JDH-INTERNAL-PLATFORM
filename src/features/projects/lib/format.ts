@@ -18,6 +18,13 @@ export const PRIORITY_LABELS: Record<string, string> = {
   high: "Alta",
 };
 
+/** The board's columns, in order, until the catalog brings its own labels. */
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  todo: "Por hacer",
+  in_progress: "En curso",
+  done: "Hecha",
+};
+
 export const COLOR_LABELS: Record<string, string> = {
   default: "Predeterminado",
   gray: "Gris",
@@ -113,7 +120,7 @@ const EDGE_GAP = 1024;
  * list without it): the midpoint of its new neighbours, or one gap past the
  * edge.
  */
-export function positionAt(siblings: Project[], index: number): number {
+export function positionAt(siblings: { position: number }[], index: number): number {
   const before = siblings[index - 1];
   const after = siblings[index];
   if (before && after) return (before.position + after.position) / 2;
@@ -122,8 +129,24 @@ export function positionAt(siblings: Project[], index: number): number {
   return 0;
 }
 
-export function byPosition(a: Project, b: Project): number {
+export function byPosition(
+  a: { position: number; created_at: string },
+  b: { position: number; created_at: string }
+): number {
   return a.position - b.position || a.created_at.localeCompare(b.created_at);
+}
+
+/** "Hasta 15/12/2026", "Desde 02/10/2026", both, or nothing: dates are optional below a project. */
+export function dateRange(start: string | null, end: string | null): string {
+  if (start && end) return `${formatDate(start)} – ${formatDate(end)}`;
+  if (start) return `Desde ${formatDate(start)}`;
+  if (end) return `Hasta ${formatDate(end)}`;
+  return "";
+}
+
+/** A task past its end date and not done: the one date worth flagging on a card. */
+export function isOverdue(task: { end_date: string | null; status: string }, today = todayIso()): boolean {
+  return !!task.end_date && task.status !== "done" && task.end_date < today;
 }
 
 /** Active projects per folder, recounted from the list we hold. */
