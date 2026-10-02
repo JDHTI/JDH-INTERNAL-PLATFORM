@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  FolderKanban,
   FolderOpen,
   Handshake,
   History,
@@ -85,6 +86,17 @@ export const MODULES: ModuleItem[] = [
     icon: LifeBuoy,
     // Real page behind it, unlike the rest of TI's modules: it's also where
     // the header's help icon links, so it can't be a 404 (R-24).
+    available: true,
+  },
+  {
+    id: "ti-proyectos",
+    name: "Proyectos",
+    path: "/ti/proyectos",
+    areaSlug: "ti",
+    category: "Operación",
+    icon: FolderKanban,
+    // The API enables it per area (PROJECTS_AREA_SLUGS) and today that is
+    // only TI; another area gets an entry here when the API turns it on.
     available: true,
   },
   {

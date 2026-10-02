@@ -130,6 +130,7 @@ Los componentes **solo** consumen estos tokens. Un hex dentro de un componente e
 | `--*-surface` | Fondo teñido del estado correspondiente (alerts) |
 | `--*-badge` | El mismo tinte, opaco: fondo de badges (§7.5) |
 | `--file-*` | Íconos de formato del gestor documental, y nada más (§3.7) |
+| `--project-*` | Color que el equipo da a carpetas y proyectos, con la receta de §7.7 (§3.8) |
 
 ### 3.4 Mapeo por tema
 
@@ -268,6 +269,17 @@ PDF, Word, hoja de cálculo y presentación reusan `--danger`, `--info`, `--succ
 | Imagen `--file-image` | #6941c6 — **6.62** ✅ | #b692f6 — **6.78** ✅ |
 | Otros `--file-other` | #343430 — **12.50** ✅ | #c8c8c4 — **10.06** ✅ |
 
+**Colores de proyecto (texto `--text-primary` sobre el tinte; ver §3.8)**
+
+Peores casos medidos: en claro, el tinte más oscuro; en oscuro, el más luminoso.
+
+| Tema | Tinte | Texto / Fondo | Ratio |
+|---|---|---|---|
+| Claro | azul al 14% sobre #ffffff | #1d1d1b / #e2edf3 | **14.18** ✅ |
+| Claro | verde al 14% sobre #ffffff | #1d1d1b / #e5eee9 | **14.26** ✅ |
+| Oscuro | amarillo al 24% sobre `--surface` | #ffffff / #4d412d | **9.95** ✅ |
+| Oscuro | rojo al 24% sobre `--surface` | #ffffff / #52312f | **11.42** ✅ |
+
 ### 3.6 Reglas de color
 
 - **`--neutral-500` (#919189) nunca es color de texto en tema claro.** Falla AA sobre blanco
@@ -306,6 +318,32 @@ se reconoce el tipo antes de leer la extensión.
   dentro de una hoja de 20×24px y nunca fuera de ella.
 - **La extensión siempre va escrita al lado.** El color no es la única señal (§3.6).
 - Un formato nuevo se asigna a una familia existente; una familia nueva se discute aquí.
+
+### 3.8 Colores de proyecto
+
+En el gestor de proyectos, cada carpeta y cada proyecto puede llevar un color que elige el
+equipo. La API no guarda un hex sino una llave de paleta (`gray`, `brown`, `orange`, `yellow`,
+`green`, `blue`, `purple`, `pink`, `red`, o `default` para ninguno), y cada llave resuelve a un
+token `--project-<llave>` con un tono para claro y otro un escalón más luminoso para oscuro.
+
+| Token | Claro | Oscuro |
+|---|---|---|
+| `--project-gray` | #787774 | #9b9b9b |
+| `--project-brown` | #9f6b53 | #ba856f |
+| `--project-orange` | #d9730d | #c77d48 |
+| `--project-yellow` | #cb912f | #ca9849 |
+| `--project-green` | #448361 | #529e72 |
+| `--project-blue` | #337ea9 | #5e87c9 |
+| `--project-purple` | #9065b0 | #9d68d3 |
+| `--project-pink` | #c14c8a | #d15796 |
+| `--project-red` | #d44c47 | #df5452 |
+
+- **Se pintan con la receta de etiquetas (§7.7):** punto sólido de 8px, tinte al 14% (claro) o
+  24% (oscuro) sobre `--surface`, y texto siempre `--text-primary`. Así el texto pasa AA con
+  cualquier tono de la tabla; los ratios medidos están en §3.5.
+- **Organizan, no comunican estado.** El estado del proyecto va en su badge (§7.5). El color
+  es una marca que el equipo pone para agrupar, y siempre va junto al nombre, nunca solo.
+- `default` no tiene token: la carpeta o el proyecto queda sin punto ni tinte.
 
 ---
 
