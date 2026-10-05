@@ -98,6 +98,20 @@
   --file-other: var(--neutral-700);
   --file-mark: var(--neutral-0);
 
+  /* Colores de proyecto (§3.8): la API guarda una llave de paleta, no un
+     hex, y cada llave resuelve aquí. Se pintan con la receta de etiquetas
+     (§7.7): punto sólido + tinte al 14% y texto --text-primary, que pasa AA
+     con cualquier tono. "default" no tiene token: queda sin punto. */
+  --project-gray: #787774;
+  --project-brown: #9f6b53;
+  --project-orange: #d9730d;
+  --project-yellow: #cb912f;
+  --project-green: #448361;
+  --project-blue: #337ea9;
+  --project-purple: #9065b0;
+  --project-pink: #c14c8a;
+  --project-red: #d44c47;
+
   /* Modales (§7.4): backdrop sin blur y elevación 3 (§6.2). En oscuro la
      sombra no se ve y la elevación la da --surface con su borde. */
   --backdrop: rgba(29, 29, 27, 0.4);
@@ -161,6 +175,18 @@
   --file-image: #b692f6;
   --file-other: var(--neutral-300);
   --file-mark: var(--neutral-900);
+
+  /* Un escalón más claros: los tonos del tema claro se hunden sobre
+     #1d1d1b. El tinte va al 24% (§7.7). */
+  --project-gray: #9b9b9b;
+  --project-brown: #ba856f;
+  --project-orange: #c77d48;
+  --project-yellow: #ca9849;
+  --project-green: #529e72;
+  --project-blue: #5e87c9;
+  --project-purple: #9d68d3;
+  --project-pink: #d15796;
+  --project-red: #df5452;
 }
 
 /* ── Puente hacia Tailwind ─────────────────────────────────────────────────── */
