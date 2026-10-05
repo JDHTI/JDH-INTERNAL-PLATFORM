@@ -6,6 +6,7 @@ import { DayPicker, type DateRange } from "@daypicker/react";
 import { es } from "@daypicker/react/locale";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 
+import { formatIso, toDate, toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
 
 import { Button } from "./button";
@@ -14,22 +15,6 @@ import { Button } from "./button";
 export interface IsoDateRange {
   from?: string;
   to?: string;
-}
-
-function toDate(iso: string | undefined): Date | undefined {
-  if (!iso) return undefined;
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function toIso(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function formatIso(iso: string): string {
-  const [year, month, day] = iso.split("-");
-  return `${day}/${month}/${year}`;
 }
 
 /** "01/09/2026 – 29/09/2026", or the open side said in words. */
