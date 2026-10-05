@@ -308,7 +308,7 @@ function ProjectsArea({
       >
         {hasArchived
           ? "Los proyectos de esta carpeta están archivados. Puedes verlos en «Archivados»."
-          : "Un proyecto se divide en bloques, y cada bloque en tareas que el equipo mueve por el tablero."}
+          : "Un proyecto tiene un backlog de tareas, que el equipo pasa al tablero cuando las empieza. Las épicas las agrupan."}
       </StatePanel>
     );
   }

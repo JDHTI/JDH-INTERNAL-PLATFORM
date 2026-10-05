@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -156,23 +157,25 @@ function ProjectForm({
         </Field>
 
         <Field label="Fecha de inicio" htmlFor={`${id}-start`} error={errors.start}>
-          <Input
+          <DatePicker
             id={`${id}-start`}
-            type="date"
             value={startDate}
             {...errorProps("start", `${id}-start`)}
-            onChange={(event) => setStartDate(event.target.value)}
+            onChange={(next) => {
+              setStartDate(next);
+              if (errors.start) setErrors({ ...errors, start: undefined });
+            }}
           />
         </Field>
         <Field label="Fecha de fin" htmlFor={`${id}-end`} optional error={errors.end}>
-          <Input
+          <DatePicker
             id={`${id}-end`}
-            type="date"
             value={endDate}
             min={startDate || undefined}
+            clearable
             {...errorProps("end", `${id}-end`)}
-            onChange={(event) => {
-              setEndDate(event.target.value);
+            onChange={(next) => {
+              setEndDate(next);
               if (errors.end) setErrors({ ...errors, end: undefined });
             }}
           />

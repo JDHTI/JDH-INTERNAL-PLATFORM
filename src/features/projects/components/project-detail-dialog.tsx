@@ -27,7 +27,7 @@ import { ColorSwatches } from "./project-color";
 import { useProjectsContext } from "./projects-context";
 
 /**
- * A project's settings: everything but its blocks and tasks, which live on
+ * A project's settings: everything but its epics and tasks, which live on
  * its board. Every field saves on its own, the moment it changes (text
  * fields when they lose focus), so there is no "Guardar" to forget.
  */

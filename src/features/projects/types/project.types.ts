@@ -31,14 +31,29 @@ export interface CatalogOption {
   label: string;
 }
 
-export const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+/**
+ * Scrumban flow. `backlog` is the project's waiting list and has its own
+ * board; the other four are the main board's columns. Leaving the backlog is
+ * a status change on the same record, never a copy.
+ */
+export const TASK_STATUSES = [
+  "backlog",
+  "in_progress",
+  "pending_validation",
+  "blocked",
+  "done",
+] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export const BACKLOG_STATUS: TaskStatus = "backlog";
+/** Where a task lands when it is pulled out of the backlog. */
+export const PULL_STATUS: TaskStatus = "in_progress";
 
 export interface ProjectCatalog {
   statuses: CatalogOption[];
   priorities: CatalogOption[];
   colors: CatalogOption[];
-  /** The board's columns, in order. */
+  /** Backlog first, then the main board's columns, in order. */
   task_statuses?: CatalogOption[];
 }
 
@@ -102,10 +117,10 @@ export interface Project {
 }
 
 /**
- * The level between a project and its tasks: a phase, a deliverable or a
- * feature, depending on who uses it. Named for none of them on purpose.
+ * Groups a project's tasks around one outcome. It has no status or column of
+ * its own: its progress is counted from its tasks.
  */
-export interface ProjectBlock {
+export interface ProjectEpic {
   id: string;
   area_id: string;
   project_id: string;
@@ -128,7 +143,8 @@ export interface ProjectTask {
   id: string;
   area_id: string;
   project_id: string;
-  block_id: string;
+  /** Optional: a task can wait in the backlog without belonging to an epic. */
+  epic_id: string | null;
   name: string;
   description: string | null;
   status: string;
@@ -136,8 +152,10 @@ export interface ProjectTask {
   owner: Person | null;
   start_date: string | null;
   end_date: string | null;
-  /** Order inside its column (project + status). */
+  /** Order inside its column (project + status); the backlog has its own. */
   position: number;
+  /** Only kept while the status is `blocked`. */
+  blocked_reason: string | null;
   version: number;
   created_by: string;
   updated_by: string;
@@ -145,7 +163,7 @@ export interface ProjectTask {
   updated_at: string;
 }
 
-export interface BlockInput {
+export interface EpicInput {
   name?: string;
   description?: string | null;
   color?: string;
@@ -155,9 +173,10 @@ export interface BlockInput {
 }
 
 export interface CreateTaskInput {
-  block_id: string;
+  epic_id?: string | null;
   name: string;
   description?: string | null;
+  /** The API files a new task in the backlog when this is left out. */
   status?: string;
   priority?: string;
   owner_user_id?: string | null;
@@ -166,7 +185,8 @@ export interface CreateTaskInput {
 }
 
 export interface UpdateTaskInput {
-  block_id?: string;
+  /** `null` takes the task out of its epic. */
+  epic_id?: string | null;
   name?: string;
   description?: string | null;
   status?: string;
@@ -175,6 +195,8 @@ export interface UpdateTaskInput {
   start_date?: string | null;
   end_date?: string | null;
   position?: number;
+  /** Up to 500 characters; the API drops it when the status leaves `blocked`. */
+  blocked_reason?: string | null;
 }
 
 export interface FolderInput {
@@ -251,13 +273,13 @@ export type LiveServerMessage =
     }
   | { type: "project.deleted"; data: { id: string; folder_id: string } }
   | {
-      type: "block.created" | "block.updated";
-      data: ProjectBlock;
+      type: "epic.created" | "epic.updated";
+      data: ProjectEpic;
       actor: LiveActor;
       at: string;
       changed?: string[];
     }
-  | { type: "block.deleted"; data: { id: string; project_id: string } }
+  | { type: "epic.deleted"; data: { id: string; project_id: string } }
   | {
       type: "task.created" | "task.updated";
       data: ProjectTask;
@@ -265,7 +287,7 @@ export type LiveServerMessage =
       at: string;
       changed?: string[];
     }
-  | { type: "task.deleted"; data: { id: string; project_id: string; block_id: string } }
+  | { type: "task.deleted"; data: { id: string; project_id: string; epic_id: string | null } }
   | { type: "presence"; members: PresenceMember[] }
   | { type: "sync.required" }
   | { type: "pong" };

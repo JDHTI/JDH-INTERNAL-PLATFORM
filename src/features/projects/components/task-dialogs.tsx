@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -17,7 +18,7 @@ import { formatDateTime } from "../lib/format";
 import type {
   CatalogOption,
   Person,
-  ProjectBlock,
+  ProjectEpic,
   ProjectTask,
   UpdateTaskInput,
 } from "../types/project.types";
@@ -31,23 +32,23 @@ import OwnerSelect from "./owner-select";
 import PresenceAvatars from "./presence-avatars";
 import { useProjectsContext } from "./projects-context";
 
-const blockOptions = (blocks: ProjectBlock[]) =>
-  blocks.map((block) => ({ value: block.id, label: block.name }));
+const epicOptions = (epics: ProjectEpic[]) =>
+  epics.map((epic) => ({ value: epic.id, label: epic.name }));
 
 // ── New task ──
 
 export function NewTaskDialog({
   projectId,
-  blocks,
+  epics,
   taskStatuses,
   preset,
   onOpenChange,
 }: {
   projectId: string;
-  blocks: ProjectBlock[];
+  epics: ProjectEpic[];
   taskStatuses: CatalogOption[];
-  /** Open when set: the column and block the dialog was opened from. */
-  preset: { status: string; blockId?: string } | null;
+  /** Open when set: the column and epic the dialog was opened from. */
+  preset: { status: string; epicId?: string } | null;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -55,10 +56,10 @@ export function NewTaskDialog({
       {preset && (
         <NewTaskForm
           projectId={projectId}
-          blocks={blocks}
+          epics={epics}
           taskStatuses={taskStatuses}
           initialStatus={preset.status}
-          initialBlockId={preset.blockId ?? blocks[0]?.id ?? ""}
+          initialEpicId={preset.epicId ?? ""}
           onDone={() => onOpenChange(false)}
         />
       )}
@@ -68,17 +69,17 @@ export function NewTaskDialog({
 
 function NewTaskForm({
   projectId,
-  blocks,
+  epics,
   taskStatuses,
   initialStatus,
-  initialBlockId,
+  initialEpicId,
   onDone,
 }: {
   projectId: string;
-  blocks: ProjectBlock[];
+  epics: ProjectEpic[];
   taskStatuses: CatalogOption[];
   initialStatus: string;
-  initialBlockId: string;
+  initialEpicId: string;
   onDone: () => void;
 }) {
   const id = useId();
@@ -86,28 +87,27 @@ function NewTaskForm({
   const create = useCreateTask(slug, projectId);
 
   const [name, setName] = useState("");
-  const [blockId, setBlockId] = useState(initialBlockId);
+  const [epicId, setEpicId] = useState(initialEpicId);
   const [status, setStatus] = useState(initialStatus);
   const [priority, setPriority] = useState("medium");
   const [owner, setOwner] = useState<Person | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [description, setDescription] = useState("");
-  const [errors, setErrors] = useState<{ name?: string; block?: string; end?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; end?: string }>({});
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const found = {
       name: name.trim() ? undefined : "Escribe qué hay que hacer.",
-      block: blockId ? undefined : "Elige el bloque de la tarea.",
       end: dateRangeError(start || null, end || null) ?? undefined,
     };
     setErrors(found);
-    if (found.name || found.block || found.end) return;
+    if (found.name || found.end) return;
 
     create.mutate(
       {
-        block_id: blockId,
+        epic_id: epicId || null,
         name: name.trim(),
         status,
         priority,
@@ -143,13 +143,15 @@ function NewTaskForm({
       </Field>
 
       <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-        <Field label="Bloque" htmlFor={`${id}-block`} error={errors.block}>
+        <Field label="Épica" htmlFor={`${id}-epic`} optional>
           <Dropdown
-            id={`${id}-block`}
-            value={blockId}
-            onValueChange={setBlockId}
-            options={blockOptions(blocks)}
-            placeholder="Elige un bloque"
+            id={`${id}-epic`}
+            value={epicId}
+            onValueChange={setEpicId}
+            options={epicOptions(epics)}
+            placeholder="Sin épica"
+            clearable
+            clearLabel="Quitar la épica"
           />
         </Field>
         <Field label="Responsable" htmlFor={`${id}-owner`} optional>
@@ -162,18 +164,18 @@ function NewTaskForm({
           <Dropdown id={`${id}-priority`} value={priority} onValueChange={setPriority} options={priorities} />
         </Field>
         <Field label="Fecha de inicio" htmlFor={`${id}-start`} optional>
-          <Input id={`${id}-start`} type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+          <DatePicker id={`${id}-start`} value={start} clearable onChange={setStart} />
         </Field>
         <Field label="Fecha de fin" htmlFor={`${id}-end`} optional error={errors.end}>
-          <Input
+          <DatePicker
             id={`${id}-end`}
-            type="date"
             value={end}
             min={start || undefined}
+            clearable
             aria-invalid={errors.end ? true : undefined}
             aria-describedby={errors.end ? `${id}-end-error` : undefined}
-            onChange={(event) => {
-              setEnd(event.target.value);
+            onChange={(next) => {
+              setEnd(next);
               if (errors.end) setErrors({ ...errors, end: undefined });
             }}
           />
@@ -213,7 +215,7 @@ export function TaskDetailDialog({
   projectId,
   task,
   isOpen,
-  blocks,
+  epics,
   taskStatuses,
   onClose,
   onDelete,
@@ -222,7 +224,7 @@ export function TaskDetailDialog({
   /** null while open means someone deleted it. */
   task: ProjectTask | null;
   isOpen: boolean;
-  blocks: ProjectBlock[];
+  epics: ProjectEpic[];
   taskStatuses: CatalogOption[];
   onClose: () => void;
   onDelete: (task: ProjectTask) => void;
@@ -240,7 +242,7 @@ export function TaskDetailDialog({
             key={task.id}
             projectId={projectId}
             task={task}
-            blocks={blocks}
+            epics={epics}
             taskStatuses={taskStatuses}
             onDelete={() => onDelete(task)}
           />
@@ -264,13 +266,13 @@ export function TaskDetailDialog({
 function TaskFields({
   projectId,
   task,
-  blocks,
+  epics,
   taskStatuses,
   onDelete,
 }: {
   projectId: string;
   task: ProjectTask;
-  blocks: ProjectBlock[];
+  epics: ProjectEpic[];
   taskStatuses: CatalogOption[];
   onDelete: () => void;
 }) {
@@ -312,12 +314,15 @@ function TaskFields({
       </Field>
 
       <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-        <Field label="Bloque" htmlFor={`${id}-block`}>
+        <Field label="Épica" htmlFor={`${id}-epic`} optional>
           <Dropdown
-            id={`${id}-block`}
-            value={task.block_id}
-            onValueChange={(blockId) => blockId && blockId !== task.block_id && save({ block_id: blockId })}
-            options={blockOptions(blocks)}
+            id={`${id}-epic`}
+            value={task.epic_id ?? ""}
+            onValueChange={(epicId) => (epicId || null) !== task.epic_id && save({ epic_id: epicId || null })}
+            options={epicOptions(epics)}
+            placeholder="Sin épica"
+            clearable
+            clearLabel="Quitar la épica"
           />
         </Field>
         <Field label="Responsable" htmlFor={`${id}-owner`} optional>
@@ -367,6 +372,21 @@ function TaskFields({
           }}
         />
       </div>
+
+      {task.status === "blocked" && (
+        <Field label="Motivo del bloqueo" htmlFor={`${id}-blocked`} optional>
+          <SavedOnBlurInput
+            id={`${id}-blocked`}
+            value={task.blocked_reason ?? ""}
+            maxLength={500}
+            placeholder="Qué espera esta tarea para seguir"
+            onCommit={(text) => {
+              const next = text.trim() || null;
+              if (next !== task.blocked_reason) save({ blocked_reason: next });
+            }}
+          />
+        </Field>
+      )}
 
       <Field label="Descripción" htmlFor={`${id}-description`} optional>
         <SavedOnBlurTextarea

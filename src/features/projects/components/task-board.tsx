@@ -8,7 +8,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/shared/components/ui
 import { cn } from "@/shared/lib/utils";
 
 import { dateRange, isOverdue, labelOf, personName } from "../lib/format";
-import type { CatalogOption, ProjectBlock, ProjectTask } from "../types/project.types";
+import type { CatalogOption, ProjectEpic, ProjectTask } from "../types/project.types";
 import { ColorDot } from "./project-color";
 import { useProjectsContext } from "./projects-context";
 
@@ -21,20 +21,39 @@ export interface TaskBoardActions {
 }
 
 /**
- * The project's tasks by state. Cards drag across and within columns; the
- * card menu does the same for keyboard and touch, where drag and drop does
- * not reach.
+ * A set of columns of tasks. The main board passes four and the backlog
+ * passes one: same cards, same drag and drop. Cards drag across and within
+ * columns; the card menu does the same for keyboard and touch, where drag and
+ * drop does not reach, and it also reaches the statuses that live on the
+ * other board.
  */
 export default function TaskBoard({
   columns,
+  targets,
   tasksByStatus,
-  blocks,
+  epics,
+  className,
+  addLabel = "Agregar tarea",
+  variant = "card",
+  reorderable = true,
   ...actions
 }: TaskBoardActions & {
   columns: CatalogOption[];
-  /** Already sorted by position, and filtered when a block is picked. */
+  /** Every status a card can be sent to from its menu, other board included. */
+  targets: CatalogOption[];
+  /** Already sorted by position, and filtered when an epic is picked. */
   tasksByStatus: Map<string, ProjectTask[]>;
-  blocks: Map<string, ProjectBlock>;
+  epics: Map<string, ProjectEpic>;
+  /** Grid columns for the board's width. */
+  className?: string;
+  addLabel?: string;
+  /** `row` spreads a task across the full width: name on the left, details on the right. */
+  variant?: "card" | "row";
+  /**
+   * False when the list shown is not the column itself (a search narrowed
+   * it): an index in it would not be an index in the column.
+   */
+  reorderable?: boolean;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ status: string; index: number } | null>(null);
@@ -49,7 +68,7 @@ export default function TaskBoard({
     : undefined;
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className={cn("grid gap-4", className)}>
       {columns.map((column) => {
         const tasks = tasksByStatus.get(column.value) ?? [];
         const headingId = `column-${column.value}`;
@@ -94,7 +113,7 @@ export default function TaskBoard({
                 return (
                   <li
                     key={task.id}
-                    draggable
+                    draggable={reorderable}
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", task.id);
@@ -123,10 +142,12 @@ export default function TaskBoard({
                   >
                     <TaskCard
                       task={task}
-                      block={blocks.get(task.block_id)}
+                      epic={task.epic_id ? epics.get(task.epic_id) : undefined}
                       index={index}
                       total={tasks.length}
-                      columns={columns}
+                      targets={targets}
+                      variant={variant}
+                      reorderable={reorderable}
                       {...actions}
                     />
                   </li>
@@ -140,7 +161,7 @@ export default function TaskBoard({
               className="mt-2 flex min-h-9 items-center gap-2 rounded-md px-2 text-[13px] text-text-secondary hover:bg-primary-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
             >
               <ListPlus className="size-4" aria-hidden="true" />
-              Agregar tarea
+              {addLabel}
             </button>
           </section>
         );
@@ -151,96 +172,152 @@ export default function TaskBoard({
 
 function TaskCard({
   task,
-  block,
+  epic,
   index,
   total,
-  columns,
+  targets,
+  variant,
+  reorderable,
   onOpen,
   onMove,
   onDelete,
 }: TaskBoardActions & {
   task: ProjectTask;
-  block: ProjectBlock | undefined;
+  epic: ProjectEpic | undefined;
   index: number;
   total: number;
-  columns: CatalogOption[];
+  targets: CatalogOption[];
+  variant: "card" | "row";
+  reorderable: boolean;
 }) {
   const { priorities } = useProjectsContext();
   const overdue = isOverdue(task);
   const dates = dateRange(task.start_date, task.end_date);
+  const isRow = variant === "row";
+
+  const nameButton = (
+    <button
+      type="button"
+      onClick={() => onOpen(task)}
+      className={cn(
+        "min-h-8 min-w-0 text-left text-sm font-medium break-words focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11",
+        !isRow && "flex-1",
+        isRow && "order-1 md:order-none"
+      )}
+    >
+      {task.name}
+    </button>
+  );
+
+  const menu = (
+    <Menu
+      align="end"
+      triggerLabel={`Acciones de la tarea ${task.name}`}
+      triggerTitle="Acciones de la tarea"
+      triggerClassName={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:size-11",
+        isRow ? "order-2 md:order-none" : "-mt-0.5 -mr-1"
+      )}
+      trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
+    >
+      <MenuItem onClick={() => onOpen(task)}>
+        <PanelRightOpen aria-hidden="true" />
+        Abrir
+      </MenuItem>
+      <MenuItem
+        onClick={() => onMove(task, task.status, index - 1)}
+        disabled={!reorderable || index === 0}
+      >
+        <ArrowUp aria-hidden="true" />
+        Subir
+      </MenuItem>
+      <MenuItem
+        onClick={() => onMove(task, task.status, index + 1)}
+        disabled={!reorderable || index === total - 1}
+      >
+        <ArrowDown aria-hidden="true" />
+        Bajar
+      </MenuItem>
+      <MenuSeparator />
+      <MenuLabel>Mover a</MenuLabel>
+      {targets
+        .filter((target) => target.value !== task.status)
+        .map((target) => (
+          <MenuItem key={target.value} onClick={() => onMove(task, target.value, Number.MAX_SAFE_INTEGER)}>
+            {target.label}
+          </MenuItem>
+        ))}
+      <MenuSeparator />
+      <MenuItem onClick={() => onDelete(task)}>
+        <Trash2 aria-hidden="true" />
+        Borrar tarea
+      </MenuItem>
+    </Menu>
+  );
+
+  const blockedReason = task.status === "blocked" && task.blocked_reason && (
+    <p className="mt-1.5 text-[13px] break-words text-text-primary">
+      <span className="font-medium">Bloqueada:</span> {task.blocked_reason}
+    </p>
+  );
+
+  const details = (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-text-secondary",
+        isRow ? "order-3 col-span-2 md:order-none md:col-span-1 md:justify-end" : "mt-2"
+      )}
+    >
+      {epic && (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <ColorDot color={epic.color} />
+          <span className="truncate">{epic.name}</span>
+        </span>
+      )}
+      {task.priority === "high" && (
+        <span className="font-medium text-text-primary">Prioridad {labelOf(priorities, task.priority).toLowerCase()}</span>
+      )}
+      {dates && (
+        <span className={cn("tabular flex items-center gap-1", overdue && "font-medium text-danger")}>
+          <CalendarClock className="size-3.5" aria-hidden="true" />
+          {overdue ? `Vencida · ${dates}` : dates}
+        </span>
+      )}
+      {task.owner && (
+        <span
+          title={personName(task.owner)}
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-full bg-canvas-subtle text-[11px] font-medium text-text-primary",
+            !isRow && "ml-auto"
+          )}
+        >
+          <span aria-hidden="true">{getInitials(personName(task.owner))}</span>
+          <span className="sr-only">Responsable: {personName(task.owner)}</span>
+        </span>
+      )}
+    </div>
+  );
+
+  if (isRow) {
+    // Name and menu share the first line on a phone; from md the details
+    // sit between them, so every row reads left to right in one line.
+    return (
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1 gap-y-1 rounded-md border border-border bg-surface p-2.5 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-x-4">
+        {nameButton}
+        {details}
+        {menu}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border border-border bg-surface p-2.5">
       <div className="flex items-start gap-1">
-        <button
-          type="button"
-          onClick={() => onOpen(task)}
-          className="min-h-8 min-w-0 flex-1 text-left text-sm font-medium break-words focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
-        >
-          {task.name}
-        </button>
-        <Menu
-          align="end"
-          triggerLabel={`Acciones de la tarea ${task.name}`}
-          triggerTitle="Acciones de la tarea"
-          triggerClassName="-mt-0.5 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:size-11"
-          trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
-        >
-          <MenuItem onClick={() => onOpen(task)}>
-            <PanelRightOpen aria-hidden="true" />
-            Abrir
-          </MenuItem>
-          <MenuItem onClick={() => onMove(task, task.status, index - 1)} disabled={index === 0}>
-            <ArrowUp aria-hidden="true" />
-            Subir
-          </MenuItem>
-          <MenuItem onClick={() => onMove(task, task.status, index + 1)} disabled={index === total - 1}>
-            <ArrowDown aria-hidden="true" />
-            Bajar
-          </MenuItem>
-          <MenuSeparator />
-          <MenuLabel>Mover a</MenuLabel>
-          {columns
-            .filter((column) => column.value !== task.status)
-            .map((column) => (
-              <MenuItem key={column.value} onClick={() => onMove(task, column.value, Number.MAX_SAFE_INTEGER)}>
-                {column.label}
-              </MenuItem>
-            ))}
-          <MenuSeparator />
-          <MenuItem onClick={() => onDelete(task)}>
-            <Trash2 aria-hidden="true" />
-            Borrar tarea
-          </MenuItem>
-        </Menu>
+        {nameButton}
+        {menu}
       </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-text-secondary">
-        {block && (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <ColorDot color={block.color} />
-            <span className="truncate">{block.name}</span>
-          </span>
-        )}
-        {task.priority === "high" && (
-          <span className="font-medium text-text-primary">Prioridad {labelOf(priorities, task.priority).toLowerCase()}</span>
-        )}
-        {dates && (
-          <span className={cn("tabular flex items-center gap-1", overdue && "font-medium text-danger")}>
-            <CalendarClock className="size-3.5" aria-hidden="true" />
-            {overdue ? `Vencida · ${dates}` : dates}
-          </span>
-        )}
-        {task.owner && (
-          <span
-            title={personName(task.owner)}
-            className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-full bg-canvas-subtle text-[11px] font-medium text-text-primary"
-          >
-            <span aria-hidden="true">{getInitials(personName(task.owner))}</span>
-            <span className="sr-only">Responsable: {personName(task.owner)}</span>
-          </span>
-        )}
-      </div>
+      {blockedReason}
+      {details}
     </div>
   );
 }

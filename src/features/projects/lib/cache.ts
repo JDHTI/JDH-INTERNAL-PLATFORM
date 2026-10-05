@@ -3,7 +3,7 @@ import type { ProjectFolder } from "../types/project.types";
 /*
  * Pure updates of the cached lists. Both the REST responses and the live
  * events go through here, so applying the same change twice (our own echo)
- * leaves the list as it was. Projects, blocks and tasks all carry a version
+ * leaves the list as it was. Projects, epics and tasks all carry a version
  * that grows on every write, and share these.
  */
 

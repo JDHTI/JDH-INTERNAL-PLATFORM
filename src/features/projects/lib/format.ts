@@ -18,10 +18,12 @@ export const PRIORITY_LABELS: Record<string, string> = {
   high: "Alta",
 };
 
-/** The board's columns, in order, until the catalog brings its own labels. */
+/** Backlog and the board's columns, in order, until the catalog brings its own labels. */
 export const TASK_STATUS_LABELS: Record<string, string> = {
-  todo: "Por hacer",
+  backlog: "Backlog",
   in_progress: "En curso",
+  pending_validation: "Pendiente de validación",
+  blocked: "Bloqueado",
   done: "Hecha",
 };
 
@@ -44,6 +46,11 @@ export function optionsOf(
   fallback: Record<string, string>
 ): CatalogOption[] {
   return fromCatalog ?? Object.entries(fallback).map(([value, label]) => ({ value, label }));
+}
+
+/** Lowercase and without accents, so "revisión" is found by typing "revision". */
+export function normalizeSearch(text: string): string {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 }
 
 export function labelOf(options: CatalogOption[], value: string): string {

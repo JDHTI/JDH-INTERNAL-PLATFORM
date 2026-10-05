@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 
@@ -61,10 +62,9 @@ export function SavedOnBlurTextarea({
 }
 
 /**
- * Start and end date, committed when a field loses focus rather than on
- * change: typing a year in a date input passes through dates nobody meant
- * (0002-…), and saving each one would publish it to everyone watching.
- * Projects require a start; blocks and tasks do not.
+ * Start and end date, saved on each pick: the calendar only produces whole
+ * dates, so nothing half-typed reaches the people watching live.
+ * Projects require a start; epics and tasks do not.
  */
 export function DateFields({
   id,
@@ -81,36 +81,25 @@ export function DateFields({
   startOptional?: boolean;
   onCommit: (start: string | null, end: string | null) => void;
 }) {
-  const [draft, setDraft] = useState<{ start: string; end: string } | null>(null);
-  const shown = draft ?? { start: start ?? "", end: end ?? "" };
-
-  const commit = () => {
-    if (!draft) return;
-    onCommit(draft.start || null, draft.end || null);
-    setDraft(null);
-  };
-
   return (
     <>
       <Field label="Fecha de inicio" htmlFor={`${id}-start`} optional={startOptional} error={error}>
-        <Input
+        <DatePicker
           id={`${id}-start`}
-          type="date"
-          value={shown.start}
+          value={start ?? ""}
+          clearable={startOptional}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-start-error` : undefined}
-          onChange={(event) => setDraft({ ...shown, start: event.target.value })}
-          onBlur={commit}
+          onChange={(next) => onCommit(next || null, end)}
         />
       </Field>
       <Field label="Fecha de fin" htmlFor={`${id}-end`} optional>
-        <Input
+        <DatePicker
           id={`${id}-end`}
-          type="date"
-          value={shown.end}
-          min={shown.start || undefined}
-          onChange={(event) => setDraft({ ...shown, end: event.target.value })}
-          onBlur={commit}
+          value={end ?? ""}
+          min={start || undefined}
+          clearable
+          onChange={(next) => onCommit(start, next || null)}
         />
       </Field>
     </>

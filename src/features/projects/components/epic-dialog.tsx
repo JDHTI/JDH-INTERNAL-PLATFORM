@@ -5,28 +5,30 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Field, Textarea } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
-import { useCreateBlock, useUpdateBlock } from "../hooks/use-projects";
-import type { ProjectBlock } from "../types/project.types";
+import { useCreateEpic, useUpdateEpic } from "../hooks/use-projects";
+import type { ProjectEpic } from "../types/project.types";
 import { dateRangeError } from "./editable-fields";
 import { ColorSwatches } from "./project-color";
 import { useProjectsContext } from "./projects-context";
 
 /**
- * Create when `block` is null, edit when it is given. A block is whatever
- * big piece the project splits into: a phase, a deliverable, a feature.
+ * Create when `epic` is null, edit when it is given. An epic groups the tasks
+ * that serve one outcome; it has no column of its own, its progress is
+ * counted from its tasks.
  */
-export default function BlockDialog({
+export default function EpicDialog({
   projectId,
-  block,
+  epic,
   open,
   onOpenChange,
 }: {
   projectId: string;
-  block: ProjectBlock | null;
+  epic: ProjectEpic | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -35,18 +37,18 @@ export default function BlockDialog({
       open={open}
       onOpenChange={onOpenChange}
       isForm
-      title={block ? "Editar bloque" : "Nuevo bloque"}
+      title={epic ? "Editar épica" : "Nueva épica"}
       description={
-        block
+        epic
           ? undefined
-          : "Una parte grande del proyecto: una fase, un entregable o un frente de trabajo. Sus tareas se mueven en el tablero."
+          : "Agrupa las tareas que sirven a un mismo resultado: una fase, un entregable o un frente de trabajo. Las tareas pueden existir sin épica."
       }
     >
       {open && (
-        <BlockForm
-          key={block?.id ?? "new"}
+        <EpicForm
+          key={epic?.id ?? "new"}
           projectId={projectId}
-          block={block}
+          epic={epic}
           onDone={() => onOpenChange(false)}
         />
       )}
@@ -54,32 +56,32 @@ export default function BlockDialog({
   );
 }
 
-function BlockForm({
+function EpicForm({
   projectId,
-  block,
+  epic,
   onDone,
 }: {
   projectId: string;
-  block: ProjectBlock | null;
+  epic: ProjectEpic | null;
   onDone: () => void;
 }) {
   const id = useId();
   const { slug, colors } = useProjectsContext();
-  const create = useCreateBlock(slug, projectId);
-  const update = useUpdateBlock(slug, projectId);
-  const mutation = block ? update : create;
+  const create = useCreateEpic(slug, projectId);
+  const update = useUpdateEpic(slug, projectId);
+  const mutation = epic ? update : create;
 
-  const [name, setName] = useState(block?.name ?? "");
-  const [description, setDescription] = useState(block?.description ?? "");
-  const [color, setColor] = useState(block?.color ?? "default");
-  const [start, setStart] = useState(block?.start_date ?? "");
-  const [end, setEnd] = useState(block?.end_date ?? "");
+  const [name, setName] = useState(epic?.name ?? "");
+  const [description, setDescription] = useState(epic?.description ?? "");
+  const [color, setColor] = useState(epic?.color ?? "default");
+  const [start, setStart] = useState(epic?.start_date ?? "");
+  const [end, setEnd] = useState(epic?.end_date ?? "");
   const [errors, setErrors] = useState<{ name?: string; end?: string }>({});
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const found = {
-      name: name.trim() ? undefined : "Escribe un nombre para el bloque.",
+      name: name.trim() ? undefined : "Escribe un nombre para la épica.",
       end: dateRangeError(start || null, end || null) ?? undefined,
     };
     setErrors(found);
@@ -92,12 +94,12 @@ function BlockForm({
       start_date: start || null,
       end_date: end || null,
     };
-    if (block) {
+    if (epic) {
       update.mutate(
-        { id: block.id, input, optimistic: input },
+        { id: epic.id, input, optimistic: input },
         {
           onSuccess: () => {
-            toast.success("Bloque actualizado.");
+            toast.success("Épica actualizada.");
             onDone();
           },
         }
@@ -105,7 +107,7 @@ function BlockForm({
     } else {
       create.mutate(input, {
         onSuccess: (saved) => {
-          toast.success(`Bloque «${saved.name}» creado.`);
+          toast.success(`Épica «${saved.name}» creada.`);
           onDone();
         },
       });
@@ -131,18 +133,18 @@ function BlockForm({
 
       <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
         <Field label="Fecha de inicio" htmlFor={`${id}-start`} optional>
-          <Input id={`${id}-start`} type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+          <DatePicker id={`${id}-start`} value={start} clearable onChange={setStart} />
         </Field>
         <Field label="Fecha de fin" htmlFor={`${id}-end`} optional error={errors.end}>
-          <Input
+          <DatePicker
             id={`${id}-end`}
-            type="date"
             value={end}
             min={start || undefined}
+            clearable
             aria-invalid={errors.end ? true : undefined}
             aria-describedby={errors.end ? `${id}-end-error` : undefined}
-            onChange={(event) => {
-              setEnd(event.target.value);
+            onChange={(next) => {
+              setEnd(next);
               if (errors.end) setErrors({ ...errors, end: undefined });
             }}
           />
@@ -167,7 +169,7 @@ function BlockForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
-          {block ? "Guardar cambios" : "Crear bloque"}
+          {epic ? "Guardar cambios" : "Crear épica"}
         </Button>
       </DialogFooter>
     </form>

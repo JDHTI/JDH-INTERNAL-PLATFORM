@@ -13,34 +13,34 @@ import { ApiError } from "@/shared/lib/api-client";
 import { patchById, removeById, upsertFolder, upsertVersioned } from "../lib/cache";
 import {
   archiveProject,
-  createBlock,
+  createEpic,
   createFolder,
   createProject,
   createTask,
-  deleteBlock,
+  deleteEpic,
   deleteFolder,
   deleteProject,
   deleteTask,
   getAccess,
   getCatalog,
-  listBlocks,
+  listEpics,
   listFolders,
   listProjects,
   listTasks,
   restoreProject,
   searchPeople,
-  updateBlock,
+  updateEpic,
   updateFolder,
   updateProject,
   updateTask,
 } from "../services/projects.service";
 import type {
-  BlockInput,
   CreateProjectInput,
   CreateTaskInput,
+  EpicInput,
   FolderInput,
   Project,
-  ProjectBlock,
+  ProjectEpic,
   ProjectFolder,
   ProjectTask,
   UpdateProjectInput,
@@ -54,8 +54,8 @@ export const projectKeys = {
   access: (slug: string) => [...projectKeys.area(slug), "access"] as const,
   folders: (slug: string) => [...projectKeys.area(slug), "folders"] as const,
   projects: (slug: string) => [...projectKeys.area(slug), "list"] as const,
-  blocks: (slug: string, projectId: string) =>
-    [...projectKeys.area(slug), "blocks", projectId] as const,
+  epics: (slug: string, projectId: string) =>
+    [...projectKeys.area(slug), "epics", projectId] as const,
   tasks: (slug: string, projectId: string) =>
     [...projectKeys.area(slug), "tasks", projectId] as const,
   people: (slug: string, q: string) => [...projectKeys.area(slug), "people", q] as const,
@@ -105,10 +105,10 @@ export function useProjectList(slug: string) {
   });
 }
 
-export function useProjectBlocks(slug: string, projectId: string) {
+export function useProjectEpics(slug: string, projectId: string) {
   return useQuery({
-    queryKey: projectKeys.blocks(slug, projectId),
-    queryFn: () => listBlocks(slug, projectId),
+    queryKey: projectKeys.epics(slug, projectId),
+    queryFn: () => listEpics(slug, projectId),
     staleTime: Infinity,
     retry: retryTransient,
   });
@@ -264,7 +264,7 @@ export function useSetArchived(slug: string) {
   };
 }
 
-/** The API deletes the project's blocks and tasks with it; so does the cache. */
+/** The API deletes the project's epics and tasks with it; so does the cache. */
 export function useDeleteProject(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -279,35 +279,35 @@ export function forgetProject(
   id: string
 ) {
   queryClient.setQueryData<Project[]>(projectKeys.projects(slug), (list) => removeById(list, id));
-  queryClient.removeQueries({ queryKey: projectKeys.blocks(slug, id) });
+  queryClient.removeQueries({ queryKey: projectKeys.epics(slug, id) });
   queryClient.removeQueries({ queryKey: projectKeys.tasks(slug, id) });
 }
 
-// ── Blocks ──
+// ── Epics ──
 
-export type BlockChange = Change<ProjectBlock, BlockInput>;
+export type EpicChange = Change<ProjectEpic, EpicInput>;
 
-export function useCreateBlock(slug: string, projectId: string) {
-  const store = useStore<ProjectBlock>(projectKeys.blocks(slug, projectId));
+export function useCreateEpic(slug: string, projectId: string) {
+  const store = useStore<ProjectEpic>(projectKeys.epics(slug, projectId));
   return useMutation({
-    mutationFn: (input: BlockInput & { name: string }) => createBlock(slug, projectId, input),
+    mutationFn: (input: EpicInput & { name: string }) => createEpic(slug, projectId, input),
     onSuccess: store,
   });
 }
 
-export function useUpdateBlock(slug: string, projectId: string) {
-  return useOptimisticUpdate<ProjectBlock, BlockInput>(
-    projectKeys.blocks(slug, projectId),
-    (id, input) => updateBlock(slug, id, input)
+export function useUpdateEpic(slug: string, projectId: string) {
+  return useOptimisticUpdate<ProjectEpic, EpicInput>(
+    projectKeys.epics(slug, projectId),
+    (id, input) => updateEpic(slug, id, input)
   );
 }
 
-export function useDeleteBlock(slug: string, projectId: string) {
+export function useDeleteEpic(slug: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteBlock(slug, id),
+    mutationFn: (id: string) => deleteEpic(slug, id),
     onSuccess: (_, id) =>
-      queryClient.setQueryData<ProjectBlock[]>(projectKeys.blocks(slug, projectId), (list) =>
+      queryClient.setQueryData<ProjectEpic[]>(projectKeys.epics(slug, projectId), (list) =>
         removeById(list, id)
       ),
   });

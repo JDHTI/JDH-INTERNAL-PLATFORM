@@ -1,9 +1,9 @@
 import { API_URL, apiFetch } from "@/shared/lib/api-client";
 
 import type {
-  BlockInput,
+  EpicInput,
   CreateTaskInput,
-  ProjectBlock,
+  ProjectEpic,
   ProjectTask,
   UpdateTaskInput,
   CreateProjectInput,
@@ -89,32 +89,33 @@ export function deleteProject(slug: string, id: string): Promise<void> {
   return apiFetch<void>(projectPath(slug, id), { method: "DELETE" });
 }
 
-// ── Blocks and tasks of one project ──
+// ── Epics and tasks of one project ──
 
-export function listBlocks(slug: string, projectId: string): Promise<ProjectBlock[]> {
-  return apiFetch<ProjectBlock[]>(`${projectPath(slug, projectId)}/blocks`);
+export function listEpics(slug: string, projectId: string): Promise<ProjectEpic[]> {
+  return apiFetch<ProjectEpic[]>(`${projectPath(slug, projectId)}/epics`);
 }
 
-export function createBlock(
+export function createEpic(
   slug: string,
   projectId: string,
-  input: BlockInput & { name: string }
-): Promise<ProjectBlock> {
-  return apiFetch<ProjectBlock>(`${projectPath(slug, projectId)}/blocks`, {
+  input: EpicInput & { name: string }
+): Promise<ProjectEpic> {
+  return apiFetch<ProjectEpic>(`${projectPath(slug, projectId)}/epics`, {
     method: "POST",
     body: input,
   });
 }
 
-export function updateBlock(slug: string, blockId: string, input: BlockInput): Promise<ProjectBlock> {
-  return apiFetch<ProjectBlock>(`${areaPath(slug)}/project-blocks/${blockId}`, {
+export function updateEpic(slug: string, epicId: string, input: EpicInput): Promise<ProjectEpic> {
+  return apiFetch<ProjectEpic>(`${areaPath(slug)}/project-epics/${epicId}`, {
     method: "PATCH",
     body: input,
   });
 }
 
-export function deleteBlock(slug: string, blockId: string): Promise<void> {
-  return apiFetch<void>(`${areaPath(slug)}/project-blocks/${blockId}`, { method: "DELETE" });
+/** The API answers 409 while the epic still has tasks. */
+export function deleteEpic(slug: string, epicId: string): Promise<void> {
+  return apiFetch<void>(`${areaPath(slug)}/project-epics/${epicId}`, { method: "DELETE" });
 }
 
 export function listTasks(slug: string, projectId: string): Promise<ProjectTask[]> {

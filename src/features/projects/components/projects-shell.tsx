@@ -41,13 +41,13 @@ import { ProjectsProvider, type ProjectsContextValue } from "./projects-context"
 export const persistentError = (message: string) => toast.error(message, { duration: Infinity });
 
 /** The API's 403 on a delete, in words that say who can and what to do instead. */
-export function deleteError(error: unknown, what: "carpeta" | "proyecto" | "bloque"): string | null {
+export function deleteError(error: unknown, what: "carpeta" | "proyecto" | "épica"): string | null {
   if (!error) return null;
   if (error instanceof ApiError && error.status === 403) {
     if (what === "proyecto") {
       return "Solo quien creó el proyecto, el responsable del área o un administrador puede borrarlo. Puedes archivarlo: deja de aparecer en la lista y se puede restaurar.";
     }
-    return `Solo quien creó ${what === "carpeta" ? "la carpeta" : "el bloque"}, el responsable del área o un administrador puede borrarl${what === "carpeta" ? "a" : "o"}.`;
+    return `Solo quien creó ${what === "carpeta" ? "la carpeta" : "la épica"}, el responsable del área o un administrador puede borrarla.`;
   }
   return errorMessage(error);
 }
@@ -321,7 +321,7 @@ export default function ProjectsShell({
           })
         }
       >
-        Se borran «{projectToDelete?.name}», sus bloques y sus tareas para todo el equipo, y no
+        Se borran «{projectToDelete?.name}», sus épicas y sus tareas para todo el equipo, y no
         se puede recuperar. Si solo quieres sacarlo de la lista, archívalo.
       </ConfirmDeleteDialog>
     </ProjectsProvider>

@@ -10,7 +10,7 @@ import type {
   LiveStatus,
   PresenceMember,
   Project,
-  ProjectBlock,
+  ProjectEpic,
   ProjectFolder,
   ProjectTask,
 } from "../types/project.types";
@@ -60,7 +60,7 @@ export function useProjectsLive(slug: string, focus: Focus) {
       void queryClient.invalidateQueries({ queryKey: foldersKey });
       void queryClient.invalidateQueries({ queryKey: projectsKey });
       // Every open board too: the prefix matches each project's lists.
-      void queryClient.invalidateQueries({ queryKey: [...projectKeys.area(slug), "blocks"] });
+      void queryClient.invalidateQueries({ queryKey: [...projectKeys.area(slug), "epics"] });
       void queryClient.invalidateQueries({ queryKey: [...projectKeys.area(slug), "tasks"] });
     };
 
@@ -111,19 +111,19 @@ export function useProjectsLive(slug: string, focus: Focus) {
           keepIfFetching(projectsKey);
           return;
         case "project.deleted":
-          // Its blocks and tasks go with it; the API only announces the project.
+          // Its epics and tasks go with it; the API only announces the project.
           forgetProject(queryClient, slug, message.data.id);
           keepIfFetching(projectsKey);
           return;
-        case "block.created":
-        case "block.updated":
-        case "block.deleted":
+        case "epic.created":
+        case "epic.updated":
+        case "epic.deleted":
         case "task.created":
         case "task.updated":
         case "task.deleted": {
-          const isBlock = message.type.startsWith("block.");
-          const key = isBlock
-            ? projectKeys.blocks(slug, message.data.project_id)
+          const isEpic = message.type.startsWith("epic.");
+          const key = isEpic
+            ? projectKeys.epics(slug, message.data.project_id)
             : projectKeys.tasks(slug, message.data.project_id);
           // Only boards someone has open hold these lists; the rest load fresh.
           if (!queryClient.getQueryData(key)) return;
@@ -132,8 +132,8 @@ export function useProjectsLive(slug: string, focus: Focus) {
               removeById(list, message.data.id)
             );
           } else {
-            const item = message.data as ProjectBlock | ProjectTask;
-            queryClient.setQueryData<(ProjectBlock | ProjectTask)[]>(key, (list) =>
+            const item = message.data as ProjectEpic | ProjectTask;
+            queryClient.setQueryData<(ProjectEpic | ProjectTask)[]>(key, (list) =>
               isNewer(list, item) ? upsertVersioned(list, item) : list
             );
           }
