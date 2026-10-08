@@ -4,17 +4,22 @@ import type {
   ActivityFilters,
   ActivityPage,
   CaseDetail,
-  CaseEvent,
+  CaseFile,
   CaseFilters,
   CaseListParams,
   CasePage,
   CaseStatus,
   CaseSummary,
+  ClientReply,
+  CommentInput,
+  CommentResult,
   CreateCaseInput,
   Dependency,
   DocumentType,
   ItemInput,
   LastSeen,
+  NotificationSettings,
+  NotificationSettingsInput,
   Person,
   PqrsfCase,
   RequestType,
@@ -207,10 +212,27 @@ export function getLastSeen(): Promise<LastSeen[]> {
   return apiFetch<LastSeen[]>("/pqrsf/activity/last-seen");
 }
 
-export function addComment(id: string, body: string): Promise<CaseEvent> {
-  return apiFetch<CaseEvent>(`${casePath(id)}/comments`, {
+/** Multipart only when files go along; a plain note stays JSON. */
+export function addComment(id: string, input: CommentInput): Promise<CommentResult> {
+  let body: FormData | { body: string; reply_to_client: boolean };
+  if (input.files.length > 0) {
+    body = new FormData();
+    body.append("body", input.body);
+    body.append("reply_to_client", String(input.replyToClient));
+    for (const file of input.files) body.append("files", file);
+  } else {
+    body = { body: input.body, reply_to_client: input.replyToClient };
+  }
+  return apiFetch<CommentResult>(`${casePath(id)}/comments`, { method: "POST", body });
+}
+
+export function getClientReplies(id: string): Promise<ClientReply[]> {
+  return apiFetch<ClientReply[]>(`${casePath(id)}/client-replies`);
+}
+
+export function retryClientReply(id: string, notificationId: string): Promise<ClientReply> {
+  return apiFetch<ClientReply>(`${casePath(id)}/client-replies/${notificationId}/retry`, {
     method: "POST",
-    body: { body },
   });
 }
 
@@ -246,5 +268,38 @@ export function downloadAttachment(
 ): Promise<void> {
   return apiDownload(`${casePath(id)}/attachments/${attachmentId}/download`, {
     fallbackName: filename,
+  });
+}
+
+
+// ── Files received by email ──
+
+const filePath = (id: string, fileId: string) =>
+  `${casePath(id)}/files/${encodeURIComponent(fileId)}/download`;
+
+export function listCaseFiles(id: string): Promise<CaseFile[]> {
+  return apiFetch<CaseFile[]>(`${casePath(id)}/files`);
+}
+
+// Bytes for the in-app preview (images, PDF); the caller owns the object URL.
+export async function getCaseFileBlob(id: string, fileId: string): Promise<Blob> {
+  const { blob } = await apiBlob(filePath(id, fileId));
+  return blob;
+}
+
+export function downloadCaseFile(id: string, fileId: string, filename: string): Promise<void> {
+  return apiDownload(filePath(id, fileId), { fallbackName: filename });
+}
+
+export function getNotificationSettings(): Promise<NotificationSettings> {
+  return apiFetch<NotificationSettings>("/pqrsf/settings/notifications");
+}
+
+export function updateNotificationSettings(
+  input: NotificationSettingsInput
+): Promise<NotificationSettings> {
+  return apiFetch<NotificationSettings>("/pqrsf/settings/notifications", {
+    method: "PUT",
+    body: input,
   });
 }

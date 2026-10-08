@@ -28,12 +28,31 @@ export function describeEvent(
   const document = text(event.data, "document") ?? "un documento";
 
   switch (event.event_type) {
-    case "created":
+    case "created": {
+      if (event.data.origin === "email") {
+        const related = text(event.data, "related_case");
+        return related
+          ? `abrió el caso desde un correo (continúa el caso ${related}, que ya estaba finalizado)`
+          : "abrió el caso desde un correo";
+      }
       return event.data.origin === "import"
         ? "importó el caso desde el Excel P.13.F.01"
         : event.data.origin === "public_form"
           ? "recibió la solicitud del formulario público"
           : "creó el caso";
+    }
+    case "email_received": {
+      const rejected = Array.isArray(event.data.rejected_files)
+        ? (event.data.rejected_files as { name?: string; reason?: string }[])
+        : [];
+      if (rejected.length > 0 && !text(event.data, "from")) {
+        return `no pudo guardar ${rejected.length === 1 ? "un adjunto" : `${rejected.length} adjuntos`}: ${rejected
+          .map((file) => `${file.name ?? "archivo"} (${file.reason ?? "rechazado"})`)
+          .join(", ")}`;
+      }
+      const from = text(event.data, "from");
+      return from ? `recibió un correo de ${from}` : "recibió un correo";
+    }
     case "assigned": {
       const to = text(event.data, "to_user_id");
       const fromName = text(event.data, "from_name");
@@ -52,8 +71,12 @@ export function describeEvent(
         : "leyó el caso por primera vez";
     case "viewed":
       return "abrió el caso";
-    case "comment":
-      return "comentó";
+    case "comment": {
+      const reply = event.data.client_reply;
+      const to =
+        reply && typeof reply === "object" ? text(reply as Record<string, unknown>, "to") : null;
+      return to ? `respondió al cliente (${to})` : "comentó";
+    }
     case "item_added":
       return `agregó el documento «${document}»`;
     case "item_updated": {

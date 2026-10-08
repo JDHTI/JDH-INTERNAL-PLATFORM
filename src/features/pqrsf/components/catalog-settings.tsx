@@ -28,15 +28,17 @@ import {
 import { inboxHref } from "../lib/inbox-state";
 import type { TrackingCatalog } from "../types/pqrsf.types";
 import { StatusBadge } from "./case-badges";
+import NotificationSettingsPanel from "./notification-settings";
 import { normalize } from "./pickers";
 
-type Tab = "types" | "statuses" | "dependencies" | "documents";
+type Tab = "types" | "statuses" | "dependencies" | "documents" | "timers";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "types", label: "Tipos de solicitud" },
   { id: "statuses", label: "Estados" },
   { id: "dependencies", label: "Dependencias" },
   { id: "documents", label: "Tipos de documento" },
+  { id: "timers", label: "Temporizadores" },
 ];
 
 // ── Generic edit dialog ──
@@ -255,6 +257,7 @@ export default function CatalogSettings({ area }: { area: string }) {
       {tab === "statuses" && <StatusesTable catalog={catalog.data} />}
       {tab === "dependencies" && <DependenciesTable catalog={catalog.data} />}
       {tab === "documents" && <DocumentTypesTable catalog={catalog.data} />}
+      {tab === "timers" && <NotificationSettingsPanel />}
     </div>
   );
 }

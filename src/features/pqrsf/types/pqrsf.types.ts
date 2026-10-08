@@ -85,7 +85,49 @@ export interface CaseItem {
   delay_detail: string | null;
 }
 
-export type CaseOrigin = "public_form" | "internal" | "import";
+export type CaseOrigin = "public_form" | "internal" | "import" | "email";
+
+// A file that arrived by email, stored under the case.
+export interface CaseFile {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+  /** Null for files that came by email; set for files attached to a comment. */
+  comment_event_id?: string | null;
+}
+
+export interface RejectedFile {
+  name: string;
+  reason: string;
+}
+
+export type ClientReplyStatus = "pending" | "sent" | "failed";
+
+export interface ClientReply {
+  id: string;
+  event_id: string;
+  to: string;
+  status: ClientReplyStatus;
+  attempts: number;
+  error: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface CommentInput {
+  body: string;
+  files: File[];
+  replyToClient: boolean;
+}
+
+/** The comment event plus what the API did with its files and email. */
+export interface CommentResult extends CaseEvent {
+  files?: CaseFile[];
+  rejected_files?: RejectedFile[];
+  client_reply?: ClientReply | null;
+}
 
 export interface PqrsfCase {
   id: string;
@@ -316,4 +358,21 @@ export interface UpdateItemInput extends ItemInput {
   responded_on?: string | null;
   delay_cause?: string | null;
   delay_detail?: string | null;
+}
+
+
+/** One organization-wide timer: runs on business days at `time` (local, HH:MM). */
+export interface NotificationJob {
+  enabled: boolean;
+  time: string;
+}
+
+export interface NotificationSettingsInput {
+  daily_summary: NotificationJob;
+  overdue_reminder: NotificationJob;
+}
+
+export interface NotificationSettings extends NotificationSettingsInput {
+  timezone: string;
+  business_days_only: boolean;
 }
