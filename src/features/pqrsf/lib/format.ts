@@ -122,10 +122,24 @@ const ORIGIN_LABELS: Record<CaseOrigin, string> = {
   public_form: "Formulario público",
   internal: "Registro interno",
   import: "Importado del Excel",
+  email: "Correo electrónico",
 };
 
 export function originLabel(origin: string): string {
   return ORIGIN_LABELS[origin as CaseOrigin] ?? origin;
+}
+
+/**
+ * Email bodies carry inline-image placeholders («[cid:image001.png@01DC…]»)
+ * that mean nothing outside the mail client; they are dropped from display.
+ */
+export function stripCid(text: string): string {
+  return text
+    .replace(/\[cid:[^\]]*\]/gi, "")
+    .replace(/\bcid:\S+/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Name kept by the spreadsheet import when the person had no platform user. */

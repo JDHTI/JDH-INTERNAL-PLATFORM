@@ -17,6 +17,7 @@ export function Dialog({
   title,
   description,
   isForm = false,
+  wide = false,
   children,
 }: {
   open: boolean;
@@ -24,6 +25,8 @@ export function Dialog({
   title: string;
   description?: React.ReactNode;
   isForm?: boolean;
+  /** For content that needs room, such as a file preview. */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -46,7 +49,7 @@ export function Dialog({
             "transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             "data-[ending-style]:opacity-0 data-[starting-style]:translate-y-[calc(-50%+8px)] data-[starting-style]:opacity-0",
             "outline-none",
-            isForm ? "max-w-2xl" : "max-w-md"
+            wide ? "max-w-4xl" : isForm ? "max-w-2xl" : "max-w-md"
           )}
         >
           <div className="mb-4 flex items-start gap-3">

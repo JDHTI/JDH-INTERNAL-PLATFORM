@@ -21,7 +21,10 @@ import {
   deleteCase,
   getCase,
   getCatalog,
+  getClientReplies,
   getLastSeen,
+  getNotificationSettings,
+  listCaseFiles,
   getSuggestions,
   getSummary,
   listActivity,
@@ -29,11 +32,13 @@ import {
   markRead,
   recordInboxVisit,
   removeItem,
+  retryClientReply,
   searchAssignees,
   updateCase,
   updateDependency,
   updateDocumentType,
   updateItem,
+  updateNotificationSettings,
   updateRequestType,
   updateStatus,
 } from "../services/pqrsf.service";
@@ -42,6 +47,7 @@ import type {
   CaseDetail,
   CaseFilters,
   CaseListParams,
+  CommentInput,
   CreateCaseInput,
   ItemInput,
   PqrsfCase,
@@ -65,6 +71,8 @@ export const pqrsfKeys = {
   activities: () => [...pqrsfKeys.all, "activity"] as const,
   activity: (filters: ActivityFilters) => [...pqrsfKeys.activities(), filters] as const,
   lastSeen: () => [...pqrsfKeys.all, "last-seen"] as const,
+  notificationSettings: () => [...pqrsfKeys.all, "notification-settings"] as const,
+  clientReplies: (id: string) => [...pqrsfKeys.detail(id), "client-replies"] as const,
 };
 
 /** Catalogs change rarely and every screen needs them: loaded once, kept. */
@@ -220,11 +228,32 @@ export function useMarkRead(id: string) {
 export function useAddComment(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) => addComment(id, body),
-    onSuccess: (event) =>
+    mutationFn: (input: CommentInput) => addComment(id, input),
+    onSuccess: (event) => {
       queryClient.setQueryData<CaseDetail>(pqrsfKeys.detail(id), (current) =>
         current ? { ...current, events: [...current.events, event] } : current
-      ),
+      );
+      queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.detail(id), "files"] });
+      queryClient.invalidateQueries({ queryKey: pqrsfKeys.clientReplies(id) });
+    },
+  });
+}
+
+/** Sending is queued on the API, so it is polled until nothing is pending. */
+export function useClientReplies(id: string) {
+  return useQuery({
+    queryKey: pqrsfKeys.clientReplies(id),
+    queryFn: () => getClientReplies(id),
+    refetchInterval: (query) =>
+      query.state.data?.some((reply) => reply.status === "pending") ? 5000 : false,
+  });
+}
+
+export function useRetryClientReply(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (notificationId: string) => retryClientReply(id, notificationId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pqrsfKeys.clientReplies(id) }),
   });
 }
 
@@ -315,3 +344,31 @@ export const useUpdateDocumentType = () =>
     ({ id, input }: { id: string; input: Parameters<typeof updateDocumentType>[1] }) =>
       updateDocumentType(id, input)
   );
+
+// Files that came with the case's emails. They sit under the detail key, so
+// refreshing the case refreshes them too.
+export function useCaseFiles(caseId: string) {
+  return useQuery({
+    queryKey: [...pqrsfKeys.detail(caseId), "files"] as const,
+    queryFn: () => listCaseFiles(caseId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** The organization timers (end-of-day summary, overdue reminder). */
+export function useNotificationSettings() {
+  return useQuery({
+    queryKey: pqrsfKeys.notificationSettings(),
+    queryFn: getNotificationSettings,
+    retry: false,
+  });
+}
+
+export function useUpdateNotificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateNotificationSettings,
+    onSuccess: (saved) => queryClient.setQueryData(pqrsfKeys.notificationSettings(), saved),
+  });
+}

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Check,
   CloudOff,
   Copy,
@@ -28,6 +27,7 @@ import {
   legacyAssignee,
   originLabel,
   personName,
+  stripCid,
 } from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
 import type { PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
@@ -35,6 +35,7 @@ import { DueLabel } from "./case-badges";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
 import CaseTimeline from "./case-timeline";
+import CaseFiles from "./case-files";
 import IntakeRequestSection from "./intake-request";
 import { StatusMenu } from "./status-menu";
 
@@ -59,7 +60,6 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
       href={inboxHref(area)}
       className="inline-flex items-center gap-1.5 rounded-sm text-sm text-text-secondary hover:text-text-primary max-md:min-h-11"
     >
-      <ArrowLeft className="size-4" aria-hidden="true" />
       Volver a la bandeja
     </Link>
   );
@@ -113,6 +113,18 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
 
   if (!detail.data || !catalog.data) return <DetailSkeleton />;
   const { case: item, events, request } = detail.data;
+  // Email cases often carry the subject again as the first line of the body.
+  const subject = item.subject ? stripCid(item.subject) : null;
+  let description = item.description ? stripCid(item.description) : "";
+  if (subject && description.toLowerCase().startsWith(subject.toLowerCase())) {
+    description = description.slice(subject.length).trim();
+  }
+  // Requested documents only apply to request types that allow them
+  // (Petición). A case that already has rows keeps showing them.
+  const showsDocuments =
+    item.items.length > 0 ||
+    catalog.data.request_types.find((type) => type.id === item.request_type.id)
+      ?.allows_document_request === true;
   return (
     <div className="space-y-6">
       {back}
@@ -124,18 +136,19 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]">
         <CaseFacts item={item} />
         <div className="min-w-0 space-y-8 2xl:row-start-1">
-          {(item.subject || item.description) && (
+          {(subject || description) && (
             <section aria-labelledby="subject-heading" className="space-y-1">
               <h2 id="subject-heading" className="text-base font-semibold">
-                {item.subject ?? "Descripción"}
+                {subject ?? "Descripción"}
               </h2>
-              {item.description && (
-                <p className="max-w-prose text-sm whitespace-pre-wrap">{item.description}</p>
+              {description && (
+                <p className="max-w-prose text-sm whitespace-pre-wrap">{description}</p>
               )}
             </section>
           )}
-          <CaseItems item={item} catalog={catalog.data} />
+          {showsDocuments && <CaseItems item={item} catalog={catalog.data} />}
           {request && <IntakeRequestSection caseId={item.id} request={request} />}
+          <CaseFiles caseId={item.id} />
           <CaseTimeline item={item} events={events} catalog={catalog.data} />
         </div>
       </div>
