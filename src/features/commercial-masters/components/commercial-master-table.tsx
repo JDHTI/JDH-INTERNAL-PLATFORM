@@ -13,9 +13,9 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import type { CommercialMasterDef, MasterColumn } from "../config/masters.config";
+import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
 import { useCommercialMaster } from "../hooks/use-commercial-masters";
-import type { SupplierNit } from "../types/commercial-master.types";
+import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
 
 const PAGE_SIZE = 50;
 
@@ -26,7 +26,10 @@ const percentFormat = new Intl.NumberFormat("es-CO", { style: "percent", maximum
  * Read-only, server-paged table of one general master. Nothing in a row is
  * actionable: the sidebar dropdown is what moves between masters.
  */
-export default function CommercialMasterTable({ master }: { master: CommercialMasterDef }) {
+export default function CommercialMasterTable({ masterKey }: { masterKey: CommercialMasterKey }) {
+  // Looked up here, not passed down: the definition holds an icon component,
+  // which a Server Component cannot hand to a Client Component.
+  const master = findCommercialMaster(masterKey)!;
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const q = useDebouncedValue(text.trim());

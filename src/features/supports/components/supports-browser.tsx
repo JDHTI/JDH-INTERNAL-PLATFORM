@@ -44,10 +44,12 @@ interface SortColumn {
 }
 
 const COLUMNS: (SortColumn & { className?: string })[] = [
+  // SKU is what people search by, so it gets its own column ahead of the rest.
+  { field: "product_sku", label: "SKU" },
   { field: "supplier.name", label: "Proveedor" },
   { field: "kind", label: "Tipo" },
   { field: "customer_name", label: "Cliente" },
-  { field: "product_sku", label: "Producto" },
+  { field: "product.description", label: "Producto" },
   { field: "supplier_value", label: "Valor del apoyo", className: "text-right" },
   { field: "valid_from", label: "Vigencia" },
   { field: "status", label: "Estado" },
@@ -278,6 +280,9 @@ export default function SupportsBrowser() {
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{support.supplier_name ?? "Sin proveedor"}</span>
+                      {support.product_sku && (
+                        <span className="block truncate font-mono text-xs">SKU {support.product_sku}</span>
+                      )}
                       <span className="block truncate text-xs text-text-secondary">{subject(support)}</span>
                     </span>
                     <span className="shrink-0 text-sm font-medium tabular-nums">
@@ -295,7 +300,7 @@ export default function SupportsBrowser() {
           </ul>
 
           <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-            <table className="w-full min-w-[60rem] text-left text-sm">
+            <table className="w-full min-w-[64rem] text-left text-sm">
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
                   {COLUMNS.map((column) => (
@@ -329,6 +334,7 @@ export default function SupportsBrowser() {
               <tbody className="divide-y divide-border">
                 {items.map((support) => (
                   <tr key={support.id} className="hover:bg-primary-subtle">
+                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[13px]">{support.product_sku ?? "—"}</td>
                     <td className="max-w-56 px-3 py-2">
                       <button
                         type="button"
@@ -350,7 +356,6 @@ export default function SupportsBrowser() {
                     </td>
                     <td className="max-w-56 px-3 py-2">
                       <span className="block truncate">{support.product_description ?? support.product_brand ?? support.brand ?? "Todos"}</span>
-                      <span className="block truncate font-mono text-xs text-text-secondary">{support.product_sku ?? ""}</span>
                     </td>
                     <td className="px-3 py-2 text-right">
                       <span className="block tabular-nums">{formatSupplierValue(support.calc_method, support.supplier_value)}</span>

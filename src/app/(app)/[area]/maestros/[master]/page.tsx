@@ -20,7 +20,7 @@ export default async function MaestroPage({
         <p className="text-sm text-text-secondary">{master.description}</p>
       </div>
       {/* Keyed so paging and search start over when the dropdown changes master. */}
-      <CommercialMasterTable key={master.key} master={master} />
+      <CommercialMasterTable key={master.key} masterKey={master.key} />
     </div>
   );
 }
