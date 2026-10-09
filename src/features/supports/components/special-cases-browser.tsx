@@ -14,7 +14,7 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useSpecialCases } from "../hooks/use-supports";
+import { useCanManage, useSpecialCases } from "../hooks/use-supports";
 import { CASE_STATUS_LABELS, formatDay, PRIORITY_LABELS } from "../lib/format";
 import type { SpecialCase, SpecialCasePriority, SpecialCaseStatus } from "../types/support.types";
 import SpecialCaseDialog from "./special-case-dialog";
@@ -47,7 +47,8 @@ export default function SpecialCasesBrowser({ area }: { area: string }) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<string>(ALL);
   const [page, setPage] = useState(1);
-  const [canWrite, setCanWrite] = useState(true);
+  const [denied, setDenied] = useState(false);
+  const canWrite = useCanManage() && !denied;
   const [creating, setCreating] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const q = useDebouncedValue(text.trim());
@@ -211,8 +212,8 @@ export default function SpecialCasesBrowser({ area }: { area: string }) {
         </div>
       )}
 
-      <SpecialCaseDialog open={creating} existing={null} onClose={() => setCreating(false)} onForbidden={() => setCanWrite(false)} />
-      <SpecialCaseDialog open={editing !== null} existing={editing} onClose={() => setEditId(null)} onForbidden={() => setCanWrite(false)} />
+      <SpecialCaseDialog open={creating} existing={null} onClose={() => setCreating(false)} onForbidden={() => setDenied(true)} />
+      <SpecialCaseDialog open={editing !== null} existing={editing} onClose={() => setEditId(null)} onForbidden={() => setDenied(true)} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   createSpecialCase,
   getSupport,
   getSupportCatalogs,
+  getSupportPermissions,
   listFilterFields,
   listSpecialCases,
   listSupportConflicts,
@@ -53,6 +54,21 @@ export function useFilterFields() {
     staleTime: 10 * 60_000,
     retry: retryTransient,
   });
+}
+
+/**
+ * Whether the user may write supports and special cases. Controls stay hidden
+ * until the API says yes; if the endpoint itself fails they show, and the
+ * API's 403 on a write remains the fallback.
+ */
+export function useCanManage(): boolean {
+  const permissions = useQuery({
+    queryKey: [...supportKeys.all, "permissions"],
+    queryFn: getSupportPermissions,
+    staleTime: 5 * 60_000,
+    retry: retryTransient,
+  });
+  return permissions.isError ? true : permissions.data?.can_manage === true;
 }
 
 export function useSupportCatalogs() {

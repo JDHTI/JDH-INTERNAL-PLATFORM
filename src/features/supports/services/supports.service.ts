@@ -23,6 +23,10 @@ export async function listFilterFields(): Promise<FilterField[]> {
   return apiFetch<FilterField[]>("/supplier-supports/search/fields");
 }
 
+export async function getSupportPermissions(): Promise<{ can_manage: boolean }> {
+  return apiFetch<{ can_manage: boolean }>("/supplier-supports/permissions");
+}
+
 export async function getSupportCatalogs(): Promise<SupportCatalogs> {
   return apiFetch<SupportCatalogs>("/supplier-supports/catalogs");
 }

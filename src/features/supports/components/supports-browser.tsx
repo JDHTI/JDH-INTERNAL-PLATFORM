@@ -14,7 +14,7 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { useFilterFields, useSupportCatalogs, useSupportSearch } from "../hooks/use-supports";
+import { useCanManage, useFilterFields, useSupportCatalogs, useSupportSearch } from "../hooks/use-supports";
 import {
   calcMethodLabel,
   formatCop,
@@ -239,7 +239,8 @@ export default function SupportsBrowser({
   const [openId, setOpenId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [voidId, setVoidId] = useState<string | null>(null);
-  const [canWrite, setCanWrite] = useState(true);
+  const [denied, setDenied] = useState(false);
+  const canWrite = useCanManage() && !denied;
   const [notice, setNotice] = useState<string | null>(null);
   const q = useDebouncedValue(text.trim());
 
@@ -339,7 +340,7 @@ export default function SupportsBrowser({
   ];
 
   const onForbidden = () => {
-    setCanWrite(false);
+    setDenied(true);
     setNotice("Tu usuario puede consultar los apoyos, pero no modificarlos.");
   };
 
