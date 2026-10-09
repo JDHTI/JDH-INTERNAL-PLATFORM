@@ -3,6 +3,7 @@
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
+import { toNumber } from "@/shared/lib/format";
 
 import { useSupport, useSupportConflicts } from "../hooks/use-supports";
 import {
@@ -73,7 +74,8 @@ function Body({
           {formatSupplierValue(support.calc_method, support.supplier_value)}
           {support.value_unit ? ` (${support.value_unit})` : ""}
         </Row>
-        <Row label="Parte de JDH" tabular>{jdhPctLabel}</Row>
+        <Row label="% apoyo JDH" tabular>{toNumber(support.jdh_pct) ? jdhPctLabel : "—"}</Row>
+        <Row label="Unidades por caja" tabular>{formatNumber(support.pack_factor)}</Row>
         <Row label="Vigencia" tabular>
           {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
         </Row>
@@ -92,13 +94,10 @@ function Body({
           {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
         </Row>
         <Row label="Grupo de clientes">{support.customer_group ?? "—"}</Row>
-        <Row label="Producto">
-          {support.product_description ?? "Todos"}
-          {support.product_sku && <span className="font-mono text-xs text-text-secondary"> · {support.product_sku}</span>}
-        </Row>
+        <Row label="Referencia (SKU)" mono>{support.product_sku ?? "Todas"}</Row>
         <Row label="Marca">{support.product_brand ?? support.brand ?? "—"}</Row>
+        <Row label="Regional">{list(support.regionals)}</Row>
         <Row label="SKU del proveedor" mono>{support.supplier_sku ?? "—"}</Row>
-        <Row label="Regionales">{list(support.regionals)}</Row>
         <Row label="Unidades de negocio">{list(support.business_units)}</Row>
         <Row label="Canales">{list(support.channels)}</Row>
       </Section>
@@ -122,6 +121,38 @@ function Body({
           <Row label="Margen recompuesto" tabular>{formatPct(derived.margin_recomposed)}</Row>
           <Row label="Margen mínimo" tabular>{formatPct(derived.min_margin_pct)}</Row>
         </Section>
+      )}
+
+      {derived && (
+        <section className="space-y-2">
+          <h3 className="font-semibold">Por unidad y por caja</h3>
+          <p className="text-text-secondary">
+            {support.value_unit
+              ? `El costo del apoyo está en ${support.value_unit === "caja" ? "caja" : "unidad"} (${BASIS_LABELS[support.unit_basis_source ?? "desconocido"]}). `
+              : "El apoyo no tiene base de unidad: sin ella no hay conversión. "}
+            Los importes los convierte el API.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-left text-sm">
+              <thead className={headClass}>
+                <tr>
+                  <th scope="col" className="px-3 py-2">Concepto</th>
+                  <th scope="col" className="px-3 py-2 text-right">Unidad</th>
+                  <th scope="col" className="px-3 py-2 text-right">Caja</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {PER_UNIT_ROWS.map(([key, label]) => (
+                  <tr key={key}>
+                    <td className="px-3 py-2">{label}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCop(derived[key]?.unit)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCop(derived[key]?.box)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {support.issues.length > 0 && (
@@ -178,6 +209,23 @@ function Body({
 }
 
 const list = (items: string[]) => (items.length > 0 ? items.join(", ") : "Todas");
+
+const BASIS_LABELS: Record<NonNullable<SupplierSupport["unit_basis_source"]>, string> = {
+  hoja: "lo declara la hoja",
+  inferido_dwh: "inferida del costo del DWH",
+  manual: "fijada a mano",
+  desconocido: "origen desconocido",
+};
+
+const PER_UNIT_ROWS: [PerUnitKey, string][] = [
+  ["cost", "Costo"],
+  ["list_price", "Precio de lista"],
+  ["supplier_amount_per", "Apoyo del proveedor"],
+  ["net_cost_per", "Costo neto"],
+  ["suggested_price_per", "Precio sugerido"],
+];
+
+type PerUnitKey = "cost" | "list_price" | "supplier_amount_per" | "net_cost_per" | "suggested_price_per";
 
 const THRESHOLD_LABELS: Record<SupportTier["threshold_type"], string> = {
   unidades: "Unidades",

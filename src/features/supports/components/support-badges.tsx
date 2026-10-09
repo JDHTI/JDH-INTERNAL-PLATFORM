@@ -9,6 +9,7 @@ const STATE_TONE: Record<SupportState, BadgeTone> = {
   vigente: "success",
   vencido: "neutral",
   programado: "info",
+  inactivo: "neutral",
   anulado: "danger",
 };
 

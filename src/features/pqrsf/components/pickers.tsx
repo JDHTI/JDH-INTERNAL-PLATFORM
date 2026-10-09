@@ -8,7 +8,7 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { useAssignees, useSuggestions } from "../hooks/use-pqrsf";
 import { personName } from "../lib/format";
 import type { DocumentType, Person, SuggestionField } from "../types/pqrsf.types";
-import { Autocomplete } from "./autocomplete";
+import { Autocomplete } from "@/shared/components/ui/autocomplete";
 
 type InputPassthrough = Omit<
   React.ComponentProps<"input">,

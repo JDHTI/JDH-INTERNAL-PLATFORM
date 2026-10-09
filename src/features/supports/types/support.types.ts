@@ -1,7 +1,19 @@
 import type { Decimal } from "@/shared/lib/format";
 
-/** Computed by the API; "anulado" wins over the date-based states. */
-export type SupportState = "vigente" | "vencido" | "programado" | "anulado";
+/**
+ * Computed by the API. "anulado" wins over everything; "inactivo" is a manual,
+ * reversible switch.
+ */
+export type SupportState = "vigente" | "vencido" | "programado" | "inactivo" | "anulado";
+
+export type ValueUnit = "caja" | "unidad";
+export type UnitBasisSource = "hoja" | "inferido_dwh" | "manual" | "desconocido";
+
+/** An amount in both selling units; null when the API cannot convert it. */
+export interface PerUnit {
+  box: Decimal | null;
+  unit: Decimal | null;
+}
 
 export type CalcMethod =
   | "pct_costo"
@@ -36,6 +48,11 @@ export interface SupportDerived {
   margin_order: Decimal | null;
   margin_recomposed: Decimal | null;
   min_margin_pct: Decimal | null;
+  cost: PerUnit | null;
+  list_price: PerUnit | null;
+  supplier_amount_per: PerUnit | null;
+  net_cost_per: PerUnit | null;
+  suggested_price_per: PerUnit | null;
 }
 
 export interface SupplierSupport {
@@ -61,7 +78,10 @@ export interface SupplierSupport {
   supplier_value: Decimal | null;
   /** Fraction: 0.05 is 5%. */
   jdh_pct: Decimal | null;
-  value_unit: string | null;
+  value_unit: ValueUnit | null;
+  /** Units per box. */
+  pack_factor: Decimal | null;
+  unit_basis_source: UnitBasisSource | null;
   target_margin_pct: Decimal | null;
   min_margin_pct: Decimal | null;
   list_margin_pct: Decimal | null;
@@ -147,6 +167,10 @@ export interface SupportSearchBody {
   /** Without a state, voided supports are hidden. */
   state?: SupportState;
   needs_review?: boolean;
+  /** Base search: each list ANDs with the others and with every other filter. */
+  customer_nits?: string[];
+  supplier_codes?: string[];
+  product_skus?: string[];
   has_issues?: boolean;
   has_conflicts?: boolean;
   effective_only?: boolean;
@@ -168,4 +192,82 @@ export interface SupportCatalogs {
   business_units?: VocabularyEntry[];
   channels?: VocabularyEntry[];
   programs?: VocabularyEntry[];
+}
+
+/** Fields a manager can change; null clears one. Only changed fields are sent. */
+export interface SupportPatch {
+  version: number;
+  is_enabled?: boolean;
+  supplier_value?: Decimal | null;
+  jdh_pct?: Decimal | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  value_unit?: ValueUnit | null;
+  pack_factor?: Decimal | null;
+  reference_cost?: Decimal | null;
+  reference_list_price?: Decimal | null;
+  target_margin_pct?: Decimal | null;
+  program?: string | null;
+  notes?: string | null;
+  authorized_by?: string | null;
+  tiers?: SupportTier[];
+}
+
+export type SpecialCaseStatus =
+  | "pendiente"
+  | "en_analisis"
+  | "programado"
+  | "implementado"
+  | "descartado";
+export type SpecialCasePriority = "baja" | "media" | "alta";
+
+export interface SpecialCase {
+  id: string;
+  code: string;
+  title: string;
+  request: string;
+  rule_to_program: string | null;
+  status: SpecialCaseStatus;
+  priority: SpecialCasePriority;
+  assignee: string | null;
+  resolution: string | null;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  customer_nit: string | null;
+  customer_name: string | null;
+  support_count: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpecialCasePage {
+  items: SpecialCase[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface SpecialCaseInput {
+  title: string;
+  request: string;
+  rule_to_program?: string | null;
+  supplier_code?: string | null;
+  customer_nit?: string | null;
+  customer_name?: string | null;
+  status?: SpecialCaseStatus;
+  priority?: SpecialCasePriority;
+  assignee?: string | null;
+}
+
+export type SpecialCasePatch = Partial<SpecialCaseInput> & {
+  version: number;
+  resolution?: string | null;
+};
+
+export interface SpecialCaseParams {
+  q: string;
+  status: string;
+  page: number;
+  size: number;
 }

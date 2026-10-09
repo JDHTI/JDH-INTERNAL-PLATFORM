@@ -38,8 +38,26 @@ export const STATE_LABELS: Record<SupportState, string> = {
   vigente: "Vigente",
   vencido: "Vencido",
   programado: "Programado",
+  inactivo: "Inactivo",
   anulado: "Anulado",
 };
+
+export const CASE_STATUS_LABELS: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_analisis: "En análisis",
+  programado: "Programado",
+  implementado: "Implementado",
+  descartado: "Descartado",
+};
+
+export const PRIORITY_LABELS: Record<string, string> = {
+  baja: "Baja",
+  media: "Media",
+  alta: "Alta",
+};
+
+/** Methods whose supplier value is a fraction, entered and shown as a percentage. */
+export const PERCENT_METHODS = ["pct_costo", "pct_precio_lista", "pct_ventas", "puntos_margen", "margen_minimo"];
 
 export const CALC_METHOD_LABELS: Record<string, string> = {
   pct_costo: "% sobre costo",
