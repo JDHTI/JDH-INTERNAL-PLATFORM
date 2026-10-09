@@ -197,7 +197,7 @@ export default function ProjectFolderPanel({
                 </div>
 
                 {isOpen && (
-                  <ul id={childrenId} aria-label={`Proyectos de ${folder.name}`} className="pb-1">
+                  <ul id={childrenId} aria-label={`Proyectos de ${folder.name}`}>
                     {children.length === 0 ? (
                       <li className="py-2 pr-3 pl-11 text-[13px] text-text-secondary">
                         Sin proyectos activos
