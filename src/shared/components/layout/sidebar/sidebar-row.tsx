@@ -16,6 +16,8 @@ interface SidebarRowProps {
   onNavigate: () => void;
   labelClassName?: string;
   className?: string;
+  /** Pending count shown after the label; hidden at 0. */
+  badge?: number;
 }
 
 /**
@@ -32,6 +34,7 @@ export default function SidebarRow({
   onNavigate,
   labelClassName,
   className,
+  badge,
 }: SidebarRowProps) {
   const base = cn(
     "flex h-9 items-center rounded-md text-sm font-medium transition-colors duration-150",
@@ -79,8 +82,14 @@ export default function SidebarRow({
     >
       {icon}
       {!isCollapsed && (
-        <span className={cn("truncate", labelClassName)}>{label}</span>
+        <span className={cn("min-w-0 flex-1 truncate", labelClassName)}>{label}</span>
       )}
+      {!isCollapsed && badge ? (
+        <span className="tabular shrink-0 rounded-full bg-sidebar-foreground px-1.5 text-[11px] font-semibold text-sidebar">
+          {badge > 99 ? "99+" : badge}
+          <span className="sr-only"> sin leer</span>
+        </span>
+      ) : null}
     </Link>
   );
 }

@@ -16,6 +16,11 @@ import type {
   CreateCaseInput,
   Dependency,
   DocumentType,
+  FeedbackDetail,
+  FeedbackFilters,
+  FeedbackListParams,
+  FeedbackPage,
+  FeedbackSummary,
   ItemInput,
   LastSeen,
   NotificationSettings,
@@ -289,6 +294,46 @@ export async function getCaseFileBlob(id: string, fileId: string): Promise<Blob>
 
 export function downloadCaseFile(id: string, fileId: string, filename: string): Promise<void> {
   return apiDownload(filePath(id, fileId), { fallbackName: filename });
+}
+
+// ── Suggestions and compliments (managers only) ──
+
+const feedbackPath = (id: string) => `/pqrsf/feedback/${encodeURIComponent(id)}`;
+const feedbackFilePath = (id: string, fileId: string) =>
+  `${feedbackPath(id)}/files/${encodeURIComponent(fileId)}/download`;
+
+function feedbackQuery(filters: FeedbackFilters): Query {
+  return {
+    kind: filters.kind,
+    q: filters.q,
+    unread: filters.unread,
+    from: filters.from,
+    to: filters.to,
+  };
+}
+
+export function getFeedbackSummary(): Promise<FeedbackSummary> {
+  return apiFetch<FeedbackSummary>("/pqrsf/feedback/summary");
+}
+
+export function listFeedback(params: FeedbackListParams): Promise<FeedbackPage> {
+  return apiFetch<FeedbackPage>("/pqrsf/feedback", {
+    query: { ...feedbackQuery(params), page: params.page, size: params.size },
+  });
+}
+
+/** Opening it marks it as read, like opening a case. */
+export function getFeedback(id: string): Promise<FeedbackDetail> {
+  return apiFetch<FeedbackDetail>(feedbackPath(id));
+}
+
+export async function getFeedbackFileBlob(id: string, fileId: string): Promise<Blob> {
+  const { blob } = await apiBlob(feedbackFilePath(id, fileId));
+  return blob;
+}
+
+export function downloadFeedbackFile(id: string, fileId: string, filename: string): Promise<void> {
+  return apiDownload(feedbackFilePath(id, fileId), { fallbackName: filename });
 }
 
 export function getNotificationSettings(): Promise<NotificationSettings> {

@@ -360,6 +360,71 @@ export interface UpdateItemInput extends ItemInput {
   delay_detail?: string | null;
 }
 
+// ── Suggestions and compliments: kept apart from cases ──
+
+export interface FeedbackKind {
+  id: string;
+  code: "sugerencia" | "felicitacion" | string;
+  name: string;
+}
+
+export type FeedbackReplyStatus = "pending" | "sent" | "failed" | "skipped";
+
+export interface FeedbackReply {
+  status: FeedbackReplyStatus;
+  sent_at: string | null;
+  /** Set when no automatic reply went out (the address hit the daily limit). */
+  skipped_reason: string | null;
+}
+
+export interface FeedbackItem {
+  id: string;
+  kind: FeedbackKind;
+  origin: "public_form" | "email" | string;
+  full_name: string;
+  business_name: string | null;
+  email: string;
+  subject: string | null;
+  /** First 200 characters of the body. */
+  body_excerpt: string;
+  site: Pick<Site, "id" | "code" | "name"> | null;
+  files_count: number;
+  reply: FeedbackReply;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface FeedbackDetail extends FeedbackItem {
+  body: string;
+  files: CaseFile[];
+  read_by: Person | null;
+}
+
+export interface FeedbackSummary {
+  total: number;
+  unread: number;
+  by_kind: { code: string; name: string; count: number; unread: number }[];
+}
+
+export interface FeedbackFilters {
+  kind?: string;
+  q?: string;
+  unread?: boolean;
+  from?: string;
+  to?: string;
+}
+
+export interface FeedbackListParams extends FeedbackFilters {
+  page: number;
+  size: number;
+}
+
+export interface FeedbackPage {
+  items: FeedbackItem[];
+  total: number;
+  page: number;
+  size: number;
+}
 
 /** One organization-wide timer: runs on business days at `time` (local, HH:MM). */
 export interface NotificationJob {
