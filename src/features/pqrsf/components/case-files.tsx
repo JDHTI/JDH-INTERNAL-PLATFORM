@@ -19,7 +19,7 @@ const isPdf = (file: CaseFile) => file.content_type === "application/pdf";
 // Images and PDF open inside the platform; spreadsheets and the rest are downloaded.
 export const canPreview = (file: CaseFile) => isImage(file) || isPdf(file);
 
-function FileIcon({ file }: { file: CaseFile }) {
+export function FileIcon({ file }: { file: CaseFile }) {
   const Icon = isImage(file)
     ? FileImage
     : /(csv|spreadsheet|excel)/.test(file.content_type)
@@ -135,14 +135,21 @@ export default function CaseFiles({ caseId }: { caseId: string }) {
   );
 }
 
+/**
+ * `load` must be a stable function (a module-level service), since it keys the
+ * effect: cases pass `getCaseFileBlob`, suggestions pass `getFeedbackFileBlob`.
+ */
 export function Preview({
   caseId,
   file,
+  load = getCaseFileBlob,
   onDownload,
   onClose,
 }: {
+  /** Id of whatever owns the file: the case or the suggestion. */
   caseId: string;
   file: CaseFile;
+  load?: (ownerId: string, fileId: string) => Promise<Blob>;
   onDownload: () => void;
   onClose: () => void;
 }) {
@@ -152,7 +159,7 @@ export function Preview({
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
-    getCaseFileBlob(caseId, file.id)
+    load(caseId, file.id)
       .then((blob) => {
         if (cancelled) return;
         // The viewer picks the renderer from the type, so it is set from the API's record.
@@ -164,7 +171,7 @@ export function Preview({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [caseId, file.id, file.content_type]);
+  }, [load, caseId, file.id, file.content_type]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()} title={file.filename} wide>

@@ -22,7 +22,10 @@ import {
   getCase,
   getCatalog,
   getClientReplies,
+  getFeedback,
+  getFeedbackSummary,
   getLastSeen,
+  listFeedback,
   getNotificationSettings,
   listCaseFiles,
   getSuggestions,
@@ -49,6 +52,7 @@ import type {
   CaseListParams,
   CommentInput,
   CreateCaseInput,
+  FeedbackListParams,
   ItemInput,
   PqrsfCase,
   SuggestionField,
@@ -72,6 +76,11 @@ export const pqrsfKeys = {
   activity: (filters: ActivityFilters) => [...pqrsfKeys.activities(), filters] as const,
   lastSeen: () => [...pqrsfKeys.all, "last-seen"] as const,
   notificationSettings: () => [...pqrsfKeys.all, "notification-settings"] as const,
+  feedback: () => [...pqrsfKeys.all, "feedback"] as const,
+  feedbackSummary: () => [...pqrsfKeys.feedback(), "summary"] as const,
+  feedbackLists: () => [...pqrsfKeys.feedback(), "list"] as const,
+  feedbackList: (params: FeedbackListParams) => [...pqrsfKeys.feedbackLists(), params] as const,
+  feedbackDetail: (id: string) => [...pqrsfKeys.feedback(), "detail", id] as const,
   clientReplies: (id: string) => [...pqrsfKeys.detail(id), "client-replies"] as const,
 };
 
@@ -120,6 +129,41 @@ export function useCaseDetail(id: string) {
     queryKey: pqrsfKeys.detail(id),
     queryFn: () => getCase(id),
     // A 403 or 404 will not fix itself on a second try.
+    retry: false,
+  });
+}
+
+/** Unread count for the sidebar badge and the list; only managers ask. */
+export function useFeedbackSummary(enabled = true) {
+  return useQuery({
+    queryKey: pqrsfKeys.feedbackSummary(),
+    queryFn: getFeedbackSummary,
+    enabled,
+    retry: false,
+    ...INBOX_POLLING,
+  });
+}
+
+export function useFeedbackList(params: FeedbackListParams) {
+  return useQuery({
+    queryKey: pqrsfKeys.feedbackList(params),
+    queryFn: () => listFeedback(params),
+    placeholderData: keepPreviousData,
+    ...INBOX_POLLING,
+  });
+}
+
+/** The API marks it read on this very request, so the list and the badge catch up. */
+export function useFeedbackDetail(id: string) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: pqrsfKeys.feedbackDetail(id),
+    queryFn: async () => {
+      const detail = await getFeedback(id);
+      void queryClient.invalidateQueries({ queryKey: pqrsfKeys.feedbackLists() });
+      void queryClient.invalidateQueries({ queryKey: pqrsfKeys.feedbackSummary() });
+      return detail;
+    },
     retry: false,
   });
 }

@@ -21,6 +21,7 @@ import {
   Target,
   TrendingUp,
   ShieldCheck,
+  ThumbsUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,8 @@ export interface ModuleSubItem {
   icon: LucideIcon;
   /** Only shown to the module's managers; the page itself enforces it too. */
   managerOnly?: boolean;
+  /** Shows a live count beside the label; the sidebar knows how to fetch each kind. */
+  badge?: "feedback-unread";
 }
 
 export interface ModuleItem {
@@ -128,6 +131,14 @@ export const MODULES: ModuleItem[] = [
     icon: MessageSquareWarning,
     available: true,
     subItems: [
+      {
+        id: "calidad-pqrsf-sugerencias",
+        name: "Sugerencias y felicitaciones",
+        path: "/calidad/pqrsf/sugerencias",
+        icon: ThumbsUp,
+        managerOnly: true,
+        badge: "feedback-unread",
+      },
       {
         id: "calidad-pqrsf-historial",
         name: "Historial",

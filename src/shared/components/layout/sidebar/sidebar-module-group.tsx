@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 
-import { useCatalog } from "@/features/pqrsf/hooks/use-pqrsf";
+import { useCatalog, useFeedbackSummary } from "@/features/pqrsf/hooks/use-pqrsf";
 import type { ModuleItem } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
@@ -40,6 +40,10 @@ export default function SidebarModuleGroup({
   const subItems = (module.subItems ?? []).filter(
     (item) => !item.managerOnly || catalog?.is_manager
   );
+  const feedback = useFeedbackSummary(
+    catalog?.is_manager === true && subItems.some((item) => item.badge === "feedback-unread")
+  );
+  const unread = feedback.data?.unread ?? 0;
   const isInside =
     pathname === module.path || pathname.startsWith(`${module.path}/`);
   const isOpen = subItems.length > 0 && (toggled ?? isInside);
@@ -87,6 +91,14 @@ export default function SidebarModuleGroup({
             <Icon className="size-4" />
           </span>
           <span className="truncate">{module.name}</span>
+          {/* The tray is closed: the unread count would otherwise be hidden. */}
+          {!isOpen && unread > 0 && (
+            <span
+              className="size-2 shrink-0 rounded-full bg-sidebar-foreground"
+              role="img"
+              aria-label={`${unread} sin leer`}
+            />
+          )}
         </Link>
 
         <button
@@ -128,6 +140,7 @@ export default function SidebarModuleGroup({
                 isCollapsed={false}
                 onNavigate={onNavigate}
                 className="rounded-none"
+                badge={item.badge === "feedback-unread" ? unread : undefined}
               />
             </li>
           ))}
