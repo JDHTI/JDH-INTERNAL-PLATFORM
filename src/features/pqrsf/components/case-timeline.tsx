@@ -129,9 +129,10 @@ function CommentExtras({
 
 /**
  * The audit trail the spreadsheet never had: who did what and when, oldest
- * first so it reads as the story of the case. Openings («abrió el caso») are
- * part of it, lighter, so nobody can say they never saw the request. Anyone
- * who sees the case can comment, including whoever raised it.
+ * first so it reads as the story of the case. Who opened the case is access
+ * history, not part of the story: it stays in the module's activity history
+ * and is left out here. Anyone who sees the case can comment, including
+ * whoever raised it.
  */
 export default function CaseTimeline({
   item,
@@ -208,7 +209,9 @@ export default function CaseTimeline({
       }
     );
   };
-  const ordered = [...events].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const ordered = events
+    .filter((event) => !isAccessEvent(event))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   return (
     <section aria-labelledby={`${id}-heading`} className="space-y-3">
@@ -226,10 +229,8 @@ export default function CaseTimeline({
                 aria-hidden="true"
                 className="absolute top-2 -left-[3px] size-[5px] rounded-full bg-border-control"
               />
-              <p className={isAccessEvent(event) ? "text-[13px] text-text-secondary" : "text-sm"}>
-                <span className={isAccessEvent(event) ? undefined : "font-medium"}>
-                  {actorName(event)}
-                </span>{" "}
+              <p className="text-sm">
+                <span className="font-medium">{actorName(event)}</span>{" "}
                 {describeEvent(event, catalog, item.assignee)}
               </p>
               {event.note && (
