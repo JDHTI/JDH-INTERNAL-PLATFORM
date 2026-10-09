@@ -9,6 +9,15 @@ import type {
   CaseListParams,
   CasePage,
   CaseStatus,
+  CertificateDocument,
+  CertificateInput,
+  CertificateItem,
+  DeliveryListParams,
+  DeliveryPage,
+  DeliverySummary,
+  DocumentDeliveryDetail,
+  ItemDeliveryInput,
+  ItemDeliveryResult,
   CaseSummary,
   ClientReply,
   CommentInput,
@@ -112,7 +121,7 @@ export function createDocumentType(
 
 export function updateDocumentType(
   id: string,
-  input: Partial<Pick<DocumentType, "name" | "sla_days" | "is_active">>
+  input: Partial<Pick<DocumentType, "name" | "sla_days" | "is_active" | "allows_direct_upload">>
 ): Promise<DocumentType> {
   return apiFetch<DocumentType>(`/pqrsf/document-types/${id}`, {
     method: "PATCH",
@@ -294,6 +303,104 @@ export async function getCaseFileBlob(id: string, fileId: string): Promise<Blob>
 
 export function downloadCaseFile(id: string, fileId: string, filename: string): Promise<void> {
   return apiDownload(filePath(id, fileId), { fallbackName: filename });
+}
+
+// ── Manual answer to a requested document ──
+
+/** Files of Calidad's document manager that whoever works the case may link. */
+export function searchCaseDocuments(caseId: string, q: string): Promise<CertificateDocument[]> {
+  return apiFetch<CertificateDocument[]>(`${casePath(caseId)}/documents/search`, {
+    query: { q: q || undefined },
+  });
+}
+
+/**
+ * Answers one requested document with a file: linked from the manager (JSON) or
+ * attached for one time (multipart). The API marks the item answered and, when
+ * asked, emails the customer; nothing is saved if anything fails.
+ */
+export function deliverItem(
+  caseId: string,
+  itemId: string,
+  input: ItemDeliveryInput
+): Promise<ItemDeliveryResult> {
+  const cause = { delay_cause: input.delayCause ?? null, delay_detail: input.delayDetail ?? null };
+  let body: FormData | Record<string, unknown>;
+  if (input.source === "upload") {
+    body = new FormData();
+    body.append("source", "upload");
+    body.append("file", input.file);
+    body.append("send_to_client", String(input.sendToClient));
+    if (cause.delay_cause) body.append("delay_cause", cause.delay_cause);
+    if (cause.delay_detail) body.append("delay_detail", cause.delay_detail);
+  } else {
+    body = {
+      source: "vault",
+      document_id: input.documentId,
+      send_to_client: input.sendToClient,
+      ...cause,
+    };
+  }
+  return apiFetch<ItemDeliveryResult>(`${casePath(caseId)}/items/${itemId}/delivery`, {
+    method: "POST",
+    body,
+  });
+}
+
+// ── Certificates and document deliveries (managers only) ──
+
+export function listCertificates(): Promise<CertificateItem[]> {
+  return apiFetch<CertificateItem[]>("/pqrsf/certificates");
+}
+
+export function searchCertificateDocuments(q: string): Promise<CertificateDocument[]> {
+  return apiFetch<CertificateDocument[]>("/pqrsf/certificates/documents", {
+    query: { q: q || undefined },
+  });
+}
+
+export function saveCertificate(
+  documentTypeId: string,
+  input: CertificateInput
+): Promise<CertificateItem> {
+  return apiFetch<CertificateItem>(`/pqrsf/certificates/${encodeURIComponent(documentTypeId)}`, {
+    method: "PUT",
+    body: input,
+  });
+}
+
+export function removeCertificate(documentTypeId: string): Promise<void> {
+  return apiFetch<void>(`/pqrsf/certificates/${encodeURIComponent(documentTypeId)}`, {
+    method: "DELETE",
+  });
+}
+
+const deliveryPath = (id: string) => `/pqrsf/document-deliveries/${encodeURIComponent(id)}`;
+
+export function getDeliverySummary(): Promise<DeliverySummary> {
+  return apiFetch<DeliverySummary>("/pqrsf/document-deliveries/summary");
+}
+
+export function listDeliveries(params: DeliveryListParams): Promise<DeliveryPage> {
+  return apiFetch<DeliveryPage>("/pqrsf/document-deliveries", {
+    query: {
+      q: params.q,
+      unread: params.unread,
+      from: params.from,
+      to: params.to,
+      page: params.page,
+      size: params.size,
+    },
+  });
+}
+
+/** Opening it marks it as read. */
+export function getDelivery(id: string): Promise<DocumentDeliveryDetail> {
+  return apiFetch<DocumentDeliveryDetail>(deliveryPath(id));
+}
+
+export function retryDelivery(id: string): Promise<DocumentDeliveryDetail> {
+  return apiFetch<DocumentDeliveryDetail>(`${deliveryPath(id)}/retry`, { method: "POST" });
 }
 
 // ── Suggestions and compliments (managers only) ──

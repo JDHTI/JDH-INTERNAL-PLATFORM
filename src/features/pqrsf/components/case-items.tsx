@@ -14,6 +14,7 @@ import { useRemoveItem } from "../hooks/use-pqrsf";
 import { documentName, formatDate, pluralDays, signedDays } from "../lib/format";
 import type { CaseItem, PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
 import { AddItemDialog } from "./case-dialogs";
+import DeliverItemDialog from "./deliver-item-dialog";
 import RespondItemDialog from "./respond-item-dialog";
 
 /**
@@ -29,6 +30,7 @@ export default function CaseItems({
   catalog: TrackingCatalog;
 }) {
   const [responding, setResponding] = useState<CaseItem | null>(null);
+  const [delivering, setDelivering] = useState<CaseItem | null>(null);
   const [removing, setRemoving] = useState<CaseItem | null>(null);
   const [isAdding, setAdding] = useState(false);
   const remove = useRemoveItem(item.id);
@@ -133,6 +135,7 @@ export default function CaseItems({
                           document={document}
                           canEdit={canEdit}
                           onRespond={() => setResponding(document)}
+                          onDeliver={() => setDelivering(document)}
                           onRemove={() => {
                             remove.reset();
                             setRemoving(document);
@@ -175,6 +178,7 @@ export default function CaseItems({
                     document={document}
                     canEdit={canEdit}
                     onRespond={() => setResponding(document)}
+                    onDeliver={() => setDelivering(document)}
                     onRemove={() => {
                       remove.reset();
                       setRemoving(document);
@@ -187,6 +191,13 @@ export default function CaseItems({
         </>
       )}
 
+      {delivering && (
+        <DeliverItemDialog
+          item={item}
+          document={delivering}
+          onOpenChange={(open) => !open && setDelivering(null)}
+        />
+      )}
       {responding && (
         <RespondItemDialog
           item={item}
@@ -278,11 +289,13 @@ function RowActions({
   document,
   canEdit,
   onRespond,
+  onDeliver,
   onRemove,
 }: {
   document: CaseItem;
   canEdit: boolean;
   onRespond: () => void;
+  onDeliver: () => void;
   onRemove: () => void;
 }) {
   if (!canEdit) return null;
@@ -301,9 +314,14 @@ function RowActions({
           <Pencil aria-hidden="true" />
         </Button>
       ) : (
-        <Button variant="outline" size="sm" className="max-md:h-11" onClick={onRespond}>
-          Registrar respuesta
-        </Button>
+        <>
+          <Button variant="secondary" size="sm" className="max-md:h-11" onClick={onDeliver}>
+            Responder con documento
+          </Button>
+          <Button variant="outline" size="sm" className="max-md:h-11" onClick={onRespond}>
+            Registrar respuesta
+          </Button>
+        </>
       )}
       <Button
         variant="ghost"

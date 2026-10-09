@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 
-import { useCatalog, useFeedbackSummary } from "@/features/pqrsf/hooks/use-pqrsf";
+import { useCatalog, useDeliverySummary, useFeedbackSummary } from "@/features/pqrsf/hooks/use-pqrsf";
 import type { ModuleItem } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
@@ -43,7 +43,14 @@ export default function SidebarModuleGroup({
   const feedback = useFeedbackSummary(
     catalog?.is_manager === true && subItems.some((item) => item.badge === "feedback-unread")
   );
-  const unread = feedback.data?.unread ?? 0;
+  const deliveries = useDeliverySummary(
+    catalog?.is_manager === true && subItems.some((item) => item.badge === "deliveries-unread")
+  );
+  const unreadBy = {
+    "feedback-unread": feedback.data?.unread ?? 0,
+    "deliveries-unread": deliveries.data?.unread ?? 0,
+  };
+  const unread = unreadBy["feedback-unread"] + unreadBy["deliveries-unread"];
   const isInside =
     pathname === module.path || pathname.startsWith(`${module.path}/`);
   const isOpen = subItems.length > 0 && (toggled ?? isInside);
@@ -140,7 +147,7 @@ export default function SidebarModuleGroup({
                 isCollapsed={false}
                 onNavigate={onNavigate}
                 className="rounded-none"
-                badge={item.badge === "feedback-unread" ? unread : undefined}
+                badge={item.badge ? unreadBy[item.badge] : undefined}
               />
             </li>
           ))}

@@ -28,16 +28,18 @@ import {
 import { inboxHref } from "../lib/inbox-state";
 import type { TrackingCatalog } from "../types/pqrsf.types";
 import { StatusBadge } from "./case-badges";
+import CertificatesPanel from "./certificates-panel";
 import NotificationSettingsPanel from "./notification-settings";
 import { normalize } from "./pickers";
 
-type Tab = "types" | "statuses" | "dependencies" | "documents" | "timers";
+type Tab = "types" | "statuses" | "dependencies" | "documents" | "certificates" | "timers";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "types", label: "Tipos de solicitud" },
   { id: "statuses", label: "Estados" },
   { id: "dependencies", label: "Dependencias" },
   { id: "documents", label: "Tipos de documento" },
+  { id: "certificates", label: "Certificados" },
   { id: "timers", label: "Temporizadores" },
 ];
 
@@ -257,6 +259,7 @@ export default function CatalogSettings({ area }: { area: string }) {
       {tab === "statuses" && <StatusesTable catalog={catalog.data} />}
       {tab === "dependencies" && <DependenciesTable catalog={catalog.data} />}
       {tab === "documents" && <DocumentTypesTable catalog={catalog.data} />}
+      {tab === "certificates" && <CertificatesPanel />}
       {tab === "timers" && <NotificationSettingsPanel />}
     </div>
   );
@@ -625,8 +628,19 @@ function DocumentTypesTable({ catalog }: { catalog: TrackingCatalog }) {
             fields={[
               { key: "name", label: "Nombre", kind: "text", maxLength: 200 },
               { key: "sla_days", label: "Tiempo de respuesta (días hábiles)", kind: "number", min: 0, max: 365 },
+              ...(current
+                ? [{ key: "allows_direct_upload", label: "Admite subida única", kind: "checkbox" as const, hint: "Al responder a mano, se puede adjuntar un archivo solo a este caso, sin guardarlo en el gestor documental." }]
+                : []),
             ]}
-            initial={current ? { name: current.name, sla_days: String(current.sla_days) } : { name: "", sla_days: "" }}
+            initial={
+              current
+                ? {
+                    name: current.name,
+                    sla_days: String(current.sla_days),
+                    allows_direct_upload: current.allows_direct_upload === true,
+                  }
+                : { name: "", sla_days: "" }
+            }
             onSubmit={(values, changed) =>
               current
                 ? update

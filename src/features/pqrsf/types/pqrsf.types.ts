@@ -41,6 +41,8 @@ export interface DocumentType {
   id: string;
   name: string;
   sla_days: number;
+  /** A manual answer may attach a file for one time only, without saving it in the document manager. */
+  allows_direct_upload?: boolean;
   is_active: boolean;
 }
 
@@ -421,6 +423,133 @@ export interface FeedbackListParams extends FeedbackFilters {
 
 export interface FeedbackPage {
   items: FeedbackItem[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+// ── Manual answer to a requested document ──
+
+export type DeliveryEmailStatus = "not_sent" | "pending" | "sent" | "failed";
+
+export interface ItemDelivery {
+  id: string;
+  item_id: string;
+  source: "vault" | "upload";
+  filename: string;
+  document_id: string | null;
+  /** Where the linked file lives in the document manager. */
+  document_path: string | null;
+  /** Id under GET /cases/{id}/files for a one-time upload. */
+  case_file_id: string | null;
+  email: { status: DeliveryEmailStatus; sent_at: string | null; error: string | null };
+  created_at: string;
+}
+
+export type ItemDeliveryInput =
+  | {
+      source: "vault";
+      documentId: string;
+      sendToClient: boolean;
+      delayCause?: string | null;
+      delayDetail?: string | null;
+    }
+  | {
+      source: "upload";
+      file: File;
+      sendToClient: boolean;
+      delayCause?: string | null;
+      delayDetail?: string | null;
+    };
+
+export interface ItemDeliveryResult {
+  case: PqrsfCase;
+  delivery: ItemDelivery;
+}
+
+// ── Certificates: documents a customer gets by email, no case opened ──
+
+/** A file of the document manager (Calidad) picked as a certificate. */
+export interface CertificateDocument {
+  id: string;
+  name: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  folder_id: string | null;
+  folder_name: string | null;
+  area_slug: string;
+  /** «Calidad / Carpeta / Documento», as it is shown. */
+  path: string;
+}
+
+export interface CertificateConfig {
+  is_active: boolean;
+  /** False when the file was deleted from the document manager: nothing is sent. */
+  has_file: boolean;
+  /** Active and with a file: it goes out on its own. */
+  automatic: boolean;
+  updated_at: string;
+  document: CertificateDocument;
+}
+
+export interface CertificateItem {
+  document_type_id: string;
+  name: string;
+  category_code: string;
+  category_name: string;
+  certificate: CertificateConfig | null;
+}
+
+export interface CertificateInput {
+  document_id: string;
+  is_active: boolean;
+}
+
+export type DeliveryStatus = "pending" | "sent" | "failed";
+
+export interface DocumentDelivery {
+  id: string;
+  full_name: string;
+  business_name: string | null;
+  nit: string | null;
+  email: string;
+  site: Pick<Site, "id" | "code" | "name"> | null;
+  /** What went out by email. */
+  documents: { document_type_id: string; name: string; filename: string; size_bytes: number }[];
+  /** Names of what went to a case instead. */
+  manual_documents: string[];
+  case_code: string | null;
+  status: DeliveryStatus;
+  sent_at: string | null;
+  error: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface DocumentDeliveryDetail extends DocumentDelivery {
+  read_by: Person | null;
+}
+
+export interface DeliverySummary {
+  total: number;
+  unread: number;
+}
+
+export interface DeliveryFilters {
+  q?: string;
+  unread?: boolean;
+  from?: string;
+  to?: string;
+}
+
+export interface DeliveryListParams extends DeliveryFilters {
+  page: number;
+  size: number;
+}
+
+export interface DeliveryPage {
+  items: DocumentDelivery[];
   total: number;
   page: number;
   size: number;

@@ -21,8 +21,18 @@ import {
   deleteCase,
   getCase,
   getCatalog,
+  deliverItem,
   getClientReplies,
+  getDelivery,
+  searchCaseDocuments,
+  getDeliverySummary,
   getFeedback,
+  listCertificates,
+  listDeliveries,
+  removeCertificate,
+  retryDelivery,
+  saveCertificate,
+  searchCertificateDocuments,
   getFeedbackSummary,
   getLastSeen,
   listFeedback,
@@ -51,8 +61,11 @@ import type {
   CaseFilters,
   CaseListParams,
   CommentInput,
+  CertificateInput,
   CreateCaseInput,
+  DeliveryListParams,
   FeedbackListParams,
+  ItemDeliveryInput,
   ItemInput,
   PqrsfCase,
   SuggestionField,
@@ -76,6 +89,12 @@ export const pqrsfKeys = {
   activity: (filters: ActivityFilters) => [...pqrsfKeys.activities(), filters] as const,
   lastSeen: () => [...pqrsfKeys.all, "last-seen"] as const,
   notificationSettings: () => [...pqrsfKeys.all, "notification-settings"] as const,
+  certificates: () => [...pqrsfKeys.all, "certificates"] as const,
+  deliveries: () => [...pqrsfKeys.all, "deliveries"] as const,
+  deliverySummary: () => [...pqrsfKeys.deliveries(), "summary"] as const,
+  deliveryLists: () => [...pqrsfKeys.deliveries(), "list"] as const,
+  deliveryList: (params: DeliveryListParams) => [...pqrsfKeys.deliveryLists(), params] as const,
+  deliveryDetail: (id: string) => [...pqrsfKeys.deliveries(), "detail", id] as const,
   feedback: () => [...pqrsfKeys.all, "feedback"] as const,
   feedbackSummary: () => [...pqrsfKeys.feedback(), "summary"] as const,
   feedbackLists: () => [...pqrsfKeys.feedback(), "list"] as const,
@@ -130,6 +149,110 @@ export function useCaseDetail(id: string) {
     queryFn: () => getCase(id),
     // A 403 or 404 will not fix itself on a second try.
     retry: false,
+  });
+}
+
+export function useCaseDocumentSearch(caseId: string, q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...pqrsfKeys.detail(caseId), "documents", q] as const,
+    queryFn: () => searchCaseDocuments(caseId, q),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** The answer changes the item, the case status, the timeline and the case's files. */
+export function useDeliverItem(caseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, input }: { itemId: string; input: ItemDeliveryInput }) =>
+      deliverItem(caseId, itemId, input),
+    onSuccess: (result) => {
+      queryClient.setQueryData<CaseDetail>(pqrsfKeys.detail(caseId), (current) =>
+        current ? { ...current, case: result.case } : current
+      );
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.detail(caseId) }),
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.summaries() }),
+      ]);
+    },
+  });
+}
+
+export function useCertificates() {
+  return useQuery({ queryKey: pqrsfKeys.certificates(), queryFn: listCertificates });
+}
+
+/** Files of Calidad's document manager to pick from; the API caps it at 100. */
+export function useCertificateDocuments(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...pqrsfKeys.certificates(), "documents", q] as const,
+    queryFn: () => searchCertificateDocuments(q),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSaveCertificate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ documentTypeId, input }: { documentTypeId: string; input: CertificateInput }) =>
+      saveCertificate(documentTypeId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pqrsfKeys.certificates() }),
+  });
+}
+
+export function useRemoveCertificate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: removeCertificate,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pqrsfKeys.certificates() }),
+  });
+}
+
+export function useDeliverySummary(enabled = true) {
+  return useQuery({
+    queryKey: pqrsfKeys.deliverySummary(),
+    queryFn: getDeliverySummary,
+    enabled,
+    retry: false,
+    ...INBOX_POLLING,
+  });
+}
+
+export function useDeliveryList(params: DeliveryListParams) {
+  return useQuery({
+    queryKey: pqrsfKeys.deliveryList(params),
+    queryFn: () => listDeliveries(params),
+    placeholderData: keepPreviousData,
+    ...INBOX_POLLING,
+  });
+}
+
+/** The API marks it read on this very request, so the list and the badge catch up. */
+export function useDeliveryDetail(id: string) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: pqrsfKeys.deliveryDetail(id),
+    queryFn: async () => {
+      const detail = await getDelivery(id);
+      void queryClient.invalidateQueries({ queryKey: pqrsfKeys.deliveryLists() });
+      void queryClient.invalidateQueries({ queryKey: pqrsfKeys.deliverySummary() });
+      return detail;
+    },
+    retry: false,
+  });
+}
+
+export function useRetryDelivery(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => retryDelivery(id),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(pqrsfKeys.deliveryDetail(id), detail);
+      return queryClient.invalidateQueries({ queryKey: pqrsfKeys.deliveryLists() });
+    },
   });
 }
 

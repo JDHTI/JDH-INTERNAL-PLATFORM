@@ -6,6 +6,7 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  FileCheck,
   FolderKanban,
   FolderOpen,
   Handshake,
@@ -52,7 +53,7 @@ export interface ModuleSubItem {
   /** Only shown to the module's managers; the page itself enforces it too. */
   managerOnly?: boolean;
   /** Shows a live count beside the label; the sidebar knows how to fetch each kind. */
-  badge?: "feedback-unread";
+  badge?: "feedback-unread" | "deliveries-unread";
 }
 
 export interface ModuleItem {
@@ -138,6 +139,14 @@ export const MODULES: ModuleItem[] = [
         icon: ThumbsUp,
         managerOnly: true,
         badge: "feedback-unread",
+      },
+      {
+        id: "calidad-pqrsf-solicitudes-documentos",
+        name: "Solicitudes de documentos",
+        path: "/calidad/pqrsf/solicitudes-documentos",
+        icon: FileCheck,
+        managerOnly: true,
+        badge: "deliveries-unread",
       },
       {
         id: "calidad-pqrsf-historial",
