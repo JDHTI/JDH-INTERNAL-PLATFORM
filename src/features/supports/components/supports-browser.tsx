@@ -18,18 +18,17 @@ import {
   formatDay,
   formatSupplierValue,
   humanize,
-  STATUS_LABELS,
+  STATE_LABELS,
   toOptions,
-  VALIDITY_LABELS,
 } from "../lib/format";
 import type {
   FilterCondition,
   SupplierSupport,
   SupportSearchBody,
-  SupportValidity,
+  SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
-import { FlagBadges, StatusBadge, ValidityBadge } from "./support-badges";
+import { FlagBadges, StateBadge } from "./support-badges";
 import SupportDetail from "./support-detail";
 
 const PAGE_SIZE = 50;
@@ -51,8 +50,7 @@ const COLUMNS: (SortColumn & { className?: string })[] = [
   { field: "customer_name", label: "Cliente" },
   { field: "product.description", label: "Producto" },
   { field: "supplier_value", label: "Valor del apoyo", className: "text-right" },
-  { field: "valid_from", label: "Vigencia" },
-  { field: "status", label: "Estado" },
+  { field: "valid_from", label: "Estado y vigencia" },
 ];
 
 /**
@@ -67,12 +65,11 @@ export default function SupportsBrowser() {
   const catalogs = catalogsQuery.data;
 
   const [text, setText] = useState("");
-  const [validity, setValidity] = useState<string>(ALL);
+  const [state, setState] = useState<string>(ALL);
   const [kind, setKind] = useState<string>(ALL);
-  const [status, setStatus] = useState<string>(ALL);
+  const [needsReview, setNeedsReview] = useState(false);
   const [hasIssues, setHasIssues] = useState(false);
   const [hasConflicts, setHasConflicts] = useState(false);
-  const [includeVoided, setIncludeVoided] = useState(false);
   const [advanced, setAdvanced] = useState<{ match: "all" | "any"; conditions: FilterCondition[] }>({
     match: "all",
     conditions: [],
@@ -90,7 +87,6 @@ export default function SupportsBrowser() {
     const has = (name: string) => fields.some((field) => field.field === name);
     const quick: FilterCondition[] = [];
     if (kind !== ALL && has("kind")) quick.push({ field: "kind", op: "eq", value: kind });
-    if (status !== ALL && has("status")) quick.push({ field: "status", op: "eq", value: status });
     return {
       match: "all",
       // The builder's own all/any applies inside its group, so a quick filter
@@ -102,15 +98,16 @@ export default function SupportsBrowser() {
           : []),
       ],
       q: q || undefined,
-      validity: validity === ALL ? undefined : (validity as SupportValidity),
+      // No state hides voided supports; "anulado" is the only way to list them.
+      state: state === ALL ? undefined : (state as SupportState),
+      needs_review: needsReview || undefined,
       has_issues: hasIssues || undefined,
       has_conflicts: hasConflicts || undefined,
-      include_voided: includeVoided || status === "anulado" || undefined,
       sort,
       page,
       size: PAGE_SIZE,
     };
-  }, [q, validity, kind, status, hasIssues, hasConflicts, includeVoided, advanced, sort, page, fields]);
+  }, [q, state, kind, needsReview, hasIssues, hasConflicts, advanced, sort, page, fields]);
 
   const search = useSupportSearch(body);
   const result = search.data;
@@ -118,12 +115,11 @@ export default function SupportsBrowser() {
 
   const filtered =
     q !== "" ||
-    validity !== ALL ||
+    state !== ALL ||
     kind !== ALL ||
-    status !== ALL ||
+    needsReview ||
     hasIssues ||
     hasConflicts ||
-    includeVoided ||
     advanced.conditions.length > 0;
 
   const reset = (apply: () => void) => {
@@ -133,12 +129,11 @@ export default function SupportsBrowser() {
 
   const clearFilters = () => {
     setText("");
-    setValidity(ALL);
+    setState(ALL);
     setKind(ALL);
-    setStatus(ALL);
+    setNeedsReview(false);
     setHasIssues(false);
     setHasConflicts(false);
-    setIncludeVoided(false);
     setAdvanced({ match: "all", conditions: [] });
     setPage(1);
   };
@@ -157,13 +152,9 @@ export default function SupportsBrowser() {
     sort[0] === field ? "ascending" : sort[0] === `-${field}` ? "descending" : "none";
 
   const kindOptions = [{ value: ALL, label: "Todos los tipos" }, ...toOptions(catalogs?.kinds)];
-  const statusOptions = [
+  const stateOptions = [
     { value: ALL, label: "Todos los estados" },
-    ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
-  ];
-  const validityOptions = [
-    { value: ALL, label: "Toda vigencia" },
-    ...Object.entries(VALIDITY_LABELS).map(([value, label]) => ({ value, label })),
+    ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
   ];
 
   return (
@@ -184,37 +175,25 @@ export default function SupportsBrowser() {
           />
         </div>
         <Dropdown
-          className="lg:w-44"
-          value={validity}
-          onValueChange={(value) => reset(() => setValidity(value))}
-          options={validityOptions}
-          aria-label="Filtrar por vigencia"
+          className="lg:w-48"
+          value={state}
+          onValueChange={(value) => reset(() => setState(value))}
+          options={stateOptions}
+          aria-label="Filtrar por estado"
         />
         <Dropdown
-          className="lg:w-48"
+          className="lg:w-52"
           value={kind}
           onValueChange={(value) => reset(() => setKind(value))}
           options={kindOptions}
           aria-label="Filtrar por tipo de apoyo"
-        />
-        <Dropdown
-          className="lg:w-52"
-          value={status}
-          onValueChange={(value) => reset(() => setStatus(value))}
-          options={statusOptions}
-          aria-label="Filtrar por estado"
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         <Check label="Con novedades" checked={hasIssues} onChange={(value) => reset(() => setHasIssues(value))} />
         <Check label="Con conflictos" checked={hasConflicts} onChange={(value) => reset(() => setHasConflicts(value))} />
-        <Check
-          label="Incluir anulados"
-          checked={includeVoided || status === "anulado"}
-          disabled={status === "anulado"}
-          onChange={(value) => reset(() => setIncludeVoided(value))}
-        />
+        <Check label="Por revisar" checked={needsReview} onChange={(value) => reset(() => setNeedsReview(value))} />
         <Button
           variant="outline"
           size="sm"
@@ -290,8 +269,7 @@ export default function SupportsBrowser() {
                     </span>
                   </span>
                   <span className="flex flex-wrap gap-1.5">
-                    <ValidityBadge value={support.validity} />
-                    <StatusBadge value={support.status} />
+                    <StateBadge value={support.state} />
                     <FlagBadges support={support} />
                   </span>
                 </button>
@@ -363,14 +341,11 @@ export default function SupportsBrowser() {
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       <span className="block">
-                        <ValidityBadge value={support.validity} />
+                        <StateBadge value={support.state} />
                       </span>
                       <span className="mt-0.5 block text-xs tabular-nums text-text-secondary">
                         {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
                       </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusBadge value={support.status} />
                     </td>
                     <td className="px-3 py-2">
                       <span className="flex flex-wrap gap-1.5">
@@ -416,12 +391,10 @@ function subject(support: SupplierSupport): string {
 function Check({
   label,
   checked,
-  disabled,
   onChange,
 }: {
   label: string;
   checked: boolean;
-  disabled?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -429,7 +402,6 @@ function Check({
       <input
         type="checkbox"
         checked={checked}
-        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       />

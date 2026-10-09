@@ -15,7 +15,7 @@ import {
   humanize,
 } from "../lib/format";
 import type { SupplierSupport, SupportConflict, SupportTier } from "../types/support.types";
-import { FlagBadges, StatusBadge, ValidityBadge } from "./support-badges";
+import { FlagBadges, StateBadge } from "./support-badges";
 
 /** Read-only detail of one support: its terms, derived figures, issues, tiers and conflicts. */
 export default function SupportDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
@@ -59,8 +59,7 @@ function Body({
   return (
     <div className="space-y-5 text-sm">
       <div className="flex flex-wrap gap-1.5">
-        <ValidityBadge value={support.validity} />
-        <StatusBadge value={support.status} />
+        <StateBadge value={support.state} />
         <FlagBadges support={support} />
       </div>
 
@@ -226,7 +225,6 @@ function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
           <th scope="col" className="px-3 py-2">Vigencia</th>
           <th scope="col" className="px-3 py-2">Forma de cálculo</th>
           <th scope="col" className="px-3 py-2 text-right">Valor</th>
-          <th scope="col" className="px-3 py-2">Estado</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
@@ -240,7 +238,6 @@ function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
             <td className="px-3 py-2 text-right tabular-nums">
               {formatSupplierValue(conflict.calc_method, conflict.supplier_value)}
             </td>
-            <td className="px-3 py-2"><StatusBadge value={conflict.status} /></td>
           </tr>
         ))}
       </tbody>

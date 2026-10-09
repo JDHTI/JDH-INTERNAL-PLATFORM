@@ -1,7 +1,7 @@
 import type { Decimal } from "@/shared/lib/format";
 
-export type SupportValidity = "vigente" | "vencido" | "programado";
-export type SupportStatus = "activo" | "pendiente_revision" | "anulado";
+/** Computed by the API; "anulado" wins over the date-based states. */
+export type SupportState = "vigente" | "vencido" | "programado" | "anulado";
 
 export type CalcMethod =
   | "pct_costo"
@@ -71,8 +71,9 @@ export interface SupplierSupport {
   /** null means open-ended. */
   valid_to: string | null;
   end_condition: string | null;
-  validity: SupportValidity;
-  status: SupportStatus;
+  state: SupportState;
+  /** Flagged for data issues; shown as a badge, never as a state. */
+  needs_review: boolean;
   has_conflicts: boolean;
   issues: SupportIssue[];
   tiers: SupportTier[];
@@ -89,7 +90,6 @@ export interface SupportConflict {
   program: string | null;
   supplier_value: Decimal | null;
   calc_method: string | null;
-  status: SupportStatus;
 }
 
 export interface SupportPage {
@@ -144,11 +144,12 @@ export interface SupportSearchBody {
   match: "all" | "any";
   conditions: Array<FilterCondition | FilterGroup>;
   q?: string;
-  validity?: SupportValidity;
+  /** Without a state, voided supports are hidden. */
+  state?: SupportState;
+  needs_review?: boolean;
   has_issues?: boolean;
   has_conflicts?: boolean;
   effective_only?: boolean;
-  include_voided?: boolean;
   sort: string[];
   page: number;
   size: number;
@@ -160,7 +161,7 @@ export type VocabularyEntry = string | { value?: string; code?: string; label?: 
 export interface SupportCatalogs {
   kinds?: VocabularyEntry[];
   calc_methods?: VocabularyEntry[];
-  statuses?: VocabularyEntry[];
+  states?: VocabularyEntry[];
   settlement_methods?: VocabularyEntry[];
   issue_codes?: VocabularyEntry[];
   regionals?: VocabularyEntry[];

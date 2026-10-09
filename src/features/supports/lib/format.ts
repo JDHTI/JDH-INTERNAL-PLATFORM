@@ -1,11 +1,7 @@
 import type { DropdownOption } from "@/shared/components/ui/dropdown";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 
-import type {
-  SupportStatus,
-  SupportValidity,
-  VocabularyEntry,
-} from "../types/support.types";
+import type { SupportState, VocabularyEntry } from "../types/support.types";
 
 const cop = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -38,15 +34,10 @@ export function formatDay(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : date.format(parsed);
 }
 
-export const VALIDITY_LABELS: Record<SupportValidity, string> = {
+export const STATE_LABELS: Record<SupportState, string> = {
   vigente: "Vigente",
   vencido: "Vencido",
   programado: "Programado",
-};
-
-export const STATUS_LABELS: Record<SupportStatus, string> = {
-  activo: "Activo",
-  pendiente_revision: "Pendiente de revisión",
   anulado: "Anulado",
 };
 
