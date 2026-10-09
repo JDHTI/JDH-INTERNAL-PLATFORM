@@ -1,3 +1,5 @@
+import type { Decimal } from "@/shared/lib/format";
+
 export type SupportValidity = "vigente" | "vencido" | "programado";
 export type SupportStatus = "activo" | "pendiente_revision" | "anulado";
 
@@ -18,18 +20,22 @@ export interface SupportIssue {
 }
 
 export interface SupportTier {
-  [key: string]: unknown;
+  threshold_type: "unidades" | "cajas" | "monto_ventas";
+  from_value: Decimal;
+  /** null means no upper bound. */
+  to_value: Decimal | null;
+  value: Decimal;
 }
 
 export interface SupportDerived {
-  supplier_amount: number | null;
-  net_cost: number | null;
-  pct_on_cost: number | null;
-  pct_on_list: number | null;
-  suggested_price: number | null;
-  margin_order: number | null;
-  margin_recomposed: number | null;
-  min_margin_pct: number | null;
+  supplier_amount: Decimal | null;
+  net_cost: Decimal | null;
+  pct_on_cost: Decimal | null;
+  pct_on_list: Decimal | null;
+  suggested_price: Decimal | null;
+  margin_order: Decimal | null;
+  margin_recomposed: Decimal | null;
+  min_margin_pct: Decimal | null;
 }
 
 export interface SupplierSupport {
@@ -52,15 +58,15 @@ export interface SupplierSupport {
   business_units: string[];
   channels: string[];
   calc_method: CalcMethod | string | null;
-  supplier_value: number | null;
+  supplier_value: Decimal | null;
   /** Fraction: 0.05 is 5%. */
-  jdh_pct: number | null;
+  jdh_pct: Decimal | null;
   value_unit: string | null;
-  target_margin_pct: number | null;
-  min_margin_pct: number | null;
-  list_margin_pct: number | null;
-  reference_cost: number | null;
-  reference_list_price: number | null;
+  target_margin_pct: Decimal | null;
+  min_margin_pct: Decimal | null;
+  list_margin_pct: Decimal | null;
+  reference_cost: Decimal | null;
+  reference_list_price: Decimal | null;
   valid_from: string | null;
   /** null means open-ended. */
   valid_to: string | null;
@@ -77,7 +83,13 @@ export interface SupplierSupport {
 }
 
 export interface SupportConflict {
-  [key: string]: unknown;
+  id: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  program: string | null;
+  supplier_value: Decimal | null;
+  calc_method: string | null;
+  status: SupportStatus;
 }
 
 export interface SupportPage {

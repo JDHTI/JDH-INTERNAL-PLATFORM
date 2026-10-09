@@ -10,6 +10,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
+import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import type { CommercialMasterDef, MasterColumn } from "../config/masters.config";
@@ -121,10 +122,11 @@ function Cell({ column, value }: { column: MasterColumn; value: unknown }) {
   switch (column.kind) {
     case "active":
       return value ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>;
+    // Decimals arrive as strings or numbers depending on the field.
     case "count":
-      return typeof value === "number" ? numberFormat.format(value) : "—";
+      return toNumber(value as Decimal | null) === null ? "—" : numberFormat.format(Number(value));
     case "pct":
-      return typeof value === "number" ? percentFormat.format(value) : "—";
+      return toNumber(value as Decimal | null) === null ? "—" : percentFormat.format(Number(value));
     case "nits":
       return <Nits nits={Array.isArray(value) ? (value as SupplierNit[]) : []} />;
     default:

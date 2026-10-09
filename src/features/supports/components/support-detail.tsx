@@ -14,7 +14,7 @@ import {
   formatSupplierValue,
   humanize,
 } from "../lib/format";
-import type { SupplierSupport } from "../types/support.types";
+import type { SupplierSupport, SupportConflict, SupportTier } from "../types/support.types";
 import { FlagBadges, StatusBadge, ValidityBadge } from "./support-badges";
 
 /** Read-only detail of one support: its terms, derived figures, issues, tiers and conflicts. */
@@ -146,7 +146,7 @@ function Body({
         <section className="space-y-2">
           <h3 className="font-semibold">Escalas</h3>
           <div className="overflow-x-auto rounded-lg border border-border">
-            <TiersTable tiers={support.tiers} />
+            <TiersTable tiers={support.tiers} calcMethod={support.calc_method} />
           </div>
         </section>
       )}
@@ -162,7 +162,7 @@ function Body({
             <p className="text-text-secondary">El API no reporta conflictos activos para este apoyo.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <TiersTable tiers={conflicts.data} />
+              <ConflictsTable conflicts={conflicts.data} />
             </div>
           )}
         </section>
@@ -180,36 +180,72 @@ function Body({
 
 const list = (items: string[]) => (items.length > 0 ? items.join(", ") : "Todas");
 
-/** Tiers and conflicts have no fixed shape in the contract, so columns come from the data. */
-function TiersTable({ tiers }: { tiers: Record<string, unknown>[] }) {
-  const columns = Array.from(new Set(tiers.flatMap((tier) => Object.keys(tier))));
+const THRESHOLD_LABELS: Record<SupportTier["threshold_type"], string> = {
+  unidades: "Unidades",
+  cajas: "Cajas",
+  monto_ventas: "Monto de ventas",
+};
+
+const headClass = "bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary";
+
+function TiersTable({ tiers, calcMethod }: { tiers: SupportTier[]; calcMethod: string | null }) {
   return (
     <table className="w-full text-left text-sm">
-      <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+      <thead className={headClass}>
         <tr>
-          {columns.map((column) => (
-            <th key={column} scope="col" className="px-3 py-2">{humanize(column)}</th>
-          ))}
+          <th scope="col" className="px-3 py-2">Umbral</th>
+          <th scope="col" className="px-3 py-2 text-right">Desde</th>
+          <th scope="col" className="px-3 py-2 text-right">Hasta</th>
+          <th scope="col" className="px-3 py-2 text-right">Valor</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border">
-        {tiers.map((tier, index) => (
-          <tr key={index}>
-            {columns.map((column) => (
-              <td key={column} className="px-3 py-2 tabular-nums">{cell(tier[column])}</td>
-            ))}
-          </tr>
-        ))}
+        {tiers.map((tier, index) => {
+          const amount = (value: SupportTier["from_value"]) =>
+            tier.threshold_type === "monto_ventas" ? formatCop(value) : formatNumber(value);
+          return (
+            <tr key={index} className="tabular-nums">
+              <td className="px-3 py-2">{THRESHOLD_LABELS[tier.threshold_type] ?? humanize(tier.threshold_type)}</td>
+              <td className="px-3 py-2 text-right">{amount(tier.from_value)}</td>
+              <td className="px-3 py-2 text-right">{tier.to_value === null ? "Sin tope" : amount(tier.to_value)}</td>
+              <td className="px-3 py-2 text-right">{formatSupplierValue(calcMethod, tier.value)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
 }
 
-function cell(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "number") return formatNumber(value);
-  if (typeof value === "boolean") return value ? "Sí" : "No";
-  return typeof value === "string" ? value : JSON.stringify(value);
+function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
+  return (
+    <table className="w-full text-left text-sm">
+      <thead className={headClass}>
+        <tr>
+          <th scope="col" className="px-3 py-2">Programa</th>
+          <th scope="col" className="px-3 py-2">Vigencia</th>
+          <th scope="col" className="px-3 py-2">Forma de cálculo</th>
+          <th scope="col" className="px-3 py-2 text-right">Valor</th>
+          <th scope="col" className="px-3 py-2">Estado</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {conflicts.map((conflict) => (
+          <tr key={conflict.id}>
+            <td className="px-3 py-2">{conflict.program ?? "—"}</td>
+            <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+              {formatDay(conflict.valid_from)} a {conflict.valid_to ? formatDay(conflict.valid_to) : "indefinido"}
+            </td>
+            <td className="px-3 py-2">{calcMethodLabel(conflict.calc_method)}</td>
+            <td className="px-3 py-2 text-right tabular-nums">
+              {formatSupplierValue(conflict.calc_method, conflict.supplier_value)}
+            </td>
+            <td className="px-3 py-2"><StatusBadge value={conflict.status} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

@@ -1,4 +1,5 @@
 import type { DropdownOption } from "@/shared/components/ui/dropdown";
+import { toNumber, type Decimal } from "@/shared/lib/format";
 
 import type {
   SupportStatus,
@@ -18,15 +19,17 @@ const percent = new Intl.NumberFormat("es-CO", {
 const plain = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 });
 const date = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeZone: "UTC" });
 
-export const formatCop = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : cop.format(value);
+const formatWith = (format: (value: number) => string) => (value: Decimal | null | undefined) => {
+  const parsed = toNumber(value);
+  return parsed === null ? "—" : format(parsed);
+};
+
+export const formatCop = formatWith((value) => cop.format(value));
 
 /** The API sends fractions: 0.05 is 5%. */
-export const formatPct = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : percent.format(value);
+export const formatPct = formatWith((value) => percent.format(value));
 
-export const formatNumber = (value: number | null | undefined) =>
-  value === null || value === undefined ? "—" : plain.format(value);
+export const formatNumber = formatWith((value) => plain.format(value));
 
 /** Dates are "YYYY-MM-DD"; read as UTC so the day never shifts with the zone. */
 export function formatDay(value: string | null | undefined): string {
@@ -74,8 +77,9 @@ export const calcMethodLabel = (code: string | null | undefined) =>
  */
 export function formatSupplierValue(
   method: string | null,
-  value: number | null
+  raw: Decimal | null
 ): string {
+  const value = toNumber(raw);
   if (value === null) return "—";
   switch (method) {
     case "pct_costo":
