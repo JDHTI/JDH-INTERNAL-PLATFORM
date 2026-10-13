@@ -73,14 +73,15 @@ export default function ThresholdControl({
     );
   };
 
-  // One line tall, so its box lines up with the search box beside it. What is in
-  // use, the preview notice and any error take turns in the same spot, after the button.
+  // The label sits above; below it the box, the button right against it and what is in use,
+  // the preview notice or any error in the same spot after them. The row is one box tall, so
+  // it lines up with the search box beside it.
   return (
-    <form onSubmit={apply} noValidate className="flex flex-wrap items-end gap-x-2 gap-y-1">
-      <div className="space-y-1">
-        <label htmlFor={id} className="block text-[13px] font-medium" title={EXPLANATION}>
-          Umbral de margen (pts)
-        </label>
+    <form onSubmit={apply} noValidate className="space-y-1">
+      <label htmlFor={id} className="block text-[13px] font-medium" title={EXPLANATION}>
+        Umbral de margen (pts)
+      </label>
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
         <Input
           id={id}
           inputMode="decimal"
@@ -94,23 +95,24 @@ export default function ThresholdControl({
           aria-describedby={`${id}-state`}
           className="w-28"
         />
+        {/* The filled button: dark on the light theme, light on the dark one (the primary tokens). */}
+        <Button type="submit" variant="primary" disabled={save.isPending}>
+          {save.isPending ? "Aplicando…" : "Aplicar"}
+        </Button>
+        <p
+          id={`${id}-state`}
+          role={error ? "alert" : undefined}
+          aria-live={error ? undefined : "polite"}
+          className={cn("ml-2 text-[13px]", error ? "text-danger" : "text-text-secondary")}
+        >
+          {error ?? (
+            <>
+              En uso: <span className="font-medium tabular-nums text-text-primary">{formatThreshold(batch.margin_threshold_points)}</span>
+              {previewing && <span className="text-warning"> · Vista previa sin guardar</span>}
+            </>
+          )}
+        </p>
       </div>
-      <Button type="submit" variant="outline" disabled={save.isPending}>
-        {save.isPending ? "Aplicando…" : "Aplicar"}
-      </Button>
-      <p
-        id={`${id}-state`}
-        role={error ? "alert" : undefined}
-        aria-live={error ? undefined : "polite"}
-        className={cn("h-9 content-center text-[13px]", error ? "text-danger" : "text-text-secondary")}
-      >
-        {error ?? (
-          <>
-            En uso: <span className="font-medium tabular-nums text-text-primary">{formatThreshold(batch.margin_threshold_points)}</span>
-            {previewing && <span className="text-warning"> · Vista previa sin guardar</span>}
-          </>
-        )}
-      </p>
     </form>
   );
 }
