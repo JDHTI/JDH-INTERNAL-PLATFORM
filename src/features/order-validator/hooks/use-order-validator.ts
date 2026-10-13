@@ -14,6 +14,7 @@ import {
   listOrders,
   revalidateBatch,
   revokeOrderApproval,
+  setMarginThreshold,
   uploadBatch,
 } from "../services/order-validator.service";
 import type { OrderParams } from "../types/order-validator.types";
@@ -114,6 +115,15 @@ export function useDeleteBatch() {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] });
     },
+  });
+}
+
+/** A new threshold changes which orders are ready, so the totals and every cached page of orders are stale. */
+export function useSetMarginThreshold() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, thresholdPoints }: { id: string; thresholdPoints: number }) => setMarginThreshold(id, thresholdPoints),
+    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
 

@@ -39,14 +39,25 @@ export async function listOrders({
   batchId,
   status,
   reason,
-  liquorTax,
   sort,
   q,
   page,
   size,
 }: OrderParams): Promise<OrderPage> {
   return apiFetch<OrderPage>(`${BASE}/${encodeURIComponent(batchId)}/orders`, {
-    query: { status, reason, liquor_tax: liquorTax, sort, q, page, size },
+    query: { status, reason, sort, q, page, size },
+  });
+}
+
+/**
+ * Saves the file's margin threshold and recalculates which orders it releases.
+ * The lines are not validated again, and manual approvals stay. 422 when it is
+ * outside 0 to 20.
+ */
+export async function setMarginThreshold(id: string, thresholdPoints: number): Promise<ValidationBatch> {
+  return apiFetch<ValidationBatch>(`${BASE}/${encodeURIComponent(id)}/margin-threshold`, {
+    method: "PUT",
+    body: { margin_threshold_points: thresholdPoints },
   });
 }
 

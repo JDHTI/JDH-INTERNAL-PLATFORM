@@ -143,7 +143,6 @@ function CheckRow({ check, onOpenSupport }: { check: SupportCheck; onOpenSupport
     <div className="space-y-1.5 px-3 py-2.5 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={check.outcome} />
-        {check.threshold_applied && <Badge tone="info">Dentro del umbral</Badge>}
         {check.needs_review && <Badge tone="warning">Por revisar</Badge>}
         <span className="font-medium">{check.program ?? humanize(check.kind)}</span>
         <span className="text-text-secondary">{calcMethodLabel(check.calc_method)}</span>

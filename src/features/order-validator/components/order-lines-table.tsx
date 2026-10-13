@@ -65,7 +65,6 @@ export default function OrderLinesTable({
                     {line.checks.map((check, index) => (
                       <li key={`${check.support_id}-${index}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
                         <OutcomeBadge outcome={check.outcome} />
-                        {check.threshold_applied && <Badge tone="info">Dentro del umbral</Badge>}
                         {check.needs_review && <Badge tone="warning">Por revisar</Badge>}
                         <span className="font-medium">{check.program ?? humanize(check.kind)}</span>
                         <span className="text-text-secondary">{calcMethodLabel(check.calc_method)}</span>

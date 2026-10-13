@@ -234,8 +234,8 @@ function UploadZone({ basePath }: { basePath: string }) {
         </Button>
       </div>
       <p id={`${thresholdId}-hint`} className="w-full text-[13px] text-text-secondary sm:order-last">
-        El umbral son los puntos de margen que una línea puede quedarse corta y aun así liberarse: con 0,5, un 19,5 % contra un 20 %
-        se libera. Vacío usa el del servicio.
+        El umbral son puntos que se suman al margen de cada pedido: con 0,5, un pedido al 19,5 % frente a un objetivo del 20 % queda
+        listo. Vacío usa el del servicio.
       </p>
 
       {error && (

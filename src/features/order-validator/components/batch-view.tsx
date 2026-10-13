@@ -38,12 +38,6 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 
 const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion"];
 
-const LIQUOR_OPTIONS = [
-  { value: ALL, label: "Con y sin licor" },
-  { value: "true", label: "Con impuesto licor" },
-  { value: "false", label: "Sin impuesto licor" },
-];
-
 const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
   { value: "attention", label: "Orden de atención" },
   { value: "file", label: "Orden del archivo" },
@@ -58,7 +52,6 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
   const [reason, setReason] = useState(ALL);
-  const [liquorTax, setLiquorTax] = useState(ALL);
   const [sort, setSort] = useState<OrderSort>("attention");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
@@ -73,7 +66,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   useBreadcrumbLabel(`${basePath}/${batchId}`, batch.data?.file_name);
 
   // The order the rows come in is the server's: attention first by default. It is never re-sorted here.
-  const orders = useBatchOrders({ batchId, status, reason, liquorTax, sort, q, page, size: PAGE_SIZE });
+  const orders = useBatchOrders({ batchId, status, reason, sort, q, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
 
@@ -94,7 +87,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       .map((entry) => ({ value: entry.value, label: entry.label })),
   ];
 
-  const filtered = status !== ALL || reason !== ALL || liquorTax !== ALL || q !== "";
+  const filtered = status !== ALL || reason !== ALL || q !== "";
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -129,7 +122,6 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const clearFilters = () => {
     setStatus(ALL);
     setReason(ALL);
-    setLiquorTax(ALL);
     setText("");
     setPage(1);
     setSelected(new Set());
@@ -229,13 +221,6 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         />
         <Dropdown
           className="lg:w-48"
-          value={liquorTax}
-          onValueChange={(value) => reset(() => setLiquorTax(value))}
-          options={LIQUOR_OPTIONS}
-          aria-label="Filtrar por impuesto al licor"
-        />
-        <Dropdown
-          className="lg:w-48"
           value={sort}
           onValueChange={(value) => reset(() => setSort(value as OrderSort))}
           options={SORT_OPTIONS}
@@ -289,7 +274,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             title="Ningún pedido coincide con los filtros"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
-            Prueba con otro texto o quita el estado, el motivo o el impuesto al licor.
+            Prueba con otro texto o quita el estado o el motivo.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Este archivo no tiene pedidos">

@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, UserCheck, Wine } from "lucide-react";
+import { CheckCircle2, Clock, Scale, UserCheck, Wine } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -37,6 +37,25 @@ export function ManualApprovalBadge({ compact = false }: { compact?: boolean }) 
         </>
       ) : (
         "Aprobado manualmente"
+      )}
+    </Badge>
+  );
+}
+
+/**
+ * The order is ready because its margin, with the file's threshold, reaches its
+ * target, not because its lines all are. Its lines keep their own reasons.
+ */
+export function MarginReleaseBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <Badge tone="info" title="El margen del pedido, con el umbral, alcanza el objetivo.">
+      <Scale aria-hidden="true" />
+      {compact ? (
+        <>
+          Por margen<span className="sr-only">: liberado por el margen del pedido con el umbral</span>
+        </>
+      ) : (
+        "Liberado por margen"
       )}
     </Badge>
   );

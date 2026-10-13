@@ -42,7 +42,6 @@ export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
 const REASON_SHORT: Record<string, string> = {
   cumple_con_apoyo: "con apoyo",
   cumple_margen_lista: "margen lista",
-  cumple_con_umbral: "en umbral",
   acuerdo_en_revision: "apoyo en revisión",
   no_cumple_acuerdo: "no cumplen",
   acuerdo_no_evaluable: "no evaluables",

@@ -13,7 +13,7 @@ import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
 import OrderLinesTable from "./order-lines-table";
 import SelectBox from "./select-box";
-import { LiquorTaxBadge, ManualApprovalBadge, StatusBadge } from "./status-badges";
+import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge } from "./status-badges";
 
 interface OrdersViewProps {
   rows: ValidationOrder[];
@@ -55,15 +55,27 @@ function ReasonChips({ lines }: { lines: OrderLine[] }) {
   );
 }
 
-/** The order's weighted margin against its target; informative, the decision stays per line. */
+/**
+ * The order's weighted margin against its target. With a threshold above zero
+ * the margin the order is judged on is the one with the threshold added, shown
+ * after an arrow; it is flagged when even that falls short of the target.
+ */
 function OrderMargin({ order, compact = false }: { order: ValidationOrder; compact?: boolean }) {
   const margin = toNumber(order.margin_pct);
+  const withThreshold = toNumber(order.margin_with_threshold_pct);
   const target = toNumber(order.required_margin_pct);
-  const below = margin !== null && target !== null && margin < target;
+  const judged = withThreshold ?? margin;
+  const below = judged !== null && target !== null && judged < target;
   return (
     <span className={cn("inline-flex items-center gap-1 tabular-nums", below && "font-medium text-warning")}>
       {below && <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />}
       {margin === null ? "—" : formatMarginPct(margin)}
+      {withThreshold !== null && (
+        <span className={cn("font-normal", !below && "text-text-secondary")} title="Margen del pedido más el umbral">
+          {" → "}
+          {formatMarginPct(withThreshold)}
+        </span>
+      )}
       {below && <span className="sr-only">, por debajo del objetivo</span>}
       {compact && target !== null && <span className="font-normal text-text-secondary"> de {formatMarginPct(target)}</span>}
     </span>
@@ -98,7 +110,7 @@ export function OrdersTable({
 }: OrdersViewProps & { allSelected: boolean; someSelected: boolean; hasPending: boolean; onSelectAll: () => void }) {
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-      <table className="w-full min-w-[60rem] text-left text-[13px]">
+      <table className="w-full min-w-[56rem] text-left text-[13px]">
         <caption className="sr-only">Pedidos del archivo con su estado de validación</caption>
         <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
@@ -154,11 +166,12 @@ export function OrdersTable({
                   <span className="flex items-center gap-1 whitespace-nowrap">
                     <StatusBadge status={order.status} label={order.status_label} />
                     {order.manual_approval && <ManualApprovalBadge compact />}
+                    {order.release_basis === "margen" && <MarginReleaseBadge compact />}
                     {order.has_liquor_tax && <LiquorTaxBadge compact />}
                   </span>
                 </td>
-                <td className="max-w-56 px-2 py-1">
-                  <span className="block truncate font-medium">{order.customer_name ?? "Sin cliente"}</span>
+                <td className="max-w-40 px-2 py-1">
+                  <span className="block truncate font-medium" title={order.customer_name ?? undefined}>{order.customer_name ?? "Sin cliente"}</span>
                   <span className="block truncate text-xs text-text-secondary">
                     <span className="font-mono">{order.customer_nit ?? ""}</span>
                   </span>
@@ -167,7 +180,7 @@ export function OrdersTable({
                   <OrderMargin order={order} />
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{target === null ? "—" : formatMarginPct(target)}</td>
-                <td className="px-2 py-1">
+                <td className="max-w-52 px-2 py-1">
                   <ReasonChips lines={order.lines} />
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(order.total_amount)}</td>
@@ -231,6 +244,7 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                 <span className="flex flex-wrap items-center gap-1.5">
                   <StatusBadge status={order.status} label={order.status_label} />
                   {order.manual_approval && <ManualApprovalBadge />}
+                  {order.release_basis === "margen" && <MarginReleaseBadge />}
                   {order.has_liquor_tax && <LiquorTaxBadge />}
                 </span>
                 <span className="text-xs text-text-secondary">

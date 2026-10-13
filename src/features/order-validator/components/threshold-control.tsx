@@ -7,21 +7,22 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
-import { useRevalidateBatch } from "../hooks/use-order-validator";
+import { useSetMarginThreshold } from "../hooks/use-order-validator";
 import { THRESHOLD_MAX, THRESHOLD_MIN, formatThreshold, parseThresholdPoints } from "../lib/format";
 import type { ValidationBatch } from "../types/order-validator.types";
 
 /**
- * The margin threshold of a file: the points a line may fall short of its
- * target and still be released. Everyone sees the one in force; managers can
- * change it, which validates the whole file again (manual approvals stay) and
+ * The margin threshold of a file: points added to each order's margin before
+ * it is compared with its target, never to a line's. Everyone sees the one in
+ * force; managers can change it, which saves it, recalculates which orders it
+ * releases (the lines are not validated again, manual approvals stay) and
  * reloads the counts and the orders.
  */
 export default function ThresholdControl({ batch, canManage }: { batch: ValidationBatch; canManage: boolean }) {
   const id = useId();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const revalidate = useRevalidateBatch();
+  const save = useSetMarginThreshold();
 
   if (!canManage) {
     return (
@@ -40,7 +41,7 @@ export default function ThresholdControl({ batch, canManage }: { batch: Validati
       return;
     }
     setError(null);
-    revalidate.mutate(
+    save.mutate(
       { id: batch.id, thresholdPoints: Number(parsed) },
       {
         onSuccess: (updated) => {
@@ -72,12 +73,12 @@ export default function ThresholdControl({ batch, canManage }: { batch: Validati
             className="w-32"
           />
         </div>
-        <Button type="submit" variant="outline" disabled={revalidate.isPending}>
-          {revalidate.isPending ? "Aplicando…" : "Aplicar"}
+        <Button type="submit" variant="outline" disabled={save.isPending}>
+          {save.isPending ? "Aplicando…" : "Aplicar"}
         </Button>
         <p id={`${id}-state`} className="pb-1.5 text-[13px] text-text-secondary">
-          En uso: <span className="font-medium tabular-nums text-text-primary">{formatThreshold(batch.margin_threshold_points)}</span>. Una
-          línea se libera aunque le falten hasta esos puntos.
+          En uso: <span className="font-medium tabular-nums text-text-primary">{formatThreshold(batch.margin_threshold_points)}</span>. Se
+          suman al margen de cada pedido: con 0,5, un pedido al 19,5 % frente a un objetivo del 20 % queda listo.
         </p>
       </form>
       {error && (
