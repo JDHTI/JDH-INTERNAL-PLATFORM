@@ -1,0 +1,660 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, CloudOff, FileX2, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+
+import Pager from "@/shared/components/pager";
+import StatePanel from "@/shared/components/state-panel";
+import { Button } from "@/shared/components/ui/button";
+import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
+import { Dropdown } from "@/shared/components/ui/dropdown";
+import { Input } from "@/shared/components/ui/input";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { ApiError, errorMessage } from "@/shared/lib/api-client";
+import { toNumber } from "@/shared/lib/format";
+import { cn } from "@/shared/lib/utils";
+
+import { useCanManage, useFilterFields, useSupportCatalogs, useSupportSearch } from "../hooks/use-supports";
+import {
+  calcMethodLabel,
+  formatCop,
+  formatDay,
+  formatPct,
+  formatSupplierValue,
+  humanize,
+  STATE_LABELS,
+  toOptions,
+} from "../lib/format";
+import type {
+  FilterCondition,
+  PerUnit,
+  SupplierSupport,
+  SupportSearchBody,
+  SupportState,
+} from "../types/support.types";
+import AdvancedFilters from "./advanced-filters";
+import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "./base-picker";
+import SupportEditDialog from "./support-edit-dialog";
+import { SupportActions, SupportVoidDialog } from "./support-actions";
+import { FlagBadges, StateBadge } from "./support-badges";
+import SupportDetail from "./support-detail";
+
+const PAGE_SIZE = 50;
+const ALL = "";
+
+const numberFormat = new Intl.NumberFormat("es-CO");
+
+type PerUnitKey = "net_cost_per" | "supplier_amount_per";
+
+interface Column {
+  key: string;
+  label: string;
+  /** Field name in the API's catalog; the column only sorts if it lists it as sortable. */
+  sortField?: string;
+  align?: "right";
+  /** A column with nothing to show in the current page is left out. */
+  hasData?: (items: SupplierSupport[]) => boolean;
+  cell: (support: SupplierSupport, open: () => void) => React.ReactNode;
+}
+
+const dash = <span aria-label="sin dato">—</span>;
+const list = (values: string[]) => (values.length > 0 ? values.join(", ") : dash);
+
+/**
+ * The API converts to unit and box; the client never does. With no base
+ * (`value_unit` null) there is nothing to convert, and the cell says so.
+ */
+function perUnitCell(support: SupplierSupport, key: PerUnitKey, side: keyof PerUnit) {
+  const net = toNumber(support.derived?.net_cost_per?.[side]);
+  const aid = toNumber(support.derived?.supplier_amount_per?.[side]);
+  if (net === null && aid === null) {
+    return (
+      <>
+        {dash}
+        {support.value_unit === null && <span className="block text-xs text-text-secondary">sin base</span>}
+      </>
+    );
+  }
+  const main = key === "net_cost_per" ? net : aid;
+  const sub = key === "net_cost_per" ? aid : net;
+  return (
+    <>
+      <span className="block tabular-nums">{main === null ? dash : formatCop(main)}</span>
+      {sub !== null && (
+        <span className="block text-xs tabular-nums text-text-secondary">
+          {key === "net_cost_per" ? "Apoyo" : "Neto"} {formatCop(sub)}
+        </span>
+      )}
+    </>
+  );
+}
+
+const COLUMNS: Column[] = [
+  // SKU is what people search by, so it gets its own column ahead of the rest.
+  {
+    key: "sku",
+    label: "SKU",
+    sortField: "product_sku",
+    cell: (s) => <span className="whitespace-nowrap font-mono text-[13px]">{s.product_sku ?? "—"}</span>,
+  },
+  {
+    key: "brand",
+    label: "Marca",
+    sortField: "brand",
+    cell: (s) => s.product_brand ?? s.brand ?? dash,
+  },
+  {
+    key: "supplier",
+    label: "Proveedor",
+    sortField: "supplier.name",
+    cell: (s, open) => (
+      <>
+        <button
+          type="button"
+          onClick={open}
+          aria-label={`Ver detalle del apoyo de ${s.supplier_name ?? s.supplier_code ?? "proveedor"}`}
+          className={cn(
+            "block max-w-full truncate rounded-sm text-left font-medium hover:underline",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          )}
+        >
+          {s.supplier_name ?? "Sin proveedor"}
+        </button>
+        <span className="block truncate font-mono text-xs text-text-secondary">{s.supplier_code ?? "—"}</span>
+      </>
+    ),
+  },
+  { key: "kind", label: "Tipo", sortField: "kind", cell: (s) => humanize(s.kind) },
+  {
+    key: "customer",
+    label: "Cliente",
+    sortField: "customer_name",
+    cell: (s) => (
+      <>
+        <span className="block truncate">{s.customer_name ?? s.customer_group ?? "Todos"}</span>
+        <span className="block truncate font-mono text-xs text-text-secondary">{s.customer_nit ?? ""}</span>
+      </>
+    ),
+  },
+  {
+    key: "regional",
+    label: "Regional",
+    hasData: (items) => items.some((s) => s.regionals.length > 0),
+    cell: (s) => list(s.regionals),
+  },
+  {
+    key: "business_unit",
+    label: "Unidad de negocio",
+    hasData: (items) => items.some((s) => s.business_units.length > 0),
+    cell: (s) => list(s.business_units),
+  },
+  {
+    key: "value",
+    label: "Valor del apoyo",
+    sortField: "supplier_value",
+    align: "right",
+    cell: (s) => (
+      <>
+        <span className="block tabular-nums">{formatSupplierValue(s.calc_method, s.supplier_value)}</span>
+        <span className="block text-xs text-text-secondary">{calcMethodLabel(s.calc_method)}</span>
+      </>
+    ),
+  },
+  {
+    key: "jdh",
+    label: "% apoyo JDH",
+    sortField: "jdh_pct",
+    align: "right",
+    // Only some supports carry it; zero is as empty as null.
+    cell: (s) => <span className="tabular-nums">{toNumber(s.jdh_pct) ? formatPct(s.jdh_pct) : dash}</span>,
+  },
+  { key: "net-unit", label: "Neto unitario", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
+  { key: "net-box", label: "Neto caja", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "box") },
+  {
+    key: "pack",
+    label: "Und/caja",
+    align: "right",
+    cell: (s) => <span className="tabular-nums">{toNumber(s.pack_factor) ? numberFormat.format(Number(s.pack_factor)) : dash}</span>,
+  },
+  {
+    key: "state",
+    label: "Estado y vigencia",
+    sortField: "valid_from",
+    cell: (s) => (
+      <div className="whitespace-nowrap">
+        <StateBadge value={s.state} />
+        <span className="mt-0.5 block text-xs tabular-nums text-text-secondary">
+          {formatDay(s.valid_from)} a {s.valid_to ? formatDay(s.valid_to) : "indefinido"}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "flags",
+    label: "Marcas",
+    cell: (s) => (
+      <span className="flex flex-wrap gap-1.5">
+        <FlagBadges support={s} />
+      </span>
+    ),
+  },
+];
+
+const alignClass = (column: Column) => (column.align === "right" ? "text-right" : undefined);
+
+/**
+ * Master of supplier supports. Filtering, sorting and paging all happen in
+ * the API (the table holds tens of thousands of rows); this view builds the
+ * query and shows what comes back. Managers can also enable, edit and void
+ * from the row menu; the API decides who may, and a 403 hides the column.
+ */
+export default function SupportsBrowser({
+  specialCase,
+}: {
+  /** A special case to scope the list to, from its "ver apoyos" link. */
+  specialCase?: { id: string; code: string };
+}) {
+  const fieldsQuery = useFilterFields();
+  const catalogsQuery = useSupportCatalogs();
+  const fields = useMemo(() => fieldsQuery.data ?? [], [fieldsQuery.data]);
+  const catalogs = catalogsQuery.data;
+
+  const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
+  const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
+  const [product, setProduct] = useState<AutocompleteOption | null>(null);
+  const [caseScope, setCaseScope] = useState(specialCase ?? null);
+  const [text, setText] = useState("");
+  const [state, setState] = useState<string>(ALL);
+  const [kind, setKind] = useState<string>(ALL);
+  const [needsReview, setNeedsReview] = useState(false);
+  const [hasIssues, setHasIssues] = useState(false);
+  const [hasConflicts, setHasConflicts] = useState(false);
+  const [advanced, setAdvanced] = useState<{ match: "all" | "any"; conditions: FilterCondition[] }>({
+    match: "all",
+    conditions: [],
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [sort, setSort] = useState<string[]>(["-valid_from"]);
+  const [page, setPage] = useState(1);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [voidId, setVoidId] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
+  const canWrite = useCanManage() && !denied;
+  const [notice, setNotice] = useState<string | null>(null);
+  const q = useDebouncedValue(text.trim());
+
+  const sortable = new Set(fields.filter((field) => field.sortable).map((field) => field.field));
+
+  const body = useMemo<SupportSearchBody>(() => {
+    // The quick dropdowns only filter on fields the catalog really offers.
+    const has = (name: string) => fields.some((field) => field.field === name);
+    const quick: FilterCondition[] = [];
+    if (kind !== ALL && has("kind")) quick.push({ field: "kind", op: "eq", value: kind });
+    if (caseScope) quick.push({ field: "special_case_id", op: "eq", value: caseScope.id });
+    return {
+      match: "all",
+      // The builder's own all/any applies inside its group, so a quick filter
+      // is never loosened by choosing "alguna condición".
+      conditions: [
+        ...quick,
+        ...(advanced.conditions.length > 0
+          ? [{ match: advanced.match, conditions: advanced.conditions }]
+          : []),
+      ],
+      q: q || undefined,
+      customer_nits: customer ? [customer.value] : undefined,
+      supplier_codes: supplier ? [supplier.value] : undefined,
+      product_skus: product ? [product.value] : undefined,
+      // No state hides voided supports; "anulado" is the only way to list them.
+      state: state === ALL ? undefined : (state as SupportState),
+      needs_review: needsReview || undefined,
+      has_issues: hasIssues || undefined,
+      has_conflicts: hasConflicts || undefined,
+      sort,
+      page,
+      size: PAGE_SIZE,
+    };
+  }, [q, customer, supplier, product, caseScope, state, kind, needsReview, hasIssues, hasConflicts, advanced, sort, page, fields]);
+
+  const search = useSupportSearch(body);
+  const result = search.data;
+  const items = useMemo(() => result?.items ?? [], [result]);
+
+  // The dialogs follow the live row, so a refetch after a 409 hands them the new version.
+  const editing = items.find((item) => item.id === editId) ?? null;
+  const voiding = items.find((item) => item.id === voidId) ?? null;
+
+  const columns = COLUMNS.filter((column) => !column.hasData || column.hasData(items));
+
+  const filtered =
+    q !== "" ||
+    customer !== null ||
+    supplier !== null ||
+    product !== null ||
+    caseScope !== null ||
+    state !== ALL ||
+    kind !== ALL ||
+    needsReview ||
+    hasIssues ||
+    hasConflicts ||
+    advanced.conditions.length > 0;
+
+  const reset = (apply: () => void) => {
+    apply();
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setCustomer(null);
+    setSupplier(null);
+    setProduct(null);
+    setCaseScope(null);
+    setText("");
+    setState(ALL);
+    setKind(ALL);
+    setNeedsReview(false);
+    setHasIssues(false);
+    setHasConflicts(false);
+    setAdvanced({ match: "all", conditions: [] });
+    setPage(1);
+  };
+
+  const toggleSort = (field: string) => {
+    setSort((current) => {
+      const [head] = current;
+      if (head === field) return [`-${field}`];
+      if (head === `-${field}`) return [field];
+      return [field];
+    });
+    setPage(1);
+  };
+
+  const sortState = (field: string): "ascending" | "descending" | "none" =>
+    sort[0] === field ? "ascending" : sort[0] === `-${field}` ? "descending" : "none";
+
+  const kindOptions = [{ value: ALL, label: "Todos los tipos" }, ...toOptions(catalogs?.kinds)];
+  const stateOptions = [
+    { value: ALL, label: "Todos los estados" },
+    ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
+  ];
+
+  const onForbidden = () => {
+    setDenied(true);
+    setNotice("Tu usuario puede consultar los apoyos, pero no modificarlos.");
+  };
+
+  const actions = (support: SupplierSupport) => (
+    <SupportActions
+      support={support}
+      onEdit={() => setEditId(support.id)}
+      onVoid={() => setVoidId(support.id)}
+      onForbidden={onForbidden}
+      onFailure={setNotice}
+    />
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <BasePicker
+          config={CUSTOMER_PICKER}
+          selected={customer}
+          onSelect={(option) => reset(() => setCustomer(option))}
+          onClear={() => reset(() => setCustomer(null))}
+        />
+        <BasePicker
+          config={SUPPLIER_PICKER}
+          selected={supplier}
+          onSelect={(option) => reset(() => setSupplier(option))}
+          onClear={() => reset(() => setSupplier(null))}
+        />
+        <BasePicker
+          config={PRODUCT_PICKER}
+          selected={product}
+          onSelect={(option) => reset(() => setProduct(option))}
+          onClear={() => reset(() => setProduct(null))}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 lg:flex-row">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            value={text}
+            onChange={(event) => reset(() => setText(event.target.value))}
+            placeholder="Buscar por texto: programa, marca, referencia externa"
+            aria-label="Buscar apoyos por texto"
+            className="pl-9"
+          />
+        </div>
+        <Dropdown
+          className="lg:w-48"
+          value={state}
+          onValueChange={(value) => reset(() => setState(value))}
+          options={stateOptions}
+          aria-label="Filtrar por estado"
+        />
+        <Dropdown
+          className="lg:w-52"
+          value={kind}
+          onValueChange={(value) => reset(() => setKind(value))}
+          options={kindOptions}
+          aria-label="Filtrar por tipo de apoyo"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <Check label="Por revisar" checked={needsReview} onChange={(value) => reset(() => setNeedsReview(value))} />
+        <Check label="Con novedades" checked={hasIssues} onChange={(value) => reset(() => setHasIssues(value))} />
+        <Check label="Con conflictos" checked={hasConflicts} onChange={(value) => reset(() => setHasConflicts(value))} />
+        {caseScope && (
+          <span className="inline-flex items-center gap-1 rounded-sm bg-canvas-subtle py-0.5 pl-2 pr-0.5">
+            Caso {caseScope.code}
+            <button
+              type="button"
+              onClick={() => reset(() => setCaseScope(null))}
+              aria-label={`Quitar el filtro del caso ${caseScope.code}`}
+              className="flex size-6 items-center justify-center rounded-sm text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          </span>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => setShowAdvanced((value) => !value)}
+          aria-expanded={showAdvanced}
+          aria-controls="supports-advanced"
+          disabled={fieldsQuery.isError}
+        >
+          <SlidersHorizontal aria-hidden="true" />
+          Filtros avanzados{advanced.conditions.length > 0 ? ` (${advanced.conditions.length})` : ""}
+        </Button>
+        {filtered && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
+
+      {/* Kept mounted while hidden so a half-built query survives closing the panel. */}
+      <div id="supports-advanced" hidden={!showAdvanced}>
+        {fieldsQuery.isPending ? (
+          <div className="h-24 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando campos" />
+        ) : (
+          <AdvancedFilters
+            fields={fields}
+            onApply={(match, conditions) => reset(() => setAdvanced({ match, conditions }))}
+          />
+        )}
+      </div>
+
+      {notice && (
+        <p role="alert" className="flex items-start justify-between gap-3 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
+          {notice}
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            aria-label="Cerrar aviso"
+            className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        </p>
+      )}
+
+      {search.isPending ? (
+        <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando apoyos" />
+      ) : search.isError && !result ? (
+        <LoadError error={search.error} onRetry={() => search.refetch()} />
+      ) : items.length === 0 ? (
+        filtered ? (
+          <StatePanel
+            icon={FileX2}
+            title="Ningún apoyo coincide con los filtros"
+            action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
+          >
+            Prueba con otro texto o quita alguna condición.
+          </StatePanel>
+        ) : (
+          <StatePanel icon={FileX2} title="Aún no hay apoyos registrados">
+            Los apoyos aparecen aquí cuando termina la importación del archivo de apoyos de proveedores.
+          </StatePanel>
+        )
+      ) : (
+        <div className={cn("space-y-3", search.isPlaceholderData && "opacity-60")}>
+          <ul className="divide-y divide-border rounded-lg border border-border bg-surface md:hidden">
+            {items.map((support) => (
+              <li key={support.id} className={cn("flex items-start", support.state === "inactivo" && "opacity-60")}>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(support.id)}
+                  className={cn(
+                    "flex min-h-14 min-w-0 flex-1 flex-col gap-1.5 px-3 py-2.5 text-left",
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  )}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{support.supplier_name ?? "Sin proveedor"}</span>
+                      {support.product_sku && (
+                        <span className="block truncate font-mono text-xs">SKU {support.product_sku}</span>
+                      )}
+                      <span className="block truncate text-xs text-text-secondary">{subject(support)}</span>
+                    </span>
+                    <span className="shrink-0 text-sm font-medium tabular-nums">
+                      {formatSupplierValue(support.calc_method, support.supplier_value)}
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    <StateBadge value={support.state} />
+                    <FlagBadges support={support} />
+                  </span>
+                </button>
+                {canWrite && <span className="p-1.5">{actions(support)}</span>}
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+            <table className="w-full min-w-max text-left text-sm">
+              <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+                <tr>
+                  {columns.map((column) => {
+                    const sortField = column.sortField && sortable.has(column.sortField) ? column.sortField : null;
+                    return (
+                      <th
+                        key={column.key}
+                        scope="col"
+                        aria-sort={sortField ? sortState(sortField) : undefined}
+                        className={cn("px-3 py-2", alignClass(column))}
+                      >
+                        {sortField ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(sortField)}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-sm uppercase tracking-[0.06em] hover:text-text-primary",
+                              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            )}
+                          >
+                            {column.label}
+                            {sortState(sortField) === "ascending" && <ArrowUp className="size-3.5" aria-hidden="true" />}
+                            {sortState(sortField) === "descending" && <ArrowDown className="size-3.5" aria-hidden="true" />}
+                          </button>
+                        ) : (
+                          column.label
+                        )}
+                      </th>
+                    );
+                  })}
+                  {canWrite && (
+                    <th scope="col" className="w-12 px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {items.map((support) => (
+                  // A disabled support stays in the list, muted: it is reversible, not gone.
+                  <tr key={support.id} className={cn("hover:bg-primary-subtle", support.state === "inactivo" && "opacity-60")}>
+                    {columns.map((column) => (
+                      <td key={column.key} className={cn("max-w-56 px-3 py-2", alignClass(column))}>
+                        {column.cell(support, () => setOpenId(support.id))}
+                      </td>
+                    ))}
+                    {canWrite && <td className="px-3 py-1 text-right">{actions(support)}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {result && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-text-secondary tabular-nums">
+                {numberFormat.format(result.total)} {result.total === 1 ? "apoyo" : "apoyos"}
+              </span>
+              <Pager page={result.page} size={result.size} total={result.total} count={items.length} onPageChange={setPage} />
+            </div>
+          )}
+          {search.isError && (
+            <p role="alert" className="text-sm text-danger">
+              {errorMessage(search.error)}
+            </p>
+          )}
+        </div>
+      )}
+
+      <SupportDetail id={openId} onClose={() => setOpenId(null)} />
+      <SupportEditDialog support={editing} onClose={() => setEditId(null)} onForbidden={onForbidden} />
+      <SupportVoidDialog support={voiding} onClose={() => setVoidId(null)} onForbidden={onForbidden} />
+    </div>
+  );
+}
+
+/** Customer or product the support applies to, for the compact mobile row. */
+function subject(support: SupplierSupport): string {
+  const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
+}
+
+function Check({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="inline-flex min-h-8 items-center gap-2 max-md:min-h-11">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      />
+      {label}
+    </label>
+  );
+}
+
+function LoadError({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  const status = error instanceof ApiError ? error.status : null;
+  const title =
+    status === 404
+      ? "El maestro de apoyos todavía no está disponible"
+      : status === 429
+        ? "Demasiadas consultas seguidas"
+        : "No se pudieron cargar los apoyos";
+  const description =
+    status === 404
+      ? "El API aún no publica este módulo. Cuando se despliegue, los apoyos aparecerán aquí sin cambios en esta pantalla."
+      : status === 429
+        ? "Espera unos segundos y vuelve a intentarlo."
+        : errorMessage(error);
+  return (
+    <StatePanel
+      icon={CloudOff}
+      tone="danger"
+      title={title}
+      action={
+        <Button variant="outline" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" /> Reintentar
+        </Button>
+      }
+    >
+      {description}
+    </StatePanel>
+  );
+}

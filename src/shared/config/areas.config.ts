@@ -6,8 +6,10 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  Database,
   FolderKanban,
   FolderOpen,
+  HandCoins,
   Handshake,
   History,
   KeyRound,
@@ -24,6 +26,11 @@ import {
   ThumbsUp,
   type LucideIcon,
 } from "lucide-react";
+
+import {
+  COMMERCIAL_MASTERS,
+  MASTERS_SEGMENT,
+} from "@/features/commercial-masters/config/masters.config";
 
 /*
  * Areas themselves come from the API (features/areas). This file keeps what
@@ -270,6 +277,43 @@ export const MODULES: ModuleItem[] = [
     category: "Maestros",
     icon: Building2,
     available: false,
+  },
+
+  // ── BI ──
+  {
+    id: "bi-apoyos",
+    name: "Maestro de apoyos",
+    path: "/bi/apoyos",
+    areaSlug: "bi",
+    category: "Maestros",
+    icon: HandCoins,
+    available: true,
+  },
+  {
+    id: "bi-casos-especiales",
+    name: "Casos especiales",
+    path: "/bi/apoyos/casos-especiales",
+    areaSlug: "bi",
+    category: "Maestros",
+    icon: ClipboardList,
+    available: true,
+  },
+  {
+    id: "bi-maestros",
+    name: "Maestros generales",
+    path: `/bi/${MASTERS_SEGMENT}`,
+    areaSlug: "bi",
+    category: "Maestros",
+    icon: Database,
+    available: true,
+    // The module row has no screen of its own: it opens the first master, and
+    // the dropdown under it is the only navigation between them.
+    subItems: COMMERCIAL_MASTERS.map((master) => ({
+      id: `bi-maestros-${master.key}`,
+      name: master.name,
+      path: `/bi/${MASTERS_SEGMENT}/${master.key}`,
+      icon: master.icon,
+    })),
   },
 ];
 
