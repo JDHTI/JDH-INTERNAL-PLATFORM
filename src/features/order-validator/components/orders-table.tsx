@@ -37,6 +37,8 @@ function LineGroups({ order }: { order: ValidationOrder }) {
   // The API counts the lines with no support; if it does not, they are counted here.
   const withoutSupport =
     order.without_support_line_count ?? order.lines.filter((line: OrderLine) => line.reason === "sin_acuerdo").length;
+  // Liquor products whose line came without the tax are held back for it: they are not "cumplen".
+  const missingLiquorTax = order.lines.filter((line: OrderLine) => line.liquor_tax).length;
   const meet = order.ready_line_count;
 
   return (
@@ -45,6 +47,17 @@ function LineGroups({ order }: { order: ValidationOrder }) {
         <li>
           <Badge tone="warning" className="px-1.5 py-0 text-xs leading-5">
             <span className="tabular-nums">{withoutSupport}</span> sin apoyo
+          </Badge>
+        </li>
+      )}
+      {missingLiquorTax > 0 && (
+        <li>
+          <Badge
+            tone="warning"
+            className="px-1.5 py-0 text-xs leading-5"
+            title="Falta el impuesto al licor: el producto lo tiene y la línea no lo trae."
+          >
+            <span className="tabular-nums">{missingLiquorTax}</span> falta impuesto
           </Badge>
         </li>
       )}

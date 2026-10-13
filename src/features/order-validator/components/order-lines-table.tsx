@@ -137,11 +137,6 @@ function LineRow({
           <span className="sr-only">{line.status_label}: </span>
           {line.reason_label}
         </span>
-        {/* A line that meets its target keeps the API's explanation of how. */}
-        {ready && line.detail && <span className="block max-w-md text-xs text-text-secondary">{line.detail}</span>}
-        {(toNumber(line.liquor_tax_value) ?? 0) > 0 && (
-          <span className="block text-xs text-text-secondary">Imp. licor {formatCop(line.liquor_tax_value)} por unidad</span>
-        )}
       </td>
       <td className="whitespace-nowrap py-1 pl-2 pr-4 text-right">
         {line.support_id && (
