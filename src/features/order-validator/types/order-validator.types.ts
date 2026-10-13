@@ -34,6 +34,12 @@ export interface ValidationBatch {
   pending_line_count: number;
   ready_order_count: number;
   pending_order_count: number;
+  /**
+   * Points added to each order's margin before it is compared with its target:
+   * an order at 19.5% against 20% with a threshold of 0.50 is released. It acts
+   * on the order, never on a line. A decimal string such as "0.50", 0 to 20.
+   */
+  margin_threshold_points: Decimal;
 }
 
 export interface BatchPage {
@@ -56,6 +62,11 @@ export interface SupportCheck {
   effective_margin_pct: Decimal | null;
   required_margin_pct: Decimal | null;
 }
+
+export type ReleaseBasis = "lineas" | "manual" | "margen";
+
+/** Which of the product's margins the line was compared against. */
+export type MarginBasis = "lista" | "mayoristas" | "salsamentarias";
 
 export interface OrderLine {
   id: string;
@@ -80,6 +91,18 @@ export interface OrderLine {
   support_id: string | null;
   effective_margin_pct: Decimal | null;
   required_margin_pct: Decimal | null;
+  /** Null when no product margin was used, e.g. a support decided on its own. */
+  margin_basis: MarginBasis | null;
+  /** The product carries liquor consumption tax; the order may have been keyed without it. */
+  /**
+   * True only when the product has liquor tax in the master and the line came
+   * without it (empty or 0). Absent or false means there is nothing to flag.
+   */
+  liquor_tax?: boolean;
+  /** What the line should have carried per unit; only with `liquor_tax`. */
+  liquor_tax_amount?: Decimal | null;
+  /** What the file carried in "Vlr. imp. IMPTOLIC" per unit; null when the file has no such column. */
+  liquor_tax_value?: Decimal | null;
   checks: SupportCheck[];
 }
 
@@ -110,6 +133,23 @@ export interface ValidationOrder {
   line_count: number;
   ready_line_count: number;
   total_amount: Decimal | null;
+  /** The order's margin weighted by value, and the target weighted the same way. */
+  margin_pct: Decimal | null;
+  required_margin_pct: Decimal | null;
+  /** `margin_pct` plus the file's threshold; only present when the threshold is above zero. */
+  margin_with_threshold_pct?: Decimal | null;
+  /** Why the order is ready: all its lines are, a person approved it, or its margin reaches the target. Null while pending. */
+  release_basis?: ReleaseBasis | null;
+  /**
+   * True when the order is ready only because the threshold was added to its
+   * margin: without it the margin alone would not release it. It follows the
+   * threshold being tried or the saved one.
+   */
+  released_by_threshold?: boolean;
+  /** Lines of the order with no support at all. */
+  without_support_line_count?: number;
+  /** True when some line is missing its liquor tax; the rest leave it out. */
+  has_liquor_tax?: boolean;
   lines: OrderLine[];
 }
 
@@ -125,7 +165,8 @@ export interface OrderPage {
 export interface OrderParams {
   batchId: string;
   status: ValidationStatus | "";
-  reason: string;
+  /** Points of a threshold to try without saving it; empty uses the saved one. */
+  thresholdPreview: string;
   q: string;
   page: number;
   size: number;

@@ -58,6 +58,8 @@ export default function Breadcrumbs() {
       href,
       label: labelForHref(href, segment, areas, registered),
       isLast: index === segments.length - 1,
+      // A module without a screen of its own has nothing to link to.
+      hasPage: findModuleByPath(href)?.hasPage !== false,
     };
   });
 
@@ -99,6 +101,10 @@ export default function Breadcrumbs() {
                 aria-current="page"
                 className="truncate text-base font-semibold text-sidebar-foreground"
               >
+                {crumb.label}
+              </span>
+            ) : !crumb.hasPage ? (
+              <span className="truncate text-base font-medium text-sidebar-muted">
                 {crumb.label}
               </span>
             ) : (

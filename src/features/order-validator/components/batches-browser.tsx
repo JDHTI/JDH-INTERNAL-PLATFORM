@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CloudOff, FileSpreadsheet, FileX2, Loader2, MoreHorizontal, RefreshCw, Trash2, Upload } from "lucide-react";
@@ -8,12 +8,20 @@ import { CloudOff, FileSpreadsheet, FileX2, Loader2, MoreHorizontal, RefreshCw, 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useBatches, useCanManageValidations, useUploadBatch } from "../hooks/use-order-validator";
-import { ACCEPTED_EXTENSIONS, formatDateTime, hasAcceptedExtension } from "../lib/format";
+import {
+  ACCEPTED_EXTENSIONS,
+  THRESHOLD_MAX,
+  THRESHOLD_MIN,
+  formatDateTime,
+  hasAcceptedExtension,
+  parseThresholdPoints,
+} from "../lib/format";
 import type { ValidationBatch } from "../types/order-validator.types";
 import DeleteBatchDialog from "./delete-batch-dialog";
 
@@ -141,6 +149,8 @@ function UploadZone({ basePath }: { basePath: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState("");
+  const thresholdId = useId();
   const upload = useUploadBatch();
 
   const send = (file: File | undefined) => {
@@ -149,8 +159,13 @@ function UploadZone({ basePath }: { basePath: string }) {
       setError(`El archivo debe ser ${ACCEPTED_EXTENSIONS.join(", ")}. Elegiste "${file.name}".`);
       return;
     }
+    const thresholdPoints = parseThresholdPoints(threshold);
+    if (thresholdPoints === "invalid") {
+      setError(`El umbral de margen va de ${THRESHOLD_MIN} a ${THRESHOLD_MAX} puntos.`);
+      return;
+    }
     setError(null);
-    upload.mutate(file, {
+    upload.mutate({ file, thresholdPoints }, {
       onSuccess: (batch) => router.push(`${basePath}/${batch.id}`),
       onError: (failure) => setError(errorMessage(failure)),
     });
@@ -187,22 +202,41 @@ function UploadZone({ basePath }: { basePath: string }) {
         </div>
       </div>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={ACCEPTED_EXTENSIONS.join(",")}
-        className="sr-only"
-        tabIndex={-1}
-        aria-label="Archivo de pedidos retenidos"
-        onChange={(event) => {
-          send(event.target.files?.[0]);
-          event.target.value = "";
-        }}
-      />
-      <Button onClick={() => inputRef.current?.click()} disabled={upload.isPending} className="shrink-0">
-        {upload.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
-        {upload.isPending ? "Validando archivo…" : "Subir archivo"}
-      </Button>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-44 space-y-1">
+          <label htmlFor={thresholdId} className="block text-[13px] font-medium">
+            Umbral de margen (pts) <span className="font-normal text-text-secondary">(opcional)</span>
+          </label>
+          <Input
+            id={thresholdId}
+            inputMode="decimal"
+            value={threshold}
+            onChange={(event) => setThreshold(event.target.value)}
+            placeholder="0,5"
+            aria-describedby={`${thresholdId}-hint`}
+          />
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED_EXTENSIONS.join(",")}
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Archivo de pedidos retenidos"
+          onChange={(event) => {
+            send(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        <Button onClick={() => inputRef.current?.click()} disabled={upload.isPending} className="shrink-0">
+          {upload.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
+          {upload.isPending ? "Validando archivo…" : "Subir archivo"}
+        </Button>
+      </div>
+      <p id={`${thresholdId}-hint`} className="w-full text-[13px] text-text-secondary sm:order-last">
+        El umbral son puntos que se suman al margen de cada pedido: con 0,5, un pedido al 19,5 % frente a un objetivo del 20 % queda
+        listo. Vacío usa el del servicio.
+      </p>
 
       {error && (
         <p role="alert" className="w-full rounded-md bg-danger-surface px-3 py-2 text-sm text-danger sm:order-last">

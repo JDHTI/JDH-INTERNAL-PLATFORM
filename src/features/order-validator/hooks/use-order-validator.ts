@@ -14,6 +14,7 @@ import {
   listOrders,
   revalidateBatch,
   revokeOrderApproval,
+  setMarginThreshold,
   uploadBatch,
 } from "../services/order-validator.service";
 import type { OrderParams } from "../types/order-validator.types";
@@ -79,7 +80,7 @@ export function useBatchOrders(params: OrderParams) {
 export function useUploadBatch() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadBatch(file),
+    mutationFn: ({ file, thresholdPoints }: { file: File; thresholdPoints: string | null }) => uploadBatch(file, thresholdPoints),
     onSuccess: () => client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] }),
   });
 }
@@ -117,11 +118,20 @@ export function useDeleteBatch() {
   });
 }
 
+/** A new threshold changes which orders are ready, so the totals and every cached page of orders are stale. */
+export function useSetMarginThreshold() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, thresholdPoints }: { id: string; thresholdPoints: number }) => setMarginThreshold(id, thresholdPoints),
+    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
+  });
+}
+
 /** Every line is decided again, so the batch's counts and all its cached orders are stale. */
 export function useRevalidateBatch() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => revalidateBatch(id),
+    mutationFn: ({ id, thresholdPoints }: { id: string; thresholdPoints?: number }) => revalidateBatch(id, thresholdPoints),
     onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
