@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, ArrowUp, ChevronDown } from "lucide-react";
 
 import { Badge } from "@/shared/components/ui/badge";
 import { toNumber } from "@/shared/lib/format";
@@ -74,8 +74,9 @@ function LineGroups({ order }: { order: ValidationOrder }) {
 
 /**
  * The order's weighted margin against its target. With a threshold above zero
- * the margin the order is judged on is the one with the threshold added, shown
- * after an arrow; it is flagged when even that falls short of the target.
+ * the margin the order is judged on is the one with the threshold added: that
+ * single value is shown, in bold with an up arrow, and the margin without it
+ * is in the tooltip. It is flagged when even that falls short of the target.
  */
 function OrderMargin({ order, compact = false }: { order: ValidationOrder; compact?: boolean }) {
   const margin = toNumber(order.margin_pct);
@@ -83,16 +84,19 @@ function OrderMargin({ order, compact = false }: { order: ValidationOrder; compa
   const target = toNumber(order.required_margin_pct);
   const judged = withThreshold ?? margin;
   const below = judged !== null && target !== null && judged < target;
+  const raised = withThreshold !== null;
   return (
-    <span className={cn("inline-flex items-center gap-1 tabular-nums", below && "font-medium text-warning")}>
-      {below && <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />}
-      {margin === null ? "—" : formatMarginPct(margin)}
-      {withThreshold !== null && (
-        <span className={cn("font-normal", !below && "text-text-secondary")} title="Margen del pedido más el umbral">
-          {" → "}
-          {formatMarginPct(withThreshold)}
-        </span>
+    <span
+      className={cn("inline-flex items-center gap-1 tabular-nums", (below || raised) && "font-semibold", below && "text-warning")}
+      title={raised && margin !== null ? `Margen del pedido ${formatMarginPct(margin)} más el umbral` : undefined}
+    >
+      {below ? (
+        <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        raised && <ArrowUp className="size-3.5 shrink-0" aria-hidden="true" />
       )}
+      {judged === null ? "—" : formatMarginPct(judged)}
+      {raised && <span className="sr-only">, con el umbral sumado</span>}
       {below && <span className="sr-only">, por debajo del objetivo</span>}
       {compact && target !== null && <span className="font-normal text-text-secondary"> de {formatMarginPct(target)}</span>}
     </span>
