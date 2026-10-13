@@ -101,11 +101,19 @@ export function useRevokeApproval(batchId: string) {
   });
 }
 
+/**
+ * Only the list of files is refreshed. Refetching the deleted file's own
+ * queries would answer 404 and swap its page for an error while the caller is
+ * still about to leave it; and the promise is not returned, so the caller's
+ * success callback (toast, navigation) runs at once instead of after a refetch.
+ */
 export function useDeleteBatch() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteBatch(id),
-    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] });
+    },
   });
 }
 

@@ -12,7 +12,7 @@ import type { ValidationBatch } from "../types/order-validator.types";
 /** Words for the failures a person can act on; anything else is the API's own detail. */
 function failureMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 405) return "El servicio todavía no permite eliminar archivos.";
+    if (error.status === 405) return "El servicio no permite eliminar archivos.";
     if (error.status === 404) return "Este archivo ya no existe. La lista se actualizó.";
     if (error.status === 403) return "Tu usuario puede consultar los archivos, pero no eliminarlos.";
   }

@@ -19,7 +19,8 @@ export type ApprovalAction = { kind: "approve"; documents: string[] } | { kind: 
 /** Words for the failures a person can act on; anything else is the API's own detail. */
 function failureMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 404 || error.status === 405) return "El servicio todavía no permite aprobar pedidos a mano.";
+    if (error.status === 405) return "El servicio no permite aprobar pedidos a mano.";
+    if (error.status === 404) return "No se encontró el pedido o su aprobación. La lista se actualizó.";
     if (error.status === 403) return "Tu usuario puede consultar los pedidos, pero no aprobarlos.";
     if (error.status === 409) return "Alguno de los pedidos ya no está pendiente. La lista se actualizó; revisa la selección.";
   }
