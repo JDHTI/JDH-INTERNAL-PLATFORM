@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, UserCheck } from "lucide-react";
+import { CheckCircle2, Clock, UserCheck, Wine } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -27,10 +27,40 @@ export function StatusBadge({ status, label }: { status: ValidationStatus; label
  * Marks an order a person moved to ready. It sits beside the green status, not
  * in place of it, so the order still reads as ready and also says who made it so.
  */
-export function ManualApprovalBadge() {
+export function ManualApprovalBadge({ compact = false }: { compact?: boolean }) {
   return (
-    <Badge tone="info">
-      <UserCheck aria-hidden="true" /> Aprobado manualmente
+    <Badge tone="info" title={compact ? "Aprobado manualmente" : undefined}>
+      <UserCheck aria-hidden="true" />
+      {compact ? (
+        <>
+          Manual<span className="sr-only">: aprobado manualmente</span>
+        </>
+      ) : (
+        "Aprobado manualmente"
+      )}
+    </Badge>
+  );
+}
+
+/**
+ * The product carries liquor consumption tax, which an order can be keyed
+ * without. It is a warning on the order, not a decision: the status does not change.
+ */
+export function LiquorTaxBadge({ className, compact = false }: { className?: string; compact?: boolean }) {
+  return (
+    <Badge
+      tone="warning"
+      className={className}
+      title="El producto tiene impuesto al consumo de licor y el pedido pudo montarse sin él."
+    >
+      <Wine aria-hidden="true" />
+      {compact ? (
+        <>
+          Licor<span className="sr-only">: tiene impuesto al consumo de licor</span>
+        </>
+      ) : (
+        "Impuesto licor"
+      )}
     </Badge>
   );
 }

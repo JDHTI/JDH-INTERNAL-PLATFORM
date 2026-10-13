@@ -27,15 +27,26 @@ export async function getBatch(id: string): Promise<ValidationBatch> {
 }
 
 /** 422 carries a Spanish `detail` about what is wrong with the file; it is shown as is. */
-export async function uploadBatch(file: File): Promise<ValidationBatch> {
+export async function uploadBatch(file: File, thresholdPoints: string | null): Promise<ValidationBatch> {
   const body = new FormData();
   body.append("file", file);
+  // Left out, the API uses its default threshold.
+  if (thresholdPoints) body.append("margin_threshold_points", thresholdPoints);
   return apiFetch<ValidationBatch>(BASE, { method: "POST", body });
 }
 
-export async function listOrders({ batchId, status, reason, q, page, size }: OrderParams): Promise<OrderPage> {
+export async function listOrders({
+  batchId,
+  status,
+  reason,
+  liquorTax,
+  sort,
+  q,
+  page,
+  size,
+}: OrderParams): Promise<OrderPage> {
   return apiFetch<OrderPage>(`${BASE}/${encodeURIComponent(batchId)}/orders`, {
-    query: { status, reason, q, page, size },
+    query: { status, reason, liquor_tax: liquorTax, sort, q, page, size },
   });
 }
 
@@ -63,6 +74,14 @@ export async function deleteBatch(id: string): Promise<void> {
   return apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function revalidateBatch(id: string): Promise<ValidationBatch> {
-  return apiFetch<ValidationBatch>(`${BASE}/${encodeURIComponent(id)}/revalidate`, { method: "POST" });
+/**
+ * Validates the file again against the supports as they are now. Without a
+ * threshold the saved one is kept; either way manual approvals are kept. 422
+ * when the threshold is outside 0 to 20.
+ */
+export async function revalidateBatch(id: string, thresholdPoints?: number): Promise<ValidationBatch> {
+  return apiFetch<ValidationBatch>(`${BASE}/${encodeURIComponent(id)}/revalidate`, {
+    method: "POST",
+    body: thresholdPoints === undefined ? undefined : { margin_threshold_points: thresholdPoints },
+  });
 }

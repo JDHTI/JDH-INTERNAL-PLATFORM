@@ -34,6 +34,11 @@ export interface ValidationBatch {
   pending_line_count: number;
   ready_order_count: number;
   pending_order_count: number;
+  /**
+   * Points of margin a line may fall short and still be released: 19.5% against
+   * 20% with a threshold of 0.50 releases. A decimal string such as "0.50".
+   */
+  margin_threshold_points: Decimal;
 }
 
 export interface BatchPage {
@@ -55,7 +60,12 @@ export interface SupportCheck {
   detail: string | null;
   effective_margin_pct: Decimal | null;
   required_margin_pct: Decimal | null;
+  /** The check passed only because of the batch's margin threshold. */
+  threshold_applied: boolean;
 }
+
+/** Which of the product's margins the line was compared against. */
+export type MarginBasis = "lista" | "mayoristas" | "salsamentarias";
 
 export interface OrderLine {
   id: string;
@@ -80,6 +90,11 @@ export interface OrderLine {
   support_id: string | null;
   effective_margin_pct: Decimal | null;
   required_margin_pct: Decimal | null;
+  /** Null when no product margin was used, e.g. a support decided on its own. */
+  margin_basis: MarginBasis | null;
+  /** The product carries liquor consumption tax; the order may have been keyed without it. */
+  liquor_tax: boolean;
+  liquor_tax_amount: Decimal | null;
   checks: SupportCheck[];
 }
 
@@ -110,6 +125,10 @@ export interface ValidationOrder {
   line_count: number;
   ready_line_count: number;
   total_amount: Decimal | null;
+  /** The order's margin weighted by value, and the target weighted the same way. Informative: the decision is per line. */
+  margin_pct: Decimal | null;
+  required_margin_pct: Decimal | null;
+  has_liquor_tax: boolean;
   lines: OrderLine[];
 }
 
@@ -122,10 +141,16 @@ export interface OrderPage {
   counts: Record<ValidationStatus, number>;
 }
 
+/** `attention` lists orders with a line that has no support first, then by margin; `file` keeps the report's order. */
+export type OrderSort = "attention" | "file";
+
 export interface OrderParams {
   batchId: string;
   status: ValidationStatus | "";
   reason: string;
+  /** "true" or "false" to filter on liquor tax; empty for all. */
+  liquorTax: string;
+  sort: OrderSort;
   q: string;
   page: number;
   size: number;

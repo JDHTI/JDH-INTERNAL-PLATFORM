@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CloudOff, FileX2, RefreshCw, Search } from "lucide-react";
+import { CloudOff, FileSpreadsheet, FileX2, RefreshCw, Search } from "lucide-react";
 
+import { useCanManage } from "@/features/supports/hooks/use-supports";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
@@ -16,6 +18,8 @@ import { cn } from "@/shared/lib/utils";
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
 import { useCommercialMaster } from "../hooks/use-commercial-masters";
 import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
+import MarginUpdaterDialog from "./margin-updater-dialog";
+import ProductDialog from "./product-dialog";
 
 const PAGE_SIZE = 50;
 
@@ -23,39 +27,77 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 const percentFormat = new Intl.NumberFormat("es-CO", { style: "percent", maximumFractionDigits: 2 });
 
 /**
- * Read-only, server-paged table of one general master. Nothing in a row is
- * actionable: the sidebar dropdown is what moves between masters.
+ * Server-paged table of one general master. The server already lists active
+ * rows first and inactive ones last, so the order is never touched here.
+ * Products are the exception to read-only: their code opens the product, and
+ * managers can edit it or update margins from a file.
  */
 export default function CommercialMasterTable({ masterKey }: { masterKey: CommercialMasterKey }) {
   // Looked up here, not passed down: the definition holds an icon component,
   // which a Server Component cannot hand to a Client Component.
   const master = findCommercialMaster(masterKey)!;
+  const canManage = useCanManage();
   const [text, setText] = useState("");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
+  const [openSku, setOpenSku] = useState<string | null>(null);
+  const [updatingMargins, setUpdatingMargins] = useState(false);
   const q = useDebouncedValue(text.trim());
 
-  const query = useCommercialMaster({ master: master.key, q, page, size: PAGE_SIZE });
+  const query = useCommercialMaster({ master: master.key, q, filters: filterValues, page, size: PAGE_SIZE });
   const result = query.data;
   const rows = result?.items ?? [];
+  const filtered = q !== "" || Object.values(filterValues).some((value) => value !== "");
+
+  const clearFilters = () => {
+    setText("");
+    setFilterValues({});
+    setPage(1);
+  };
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-xl">
-        <Search
-          className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setPage(1);
-          }}
-          placeholder={master.searchPlaceholder}
-          aria-label={`Buscar en ${master.name}`}
-          className="pl-9"
-        />
+      <div className="flex flex-col gap-2 lg:flex-row">
+        <div className="relative flex-1 lg:max-w-xl">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setPage(1);
+            }}
+            placeholder={master.searchPlaceholder}
+            aria-label={`Buscar en ${master.name}`}
+            className="pl-9"
+          />
+        </div>
+        {master.filters.map((filter) => (
+          <Dropdown
+            key={filter.param}
+            className="lg:w-48"
+            value={filterValues[filter.param] ?? ""}
+            onValueChange={(value) => {
+              setFilterValues((current) => ({ ...current, [filter.param]: value }));
+              setPage(1);
+            }}
+            options={[{ value: "", label: filter.allLabel }, ...filter.options]}
+            aria-label={filter.ariaLabel}
+          />
+        ))}
+        {filtered && (
+          <Button variant="ghost" onClick={clearFilters}>
+            Limpiar filtros
+          </Button>
+        )}
+        {master.key === "productos" && canManage && (
+          <Button variant="outline" className="lg:ml-auto" onClick={() => setUpdatingMargins(true)}>
+            <FileSpreadsheet aria-hidden="true" /> Actualizar márgenes
+          </Button>
+        )}
       </div>
 
       {query.isPending ? (
@@ -63,9 +105,13 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
       ) : query.isError && !result ? (
         <LoadError name={master.name} error={query.error} onRetry={() => query.refetch()} />
       ) : rows.length === 0 ? (
-        q !== "" ? (
-          <StatePanel icon={FileX2} title="Ningún registro coincide con la búsqueda">
-            Prueba con otro texto.
+        filtered ? (
+          <StatePanel
+            icon={FileX2}
+            title="Ningún registro coincide con los filtros"
+            action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
+          >
+            Prueba con otro texto o quita algún filtro.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title={`Aún no hay registros en ${master.name.toLowerCase()}`}>
@@ -88,10 +134,14 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
-                  <tr key={master.rowKey.map((key) => String(row[key] ?? "")).join("|")} className="h-10 hover:bg-primary-subtle">
+                  <tr
+                    key={master.rowKey.map((key) => String(row[key] ?? "")).join("|")}
+                    // An inactive row stays in the list, muted: the Estado column still says so in words.
+                    className={cn("h-10 hover:bg-primary-subtle", row.is_active === false && "opacity-60")}
+                  >
                     {master.columns.map((column) => (
                       <td key={column.key} className={cn("px-3 py-2", alignment(column), column.kind === "mono" && "font-mono text-[13px]")}>
-                        <Cell column={column} value={row[column.key]} />
+                        <Cell column={column} value={row[column.key]} onOpenSku={setOpenSku} />
                       </td>
                     ))}
                   </tr>
@@ -115,13 +165,28 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
           )}
         </div>
       )}
+
+      {master.key === "productos" && (
+        <>
+          <ProductDialog sku={openSku} canManage={canManage} onClose={() => setOpenSku(null)} />
+          <MarginUpdaterDialog open={updatingMargins} onClose={() => setUpdatingMargins(false)} />
+        </>
+      )}
     </div>
   );
 }
 
 const alignment = (column: MasterColumn) => (column.kind === "count" || column.kind === "pct" ? "text-right tabular-nums" : "");
 
-function Cell({ column, value }: { column: MasterColumn; value: unknown }) {
+function Cell({
+  column,
+  value,
+  onOpenSku,
+}: {
+  column: MasterColumn;
+  value: unknown;
+  onOpenSku: (sku: string) => void;
+}) {
   switch (column.kind) {
     case "active":
       return value ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>;
@@ -130,6 +195,21 @@ function Cell({ column, value }: { column: MasterColumn; value: unknown }) {
       return toNumber(value as Decimal | null) === null ? "—" : numberFormat.format(Number(value));
     case "pct":
       return toNumber(value as Decimal | null) === null ? "—" : percentFormat.format(Number(value));
+    case "sku":
+      return typeof value === "string" && value !== "" ? (
+        <button
+          type="button"
+          onClick={() => onOpenSku(value)}
+          aria-label={`Ver el producto ${value}`}
+          className="rounded-sm font-mono text-[13px] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {value}
+        </button>
+      ) : (
+        "—"
+      );
+    case "liquor":
+      return (toNumber(value as Decimal | null) ?? 0) > 0 ? <Badge tone="warning">Impuesto licor</Badge> : "—";
     case "nits":
       return <Nits nits={Array.isArray(value) ? (value as SupplierNit[]) : []} />;
     default:

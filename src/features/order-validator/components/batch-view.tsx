@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, CloudOff, FileX2, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
+import { ArrowLeft, CloudOff, FileX2, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
@@ -16,7 +16,6 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import SupportDetail from "@/features/supports/components/support-detail";
-import { formatCop } from "@/features/supports/lib/format";
 
 import {
   useBatch,
@@ -25,19 +24,30 @@ import {
   useRevalidateBatch,
   useValidatorCatalogs,
 } from "../hooks/use-order-validator";
-import { formatDateTime, formatOrderDate } from "../lib/format";
-import type { ValidationBatch, ValidationOrder, ValidationStatus } from "../types/order-validator.types";
+import { formatDateTime } from "../lib/format";
+import type { OrderSort, ValidationBatch, ValidationStatus } from "../types/order-validator.types";
 import ApprovalDialog, { type ApprovalAction } from "./approval-dialog";
-import ApprovalSummary from "./approval-summary";
 import DeleteBatchDialog from "./delete-batch-dialog";
-import OrderLines from "./order-lines";
-import { ManualApprovalBadge, StatusBadge } from "./status-badges";
+import { OrdersList, OrdersTable } from "./orders-table";
+import { StatusBadge } from "./status-badges";
+import ThresholdControl from "./threshold-control";
 
 const PAGE_SIZE = 25;
 const ALL = "";
 const numberFormat = new Intl.NumberFormat("es-CO");
 
 const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion"];
+
+const LIQUOR_OPTIONS = [
+  { value: ALL, label: "Con y sin licor" },
+  { value: "true", label: "Con impuesto licor" },
+  { value: "false", label: "Sin impuesto licor" },
+];
+
+const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
+  { value: "attention", label: "Orden de atención" },
+  { value: "file", label: "Orden del archivo" },
+];
 
 /** One uploaded file: its totals, the filters, and every order with its lines. */
 export default function BatchView({ batchId, basePath }: { batchId: string; basePath: string }) {
@@ -48,6 +58,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
   const [reason, setReason] = useState(ALL);
+  const [liquorTax, setLiquorTax] = useState(ALL);
+  const [sort, setSort] = useState<OrderSort>("attention");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -60,7 +72,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   useBreadcrumbLabel(`${basePath}/${batchId}`, batch.data?.file_name);
 
-  const orders = useBatchOrders({ batchId, status, reason, q, page, size: PAGE_SIZE });
+  // The order the rows come in is the server's: attention first by default. It is never re-sorted here.
+  const orders = useBatchOrders({ batchId, status, reason, liquorTax, sort, q, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
 
@@ -81,7 +94,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       .map((entry) => ({ value: entry.value, label: entry.label })),
   ];
 
-  const filtered = status !== ALL || reason !== ALL || q !== "";
+  const filtered = status !== ALL || reason !== ALL || liquorTax !== ALL || q !== "";
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -116,26 +129,31 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const clearFilters = () => {
     setStatus(ALL);
     setReason(ALL);
+    setLiquorTax(ALL);
     setText("");
     setPage(1);
     setSelected(new Set());
   };
 
-  const toggle =(document: string) =>
+  const toggle = (document: string) =>
     setExpanded((current) => {
       const next = new Set(current);
       if (!next.delete(document)) next.add(document);
       return next;
     });
 
+  // Without a threshold the API keeps the saved one, and the manual approvals either way.
   const runRevalidate = () =>
-    revalidate.mutate(batchId, {
-      onSuccess: (updated) =>
-        toast.success(
-          `Archivo revalidado: ${numberFormat.format(updated.ready_order_count)} de ${numberFormat.format(updated.order_count)} pedidos listos.`
-        ),
-      onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
-    });
+    revalidate.mutate(
+      { id: batchId },
+      {
+        onSuccess: (updated) =>
+          toast.success(
+            `Archivo revalidado: ${numberFormat.format(updated.ready_order_count)} de ${numberFormat.format(updated.order_count)} pedidos listos.`
+          ),
+        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+      }
+    );
 
   if (batch.isPending) {
     return <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando archivo" />;
@@ -167,6 +185,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         onClose={() => setDeleting(false)}
         onDeleted={() => router.push(basePath)}
       />
+
+      <ThresholdControl batch={batch.data} canManage={canManage} />
 
       <dl className="grid gap-3 md:grid-cols-2">
         <Totals
@@ -201,11 +221,25 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
           />
         </div>
         <Dropdown
-          className="lg:w-80"
+          className="lg:w-72"
           value={reason}
           onValueChange={(value) => reset(() => setReason(value))}
           options={reasonOptions}
           aria-label="Filtrar por motivo"
+        />
+        <Dropdown
+          className="lg:w-48"
+          value={liquorTax}
+          onValueChange={(value) => reset(() => setLiquorTax(value))}
+          options={LIQUOR_OPTIONS}
+          aria-label="Filtrar por impuesto al licor"
+        />
+        <Dropdown
+          className="lg:w-48"
+          value={sort}
+          onValueChange={(value) => reset(() => setSort(value as OrderSort))}
+          options={SORT_OPTIONS}
+          aria-label="Orden de los pedidos"
         />
         {filtered && (
           <Button variant="ghost" onClick={clearFilters}>
@@ -255,7 +289,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             title="Ningún pedido coincide con los filtros"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
-            Prueba con otro texto o quita el estado o el motivo.
+            Prueba con otro texto o quita el estado, el motivo o el impuesto al licor.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Este archivo no tiene pedidos">
@@ -264,105 +298,30 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         )
       ) : (
         <div className={cn("space-y-3", orders.isPlaceholderData && "opacity-60")}>
-          <ul className="divide-y divide-border rounded-lg border border-border bg-surface md:hidden">
-            {rows.map((order) => {
-              const open = expanded.has(order.document);
-              const panelId = `order-${order.document}`;
-              return (
-                <li key={order.document}>
-                  <div className="flex items-start">
-                    {canManage && (
-                      <span className="flex min-h-14 w-11 shrink-0 items-center justify-center">
-                        {order.status === "pendiente_validacion" && (
-                          <SelectBox
-                            checked={selected.has(order.document)}
-                            onChange={() => toggleSelected(order.document)}
-                            label={`Seleccionar el pedido ${order.document}`}
-                          />
-                        )}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => toggle(order.document)}
-                      aria-expanded={open}
-                      aria-controls={panelId}
-                      className={cn(
-                        "flex min-h-14 min-w-0 flex-1 flex-col gap-1.5 py-2.5 pr-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-                        canManage ? "pl-0" : "pl-3"
-                      )}
-                    >
-                      <span className="flex items-start justify-between gap-3">
-                        <span className="min-w-0">
-                          <span className="block font-mono text-[13px]">{order.document}</span>
-                          <span className="block truncate text-sm font-medium">{order.customer_name ?? "Sin cliente"}</span>
-                        </span>
-                        <ChevronDown className={cn("mt-1 size-4 shrink-0 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
-                      </span>
-                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <StatusBadge status={order.status} label={order.status_label} />
-                        {order.manual_approval && <ManualApprovalBadge />}
-                        <span className="text-xs tabular-nums text-text-secondary">
-                          {order.ready_line_count} de {order.line_count} líneas listas · {formatCop(order.total_amount)}
-                        </span>
-                      </span>
-                    </button>
-                  </div>
-                  {open && (
-                    <div id={panelId} className="border-t border-border bg-canvas-subtle">
-                      <ApprovalSummary
-                        order={order}
-                        canManage={canManage}
-                        onRevoke={() => setAction({ kind: "revoke", document: order.document })}
-                      />
-                      <OrderLines lines={order.lines} onOpenSupport={setSupportId} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-            <table className="w-full min-w-[56rem] text-left text-sm">
-              <caption className="sr-only">Pedidos del archivo con su estado de validación</caption>
-              <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
-                <tr>
-                  {canManage && (
-                    <th scope="col" className="w-10 px-3 py-2">
-                      <SelectBox
-                        checked={allSelected}
-                        indeterminate={selectedDocuments.length > 0 && !allSelected}
-                        disabled={pendingOrders.length === 0}
-                        onChange={toggleAll}
-                        label="Seleccionar todos los pedidos pendientes de esta página"
-                      />
-                    </th>
-                  )}
-                  <th scope="col" className="px-3 py-2">Pedido</th>
-                  <th scope="col" className="px-3 py-2">Estado</th>
-                  <th scope="col" className="px-3 py-2">Fecha</th>
-                  <th scope="col" className="px-3 py-2">Cliente</th>
-                  <th scope="col" className="px-3 py-2">Vendedor</th>
-                  <th scope="col" className="px-3 py-2 text-right">Líneas listas</th>
-                  <th scope="col" className="px-3 py-2 text-right">Valor</th>
-                </tr>
-              </thead>
-              {rows.map((order) => (
-                <OrderRows
-                  key={order.document}
-                  order={order}
-                  open={expanded.has(order.document)}
-                  canManage={canManage}
-                  selected={selected.has(order.document)}
-                  onToggle={() => toggle(order.document)}
-                  onSelect={() => toggleSelected(order.document)}
-                  onRevoke={() => setAction({ kind: "revoke", document: order.document })}
-                  onOpenSupport={setSupportId}
-                />
-              ))}
-            </table>
-          </div>
+          <OrdersList
+            rows={rows}
+            expanded={expanded}
+            canManage={canManage}
+            selected={selected}
+            onToggle={toggle}
+            onSelect={toggleSelected}
+            onRevoke={(document) => setAction({ kind: "revoke", document })}
+            onOpenSupport={setSupportId}
+          />
+          <OrdersTable
+            rows={rows}
+            expanded={expanded}
+            canManage={canManage}
+            selected={selected}
+            allSelected={allSelected}
+            someSelected={selectedDocuments.length > 0}
+            hasPending={pendingOrders.length > 0}
+            onToggle={toggle}
+            onSelect={toggleSelected}
+            onSelectAll={toggleAll}
+            onRevoke={(document) => setAction({ kind: "revoke", document })}
+            onOpenSupport={setSupportId}
+          />
 
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -487,118 +446,6 @@ function StatusChip({
       {children}
       {count !== null && <span className="tabular-nums opacity-80">{numberFormat.format(count)}</span>}
     </button>
-  );
-}
-
-/** A selection check. `indeterminate` is the "some of them" state of the header's select-all. */
-function SelectBox({
-  checked,
-  indeterminate = false,
-  disabled = false,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  indeterminate?: boolean;
-  disabled?: boolean;
-  onChange: () => void;
-  label: string;
-}) {
-  return (
-    <input
-      type="checkbox"
-      checked={checked}
-      disabled={disabled}
-      onChange={onChange}
-      aria-label={label}
-      ref={(element) => {
-        if (element) element.indeterminate = indeterminate;
-      }}
-      className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 max-md:size-5"
-    />
-  );
-}
-
-/**
- * One order and, when open, its lines under it. A tbody per order keeps the
- * pair together. The check at the start of the row is for managers and only
- * pending orders have one: it selects the order for "Aprobar pedidos" and
- * opens nothing by itself.
- */
-function OrderRows({
-  order,
-  open,
-  canManage,
-  selected,
-  onToggle,
-  onSelect,
-  onRevoke,
-  onOpenSupport,
-}: {
-  order: ValidationOrder;
-  open: boolean;
-  canManage: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
-  onRevoke: () => void;
-  onOpenSupport: (supportId: string) => void;
-}) {
-  const panelId = `order-${order.document}`;
-  const approved = Boolean(order.manual_approval);
-  return (
-    <tbody className="divide-y divide-border border-t border-border">
-      <tr className={cn("h-10 hover:bg-primary-subtle", selected && "bg-primary-subtle")}>
-        {canManage && (
-          <td className="px-3 py-2">
-            {order.status === "pendiente_validacion" && (
-              <SelectBox checked={selected} onChange={onSelect} label={`Seleccionar el pedido ${order.document}`} />
-            )}
-          </td>
-        )}
-        <td className="whitespace-nowrap px-3 py-2">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-controls={panelId}
-            aria-label={`${open ? "Ocultar" : "Ver"} las líneas del pedido ${order.document}`}
-            className="inline-flex items-center gap-1.5 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <ChevronDown className={cn("size-4 shrink-0 text-text-secondary transition-transform duration-150", !open && "-rotate-90")} aria-hidden="true" />
-            <span className="font-mono text-[13px]">{order.document}</span>
-          </button>
-        </td>
-        <td className="px-3 py-2">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <StatusBadge status={order.status} label={order.status_label} />
-            {approved && <ManualApprovalBadge />}
-          </span>
-        </td>
-        <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatOrderDate(order.order_date)}</td>
-        <td className="max-w-52 px-3 py-2">
-          <span className="block truncate font-medium">{order.customer_name ?? "Sin cliente"}</span>
-          <span className="block truncate text-xs text-text-secondary">
-            <span className="font-mono">{order.customer_nit ?? ""}</span>
-            {order.channel ? ` · ${order.channel}` : ""}
-          </span>
-        </td>
-        <td className="max-w-36 truncate px-3 py-2">{order.salesperson ?? "—"}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-          {order.ready_line_count}
-          <span className="text-text-secondary"> de {order.line_count}</span>
-        </td>
-        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatCop(order.total_amount)}</td>
-      </tr>
-      {open && (
-        <tr id={panelId}>
-          <td colSpan={canManage ? 8 : 7} className="bg-canvas-subtle p-0">
-            <ApprovalSummary order={order} canManage={canManage} onRevoke={onRevoke} />
-            <OrderLines lines={order.lines} onOpenSupport={onOpenSupport} />
-          </td>
-        </tr>
-      )}
-    </tbody>
   );
 }
 
