@@ -160,12 +160,6 @@ export interface OrderPage {
   size: number;
   /** Orders per status for the current search, before the status filter is applied. */
   counts: Record<ValidationStatus, number>;
-  /**
-   * How many of the file's orders the threshold releases that the margin alone
-   * would not. It follows the threshold being tried (or the saved one) and does
-   * not depend on the search or the status filter.
-   */
-  threshold_released_count?: number;
 }
 
 export interface OrderParams {

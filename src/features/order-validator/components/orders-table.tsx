@@ -162,7 +162,14 @@ export function OrdersTable({
           const target = toNumber(order.required_margin_pct);
           return (
             <tbody key={order.document} className="border-t border-border">
-              <tr className={cn("h-9 hover:bg-primary-subtle", isSelected && "bg-primary-subtle")}>
+              <tr
+                className={cn(
+                  "h-9 hover:bg-primary-subtle",
+                  // An order the threshold releases is tinted as well as flagged, so it is found at a glance.
+                  order.released_by_threshold && "bg-info-surface",
+                  isSelected && "bg-primary-subtle"
+                )}
+              >
                 {canManage && (
                   <td className="px-2 py-1">
                     {isPending(order) && (

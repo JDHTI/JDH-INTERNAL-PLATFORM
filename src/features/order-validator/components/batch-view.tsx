@@ -209,7 +209,6 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
           value={thresholdText}
           onChange={setThresholdText}
           previewing={thresholdPreview !== ""}
-          released={result?.threshold_released_count ?? null}
         />
         {filtered && (
           <Button variant="ghost" onClick={clearFilters}>

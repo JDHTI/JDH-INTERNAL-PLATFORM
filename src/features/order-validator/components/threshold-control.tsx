@@ -3,7 +3,6 @@
 import { useId, useState } from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -17,33 +16,13 @@ const EXPLANATION =
   "Puntos que se suman al margen de cada pedido antes de compararlo con su objetivo: con 0,5, un pedido al 19,5 % frente a un objetivo del 20 % queda listo.";
 
 /**
- * A yes or no for the whole list: does the threshold in play release any
- * order the margin alone would not? It is not a per-order mark. Yes carries
- * the accent color and the count, no is neutral; it follows the number being
- * tried and, with none typed, the saved one.
- */
-function ReleaseSignal({ released, className }: { released: number | null; className?: string }) {
-  if (released === null) return null;
-  const yes = released > 0;
-  return (
-    <Badge
-      tone={yes ? "info" : "neutral"}
-      className={cn("px-2.5 py-1 text-sm font-semibold", className)}
-      title="Pedidos que pasan a listos solo por sumar el umbral al margen del pedido"
-    >
-      <span className={cn("font-normal", yes ? "" : "text-text-secondary")}>Libera pedidos: </span>
-      {yes ? <>Sí <span className="tabular-nums">({released})</span></> : "No"}
-    </Badge>
-  );
-}
-
-/**
  * The margin threshold of a file, in the search bar's row. Managers type points
  * (0 to 20): while the box holds a number the list below already shows what it
  * would do (the screen asks the API to try it without saving), and "Aplicar"
  * saves it, recalculates which orders it releases (the lines are not validated
  * again, manual approvals stay) and reloads the counts. Everyone else sees the
- * threshold in force, read only.
+ * threshold in force, read only. Which orders it releases is shown on their own
+ * rows, not here.
  */
 export default function ThresholdControl({
   batch,
@@ -51,7 +30,6 @@ export default function ThresholdControl({
   value,
   onChange,
   previewing,
-  released,
 }: {
   batch: ValidationBatch;
   canManage: boolean;
@@ -60,8 +38,6 @@ export default function ThresholdControl({
   onChange: (text: string) => void;
   /** The list below is showing an unsaved threshold. */
   previewing: boolean;
-  /** Orders the threshold in play releases; null until the list answers. */
-  released: number | null;
 }) {
   const id = useId();
   const [error, setError] = useState<string | null>(null);
@@ -69,13 +45,10 @@ export default function ThresholdControl({
 
   if (!canManage) {
     return (
-      <div className="flex flex-wrap items-center gap-2 lg:pb-1.5">
-        <p className="text-sm" title={EXPLANATION}>
-          <span className="text-text-secondary">Umbral de margen: </span>
-          <span className="font-medium tabular-nums">{formatThreshold(batch.margin_threshold_points)}</span>
-        </p>
-        <ReleaseSignal released={released} />
-      </div>
+      <p className="text-sm lg:pb-2" title={EXPLANATION}>
+        <span className="text-text-secondary">Umbral de margen: </span>
+        <span className="font-medium tabular-nums">{formatThreshold(batch.margin_threshold_points)}</span>
+      </p>
     );
   }
 
@@ -127,7 +100,6 @@ export default function ThresholdControl({
         <Button type="submit" variant="primary" disabled={save.isPending}>
           {save.isPending ? "Aplicando…" : "Aplicar"}
         </Button>
-        <ReleaseSignal released={released} className="ml-2" />
         <p
           id={`${id}-state`}
           role={error ? "alert" : undefined}
