@@ -14,8 +14,8 @@ import { OutcomeBadge, StatusBadge } from "./status-badges";
 
 /**
  * The lines of one order, each with its decision. A line is a block rather
- * than a table row because it carries a sentence of explanation and a list of
- * checks, and the same block reads on a phone. `onOpenSupport` opens the
+ * than a table row because it carries a list of checks, and the same block
+ * reads on a phone. `onOpenSupport` opens the
  * support's detail in the supports master's own dialog.
  */
 export default function OrderLines({
@@ -39,11 +39,16 @@ export default function OrderLines({
 /*
  * The API's `detail` sentence ("margen del pedido 2,22 % < margen lista 18,00 %")
  * is not shown, on the line or on its checks: the reason label says what was
- * decided and the margin bar says by how much.
+ * decided and the margin figures are listed plainly.
  */
 function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (supportId: string) => void }) {
   const checksId = useId();
   const [showChecks, setShowChecks] = useState(false);
+  // With no support the two margins are the same number, so only one is shown.
+  const orderMargin = toNumber(line.margin_pct);
+  const effectiveMargin = toNumber(line.effective_margin_pct);
+  const supportChangedMargin =
+    orderMargin !== null && effectiveMargin !== null && Math.abs(orderMargin - effectiveMargin) > 0.00005;
 
   return (
     <div className="space-y-3 px-4 py-3">
@@ -65,9 +70,10 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         </div>
       </div>
 
-      <MarginMeter line={line} />
-
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+        <Figure label="Margen del pedido" value={formatPct(line.margin_pct)} />
+        {supportChangedMargin && <Figure label="Margen con apoyo" value={formatPct(line.effective_margin_pct)} />}
+        <Figure label="Margen objetivo" value={formatPct(line.required_margin_pct)} />
         <Figure label="Precio unitario" value={formatCop(line.unit_price)} />
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
         <Figure label="Lista · bodega" value={[line.price_list, line.warehouse].filter(Boolean).join(" · ") || "—"} plain />
@@ -114,52 +120,6 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-const points = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
-
-/**
- * The line's margin set against the one it has to reach, as a bar and a
- * sentence in place of an inequality: "2,22 % < 18,00 %" becomes "faltan 15,78
- * puntos". The bar is a summary only; the figures are in the text, and the
- * color is never the only signal.
- */
-function MarginMeter({ line }: { line: OrderLine }) {
-  const margin = toNumber(line.effective_margin_pct) ?? toNumber(line.margin_pct);
-  const target = toNumber(line.required_margin_pct);
-  if (margin === null || target === null) {
-    return margin === null ? null : <p className="text-sm">Margen {formatPct(margin)}</p>;
-  }
-
-  const gap = Math.round((target - margin) * 10000) / 100;
-  const meets = gap <= 0;
-  const fill = target > 0 ? Math.min(Math.max(margin / target, 0), 1) : 1;
-  const orderMargin = toNumber(line.margin_pct);
-  const supportMoved = orderMargin !== null && Math.abs(orderMargin - margin) > 0.00005;
-
-  return (
-    <div className="max-w-md space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span>
-          <span className="font-semibold tabular-nums">{formatPct(margin)}</span>
-          <span className="text-text-secondary">
-            {supportMoved ? ` con apoyo (en el pedido ${formatPct(orderMargin)})` : " de margen"}
-          </span>
-        </span>
-        <span className="text-text-secondary tabular-nums">Objetivo {formatPct(target)}</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-sm bg-border" aria-hidden="true">
-        <div className={cn("h-full rounded-sm", meets ? "bg-success" : "bg-warning")} style={{ width: `${fill * 100}%` }} />
-      </div>
-      <p className={cn("text-xs", meets ? "text-success" : "text-warning")}>
-        {gap === 0
-          ? "Justo en el objetivo"
-          : meets
-            ? `Supera el objetivo por ${points.format(-gap)} puntos`
-            : `Faltan ${points.format(gap)} puntos para el objetivo`}
-      </p>
     </div>
   );
 }
