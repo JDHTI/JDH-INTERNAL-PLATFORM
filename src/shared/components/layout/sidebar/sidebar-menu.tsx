@@ -7,6 +7,8 @@ import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import {
   MODULE_CATEGORIES,
   getModulesByArea,
+  isModuleActive,
+  moduleHref,
 } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarModuleGroup from "./sidebar-module-group";
@@ -74,10 +76,10 @@ export default function SidebarMenu() {
                     <SidebarModuleGroup module={module} onNavigate={closeDrawer} />
                   ) : (
                     <SidebarRow
-                      href={module.path}
+                      href={moduleHref(module)}
                       label={module.name}
                       icon={module.icon}
-                      isActive={pathname === module.path}
+                      isActive={isModuleActive(module, pathname)}
                       isCollapsed={isSidebarCollapsed}
                       available={module.available}
                       onNavigate={closeDrawer}

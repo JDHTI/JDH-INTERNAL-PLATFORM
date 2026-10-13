@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 
 import { useCatalog, useFeedbackSummary } from "@/features/pqrsf/hooks/use-pqrsf";
-import type { ModuleItem } from "@/shared/config/areas.config";
+import { isModuleActive, moduleHref, type ModuleItem } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
 
@@ -47,21 +47,44 @@ export default function SidebarModuleGroup({
   const isInside =
     pathname === module.path || pathname.startsWith(`${module.path}/`);
   const isOpen = subItems.length > 0 && (toggled ?? isInside);
-  const isModulePage = pathname === module.path;
+  const hasPage = module.hasPage !== false;
+  const isModulePage = hasPage && pathname === module.path;
   const Icon = module.icon;
 
   if (subItems.length === 0) {
     return (
       <SidebarRow
-        href={module.path}
+        href={moduleHref(module)}
         label={module.name}
         icon={module.icon}
-        isActive={isModulePage}
+        isActive={isModuleActive(module, pathname)}
         isCollapsed={false}
         onNavigate={onNavigate}
       />
     );
   }
+
+  const labelClass = cn(
+    // Same padding, icon and gap as SidebarRow, so the icon and the label
+    // line up with the plain rows above and below.
+    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left text-sm font-medium",
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
+    "text-sidebar-foreground"
+  );
+  const labelContent = (
+    <>
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <span className="truncate">{module.name}</span>
+      {/* The tray is closed: the unread count would otherwise be hidden. */}
+      {!isOpen && unread > 0 && (
+        <span
+          className="size-2 shrink-0 rounded-full bg-sidebar-foreground"
+          role="img"
+          aria-label={`${unread} sin leer`}
+        />
+      )}
+    </>
+  );
 
   return (
     <div>
@@ -74,32 +97,28 @@ export default function SidebarModuleGroup({
           (isOpen || isModulePage) && "bg-sidebar-active"
         )}
       >
-        <Link
-          href={module.path}
-          onClick={onNavigate}
-          aria-current={isModulePage ? "page" : undefined}
-          className={cn(
-            "flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-1 text-sm font-medium",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
-            "text-sidebar-foreground"
-          )}
-        >
-          <span
-            className="flex size-7 shrink-0 items-center justify-center"
-            aria-hidden="true"
+        {hasPage ? (
+          <Link
+            href={module.path}
+            onClick={onNavigate}
+            aria-current={isModulePage ? "page" : undefined}
+            className={labelClass}
           >
-            <Icon className="size-4" />
-          </span>
-          <span className="truncate">{module.name}</span>
-          {/* The tray is closed: the unread count would otherwise be hidden. */}
-          {!isOpen && unread > 0 && (
-            <span
-              className="size-2 shrink-0 rounded-full bg-sidebar-foreground"
-              role="img"
-              aria-label={`${unread} sin leer`}
-            />
-          )}
-        </Link>
+            {labelContent}
+          </Link>
+        ) : (
+          // No screen behind the label: a click anywhere on the row only opens
+          // and closes the pages, like the chevron, and navigates nowhere.
+          <button
+            type="button"
+            onClick={() => setToggled(!isOpen)}
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? panelId : undefined}
+            className={labelClass}
+          >
+            {labelContent}
+          </button>
+        )}
 
         <button
           type="button"

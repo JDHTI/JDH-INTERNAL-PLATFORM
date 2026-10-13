@@ -39,15 +39,19 @@ import {
  * area slug, and the platform-wide utility links.
  */
 
+/**
+ * Sidebar order, top to bottom. Documentación closes the list: it is in every
+ * area, so it goes last and the area's own modules stay together above it.
+ */
 export const MODULE_CATEGORIES = [
   "Operación",
   "Reportes",
-  "Documentación",
   "Maestros",
   // Not "Configuración": that label already belongs to the platform-wide
   // utility link in the footer, and two different things under one word in
   // the same sidebar is a coin toss for the user.
   "Administración",
+  "Documentación",
 ] as const;
 
 export type ModuleCategory = (typeof MODULE_CATEGORIES)[number];
@@ -77,6 +81,24 @@ export interface ModuleItem {
   available: boolean;
   /** Pages under the module; they turn its row into an expandable one. */
   subItems?: ModuleSubItem[];
+  /**
+   * False when the module has no screen at its own path: its row only opens
+   * and closes its pages, and nothing links to `path`. Defaults to true, so a
+   * module with pages that also has a landing screen needs no flag.
+   */
+  hasPage?: boolean;
+}
+
+/** Whether the route is the module's own screen, or any page under it when it has none. */
+export function isModuleActive(module: ModuleItem, pathname: string): boolean {
+  if (module.hasPage === false) return pathname.startsWith(`${module.path}/`);
+  return pathname === module.path;
+}
+
+/** Where a link to the module goes: its own screen, or its first page when it has none. */
+export function moduleHref(module: ModuleItem): string {
+  if (module.hasPage === false) return module.subItems?.[0]?.path ?? module.path;
+  return module.path;
 }
 
 /**
@@ -316,8 +338,10 @@ export const MODULES: ModuleItem[] = [
     category: "Maestros",
     icon: Database,
     available: true,
-    // The module row has no screen of its own: it opens the first master, and
-    // the dropdown under it is the only navigation between them.
+    // No screen of its own: a click on the row only opens the dropdown, and the
+    // dropdown is the only way to a master. Set to true (and add a page at the
+    // module's path) to give it a landing page again.
+    hasPage: false,
     subItems: COMMERCIAL_MASTERS.map((master) => ({
       id: `bi-maestros-${master.key}`,
       name: master.name,

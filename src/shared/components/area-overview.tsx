@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useArea } from "@/features/areas/hooks/use-areas";
 import {
   getModulesByArea,
+  moduleHref,
   type ModuleItem,
 } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
@@ -95,7 +96,7 @@ function ModuleRow({ module }: { module: ModuleItem }) {
 
   return (
     <Link
-      href={module.path}
+      href={moduleHref(module)}
       className={cn(
         "flex items-center gap-3 px-4 py-3 transition-colors duration-150",
         "hover:bg-canvas-subtle",
