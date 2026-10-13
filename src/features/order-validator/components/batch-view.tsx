@@ -215,7 +215,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       </div>
 
       {/* Sticky so "Aprobar pedidos" stays in reach while the rows are ticked down the page. */}
-      <div className="sticky top-0 z-20 -my-1 flex min-h-11 flex-wrap items-center justify-between gap-2 bg-canvas py-1">
+      <div className="sticky top-0 z-20 flex min-h-12 flex-wrap items-center justify-between gap-2 bg-canvas py-2">
         <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
           <StatusChip active={status === ALL} onClick={() => chooseStatus(ALL)} count={total}>
             Todos
