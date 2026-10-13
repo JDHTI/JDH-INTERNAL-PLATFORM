@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, UserCheck } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -19,6 +19,18 @@ export function StatusBadge({ status, label }: { status: ValidationStatus; label
   return (
     <Badge tone={STATUS_TONE[status] ?? "neutral"}>
       <Icon aria-hidden="true" /> {label}
+    </Badge>
+  );
+}
+
+/**
+ * Marks an order a person moved to ready. It sits beside the green status, not
+ * in place of it, so the order still reads as ready and also says who made it so.
+ */
+export function ManualApprovalBadge() {
+  return (
+    <Badge tone="info">
+      <UserCheck aria-hidden="true" /> Aprobado manualmente
     </Badge>
   );
 }

@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  approveOrders,
   deleteBatch,
   getBatch,
   getValidatorCatalogs,
@@ -12,6 +13,7 @@ import {
   listBatches,
   listOrders,
   revalidateBatch,
+  revokeOrderApproval,
   uploadBatch,
 } from "../services/order-validator.service";
 import type { OrderParams } from "../types/order-validator.types";
@@ -79,6 +81,23 @@ export function useUploadBatch() {
   return useMutation({
     mutationFn: (file: File) => uploadBatch(file),
     onSuccess: () => client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] }),
+  });
+}
+
+/** An approval changes the orders' status, so the batch totals and every cached page of orders are stale. */
+export function useApproveOrders(batchId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ documents, note }: { documents: string[]; note: string | null }) => approveOrders(batchId, documents, note),
+    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
+  });
+}
+
+export function useRevokeApproval(batchId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (document: string) => revokeOrderApproval(batchId, document),
+    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
 

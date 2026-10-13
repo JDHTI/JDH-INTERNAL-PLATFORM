@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, CloudOff, FileX2, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, CloudOff, FileX2, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
@@ -27,9 +27,11 @@ import {
 } from "../hooks/use-order-validator";
 import { formatDateTime, formatOrderDate } from "../lib/format";
 import type { ValidationBatch, ValidationOrder, ValidationStatus } from "../types/order-validator.types";
+import ApprovalDialog, { type ApprovalAction } from "./approval-dialog";
+import ApprovalSummary from "./approval-summary";
 import DeleteBatchDialog from "./delete-batch-dialog";
 import OrderLines from "./order-lines";
-import { StatusBadge } from "./status-badges";
+import { ManualApprovalBadge, StatusBadge } from "./status-badges";
 
 const PAGE_SIZE = 25;
 const ALL = "";
@@ -51,6 +53,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [supportId, setSupportId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [action, setAction] = useState<ApprovalAction | null>(null);
   const router = useRouter();
   const q = useDebouncedValue(text.trim());
 
@@ -59,6 +63,12 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const orders = useBatchOrders({ batchId, status, reason, q, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
+
+  // Only pending orders can be ticked. The selection is read back from the
+  // rows on screen, so an order that stopped being pending drops out of it.
+  const pendingOrders = rows.filter((order) => order.status === "pendiente_validacion");
+  const selectedDocuments = pendingOrders.filter((order) => selected.has(order.document)).map((order) => order.document);
+  const allSelected = pendingOrders.length > 0 && selectedDocuments.length === pendingOrders.length;
 
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
@@ -73,10 +83,28 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   const filtered = status !== ALL || reason !== ALL || q !== "";
 
+  // Any change to what is listed starts over on page 1 with nothing ticked, so
+  // an approval never reaches an order that is no longer in view.
   const reset = (apply: () => void) => {
     apply();
     setPage(1);
+    setSelected(new Set());
   };
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    setSelected(new Set());
+  };
+
+  const toggleSelected = (document: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(document)) next.add(document);
+      return next;
+    });
+
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(pendingOrders.map((order) => order.document)));
 
   const chooseStatus = (next: ValidationStatus | typeof ALL) =>
     reset(() => {
@@ -90,9 +118,10 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     setReason(ALL);
     setText("");
     setPage(1);
+    setSelected(new Set());
   };
 
-  const toggle = (document: string) =>
+  const toggle =(document: string) =>
     setExpanded((current) => {
       const next = new Set(current);
       if (!next.delete(document)) next.add(document);
@@ -126,7 +155,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             <Button variant="danger" onClick={() => setDeleting(true)}>
               <Trash2 aria-hidden="true" /> Eliminar archivo
             </Button>
-            <Button onClick={runRevalidate} disabled={revalidate.isPending}>
+            <Button variant="outline" onClick={runRevalidate} disabled={revalidate.isPending}>
               <RefreshCw className={cn(revalidate.isPending && "animate-spin")} aria-hidden="true" />
               {revalidate.isPending ? "Revalidando…" : "Revalidar"}
             </Button>
@@ -185,15 +214,34 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         )}
       </div>
 
-      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
-        <StatusChip active={status === ALL} onClick={() => chooseStatus(ALL)} count={total}>
-          Todos
-        </StatusChip>
-        {STATUS_ORDER.map((value) => (
-          <StatusChip key={value} active={status === value} onClick={() => chooseStatus(value)} count={counts?.[value] ?? null}>
-            {statusLabel(value)}
+      {/* Sticky so "Aprobar pedidos" stays in reach while the rows are ticked down the page. */}
+      <div className="sticky top-0 z-20 -my-1 flex min-h-11 flex-wrap items-center justify-between gap-2 bg-canvas py-1">
+        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
+          <StatusChip active={status === ALL} onClick={() => chooseStatus(ALL)} count={total}>
+            Todos
           </StatusChip>
-        ))}
+          {STATUS_ORDER.map((value) => (
+            <StatusChip key={value} active={status === value} onClick={() => chooseStatus(value)} count={counts?.[value] ?? null}>
+              {statusLabel(value)}
+            </StatusChip>
+          ))}
+        </div>
+        {canManage && (
+          // The region stays mounted so a screen reader announces the count as it
+          // appears; the count and the button exist only while something is selected.
+          <div className="flex items-center gap-3" aria-live="polite">
+            {selectedDocuments.length > 0 && (
+              <>
+                <span className="text-sm tabular-nums text-text-secondary">
+                  {selectedDocuments.length === 1 ? "1 pedido seleccionado" : `${selectedDocuments.length} pedidos seleccionados`}
+                </span>
+                <Button onClick={() => setAction({ kind: "approve", documents: selectedDocuments })}>
+                  <UserCheck aria-hidden="true" /> Aprobar pedidos
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {orders.isPending ? (
@@ -222,29 +270,51 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
               const panelId = `order-${order.document}`;
               return (
                 <li key={order.document}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(order.document)}
-                    aria-expanded={open}
-                    aria-controls={panelId}
-                    className="flex min-h-14 w-full flex-col gap-1.5 px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-                  >
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="min-w-0">
-                        <span className="block font-mono text-[13px]">{order.document}</span>
-                        <span className="block truncate text-sm font-medium">{order.customer_name ?? "Sin cliente"}</span>
+                  <div className="flex items-start">
+                    {canManage && (
+                      <span className="flex min-h-14 w-11 shrink-0 items-center justify-center">
+                        {order.status === "pendiente_validacion" && (
+                          <SelectBox
+                            checked={selected.has(order.document)}
+                            onChange={() => toggleSelected(order.document)}
+                            label={`Seleccionar el pedido ${order.document}`}
+                          />
+                        )}
                       </span>
-                      <ChevronDown className={cn("mt-1 size-4 shrink-0 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
-                    </span>
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <StatusBadge status={order.status} label={order.status_label} />
-                      <span className="text-xs tabular-nums text-text-secondary">
-                        {order.ready_line_count} de {order.line_count} líneas listas · {formatCop(order.total_amount)}
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggle(order.document)}
+                      aria-expanded={open}
+                      aria-controls={panelId}
+                      className={cn(
+                        "flex min-h-14 min-w-0 flex-1 flex-col gap-1.5 py-2.5 pr-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                        canManage ? "pl-0" : "pl-3"
+                      )}
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block font-mono text-[13px]">{order.document}</span>
+                          <span className="block truncate text-sm font-medium">{order.customer_name ?? "Sin cliente"}</span>
+                        </span>
+                        <ChevronDown className={cn("mt-1 size-4 shrink-0 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
                       </span>
-                    </span>
-                  </button>
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <StatusBadge status={order.status} label={order.status_label} />
+                        {order.manual_approval && <ManualApprovalBadge />}
+                        <span className="text-xs tabular-nums text-text-secondary">
+                          {order.ready_line_count} de {order.line_count} líneas listas · {formatCop(order.total_amount)}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
                   {open && (
                     <div id={panelId} className="border-t border-border bg-canvas-subtle">
+                      <ApprovalSummary
+                        order={order}
+                        canManage={canManage}
+                        onRevoke={() => setAction({ kind: "revoke", document: order.document })}
+                      />
                       <OrderLines lines={order.lines} onOpenSupport={setSupportId} />
                     </div>
                   )}
@@ -258,6 +328,17 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
               <caption className="sr-only">Pedidos del archivo con su estado de validación</caption>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
+                  {canManage && (
+                    <th scope="col" className="w-10 px-3 py-2">
+                      <SelectBox
+                        checked={allSelected}
+                        indeterminate={selectedDocuments.length > 0 && !allSelected}
+                        disabled={pendingOrders.length === 0}
+                        onChange={toggleAll}
+                        label="Seleccionar todos los pedidos pendientes de esta página"
+                      />
+                    </th>
+                  )}
                   <th scope="col" className="px-3 py-2">Pedido</th>
                   <th scope="col" className="px-3 py-2">Estado</th>
                   <th scope="col" className="px-3 py-2">Fecha</th>
@@ -272,7 +353,11 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
                   key={order.document}
                   order={order}
                   open={expanded.has(order.document)}
+                  canManage={canManage}
+                  selected={selected.has(order.document)}
                   onToggle={() => toggle(order.document)}
+                  onSelect={() => toggleSelected(order.document)}
+                  onRevoke={() => setAction({ kind: "revoke", document: order.document })}
                   onOpenSupport={setSupportId}
                 />
               ))}
@@ -284,7 +369,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
               <span className="text-xs tabular-nums text-text-secondary">
                 {numberFormat.format(result.total)} {result.total === 1 ? "pedido" : "pedidos"}
               </span>
-              <Pager page={result.page} size={result.size} total={result.total} count={rows.length} onPageChange={setPage} />
+              <Pager page={result.page} size={result.size} total={result.total} count={rows.length} onPageChange={goToPage} />
             </div>
           )}
           {orders.isError && (
@@ -296,6 +381,12 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       )}
 
       <SupportDetail id={supportId} onClose={() => setSupportId(null)} />
+      <ApprovalDialog
+        batchId={batchId}
+        action={action}
+        onClose={() => setAction(null)}
+        onApproved={() => setSelected(new Set())}
+      />
     </div>
   );
 }
@@ -399,22 +490,72 @@ function StatusChip({
   );
 }
 
-/** One order and, when open, its lines under it. A tbody per order keeps the pair together. */
+/** A selection check. `indeterminate` is the "some of them" state of the header's select-all. */
+function SelectBox({
+  checked,
+  indeterminate = false,
+  disabled = false,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      aria-label={label}
+      ref={(element) => {
+        if (element) element.indeterminate = indeterminate;
+      }}
+      className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 max-md:size-5"
+    />
+  );
+}
+
+/**
+ * One order and, when open, its lines under it. A tbody per order keeps the
+ * pair together. The check at the start of the row is for managers and only
+ * pending orders have one: it selects the order for "Aprobar pedidos" and
+ * opens nothing by itself.
+ */
 function OrderRows({
   order,
   open,
+  canManage,
+  selected,
   onToggle,
+  onSelect,
+  onRevoke,
   onOpenSupport,
 }: {
   order: ValidationOrder;
   open: boolean;
+  canManage: boolean;
+  selected: boolean;
   onToggle: () => void;
+  onSelect: () => void;
+  onRevoke: () => void;
   onOpenSupport: (supportId: string) => void;
 }) {
   const panelId = `order-${order.document}`;
+  const approved = Boolean(order.manual_approval);
   return (
     <tbody className="divide-y divide-border border-t border-border">
-      <tr className="h-10 hover:bg-primary-subtle">
+      <tr className={cn("h-10 hover:bg-primary-subtle", selected && "bg-primary-subtle")}>
+        {canManage && (
+          <td className="px-3 py-2">
+            {order.status === "pendiente_validacion" && (
+              <SelectBox checked={selected} onChange={onSelect} label={`Seleccionar el pedido ${order.document}`} />
+            )}
+          </td>
+        )}
         <td className="whitespace-nowrap px-3 py-2">
           <button
             type="button"
@@ -429,18 +570,21 @@ function OrderRows({
           </button>
         </td>
         <td className="px-3 py-2">
-          <StatusBadge status={order.status} label={order.status_label} />
+          <span className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={order.status} label={order.status_label} />
+            {approved && <ManualApprovalBadge />}
+          </span>
         </td>
         <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatOrderDate(order.order_date)}</td>
-        <td className="max-w-64 px-3 py-2">
+        <td className="max-w-52 px-3 py-2">
           <span className="block truncate font-medium">{order.customer_name ?? "Sin cliente"}</span>
           <span className="block truncate text-xs text-text-secondary">
             <span className="font-mono">{order.customer_nit ?? ""}</span>
             {order.channel ? ` · ${order.channel}` : ""}
           </span>
         </td>
-        <td className="max-w-48 truncate px-3 py-2">{order.salesperson ?? "—"}</td>
-        <td className="px-3 py-2 text-right tabular-nums">
+        <td className="max-w-36 truncate px-3 py-2">{order.salesperson ?? "—"}</td>
+        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
           {order.ready_line_count}
           <span className="text-text-secondary"> de {order.line_count}</span>
         </td>
@@ -448,7 +592,8 @@ function OrderRows({
       </tr>
       {open && (
         <tr id={panelId}>
-          <td colSpan={7} className="bg-canvas-subtle p-0">
+          <td colSpan={canManage ? 8 : 7} className="bg-canvas-subtle p-0">
+            <ApprovalSummary order={order} canManage={canManage} onRevoke={onRevoke} />
             <OrderLines lines={order.lines} onOpenSupport={onOpenSupport} />
           </td>
         </tr>

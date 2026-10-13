@@ -39,6 +39,25 @@ export async function listOrders({ batchId, status, reason, q, page, size }: Ord
   });
 }
 
+/**
+ * Moves pending orders to ready by hand, all or none. 409 means one of them is
+ * no longer pending. Answers with the batch, whose totals have changed.
+ */
+export async function approveOrders(batchId: string, documents: string[], note: string | null): Promise<ValidationBatch> {
+  return apiFetch<ValidationBatch>(`${BASE}/${encodeURIComponent(batchId)}/approvals`, {
+    method: "POST",
+    body: { documents, note },
+  });
+}
+
+/** Takes a manual approval back; the order returns to what the validation decided. 204. */
+export async function revokeOrderApproval(batchId: string, document: string): Promise<void> {
+  return apiFetch<void>(
+    `${BASE}/${encodeURIComponent(batchId)}/orders/${encodeURIComponent(document)}/approval`,
+    { method: "DELETE" }
+  );
+}
+
 /** 204 when the file and its decisions are gone. */
 export async function deleteBatch(id: string): Promise<void> {
   return apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });

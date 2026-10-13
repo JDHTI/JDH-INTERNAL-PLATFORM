@@ -83,10 +83,23 @@ export interface OrderLine {
   checks: SupportCheck[];
 }
 
+/**
+ * A person moved a pending order to ready. The API keeps who, when and why;
+ * while it is set the order's `status` is ready and the lines keep the
+ * decision the validation gave them.
+ */
+export interface ManualApproval {
+  approved_by: string;
+  approved_at: string;
+  note: string | null;
+}
+
 export interface ValidationOrder {
   document: string;
   status: ValidationStatus;
   status_label: string;
+  /** Absent or null when the order stands on the validation alone. */
+  manual_approval?: ManualApproval | null;
   order_date: string | null;
   operation_center: string | null;
   status_text: string | null;
