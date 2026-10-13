@@ -7,9 +7,9 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { calcMethodLabel, formatCop, formatDay, formatNumber, formatPct, humanize } from "@/features/supports/lib/format";
+import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS } from "../lib/format";
+import { MARGIN_BASIS_LABELS, formatMarginPct } from "../lib/format";
 import type { OrderLine, SupportCheck } from "../types/order-validator.types";
 import { LiquorTaxBadge, OutcomeBadge, StatusBadge } from "./status-badges";
 
@@ -73,11 +73,11 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-        <Figure label="Margen del pedido" value={formatPct(line.margin_pct)} />
-        {supportChangedMargin && <Figure label="Margen con apoyo" value={formatPct(line.effective_margin_pct)} />}
+        <Figure label="Margen del pedido" value={formatMarginPct(line.margin_pct)} />
+        {supportChangedMargin && <Figure label="Margen con apoyo" value={formatMarginPct(line.effective_margin_pct)} />}
         <Figure
           label="Margen objetivo"
-          value={`${formatPct(line.required_margin_pct)}${line.margin_basis ? ` (${MARGIN_BASIS_LABELS[line.margin_basis]})` : ""}`}
+          value={`${formatMarginPct(line.required_margin_pct)}${line.margin_basis ? ` (${MARGIN_BASIS_LABELS[line.margin_basis]})` : ""}`}
         />
         <Figure label="Precio unitario" value={formatCop(line.unit_price)} />
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
@@ -153,7 +153,7 @@ function CheckRow({ check, onOpenSupport }: { check: SupportCheck; onOpenSupport
       </div>
       <p className="text-xs tabular-nums text-text-secondary">
         Vigencia {formatDay(check.valid_from)} a {check.valid_to ? formatDay(check.valid_to) : "indefinido"} · Margen con apoyo{" "}
-        {formatPct(check.effective_margin_pct)} · Objetivo {formatPct(check.required_margin_pct)}
+        {formatMarginPct(check.effective_margin_pct)} · Objetivo {formatMarginPct(check.required_margin_pct)}
       </p>
     </div>
   );

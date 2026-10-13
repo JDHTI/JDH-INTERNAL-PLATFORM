@@ -7,9 +7,9 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { calcMethodLabel, formatCop, formatDay, formatNumber, formatPct, humanize } from "@/features/supports/lib/format";
+import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS } from "../lib/format";
+import { MARGIN_BASIS_LABELS, formatMarginPct } from "../lib/format";
 import type { OrderLine } from "../types/order-validator.types";
 import { LiquorTaxBadge, OutcomeBadge } from "./status-badges";
 
@@ -70,8 +70,8 @@ export default function OrderLinesTable({
                         <span className="font-medium">{check.program ?? humanize(check.kind)}</span>
                         <span className="text-text-secondary">{calcMethodLabel(check.calc_method)}</span>
                         <span className="tabular-nums text-text-secondary">
-                          {formatDay(check.valid_from)} a {check.valid_to ? formatDay(check.valid_to) : "indefinido"} · {formatPct(check.effective_margin_pct)} de{" "}
-                          {formatPct(check.required_margin_pct)}
+                          {formatDay(check.valid_from)} a {check.valid_to ? formatDay(check.valid_to) : "indefinido"} · {formatMarginPct(check.effective_margin_pct)} de{" "}
+                          {formatMarginPct(check.required_margin_pct)}
                         </span>
                         <Button variant="ghost" size="sm" className="ml-auto h-6" onClick={() => onOpenSupport(check.support_id)}>
                           <FileSearch aria-hidden="true" /> Ver apoyo
@@ -118,16 +118,16 @@ function LineRow({
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(line.unit_price)}</td>
       <td
         className="whitespace-nowrap px-2 py-1 text-right tabular-nums"
-        title={supportMoved ? `En el pedido: ${formatPct(line.margin_pct)}. Con apoyo: ${formatPct(margin)}.` : undefined}
+        title={supportMoved ? `En el pedido: ${formatMarginPct(line.margin_pct)}. Con apoyo: ${formatMarginPct(margin)}.` : undefined}
       >
-        {margin === null ? "—" : formatPct(margin)}
+        {margin === null ? "—" : formatMarginPct(margin)}
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
         {target === null ? (
           "—"
         ) : (
           <>
-            {formatPct(target)}
+            {formatMarginPct(target)}
             {line.margin_basis && <span className="text-text-secondary"> ({MARGIN_BASIS_LABELS[line.margin_basis]})</span>}
           </>
         )}

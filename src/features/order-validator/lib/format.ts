@@ -1,3 +1,6 @@
+import { formatPct } from "@/features/supports/lib/format";
+import type { Decimal } from "@/shared/lib/format";
+
 import type { CheckOutcome, MarginBasis } from "../types/order-validator.types";
 
 const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
@@ -66,6 +69,12 @@ export function parseThresholdPoints(text: string): string | null | "invalid" {
 }
 
 const points = new Intl.NumberFormat("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** A margin as a percentage; one that rounds to zero prints "0%", never "-0%". */
+export function formatMarginPct(value: Decimal | null | undefined): string {
+  const text = formatPct(value);
+  return /^-0(,0+)?\s?%$/.test(text) ? "0%" : text;
+}
 
 /** "0.50" becomes "0,50 puntos". */
 export function formatThreshold(value: string | number | null | undefined): string {

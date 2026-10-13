@@ -5,9 +5,9 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { formatCop, formatPct } from "@/features/supports/lib/format";
+import { formatCop } from "@/features/supports/lib/format";
 
-import { formatOrderDate, shortReason } from "../lib/format";
+import { formatMarginPct, formatOrderDate, shortReason } from "../lib/format";
 import type { OrderLine, ValidationOrder } from "../types/order-validator.types";
 import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
@@ -63,9 +63,9 @@ function OrderMargin({ order, compact = false }: { order: ValidationOrder; compa
   return (
     <span className={cn("inline-flex items-center gap-1 tabular-nums", below && "font-medium text-warning")}>
       {below && <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />}
-      {margin === null ? "—" : formatPct(margin)}
+      {margin === null ? "—" : formatMarginPct(margin)}
       {below && <span className="sr-only">, por debajo del objetivo</span>}
-      {compact && target !== null && <span className="font-normal text-text-secondary"> de {formatPct(target)}</span>}
+      {compact && target !== null && <span className="font-normal text-text-secondary"> de {formatMarginPct(target)}</span>}
     </span>
   );
 }
@@ -151,10 +151,10 @@ export function OrdersTable({
                   </button>
                 </td>
                 <td className="px-2 py-1">
-                  <span className="flex flex-wrap items-center gap-1">
+                  <span className="flex items-center gap-1 whitespace-nowrap">
                     <StatusBadge status={order.status} label={order.status_label} />
-                    {order.manual_approval && <ManualApprovalBadge />}
-                    {order.has_liquor_tax && <LiquorTaxBadge />}
+                    {order.manual_approval && <ManualApprovalBadge compact />}
+                    {order.has_liquor_tax && <LiquorTaxBadge compact />}
                   </span>
                 </td>
                 <td className="max-w-56 px-2 py-1">
@@ -166,7 +166,7 @@ export function OrdersTable({
                 <td className="whitespace-nowrap px-2 py-1 text-right">
                   <OrderMargin order={order} />
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{target === null ? "—" : formatPct(target)}</td>
+                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{target === null ? "—" : formatMarginPct(target)}</td>
                 <td className="px-2 py-1">
                   <ReasonChips lines={order.lines} />
                 </td>
@@ -234,7 +234,7 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                   {order.has_liquor_tax && <LiquorTaxBadge />}
                 </span>
                 <span className="text-xs text-text-secondary">
-                  Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatPct(target)}</>} · {formatCop(order.total_amount)}
+                  Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatMarginPct(target)}</>} · {formatCop(order.total_amount)}
                 </span>
                 <ReasonChips lines={order.lines} />
               </button>
