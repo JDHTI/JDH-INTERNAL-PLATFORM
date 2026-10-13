@@ -34,24 +34,6 @@ export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
   salsamentarias: "margen salsamentarias",
 };
 
-/**
- * One or two words per reason, for the chips that summarise an order's lines.
- * The reason's full label comes from the API catalog and rides along as the
- * chip's title; a reason added later falls back to that label.
- */
-const REASON_SHORT: Record<string, string> = {
-  cumple_con_apoyo: "con apoyo",
-  cumple_margen_lista: "margen lista",
-  acuerdo_en_revision: "apoyo en revisión",
-  no_cumple_acuerdo: "no cumplen",
-  acuerdo_no_evaluable: "no evaluables",
-  acuerdo_vencido: "apoyo vencido",
-  sin_acuerdo: "sin apoyo",
-  datos_incompletos: "datos incompletos",
-};
-
-export const shortReason = (reason: string, label: string) => REASON_SHORT[reason] ?? label;
-
 export const THRESHOLD_MIN = 0;
 export const THRESHOLD_MAX = 20;
 

@@ -1,6 +1,8 @@
 import { CheckCircle2, Clock, Scale, UserCheck, Wine } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
+import { toNumber, type Decimal } from "@/shared/lib/format";
+import { formatCop } from "@/features/supports/lib/format";
 
 import { OUTCOME_LABELS } from "../lib/format";
 import type { CheckOutcome, ValidationStatus } from "../types/order-validator.types";
@@ -62,23 +64,36 @@ export function MarginReleaseBadge({ compact = false }: { compact?: boolean }) {
 }
 
 /**
- * The product carries liquor consumption tax, which an order can be keyed
- * without. It is a warning on the order, not a decision: the status does not change.
+ * The liquor consumption tax is missing: the product has it in the master and
+ * the line came without it. It only shows then; a line that carries its tax has
+ * nothing to flag. `amount` is what the line should carry per unit. It is a
+ * warning, not a decision: the status does not change.
  */
-export function LiquorTaxBadge({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function LiquorTaxBadge({
+  className,
+  compact = false,
+  amount,
+}: {
+  className?: string;
+  compact?: boolean;
+  amount?: Decimal | null;
+}) {
+  const expected = toNumber(amount);
+  const title =
+    expected !== null && expected > 0
+      ? `Falta el impuesto al licor: el producto lo tiene y la línea no lo trae (debería traer ${formatCop(expected)} por unidad).`
+      : "Falta el impuesto al licor: el producto lo tiene y la línea no lo trae.";
   return (
-    <Badge
-      tone="warning"
-      className={className}
-      title="El producto tiene impuesto al consumo de licor y el pedido pudo montarse sin él."
-    >
+    <Badge tone="warning" className={className} title={title}>
       <Wine aria-hidden="true" />
       {compact ? (
         <>
-          Licor<span className="sr-only">: tiene impuesto al consumo de licor</span>
+          Licor<span className="sr-only">: {title}</span>
         </>
       ) : (
-        "Impuesto licor"
+        <>
+          Impuesto licor<span className="sr-only">: {title}</span>
+        </>
       )}
     </Badge>
   );

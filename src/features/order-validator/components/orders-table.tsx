@@ -7,7 +7,7 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { formatMarginPct, formatOrderDate, shortReason } from "../lib/format";
+import { formatMarginPct, formatOrderDate } from "../lib/format";
 import type { OrderLine, ValidationOrder } from "../types/order-validator.types";
 import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
@@ -29,28 +29,32 @@ interface OrdersViewProps {
 const isPending = (order: ValidationOrder) => order.status === "pendiente_validacion";
 
 /**
- * How many of an order's lines landed on each reason, pending reasons first:
- * "5 sin apoyo", "3 con apoyo". It stands in for a column per line, so an
- * order is one row. The reason's full label from the API is the chip's title.
+ * An order's lines in two groups: "N sin apoyo" (no support covers them) and
+ * "N cumplen" (they meet their target). They stand in for a column per line,
+ * so an order is one row. A group with no lines is not shown.
  */
-function ReasonChips({ lines }: { lines: OrderLine[] }) {
-  const groups = new Map<string, { label: string; ready: boolean; count: number }>();
-  for (const line of lines) {
-    const group = groups.get(line.reason) ?? { label: line.reason_label, ready: line.status === "listo_para_liberar", count: 0 };
-    group.count += 1;
-    groups.set(line.reason, group);
-  }
-  const ordered = [...groups.entries()].sort(([, a], [, b]) => Number(a.ready) - Number(b.ready) || b.count - a.count);
+function LineGroups({ order }: { order: ValidationOrder }) {
+  // The API counts the lines with no support; if it does not, they are counted here.
+  const withoutSupport =
+    order.without_support_line_count ?? order.lines.filter((line: OrderLine) => line.reason === "sin_acuerdo").length;
+  const meet = order.ready_line_count;
 
   return (
-    <ul className="flex flex-wrap gap-1" aria-label="Líneas por motivo">
-      {ordered.map(([reason, group]) => (
-        <li key={reason}>
-          <Badge tone={group.ready ? "success" : "warning"} className="px-1.5 py-0 text-xs leading-5" title={group.label}>
-            <span className="tabular-nums">{group.count}</span> {shortReason(reason, group.label)}
+    <ul className="flex flex-wrap gap-1" aria-label="Líneas del pedido">
+      {withoutSupport > 0 && (
+        <li>
+          <Badge tone="warning" className="px-1.5 py-0 text-xs leading-5">
+            <span className="tabular-nums">{withoutSupport}</span> sin apoyo
           </Badge>
         </li>
-      ))}
+      )}
+      {meet > 0 && (
+        <li>
+          <Badge tone="success" className="px-1.5 py-0 text-xs leading-5">
+            <span className="tabular-nums">{meet}</span> cumplen
+          </Badge>
+        </li>
+      )}
     </ul>
   );
 }
@@ -130,7 +134,7 @@ export function OrdersTable({
             <th scope="col" className="px-2 py-1.5">Cliente</th>
             <th scope="col" className="px-2 py-1.5 text-right">Margen pedido</th>
             <th scope="col" className="px-2 py-1.5 text-right">Objetivo</th>
-            <th scope="col" className="px-2 py-1.5">Líneas por motivo</th>
+            <th scope="col" className="px-2 py-1.5">Líneas</th>
             <th scope="col" className="px-2 py-1.5 text-right">Valor</th>
           </tr>
         </thead>
@@ -181,7 +185,7 @@ export function OrdersTable({
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{target === null ? "—" : formatMarginPct(target)}</td>
                 <td className="max-w-52 px-2 py-1">
-                  <ReasonChips lines={order.lines} />
+                  <LineGroups order={order} />
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(order.total_amount)}</td>
               </tr>
@@ -250,7 +254,7 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                 <span className="text-xs text-text-secondary">
                   Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatMarginPct(target)}</>} · {formatCop(order.total_amount)}
                 </span>
-                <ReasonChips lines={order.lines} />
+                <LineGroups order={order} />
               </button>
             </div>
             {open && (

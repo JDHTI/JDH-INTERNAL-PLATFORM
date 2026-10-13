@@ -68,9 +68,14 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <StatusBadge status={line.status} label={line.status_label} />
           <span className="text-sm text-text-secondary">{line.reason_label}</span>
-          {line.liquor_tax && <LiquorTaxBadge />}
+          {line.liquor_tax && <LiquorTaxBadge amount={line.liquor_tax_amount} />}
         </div>
       </div>
+
+      {/* A line that meets its target keeps the API's explanation of how. */}
+      {line.status === "listo_para_liberar" && line.detail && (
+        <p className="max-w-prose text-xs text-text-secondary">{line.detail}</p>
+      )}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
         <Figure label="Margen del pedido" value={formatMarginPct(line.margin_pct)} />
@@ -82,6 +87,9 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         <Figure label="Precio unitario" value={formatCop(line.unit_price)} />
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
         <Figure label="Lista · bodega" value={[line.price_list, line.warehouse].filter(Boolean).join(" · ") || "—"} plain />
+        {(toNumber(line.liquor_tax_value) ?? 0) > 0 && (
+          <Figure label="Impuesto licor (por unidad)" value={formatCop(line.liquor_tax_value)} />
+        )}
       </dl>
 
       {line.problems.length > 0 && (

@@ -111,7 +111,7 @@ function LineRow({
       <td className="whitespace-nowrap py-1 pl-4 pr-2 font-mono">{line.sku ?? "—"}</td>
       <td className="max-w-72 truncate px-2 py-1" title={line.description ?? undefined}>
         {line.description ?? "Sin descripción"}
-        {line.liquor_tax && <LiquorTaxBadge className="ml-2 py-0 text-xs" />}
+        {line.liquor_tax && <LiquorTaxBadge className="ml-2 py-0 text-xs" amount={line.liquor_tax_amount} />}
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatNumber(line.quantity)}</td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(line.unit_price)}</td>
@@ -137,6 +137,11 @@ function LineRow({
           <span className="sr-only">{line.status_label}: </span>
           {line.reason_label}
         </span>
+        {/* A line that meets its target keeps the API's explanation of how. */}
+        {ready && line.detail && <span className="block max-w-md text-xs text-text-secondary">{line.detail}</span>}
+        {(toNumber(line.liquor_tax_value) ?? 0) > 0 && (
+          <span className="block text-xs text-text-secondary">Imp. licor {formatCop(line.liquor_tax_value)} por unidad</span>
+        )}
       </td>
       <td className="whitespace-nowrap py-1 pl-2 pr-4 text-right">
         {line.support_id && (

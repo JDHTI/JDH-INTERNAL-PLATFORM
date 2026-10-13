@@ -3,13 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CloudOff, FileX2, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
+import { ArrowLeft, ChevronsDownUp, ChevronsUpDown, CloudOff, FileX2, RefreshCw, Search, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
-import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
@@ -24,8 +23,8 @@ import {
   useRevalidateBatch,
   useValidatorCatalogs,
 } from "../hooks/use-order-validator";
-import { formatDateTime } from "../lib/format";
-import type { OrderSort, ValidationBatch, ValidationStatus } from "../types/order-validator.types";
+import { formatDateTime, parseThresholdPoints } from "../lib/format";
+import type { ValidationBatch, ValidationStatus } from "../types/order-validator.types";
 import ApprovalDialog, { type ApprovalAction } from "./approval-dialog";
 import DeleteBatchDialog from "./delete-batch-dialog";
 import { OrdersList, OrdersTable } from "./orders-table";
@@ -38,11 +37,6 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 
 const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion"];
 
-const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
-  { value: "attention", label: "Orden de atención" },
-  { value: "file", label: "Orden del archivo" },
-];
-
 /** One uploaded file: its totals, the filters, and every order with its lines. */
 export default function BatchView({ batchId, basePath }: { batchId: string; basePath: string }) {
   const batch = useBatch(batchId);
@@ -51,9 +45,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const revalidate = useRevalidateBatch();
 
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
-  const [reason, setReason] = useState(ALL);
-  const [sort, setSort] = useState<OrderSort>("attention");
   const [text, setText] = useState("");
+  const [thresholdText, setThresholdText] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [supportId, setSupportId] = useState<string | null>(null);
@@ -65,8 +58,18 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   useBreadcrumbLabel(`${basePath}/${batchId}`, batch.data?.file_name);
 
-  // The order the rows come in is the server's: attention first by default. It is never re-sorted here.
-  const orders = useBatchOrders({ batchId, status, reason, sort, q, page, size: PAGE_SIZE });
+  // A threshold typed but not yet saved is tried on the list: the API answers with the
+  // statuses, counts and margins the file would have. Nothing is saved until "Aplicar".
+  const typedThreshold = useDebouncedValue(thresholdText);
+  const parsedThreshold = canManage ? parseThresholdPoints(typedThreshold) : null;
+  const savedThreshold = batch.data ? Number(batch.data.margin_threshold_points) : null;
+  const thresholdPreview =
+    parsedThreshold !== null && parsedThreshold !== "invalid" && Number(parsedThreshold) !== savedThreshold
+      ? parsedThreshold
+      : "";
+
+  // The rows come in the server's order (no support first, then by margin) and are never re-sorted here.
+  const orders = useBatchOrders({ batchId, status, thresholdPreview, q, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
 
@@ -79,15 +82,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
 
-  // A reason belongs to one status, so with a status chosen only its reasons are offered.
-  const reasonOptions = [
-    { value: ALL, label: "Todos los motivos" },
-    ...(catalogs?.reasons ?? [])
-      .filter((entry) => status === ALL || entry.status === status)
-      .map((entry) => ({ value: entry.value, label: entry.label })),
-  ];
-
-  const filtered = status !== ALL || reason !== ALL || q !== "";
+  const filtered = status !== ALL || q !== "";
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -112,16 +107,10 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const toggleAll = () =>
     setSelected(allSelected ? new Set() : new Set(pendingOrders.map((order) => order.document)));
 
-  const chooseStatus = (next: ValidationStatus | typeof ALL) =>
-    reset(() => {
-      setStatus(next);
-      const current = catalogs?.reasons.find((entry) => entry.value === reason);
-      if (next !== ALL && current && current.status !== next) setReason(ALL);
-    });
+  const chooseStatus = (next: ValidationStatus | typeof ALL) => reset(() => setStatus(next));
 
   const clearFilters = () => {
     setStatus(ALL);
-    setReason(ALL);
     setText("");
     setPage(1);
     setSelected(new Set());
@@ -133,6 +122,9 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       if (!next.delete(document)) next.add(document);
       return next;
     });
+
+  const expandAll = () => setExpanded(new Set(rows.map((order) => order.document)));
+  const collapseAll = () => setExpanded(new Set());
 
   // Without a threshold the API keeps the saved one, and the manual approvals either way.
   const runRevalidate = () =>
@@ -178,8 +170,6 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         onDeleted={() => router.push(basePath)}
       />
 
-      <ThresholdControl batch={batch.data} canManage={canManage} />
-
       <dl className="grid gap-3 md:grid-cols-2">
         <Totals
           title="Pedidos"
@@ -197,8 +187,9 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         />
       </dl>
 
-      <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="relative flex-1 lg:max-w-xl">
+      {/* The search bar holds the search and the margin threshold, on one row; narrow screens wrap the threshold below. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="relative w-full lg:max-w-xl lg:flex-1">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
@@ -212,19 +203,12 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             className="pl-9"
           />
         </div>
-        <Dropdown
-          className="lg:w-72"
-          value={reason}
-          onValueChange={(value) => reset(() => setReason(value))}
-          options={reasonOptions}
-          aria-label="Filtrar por motivo"
-        />
-        <Dropdown
-          className="lg:w-48"
-          value={sort}
-          onValueChange={(value) => reset(() => setSort(value as OrderSort))}
-          options={SORT_OPTIONS}
-          aria-label="Orden de los pedidos"
+        <ThresholdControl
+          batch={batch.data}
+          canManage={canManage}
+          value={thresholdText}
+          onChange={setThresholdText}
+          previewing={thresholdPreview !== ""}
         />
         {filtered && (
           <Button variant="ghost" onClick={clearFilters}>
@@ -248,12 +232,23 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         {canManage && (
           // The region stays mounted so a screen reader announces the count as it
           // appears; the count and the button exist only while something is selected.
-          <div className="flex items-center gap-3" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-3" aria-live="polite">
             {selectedDocuments.length > 0 && (
               <>
                 <span className="text-sm tabular-nums text-text-secondary">
                   {selectedDocuments.length === 1 ? "1 pedido seleccionado" : `${selectedDocuments.length} pedidos seleccionados`}
                 </span>
+                {/* Selecting every pending order of the page also offers to open or close all of them. */}
+                {allSelected && (
+                  <>
+                    <Button variant="outline" onClick={expandAll}>
+                      <ChevronsUpDown aria-hidden="true" /> Desplegar todo
+                    </Button>
+                    <Button variant="outline" onClick={collapseAll}>
+                      <ChevronsDownUp aria-hidden="true" /> Colapsar todo
+                    </Button>
+                  </>
+                )}
                 <Button onClick={() => setAction({ kind: "approve", documents: selectedDocuments })}>
                   <UserCheck aria-hidden="true" /> Aprobar pedidos
                 </Button>
@@ -274,7 +269,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             title="Ningún pedido coincide con los filtros"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
-            Prueba con otro texto o quita el estado o el motivo.
+            Prueba con otro texto o quita el estado.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Este archivo no tiene pedidos">
