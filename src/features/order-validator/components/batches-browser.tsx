@@ -3,16 +3,19 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CloudOff, FileSpreadsheet, FileX2, Loader2, RefreshCw, Upload } from "lucide-react";
+import { CloudOff, FileSpreadsheet, FileX2, Loader2, MoreHorizontal, RefreshCw, Trash2, Upload } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
-import { Button } from "@/shared/components/ui/button";
+import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useBatches, useCanManageValidations, useUploadBatch } from "../hooks/use-order-validator";
 import { ACCEPTED_EXTENSIONS, formatDateTime, hasAcceptedExtension } from "../lib/format";
+import type { ValidationBatch } from "../types/order-validator.types";
+import DeleteBatchDialog from "./delete-batch-dialog";
 
 const PAGE_SIZE = 20;
 const numberFormat = new Intl.NumberFormat("es-CO");
@@ -20,6 +23,7 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 /** Uploaded files, newest first, and where a manager adds the next one. */
 export default function BatchesBrowser({ basePath }: { basePath: string }) {
   const [page, setPage] = useState(1);
+  const [toDelete, setToDelete] = useState<ValidationBatch | null>(null);
   const canManage = useCanManageValidations();
   const batches = useBatches(page, PAGE_SIZE);
   const result = batches.data;
@@ -28,6 +32,7 @@ export default function BatchesBrowser({ basePath }: { basePath: string }) {
   return (
     <div className="space-y-4">
       {canManage && <UploadZone basePath={basePath} />}
+      <DeleteBatchDialog batch={toDelete} onClose={() => setToDelete(null)} />
 
       {batches.isPending ? (
         <div className="h-48 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando archivos" />
@@ -52,6 +57,11 @@ export default function BatchesBrowser({ basePath }: { basePath: string }) {
                   <th scope="col" className="px-3 py-2 text-right">Pedidos pendientes</th>
                   <th scope="col" className="px-3 py-2 text-right">Líneas listas</th>
                   <th scope="col" className="px-3 py-2 text-right">Líneas pendientes</th>
+                  {canManage && (
+                    <th scope="col" className="w-12 px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -73,6 +83,20 @@ export default function BatchesBrowser({ basePath }: { basePath: string }) {
                     <Count value={batch.pending_order_count} of={batch.order_count} />
                     <Count value={batch.ready_line_count} of={batch.line_count} />
                     <Count value={batch.pending_line_count} of={batch.line_count} />
+                    {canManage && (
+                      <td className="px-3 py-1 text-right">
+                        <Menu
+                          align="end"
+                          trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
+                          triggerClassName={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                          triggerLabel={`Acciones del archivo ${batch.file_name}`}
+                        >
+                          <MenuItem onClick={() => setToDelete(batch)}>
+                            <Trash2 aria-hidden="true" /> Eliminar archivo
+                          </MenuItem>
+                        </Menu>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

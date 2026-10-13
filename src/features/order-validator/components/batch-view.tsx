@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, CloudOff, FileX2, RefreshCw, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ChevronDown, CloudOff, FileX2, RefreshCw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
@@ -26,6 +27,7 @@ import {
 } from "../hooks/use-order-validator";
 import { formatDateTime, formatOrderDate } from "../lib/format";
 import type { ValidationBatch, ValidationOrder, ValidationStatus } from "../types/order-validator.types";
+import DeleteBatchDialog from "./delete-batch-dialog";
 import OrderLines from "./order-lines";
 import { StatusBadge } from "./status-badges";
 
@@ -48,6 +50,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [supportId, setSupportId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
   const q = useDebouncedValue(text.trim());
 
   useBreadcrumbLabel(`${basePath}/${batchId}`, batch.data?.file_name);
@@ -118,12 +122,22 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     <div className="space-y-4">
       <Header batch={batch.data} basePath={basePath}>
         {canManage && (
-          <Button onClick={runRevalidate} disabled={revalidate.isPending}>
-            <RefreshCw className={cn(revalidate.isPending && "animate-spin")} aria-hidden="true" />
-            {revalidate.isPending ? "Revalidando…" : "Revalidar"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="danger" onClick={() => setDeleting(true)}>
+              <Trash2 aria-hidden="true" /> Eliminar archivo
+            </Button>
+            <Button onClick={runRevalidate} disabled={revalidate.isPending}>
+              <RefreshCw className={cn(revalidate.isPending && "animate-spin")} aria-hidden="true" />
+              {revalidate.isPending ? "Revalidando…" : "Revalidar"}
+            </Button>
+          </div>
         )}
       </Header>
+      <DeleteBatchDialog
+        batch={deleting ? batch.data : null}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => router.push(basePath)}
+      />
 
       <dl className="grid gap-3 md:grid-cols-2">
         <Totals
@@ -304,7 +318,7 @@ function Header({
         <ArrowLeft className="size-4" aria-hidden="true" /> Todos los archivos
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 flex-1 basis-80 space-y-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{batch.file_name}</h1>
           <p className="text-sm text-text-secondary">
             Subido por {batch.uploaded_by} el {formatDateTime(batch.uploaded_at)}

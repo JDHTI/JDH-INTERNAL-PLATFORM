@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  deleteBatch,
   getBatch,
   getValidatorCatalogs,
   getValidatorPermissions,
@@ -78,6 +79,14 @@ export function useUploadBatch() {
   return useMutation({
     mutationFn: (file: File) => uploadBatch(file),
     onSuccess: () => client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] }),
+  });
+}
+
+export function useDeleteBatch() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteBatch(id),
+    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
 

@@ -5,6 +5,7 @@ import { ChevronDown, FileSearch } from "lucide-react";
 
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, formatCop, formatDay, formatNumber, formatPct, humanize } from "@/features/supports/lib/format";
 
@@ -35,9 +36,19 @@ export default function OrderLines({
   );
 }
 
+/**
+ * With no support on file the reason label already says everything the API's
+ * sentence does, so that sentence is not repeated. For the other reasons it
+ * carries specifics, and it waits behind a button instead of filling the line.
+ */
+const SELF_EXPLANATORY_REASONS = new Set(["sin_acuerdo"]);
+
 function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (supportId: string) => void }) {
   const checksId = useId();
+  const detailId = useId();
   const [showChecks, setShowChecks] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const hasDetail = Boolean(line.detail) && !SELF_EXPLANATORY_REASONS.has(line.reason);
 
   return (
     <div className="space-y-3 px-4 py-3">
@@ -53,22 +64,39 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
             {line.supplier_code ? ` · ${line.supplier_code}` : ""}
           </p>
         </div>
-        <div className="space-y-1 sm:text-right">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <StatusBadge status={line.status} label={line.status_label} />
-          <p className="text-xs text-text-secondary">{line.reason_label}</p>
+          <span className="text-sm text-text-secondary">{line.reason_label}</span>
         </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-        <Figure label="Margen del pedido" value={formatPct(line.margin_pct)} />
-        <Figure label="Margen con apoyo" value={formatPct(line.effective_margin_pct)} />
-        <Figure label="Margen objetivo" value={formatPct(line.required_margin_pct)} />
+      <MarginMeter line={line} />
+
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
         <Figure label="Precio unitario" value={formatCop(line.unit_price)} />
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
         <Figure label="Lista · bodega" value={[line.price_list, line.warehouse].filter(Boolean).join(" · ") || "—"} plain />
       </dl>
 
-      {line.detail && <p className="max-w-prose text-sm">{line.detail}</p>}
+      {hasDetail && (
+        <div className="space-y-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowDetail((value) => !value)}
+            aria-expanded={showDetail}
+            aria-controls={detailId}
+          >
+            <ChevronDown className={cn("transition-transform duration-150", showDetail && "rotate-180")} aria-hidden="true" />
+            {showDetail ? "Ocultar detalle" : "Ver detalle"}
+          </Button>
+          {showDetail && (
+            <p id={detailId} className="max-w-prose text-sm text-text-secondary">
+              {line.detail}
+            </p>
+          )}
+        </div>
+      )}
 
       {line.problems.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Problemas del archivo">
@@ -111,6 +139,52 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+const points = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
+
+/**
+ * The line's margin set against the one it has to reach, as a bar and a
+ * sentence in place of an inequality: "2,22 % < 18,00 %" becomes "faltan 15,78
+ * puntos". The bar is a summary only; the figures are in the text, and the
+ * color is never the only signal.
+ */
+function MarginMeter({ line }: { line: OrderLine }) {
+  const margin = toNumber(line.effective_margin_pct) ?? toNumber(line.margin_pct);
+  const target = toNumber(line.required_margin_pct);
+  if (margin === null || target === null) {
+    return margin === null ? null : <p className="text-sm">Margen {formatPct(margin)}</p>;
+  }
+
+  const gap = Math.round((target - margin) * 10000) / 100;
+  const meets = gap <= 0;
+  const fill = target > 0 ? Math.min(Math.max(margin / target, 0), 1) : 1;
+  const orderMargin = toNumber(line.margin_pct);
+  const supportMoved = orderMargin !== null && Math.abs(orderMargin - margin) > 0.00005;
+
+  return (
+    <div className="max-w-md space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span>
+          <span className="font-semibold tabular-nums">{formatPct(margin)}</span>
+          <span className="text-text-secondary">
+            {supportMoved ? ` con apoyo (en el pedido ${formatPct(orderMargin)})` : " de margen"}
+          </span>
+        </span>
+        <span className="text-text-secondary tabular-nums">Objetivo {formatPct(target)}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-sm bg-border" aria-hidden="true">
+        <div className={cn("h-full rounded-sm", meets ? "bg-success" : "bg-warning")} style={{ width: `${fill * 100}%` }} />
+      </div>
+      <p className={cn("text-xs", meets ? "text-success" : "text-warning")}>
+        {gap === 0
+          ? "Justo en el objetivo"
+          : meets
+            ? `Supera el objetivo por ${points.format(-gap)} puntos`
+            : `Faltan ${points.format(gap)} puntos para el objetivo`}
+      </p>
     </div>
   );
 }

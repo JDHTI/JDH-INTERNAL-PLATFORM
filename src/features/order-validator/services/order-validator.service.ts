@@ -39,6 +39,11 @@ export async function listOrders({ batchId, status, reason, q, page, size }: Ord
   });
 }
 
+/** 204 when the file and its decisions are gone. */
+export async function deleteBatch(id: string): Promise<void> {
+  return apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export async function revalidateBatch(id: string): Promise<ValidationBatch> {
   return apiFetch<ValidationBatch>(`${BASE}/${encodeURIComponent(id)}/revalidate`, { method: "POST" });
 }
