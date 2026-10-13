@@ -13,7 +13,7 @@ import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
 import OrderLinesTable from "./order-lines-table";
 import SelectBox from "./select-box";
-import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge, ThresholdReleaseBadge } from "./status-badges";
+import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge, ThresholdReleaseIcon } from "./status-badges";
 
 interface OrdersViewProps {
   rows: ValidationOrder[];
@@ -165,8 +165,6 @@ export function OrdersTable({
               <tr
                 className={cn(
                   "h-9 hover:bg-primary-subtle",
-                  // An order the threshold releases is tinted as well as flagged, so it is found at a glance.
-                  order.released_by_threshold && "bg-info-surface",
                   isSelected && "bg-primary-subtle"
                 )}
               >
@@ -194,11 +192,9 @@ export function OrdersTable({
                   <span className="flex items-center gap-1 whitespace-nowrap">
                     <StatusBadge status={order.status} label={order.status_label} />
                     {order.manual_approval && <ManualApprovalBadge compact />}
-                    {order.released_by_threshold ? (
-                      <ThresholdReleaseBadge compact />
-                    ) : (
-                      order.release_basis === "margen" && <MarginReleaseBadge compact />
-                    )}
+                    {/* "Por margen" stays; an order the threshold tipped over gets a small icon after it. */}
+                    {order.release_basis === "margen" && <MarginReleaseBadge compact />}
+                    {order.released_by_threshold && <ThresholdReleaseIcon />}
                     {order.has_liquor_tax && <LiquorTaxBadge compact />}
                   </span>
                 </td>
@@ -276,11 +272,8 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                 <span className="flex flex-wrap items-center gap-1.5">
                   <StatusBadge status={order.status} label={order.status_label} />
                   {order.manual_approval && <ManualApprovalBadge />}
-                  {order.released_by_threshold ? (
-                    <ThresholdReleaseBadge />
-                  ) : (
-                    order.release_basis === "margen" && <MarginReleaseBadge />
-                  )}
+                  {order.release_basis === "margen" && <MarginReleaseBadge />}
+                  {order.released_by_threshold && <ThresholdReleaseIcon />}
                   {order.has_liquor_tax && <LiquorTaxBadge />}
                 </span>
                 <span className="text-xs text-text-secondary">

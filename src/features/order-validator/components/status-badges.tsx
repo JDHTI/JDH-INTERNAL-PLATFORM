@@ -46,26 +46,22 @@ export function ManualApprovalBadge({ compact = false }: { compact?: boolean }) 
 
 /**
  * The order is ready only because the threshold was added to its margin: the
- * margin alone would not release it. It is the flag for the threshold's effect,
- * and it is stronger than "Por margen" (an order the weighted margin releases
- * with or without a threshold). Accent colored so it is noticed in the list.
+ * margin alone would not release it. A small icon on the same line as the
+ * status and "Por margen", with the explanation as its tooltip, so it adds a
+ * mark without adding a badge.
  */
-export function ThresholdReleaseBadge({ compact = false }: { compact?: boolean }) {
+export function ThresholdReleaseIcon() {
+  const text = "Liberado por el umbral: pasa a listo solo por sumar el umbral al margen del pedido.";
   return (
-    <Badge
-      tone="info"
-      className="font-semibold ring-1 ring-info/60"
-      title="Pasa a listo solo por sumar el umbral al margen del pedido."
+    <span
+      role="img"
+      aria-label={text}
+      title={text}
+      tabIndex={0}
+      className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-info focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
     >
-      <SlidersHorizontal aria-hidden="true" />
-      {compact ? (
-        <>
-          Por umbral<span className="sr-only">: liberado solo por sumar el umbral al margen</span>
-        </>
-      ) : (
-        "Liberado por el umbral"
-      )}
-    </Badge>
+      <SlidersHorizontal className="size-4" aria-hidden="true" />
+    </span>
   );
 }
 
