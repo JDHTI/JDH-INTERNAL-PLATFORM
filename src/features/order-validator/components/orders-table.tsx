@@ -13,7 +13,7 @@ import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
 import OrderLinesTable from "./order-lines-table";
 import SelectBox from "./select-box";
-import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge } from "./status-badges";
+import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge, ThresholdReleaseBadge } from "./status-badges";
 
 interface OrdersViewProps {
   rows: ValidationOrder[];
@@ -187,7 +187,11 @@ export function OrdersTable({
                   <span className="flex items-center gap-1 whitespace-nowrap">
                     <StatusBadge status={order.status} label={order.status_label} />
                     {order.manual_approval && <ManualApprovalBadge compact />}
-                    {order.release_basis === "margen" && <MarginReleaseBadge compact />}
+                    {order.released_by_threshold ? (
+                      <ThresholdReleaseBadge compact />
+                    ) : (
+                      order.release_basis === "margen" && <MarginReleaseBadge compact />
+                    )}
                     {order.has_liquor_tax && <LiquorTaxBadge compact />}
                   </span>
                 </td>
@@ -265,7 +269,11 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                 <span className="flex flex-wrap items-center gap-1.5">
                   <StatusBadge status={order.status} label={order.status_label} />
                   {order.manual_approval && <ManualApprovalBadge />}
-                  {order.release_basis === "margen" && <MarginReleaseBadge />}
+                  {order.released_by_threshold ? (
+                    <ThresholdReleaseBadge />
+                  ) : (
+                    order.release_basis === "margen" && <MarginReleaseBadge />
+                  )}
                   {order.has_liquor_tax && <LiquorTaxBadge />}
                 </span>
                 <span className="text-xs text-text-secondary">

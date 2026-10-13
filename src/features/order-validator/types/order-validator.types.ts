@@ -140,6 +140,12 @@ export interface ValidationOrder {
   margin_with_threshold_pct?: Decimal | null;
   /** Why the order is ready: all its lines are, a person approved it, or its margin reaches the target. Null while pending. */
   release_basis?: ReleaseBasis | null;
+  /**
+   * True when the order is ready only because the threshold was added to its
+   * margin: without it the margin alone would not release it. It follows the
+   * threshold being tried or the saved one.
+   */
+  released_by_threshold?: boolean;
   /** Lines of the order with no support at all. */
   without_support_line_count?: number;
   /** True when some line is missing its liquor tax; the rest leave it out. */
@@ -154,6 +160,12 @@ export interface OrderPage {
   size: number;
   /** Orders per status for the current search, before the status filter is applied. */
   counts: Record<ValidationStatus, number>;
+  /**
+   * How many of the file's orders the threshold releases that the margin alone
+   * would not. It follows the threshold being tried (or the saved one) and does
+   * not depend on the search or the status filter.
+   */
+  threshold_released_count?: number;
 }
 
 export interface OrderParams {

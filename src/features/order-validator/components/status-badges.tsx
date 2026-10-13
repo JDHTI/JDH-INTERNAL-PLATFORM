@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Scale, UserCheck, Wine } from "lucide-react";
+import { CheckCircle2, Clock, Scale, SlidersHorizontal, UserCheck, Wine } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { toNumber, type Decimal } from "@/shared/lib/format";
@@ -39,6 +39,31 @@ export function ManualApprovalBadge({ compact = false }: { compact?: boolean }) 
         </>
       ) : (
         "Aprobado manualmente"
+      )}
+    </Badge>
+  );
+}
+
+/**
+ * The order is ready only because the threshold was added to its margin: the
+ * margin alone would not release it. It is the flag for the threshold's effect,
+ * and it is stronger than "Por margen" (an order the weighted margin releases
+ * with or without a threshold). Accent colored so it is noticed in the list.
+ */
+export function ThresholdReleaseBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <Badge
+      tone="info"
+      className="font-semibold ring-1 ring-info/60"
+      title="Pasa a listo solo por sumar el umbral al margen del pedido."
+    >
+      <SlidersHorizontal aria-hidden="true" />
+      {compact ? (
+        <>
+          Por umbral<span className="sr-only">: liberado solo por sumar el umbral al margen</span>
+        </>
+      ) : (
+        "Liberado por el umbral"
       )}
     </Badge>
   );
