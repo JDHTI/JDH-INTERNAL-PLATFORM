@@ -5,6 +5,7 @@ import {
   Building2,
   CalendarCheck,
   CalendarClock,
+  ClipboardCheck,
   ClipboardList,
   Database,
   FolderKanban,
@@ -280,6 +281,15 @@ export const MODULES: ModuleItem[] = [
   },
 
   // ── BI ──
+  {
+    id: "bi-validador-pedidos",
+    name: "Validador de pedidos",
+    path: "/bi/validador-pedidos",
+    areaSlug: "bi",
+    category: "Operación",
+    icon: ClipboardCheck,
+    available: true,
+  },
   {
     id: "bi-apoyos",
     name: "Maestro de apoyos",
