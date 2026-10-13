@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, UserCheck } from "lucide-react";
+import { CheckCircle2, Clock, UserCheck, Wine } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -31,6 +31,22 @@ export function ManualApprovalBadge() {
   return (
     <Badge tone="info">
       <UserCheck aria-hidden="true" /> Aprobado manualmente
+    </Badge>
+  );
+}
+
+/**
+ * The product carries liquor consumption tax, which an order can be keyed
+ * without. It is a warning on the order, not a decision: the status does not change.
+ */
+export function LiquorTaxBadge({ className }: { className?: string }) {
+  return (
+    <Badge
+      tone="warning"
+      className={className}
+      title="El producto tiene impuesto al consumo de licor y el pedido pudo montarse sin él."
+    >
+      <Wine aria-hidden="true" /> Impuesto licor
     </Badge>
   );
 }

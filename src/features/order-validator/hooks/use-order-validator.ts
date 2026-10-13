@@ -79,7 +79,7 @@ export function useBatchOrders(params: OrderParams) {
 export function useUploadBatch() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadBatch(file),
+    mutationFn: ({ file, thresholdPoints }: { file: File; thresholdPoints: string | null }) => uploadBatch(file, thresholdPoints),
     onSuccess: () => client.invalidateQueries({ queryKey: [...validatorKeys.all, "batches"] }),
   });
 }
@@ -121,7 +121,7 @@ export function useDeleteBatch() {
 export function useRevalidateBatch() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => revalidateBatch(id),
+    mutationFn: ({ id, thresholdPoints }: { id: string; thresholdPoints?: number }) => revalidateBatch(id, thresholdPoints),
     onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
