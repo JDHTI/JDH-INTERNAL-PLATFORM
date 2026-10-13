@@ -64,12 +64,14 @@ export default function SidebarModuleGroup({
     );
   }
 
+  // Lit like a selected row only while the route is the module or one of its
+  // pages; otherwise it is as quiet as every other row, open or not.
   const labelClass = cn(
     // Same padding, icon and gap as SidebarRow, so the icon and the label
     // line up with the plain rows above and below.
-    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left text-sm font-medium",
+    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left text-sm font-medium transition-colors duration-150",
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
-    "text-sidebar-foreground"
+    isInside ? "text-sidebar-foreground" : "text-sidebar-muted hover:text-sidebar-foreground"
   );
   const labelContent = (
     <>
@@ -94,7 +96,7 @@ export default function SidebarModuleGroup({
           // Squared underneath while the pages are open, so the row and its
           // tray read as one component.
           isOpen ? "rounded-t-md" : "rounded-md",
-          (isOpen || isModulePage) && "bg-sidebar-active"
+          isInside ? "bg-sidebar-active" : "hover:bg-sidebar-hover"
         )}
       >
         {hasPage ? (
