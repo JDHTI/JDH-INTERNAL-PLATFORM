@@ -6,8 +6,8 @@ import { LayoutGrid } from "lucide-react";
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import {
   MODULE_CATEGORIES,
+  activeModuleId,
   getModulesByArea,
-  isModuleActive,
   moduleHref,
 } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
@@ -34,6 +34,8 @@ export default function SidebarMenu() {
   }
 
   const areaModules = getModulesByArea(activeArea.slug);
+  // Any page under a module keeps its row selected, not only the module's own screen.
+  const currentModuleId = activeModuleId(areaModules, pathname);
 
   const grouped = MODULE_CATEGORIES.map((category) => ({
     category,
@@ -79,7 +81,7 @@ export default function SidebarMenu() {
                       href={moduleHref(module)}
                       label={module.name}
                       icon={module.icon}
-                      isActive={isModuleActive(module, pathname)}
+                      isActive={module.id === currentModuleId}
                       isCollapsed={isSidebarCollapsed}
                       available={module.available}
                       onNavigate={closeDrawer}

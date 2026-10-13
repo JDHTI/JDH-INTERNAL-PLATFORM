@@ -89,10 +89,29 @@ export interface ModuleItem {
   hasPage?: boolean;
 }
 
-/** Whether the route is the module's own screen, or any page under it when it has none. */
+/**
+ * Whether the route is the module's own screen or a page under it. A module
+ * with no screen of its own matches only its pages. When modules nest, use
+ * `activeModuleId`, which picks the most specific one.
+ */
 export function isModuleActive(module: ModuleItem, pathname: string): boolean {
   if (module.hasPage === false) return pathname.startsWith(`${module.path}/`);
-  return pathname === module.path;
+  return pathname === module.path || pathname.startsWith(`${module.path}/`);
+}
+
+/**
+ * The module a route belongs to: the one whose path is the route or a prefix of
+ * it, and the longest such path when several match. A page under a module (a
+ * file opened from the order validator, say) keeps that module selected, while
+ * /apoyos/casos-especiales selects Casos especiales and not Maestro de apoyos.
+ */
+export function activeModuleId(modules: ModuleItem[], pathname: string): string | null {
+  let best: ModuleItem | null = null;
+  for (const candidate of modules) {
+    const matches = pathname === candidate.path || pathname.startsWith(`${candidate.path}/`);
+    if (matches && (best === null || candidate.path.length > best.path.length)) best = candidate;
+  }
+  return best?.id ?? null;
 }
 
 /** Where a link to the module goes: its own screen, or its first page when it has none. */
