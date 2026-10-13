@@ -36,19 +36,14 @@ export default function OrderLines({
   );
 }
 
-/**
- * With no support on file the reason label already says everything the API's
- * sentence does, so that sentence is not repeated. For the other reasons it
- * carries specifics, and it waits behind a button instead of filling the line.
+/*
+ * The API's `detail` sentence ("margen del pedido 2,22 % < margen lista 18,00 %")
+ * is not shown, on the line or on its checks: the reason label says what was
+ * decided and the margin bar says by how much.
  */
-const SELF_EXPLANATORY_REASONS = new Set(["sin_acuerdo"]);
-
 function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (supportId: string) => void }) {
   const checksId = useId();
-  const detailId = useId();
   const [showChecks, setShowChecks] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
-  const hasDetail = Boolean(line.detail) && !SELF_EXPLANATORY_REASONS.has(line.reason);
 
   return (
     <div className="space-y-3 px-4 py-3">
@@ -77,26 +72,6 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
         <Figure label="Lista · bodega" value={[line.price_list, line.warehouse].filter(Boolean).join(" · ") || "—"} plain />
       </dl>
-
-      {hasDetail && (
-        <div className="space-y-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowDetail((value) => !value)}
-            aria-expanded={showDetail}
-            aria-controls={detailId}
-          >
-            <ChevronDown className={cn("transition-transform duration-150", showDetail && "rotate-180")} aria-hidden="true" />
-            {showDetail ? "Ocultar detalle" : "Ver detalle"}
-          </Button>
-          {showDetail && (
-            <p id={detailId} className="max-w-prose text-sm text-text-secondary">
-              {line.detail}
-            </p>
-          )}
-        </div>
-      )}
 
       {line.problems.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Problemas del archivo">
@@ -214,7 +189,6 @@ function CheckRow({ check, onOpenSupport }: { check: SupportCheck; onOpenSupport
         Vigencia {formatDay(check.valid_from)} a {check.valid_to ? formatDay(check.valid_to) : "indefinido"} · Margen con apoyo{" "}
         {formatPct(check.effective_margin_pct)} · Objetivo {formatPct(check.required_margin_pct)}
       </p>
-      {check.detail && <p className="max-w-prose">{check.detail}</p>}
     </div>
   );
 }
