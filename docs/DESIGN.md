@@ -252,6 +252,24 @@ lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobr
 | Info | #175cd3 / #ecf2fc · **5.32** ✅ | #84adff / #292e36 · **6.11** ✅ |
 | Neutro | #1d1d1b / `--canvas-subtle` #f2f2f2 · **15.08** ✅ | #ffffff / #151513 · **18.28** ✅ |
 
+**Banda de aviso (texto sobre `--warning-surface` aplanado; monitoreo del DWH)**
+
+| Primer plano | Claro (sobre #f9f0eb) | Oscuro (sobre #382f1c) |
+|---|---|---|
+| `--text-secondary` | #6c6966 · **4.85** ✅ | #b7b4ad · **6.37** ✅ |
+| `--warning` | #b54708 · **4.83** ✅ | #fdb022 · **7.17** ✅ |
+
+**Gantt del monitoreo (marcas gráficas, umbral 3:1 de WCAG 1.4.11)**
+
+El contorno del día típico y la ETA usan `--text-secondary` como borde, no `--border-control`:
+en oscuro, `--border-control` es blanco al 12% y no llega a 3:1.
+
+| Marca | Claro (sobre `--surface` #ffffff) | Oscuro (sobre `--surface` #282826) |
+|---|---|---|
+| Contorno `--text-secondary` | #6e6e6d · **5.10** ✅ | #b2b2b1 · **6.96** ✅ |
+| Barra real `--primary` | #1d1d1b · **16.88** ✅ | #ffffff · **14.77** ✅ |
+| Barra fallida `--danger` | #b42318 · **6.57** ✅ | #f97066 · **5.30** ✅ |
+
 **Confirmación de borrado (botón `danger` sólido, solo dentro del modal)**
 
 | Tema | Texto / Fondo | Ratio |
