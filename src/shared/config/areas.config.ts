@@ -13,10 +13,12 @@ import {
   HandCoins,
   Handshake,
   History,
+  Hourglass,
   KeyRound,
   Laptop,
   Lightbulb,
   LifeBuoy,
+  ListChecks,
   MessageSquareWarning,
   Palette,
   ReceiptText,
@@ -25,6 +27,7 @@ import {
   TrendingUp,
   ShieldCheck,
   ThumbsUp,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +35,9 @@ import {
   COMMERCIAL_MASTERS,
   MASTERS_SEGMENT,
 } from "@/features/commercial-masters/config/masters.config";
+
+/** TI's data warehouse monitoring: its summary and the pages under it. */
+export const DWH_SEGMENT = "datawarehouse";
 
 /*
  * Areas themselves come from the API (features/areas). This file keeps what
@@ -46,6 +52,7 @@ import {
 export const MODULE_CATEGORIES = [
   "Operación",
   "Reportes",
+  "Monitoreo",
   "Maestros",
   // Not "Configuración": that label already belongs to the platform-wide
   // utility link in the footer, and two different things under one word in
@@ -168,6 +175,21 @@ export const MODULES: ModuleItem[] = [
     category: "Administración",
     icon: KeyRound,
     available: false,
+  },
+  {
+    id: "ti-datawarehouse",
+    name: "Datawarehouse",
+    path: `/ti/${DWH_SEGMENT}`,
+    areaSlug: "ti",
+    category: "Monitoreo",
+    icon: Database,
+    available: true,
+    subItems: [
+      { id: "ti-datawarehouse-secuencias", name: "Secuencias", path: `/ti/${DWH_SEGMENT}/secuencias`, icon: Workflow },
+      { id: "ti-datawarehouse-frescura", name: "Frescura", path: `/ti/${DWH_SEGMENT}/frescura`, icon: Hourglass },
+      { id: "ti-datawarehouse-horario", name: "Horario del día", path: `/ti/${DWH_SEGMENT}/horario`, icon: CalendarClock },
+      { id: "ti-datawarehouse-extracciones", name: "Extracciones", path: `/ti/${DWH_SEGMENT}/extracciones`, icon: ListChecks },
+    ],
   },
 
   // ── Calidad ──
