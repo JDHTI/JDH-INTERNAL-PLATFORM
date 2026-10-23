@@ -2,7 +2,9 @@
 
 import { Workflow } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 import { Badge } from "@/shared/components/ui/badge";
 
 import { useSequences } from "../hooks/use-dwh-monitoring";
@@ -16,7 +18,7 @@ import {
   scheduleStatus,
 } from "../lib/format";
 import type { Secuencia } from "../types/dwh-monitoring.types";
-import { LoadError, PageHeader, ReadyTime, RunStatusBadge, SequenceLink, TableSkeleton } from "./parts";
+import { LoadError, ReadyTime, RunStatusBadge, SequenceLink } from "./parts";
 import SyncStatus from "./sync-status";
 
 /** Every sequence the warehouse knows, in the order they run during the day. */

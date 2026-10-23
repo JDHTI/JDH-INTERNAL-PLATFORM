@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { DatabaseZap } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 
 import { useOverview } from "../hooks/use-dwh-monitoring";
 import { dwhPath, formatNumber, formatPct, formatWhen } from "../lib/format";
 import type { DatosListos, Overview as OverviewData } from "../types/dwh-monitoring.types";
-import { LoadError, NoLoadYet, PageHeader, ReadyTime, RunStatusBadge, SequenceLink, TableSkeleton } from "./parts";
+import { LoadError, NoLoadYet, ReadyTime, RunStatusBadge, SequenceLink } from "./parts";
 import SyncStatus, { LoadWarning } from "./sync-status";
 
 /**

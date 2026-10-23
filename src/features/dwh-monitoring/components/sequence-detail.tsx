@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, SearchX, Table2 } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 import { Badge } from "@/shared/components/ui/badge";
 import { ApiError } from "@/shared/lib/api-client";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
@@ -21,7 +22,7 @@ import {
   scheduleStatus,
 } from "../lib/format";
 import type { Estadistica, HorarioTipico, SecuenciaDetalle, SecuenciaTabla } from "../types/dwh-monitoring.types";
-import { LoadError, MeasuredRuns, ReadyTime, RunStatusBadge, TableSkeleton } from "./parts";
+import { LoadError, MeasuredRuns, ReadyTime, RunStatusBadge } from "./parts";
 import SyncStatus from "./sync-status";
 
 const WEEKDAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
