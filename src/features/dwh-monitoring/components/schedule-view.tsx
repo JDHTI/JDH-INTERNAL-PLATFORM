@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { CalendarX2, ChevronLeft, ChevronRight } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 import { Button } from "@/shared/components/ui/button";
 import { DatePicker } from "@/shared/components/ui/date-picker";
 import { cn } from "@/shared/lib/utils";
@@ -24,7 +26,7 @@ import {
   timeOfDayMinutes,
 } from "../lib/format";
 import type { Corrida, Horario, HorarioTipico, Secuencia } from "../types/dwh-monitoring.types";
-import { LoadError, MeasuredRuns, PageHeader, RunStatusBadge, SequenceLink, TableSkeleton } from "./parts";
+import { LoadError, MeasuredRuns, RunStatusBadge, SequenceLink } from "./parts";
 import SyncStatus from "./sync-status";
 
 interface Row {

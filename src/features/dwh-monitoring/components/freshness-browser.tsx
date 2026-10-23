@@ -3,7 +3,9 @@
 import { useId, useState } from "react";
 import { CheckCircle2, SearchX } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
@@ -14,7 +16,7 @@ import { cn } from "@/shared/lib/utils";
 import { useFreshness, useFreshnessTables } from "../hooks/use-dwh-monitoring";
 import { formatDuration, formatNumber, formatPct, formatWhen, freshnessStatus } from "../lib/format";
 import type { EstadoFrescura, FrescuraDominio, FrescuraResumen, FrescuraTabla, Programacion } from "../types/dwh-monitoring.types";
-import { LoadError, NoLoadYet, PageHeader, TableSkeleton } from "./parts";
+import { LoadError, NoLoadYet } from "./parts";
 import SyncStatus from "./sync-status";
 
 /** The list opens on what needs attention; the rest is one choice away. */

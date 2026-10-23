@@ -3,8 +3,10 @@
 import { useId, useState } from "react";
 import { ChevronDown, FileSearch, SearchX } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
+import TableSkeleton from "@/shared/components/table-skeleton";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DateRangePicker, type IsoDateRange } from "@/shared/components/ui/date-range-picker";
@@ -25,7 +27,7 @@ import {
   TRIGGER_LABELS,
 } from "../lib/format";
 import type { Disparo, EstadoRun, Extraccion } from "../types/dwh-monitoring.types";
-import { LoadError, PageHeader, RunStatusBadge, TableSkeleton } from "./parts";
+import { LoadError, RunStatusBadge } from "./parts";
 import SyncStatus from "./sync-status";
 
 const PAGE_SIZE = 50;
