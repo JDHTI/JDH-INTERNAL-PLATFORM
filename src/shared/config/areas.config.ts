@@ -1,4 +1,6 @@
 import {
+  Activity,
+  AppWindow,
   ArrowLeftRight,
   Banknote,
   BookOpen,
@@ -38,6 +40,12 @@ import {
 
 /** TI's data warehouse monitoring: its summary and the pages under it. */
 export const DWH_SEGMENT = "datawarehouse";
+
+/** TI's general board: the applications and the data warehouse on one screen. */
+export const BOARD_SEGMENT = "monitoreo";
+
+/** TI's monitored applications, and each one's page under it. */
+export const APPS_SEGMENT = "aplicativos";
 
 /*
  * Areas themselves come from the API (features/areas). This file keeps what
@@ -175,6 +183,24 @@ export const MODULES: ModuleItem[] = [
     category: "Administración",
     icon: KeyRound,
     available: false,
+  },
+  {
+    id: "ti-monitoreo",
+    name: "Tablero general",
+    path: `/ti/${BOARD_SEGMENT}`,
+    areaSlug: "ti",
+    category: "Monitoreo",
+    icon: Activity,
+    available: true,
+  },
+  {
+    id: "ti-aplicativos",
+    name: "Aplicativos",
+    path: `/ti/${APPS_SEGMENT}`,
+    areaSlug: "ti",
+    category: "Monitoreo",
+    icon: AppWindow,
+    available: true,
   },
   {
     id: "ti-datawarehouse",
