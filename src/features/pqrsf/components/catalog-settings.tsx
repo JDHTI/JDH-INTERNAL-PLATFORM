@@ -2,14 +2,11 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CloudOff, Loader2, Lock, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, CloudOff, Lock, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import StatePanel from "@/shared/components/state-panel";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
-import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -20,6 +17,7 @@ import {
   useCreateDependency,
   useCreateDocumentType,
   useCreateStatus,
+  useFormTypes,
   useUpdateDependency,
   useUpdateDocumentType,
   useUpdateRequestType,
@@ -30,138 +28,28 @@ import type { TrackingCatalog } from "../types/pqrsf.types";
 import { StatusBadge } from "./case-badges";
 import NotificationSettingsPanel from "./notification-settings";
 import { normalize } from "./pickers";
+import {
+  ActiveBadge,
+  Actions,
+  EditButton,
+  EditDialog,
+  SettingsTable,
+  ToggleActive,
+  pick,
+  type FormField,
+} from "./settings-parts";
+import SubjectSettings, { OPTION_DESCRIPTION_LIMIT } from "./subject-settings";
 
-type Tab = "types" | "statuses" | "dependencies" | "documents" | "timers";
+type Tab = "types" | "subjects" | "statuses" | "dependencies" | "documents" | "timers";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "types", label: "Tipos de solicitud" },
+  { id: "subjects", label: "Asuntos y causales" },
   { id: "statuses", label: "Estados" },
   { id: "dependencies", label: "Dependencias" },
   { id: "documents", label: "Tipos de documento" },
   { id: "timers", label: "Temporizadores" },
 ];
-
-// ── Generic edit dialog ──
-
-interface FormField {
-  key: string;
-  label: string;
-  kind: "text" | "number" | "checkbox";
-  optional?: boolean;
-  hint?: string;
-  /** Codes are identifiers the automations use: set once, never edited. */
-  createOnly?: boolean;
-  min?: number;
-  max?: number;
-  maxLength?: number;
-}
-
-type Values = Record<string, string | boolean>;
-
-function EditDialog({
-  title,
-  fields,
-  initial,
-  isCreate,
-  onSubmit,
-  onClose,
-}: {
-  title: string;
-  fields: FormField[];
-  initial: Values;
-  isCreate: boolean;
-  onSubmit: (values: Values, changed: string[]) => Promise<unknown>;
-  onClose: () => void;
-}) {
-  const id = useId();
-  const [values, setValues] = useState<Values>(initial);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setPending] = useState(false);
-  const visible = fields.filter((field) => isCreate || !field.createOnly);
-  const changed = visible.map((field) => field.key).filter((key) => values[key] !== initial[key]);
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()} isForm title={title}>
-      <form
-        className="space-y-4"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          if (!isCreate && changed.length === 0) return onClose();
-          setPending(true);
-          setError(null);
-          try {
-            await onSubmit(values, changed);
-            onClose();
-          } catch (caught) {
-            setError(errorMessage(caught));
-          } finally {
-            setPending(false);
-          }
-        }}
-      >
-        {visible.map((field) =>
-          field.kind === "checkbox" ? (
-            <label key={field.key} className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 accent-[var(--primary)]"
-                checked={Boolean(values[field.key])}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [field.key]: event.target.checked }))
-                }
-              />
-              <span>
-                <span className="block font-medium">{field.label}</span>
-                {field.hint && (
-                  <span className="block text-[13px] text-text-secondary">{field.hint}</span>
-                )}
-              </span>
-            </label>
-          ) : (
-            <Field
-              key={field.key}
-              label={field.label}
-              htmlFor={`${id}-${field.key}`}
-              optional={field.optional}
-              hint={field.hint}
-            >
-              <Input
-                id={`${id}-${field.key}`}
-                type={field.kind}
-                required={!field.optional}
-                min={field.min}
-                max={field.max}
-                maxLength={field.maxLength}
-                inputMode={field.kind === "number" ? "numeric" : undefined}
-                className={field.kind === "number" ? "tabular w-32" : undefined}
-                value={String(values[field.key] ?? "")}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                }
-                aria-describedby={field.hint ? `${id}-${field.key}-hint` : undefined}
-              />
-            </Field>
-          )
-        )}
-        <DialogError message={error} />
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isPending || (!isCreate && changed.length === 0)}>
-            {isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
-            {isCreate ? "Crear" : "Guardar cambios"}
-          </Button>
-        </DialogFooter>
-      </form>
-    </Dialog>
-  );
-}
-
-const pick = (values: Values, keys: string[], numeric: string[] = []) =>
-  Object.fromEntries(
-    keys.map((key) => [key, numeric.includes(key) ? Number(values[key]) : values[key]])
-  );
 
 // ── Screen ──
 
@@ -254,6 +142,7 @@ export default function CatalogSettings({ area }: { area: string }) {
         </ul>
       </nav>
       {tab === "types" && <RequestTypesTable catalog={catalog.data} />}
+      {tab === "subjects" && <SubjectSettings catalog={catalog.data} />}
       {tab === "statuses" && <StatusesTable catalog={catalog.data} />}
       {tab === "dependencies" && <DependenciesTable catalog={catalog.data} />}
       {tab === "documents" && <DocumentTypesTable catalog={catalog.data} />}
@@ -262,160 +151,160 @@ export default function CatalogSettings({ area }: { area: string }) {
   );
 }
 
-// ── Shared table chrome ──
+// ── Request types ──
 
-function SettingsTable({
-  caption,
-  headers,
-  action,
-  children,
-}: {
-  caption: string;
-  headers: { label: string; align?: "right" }[];
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function RequestTypesTable({ catalog }: { catalog: TrackingCatalog }) {
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-prose text-[13px] text-text-secondary">{caption}</p>
-        {action}
-      </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[36rem] text-sm">
-          <thead className="bg-canvas-subtle text-left text-[11px] font-semibold tracking-[0.06em] text-text-secondary uppercase">
-            <tr>
-              {headers.map((header) => (
-                <th
-                  key={header.label}
-                  scope="col"
-                  className={cn("px-3 py-2 whitespace-nowrap", header.align === "right" && "text-right")}
-                >
-                  {header.label}
-                </th>
-              ))}
-              <th scope="col" className="px-3 py-2">
-                <span className="sr-only">Acciones</span>
-              </th>
+    <div className="space-y-8">
+      <FormTypesTable />
+      <FollowUpTypesTable catalog={catalog} />
+    </div>
+  );
+}
+
+/** What the public form shows of each type: all five, case or not. */
+function FormTypesTable() {
+  const types = useFormTypes();
+  const update = useUpdateRequestType();
+  const [editing, setEditing] = useState<string | null>(null);
+  const current = types.data?.find((type) => type.id === editing);
+
+  return (
+    <section aria-labelledby="form-types-heading" className="space-y-3">
+      <h2 id="form-types-heading" className="text-base font-semibold">En el formulario público</h2>
+      {types.isPending ? (
+        <div className="h-48 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true">
+          <span className="sr-only">Cargando los tipos del formulario</span>
+        </div>
+      ) : types.error ? (
+        <StatePanel
+          icon={CloudOff}
+          tone="danger"
+          title="No se cargaron los tipos del formulario"
+          action={
+            <Button variant="outline" onClick={() => types.refetch()}>
+              Reintentar
+            </Button>
+          }
+        >
+          {errorMessage(types.error)}
+        </StatePanel>
+      ) : (
+        <SettingsTable
+          caption="La descripción es la línea que el cliente ve bajo cada tipo, y la que le ayuda a distinguir una queja de un reclamo. Una solicitud de documentos nunca lleva evidencias."
+          headers={[{ label: "Tipo" }, { label: "Evidencias" }, { label: "Área" }]}
+        >
+          {types.data.map((type) => (
+            <tr key={type.id}>
+              <td className="px-3 py-2">
+                <span className="flex flex-wrap items-center gap-2 font-medium">
+                  {type.name}
+                  {!type.is_active && <ActiveBadge active={false} />}
+                </span>
+                <span className="block max-w-xl text-[13px] text-text-secondary">
+                  {type.description || "Sin descripción: el formulario solo muestra el nombre."}
+                </span>
+              </td>
+              <td className="px-3 py-2 whitespace-nowrap">{type.allows_attachments ? "Admite" : "No admite"}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{type.asks_area ? "La pide" : "No la pide"}</td>
+              <Actions>
+                <EditButton label={type.name} onClick={() => setEditing(type.id)} />
+              </Actions>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-border">{children}</tbody>
-        </table>
-      </div>
+          ))}
+        </SettingsTable>
+      )}
+      {current && (
+        <EditDialog
+          title={`${current.name} en el formulario`}
+          isCreate={false}
+          fields={[
+            {
+              key: "description",
+              label: "Descripción",
+              kind: "text",
+              optional: true,
+              maxLength: OPTION_DESCRIPTION_LIMIT,
+              hint: `Una línea, máximo ${OPTION_DESCRIPTION_LIMIT} caracteres. Vacía, el formulario muestra solo el nombre.`,
+            },
+            { key: "allows_attachments", label: "Admite evidencias", kind: "checkbox", hint: "El cliente puede adjuntar fotos y video." },
+            { key: "asks_area", label: "Pide el área", kind: "checkbox", hint: "El cliente elige a qué área va dirigida. Decide la dependencia solo cuando la causal, el asunto o la categoría del documento no la deciden." },
+          ]}
+          initial={{
+            description: current.description ?? "",
+            allows_attachments: current.allows_attachments,
+            asks_area: Boolean(current.asks_area),
+          }}
+          onSubmit={(values, changed) => {
+            const input: Record<string, unknown> = {};
+            for (const key of changed) {
+              // An empty description clears it (the API takes null for that).
+              input[key] = key === "description" ? String(values.description).trim() || null : values[key];
+            }
+            return update.mutateAsync({ id: current.id, input }).then(() => toast.success(`«${current.name}» guardado.`));
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </section>
   );
 }
 
-function ActiveBadge({ active }: { active: boolean }) {
-  return active ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>;
-}
-
-function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="max-md:size-11"
-      aria-label={`Editar ${label}`}
-      title="Editar"
-      onClick={onClick}
-    >
-      <Pencil aria-hidden="true" />
-    </Button>
-  );
-}
-
-function ToggleActive({
-  name,
-  active,
-  onToggle,
-}: {
-  name: string;
-  active: boolean;
-  onToggle: () => Promise<unknown>;
-}) {
-  const [isPending, setPending] = useState(false);
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="max-md:h-11"
-      disabled={isPending}
-      onClick={async () => {
-        setPending(true);
-        try {
-          await onToggle();
-          toast.success(`«${name}» ${active ? "desactivado" : "activado"}.`);
-        } catch (error) {
-          toast.error(errorMessage(error), { duration: Infinity });
-        } finally {
-          setPending(false);
-        }
-      }}
-    >
-      {active ? "Desactivar" : "Activar"}
-    </Button>
-  );
-}
-
-function Actions({ children }: { children: React.ReactNode }) {
-  return <td className="px-2 py-1.5"><div className="flex items-center justify-end gap-1">{children}</div></td>;
-}
-
-// ── Request types ──
-
-function RequestTypesTable({ catalog }: { catalog: TrackingCatalog }) {
+function FollowUpTypesTable({ catalog }: { catalog: TrackingCatalog }) {
   const update = useUpdateRequestType();
   const [editing, setEditing] = useState<string | null>(null);
   const current = catalog.request_types.find((type) => type.id === editing);
 
   return (
-    <SettingsTable
-      caption="El prefijo abre el consecutivo, seguido del año y la sigla de la sucursal (P26AC0012). Cambiarlo no reescribe los códigos ya emitidos. Sin seguimiento, el caso recibe consecutivo pero no fecha límite."
-      headers={[
-        { label: "Tipo" },
-        { label: "Prefijo" },
-        { label: "Seguimiento" },
-        { label: "Días por defecto", align: "right" },
-      ]}
-    >
-      {catalog.request_types.map((type) => (
-        <tr key={type.id} className="h-10">
-          <td className="px-3 py-2 font-medium">{type.name}</td>
-          <td className="px-3 py-2 font-mono text-[13px]">{type.prefix}</td>
-          <td className="px-3 py-2">{type.requires_follow_up ? "Con seguimiento" : "Sin seguimiento"}</td>
-          <td className="tabular px-3 py-2 text-right">{type.sla_days ?? "Sin tiempo"}</td>
-          <Actions>
-            <EditButton label={type.name} onClick={() => setEditing(type.id)} />
-          </Actions>
-        </tr>
-      ))}
-      {current && (
-        <EditDialog
-          title={`Editar ${current.name}`}
-          isCreate={false}
-          fields={[
-            { key: "prefix", label: "Prefijo", kind: "text", maxLength: 5, hint: "De 1 a 5 letras sin tildes." },
-            { key: "requires_follow_up", label: "Con seguimiento", kind: "checkbox", hint: "Tiene fecha límite y responde por tiempos." },
-            { key: "sla_days", label: "Días hábiles por defecto", kind: "number", min: 0, max: 365, optional: true, hint: "Se usa cuando el caso no tiene documentos." },
-          ]}
-          initial={{
-            prefix: current.prefix,
-            requires_follow_up: current.requires_follow_up,
-            sla_days: current.sla_days === null ? "" : String(current.sla_days),
-          }}
-          onSubmit={(values, changed) => {
-            const input: Record<string, unknown> = {};
-            for (const key of changed) {
-              input[key] =
-                key === "sla_days" ? (values.sla_days === "" ? null : Number(values.sla_days)) : values[key];
-            }
-            return update.mutateAsync({ id: current.id, input }).then(() => toast.success("Tipo de solicitud guardado."));
-          }}
-          onClose={() => setEditing(null)}
-        />
-      )}
-    </SettingsTable>
+    <section aria-labelledby="follow-up-types-heading" className="space-y-3">
+      <h2 id="follow-up-types-heading" className="text-base font-semibold">Seguimiento de los casos</h2>
+      <SettingsTable
+        caption="El prefijo abre el consecutivo, seguido del año y la sigla de la sucursal (P26AC0012). Cambiarlo no reescribe los códigos ya emitidos. Sin seguimiento, el caso recibe consecutivo pero no fecha límite. Las sugerencias y felicitaciones no abren caso y no están aquí."
+        headers={[
+          { label: "Tipo" },
+          { label: "Prefijo" },
+          { label: "Seguimiento" },
+          { label: "Días por defecto", align: "right" },
+        ]}
+      >
+        {catalog.request_types.map((type) => (
+          <tr key={type.id} className="h-10">
+            <td className="px-3 py-2 font-medium">{type.name}</td>
+            <td className="px-3 py-2 font-mono text-[13px]">{type.prefix}</td>
+            <td className="px-3 py-2">{type.requires_follow_up ? "Con seguimiento" : "Sin seguimiento"}</td>
+            <td className="tabular px-3 py-2 text-right">{type.sla_days ?? "Sin tiempo"}</td>
+            <Actions>
+              <EditButton label={`seguimiento de ${type.name}`} onClick={() => setEditing(type.id)} />
+            </Actions>
+          </tr>
+        ))}
+        {current && (
+          <EditDialog
+            title={`Seguimiento de ${current.name}`}
+            isCreate={false}
+            fields={[
+              { key: "prefix", label: "Prefijo", kind: "text", maxLength: 5, hint: "De 1 a 5 letras sin tildes." },
+              { key: "requires_follow_up", label: "Con seguimiento", kind: "checkbox", hint: "Tiene fecha límite y responde por tiempos." },
+              { key: "sla_days", label: "Días hábiles por defecto", kind: "number", min: 0, max: 365, optional: true, hint: "Se usa cuando el caso no tiene documentos." },
+            ]}
+            initial={{
+              prefix: current.prefix,
+              requires_follow_up: current.requires_follow_up,
+              sla_days: current.sla_days === null ? "" : String(current.sla_days),
+            }}
+            onSubmit={(values, changed) => {
+              const input: Record<string, unknown> = {};
+              for (const key of changed) {
+                input[key] =
+                  key === "sla_days" ? (values.sla_days === "" ? null : Number(values.sla_days)) : values[key];
+              }
+              return update.mutateAsync({ id: current.id, input }).then(() => toast.success("Tipo de solicitud guardado."));
+            }}
+            onClose={() => setEditing(null)}
+          />
+        )}
+      </SettingsTable>
+    </section>
   );
 }
 

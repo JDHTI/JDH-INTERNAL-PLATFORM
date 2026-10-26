@@ -240,6 +240,7 @@ function Row({ item, area }: { item: FeedbackItem; area: string }) {
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
             <span>{originLabel(item.origin)}</span>
             {item.site && <span>{item.site.name}</span>}
+            {item.area && <span>Área: {item.area.name}</span>}
             {item.files_count > 0 && (
               <span className="inline-flex items-center gap-1">
                 <Paperclip className="size-3.5" aria-hidden="true" />

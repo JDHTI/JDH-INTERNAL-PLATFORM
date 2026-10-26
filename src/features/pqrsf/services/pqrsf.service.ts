@@ -10,6 +10,9 @@ import type {
   CasePage,
   CaseStatus,
   CaseSummary,
+  CauseAdmin,
+  CauseInput,
+  CauseUpdate,
   ClientReply,
   CommentInput,
   CommentResult,
@@ -28,7 +31,14 @@ import type {
   Person,
   PqrsfCase,
   RequestType,
+  SubjectAdmin,
+  SubjectInput,
+  SubjectUpdate,
   SuggestionField,
+  SupplierContact,
+  SupplierEmail,
+  SupplierMessageInput,
+  SupplierMessageResult,
   TrackingCatalog,
   UpdateCaseInput,
   UpdateItemInput,
@@ -65,12 +75,57 @@ export function getCatalog(includeInactive = false): Promise<TrackingCatalog> {
 
 export function updateRequestType(
   id: string,
-  input: Partial<Pick<RequestType, "prefix" | "requires_follow_up" | "sla_days">>
+  input: Partial<
+    Pick<
+      RequestType,
+      | "prefix"
+      | "requires_follow_up"
+      | "sla_days"
+      | "description"
+      | "allows_attachments"
+      | "asks_area"
+    >
+  >
 ): Promise<RequestType> {
   return apiFetch<RequestType>(`/pqrsf/request-types/${id}`, {
     method: "PATCH",
     body: input,
   });
+}
+
+/**
+ * All five types with their settings (managers). The follow-up catalog leaves
+ * out suggestions and compliments, which open no case, but their description
+ * and evidence on the form are edited all the same.
+ */
+export function listRequestTypes(): Promise<RequestType[]> {
+  return apiFetch<RequestType[]>("/pqrsf/request-types");
+}
+
+// Subjects and causes of the forms. Nothing is deleted: a PATCH with
+// `is_active: false` takes it off the forms and old requests keep it.
+
+export function listSubjects(): Promise<SubjectAdmin[]> {
+  return apiFetch<SubjectAdmin[]>("/pqrsf/subjects", { query: { include_inactive: true } });
+}
+
+export function createSubject(input: SubjectInput): Promise<SubjectAdmin> {
+  return apiFetch<SubjectAdmin>("/pqrsf/subjects", { method: "POST", body: input });
+}
+
+export function updateSubject(id: string, input: SubjectUpdate): Promise<SubjectAdmin> {
+  return apiFetch<SubjectAdmin>(`/pqrsf/subjects/${id}`, { method: "PATCH", body: input });
+}
+
+export function createCause(subjectId: string, input: CauseInput): Promise<CauseAdmin> {
+  return apiFetch<CauseAdmin>(`/pqrsf/subjects/${subjectId}/causes`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateCause(id: string, input: CauseUpdate): Promise<CauseAdmin> {
+  return apiFetch<CauseAdmin>(`/pqrsf/causes/${id}`, { method: "PATCH", body: input });
 }
 
 export function createStatus(
@@ -238,6 +293,44 @@ export function getClientReplies(id: string): Promise<ClientReply[]> {
 export function retryClientReply(id: string, notificationId: string): Promise<ClientReply> {
   return apiFetch<ClientReply>(`${casePath(id)}/client-replies/${notificationId}/retry`, {
     method: "POST",
+  });
+}
+
+// ── Messages to the supplier (docs/pqrsf-proveedor.md) ──
+
+export function sendSupplierMessage(
+  id: string,
+  input: SupplierMessageInput
+): Promise<SupplierMessageResult> {
+  const body = new FormData();
+  body.append("kind", input.kind);
+  for (const address of input.to) body.append("to", address);
+  body.append("body", input.body);
+  if (input.supplierCode) body.append("supplier_code", input.supplierCode);
+  if (input.supplierName) body.append("supplier_name", input.supplierName);
+  body.append("include_case_data", String(input.includeCaseData));
+  body.append("include_evidence", String(input.includeEvidence));
+  for (const file of input.files) body.append("files", file);
+  return apiFetch<SupplierMessageResult>(`${casePath(id)}/supplier-messages`, {
+    method: "POST",
+    body,
+  });
+}
+
+export function getSupplierEmails(id: string): Promise<SupplierEmail[]> {
+  return apiFetch<SupplierEmail[]>(`${casePath(id)}/supplier-messages`);
+}
+
+export function retrySupplierEmail(id: string, notificationId: string): Promise<SupplierEmail> {
+  return apiFetch<SupplierEmail>(`${casePath(id)}/supplier-messages/${notificationId}/retry`, {
+    method: "POST",
+  });
+}
+
+/** Addresses already used for a supplier, the most recent first. */
+export function getSupplierContacts(supplierCode: string | null, q: string): Promise<SupplierContact[]> {
+  return apiFetch<SupplierContact[]>("/pqrsf/supplier-contacts", {
+    query: { supplier_code: supplierCode, q, limit: 10 },
   });
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, ImageOff, Loader2 } from "lucide-react";
+import { Download, FileText, ImageOff, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 
 import { errorMessage } from "@/shared/lib/api-client";
@@ -31,6 +31,7 @@ export default function IntakeRequestSection({
     ["Dirección", `${request.address}, ${request.city} (${request.department})`],
     ["Sede", request.site.name],
   ];
+  if (request.selected_area) rows.push(["Área elegida", request.selected_area.name]);
   if (request.selected_subject) rows.push(["Asunto", request.selected_subject.name]);
   if (request.selected_cause) rows.push(["Causal", request.selected_cause.name]);
   // With a subject from the list, the written one only complements an «Otro».
@@ -182,7 +183,11 @@ export function Thumbnail({ caseId, attachment }: { caseId: string; attachment: 
       <span className="flex aspect-[4/3] items-center justify-center bg-canvas-subtle">
         {!isImage ? (
           <span className="flex flex-col items-center gap-1 text-text-secondary">
-            <FileText className="size-6" aria-hidden="true" />
+            {attachment.content_type.startsWith("video/") ? (
+              <Video className="size-6" aria-hidden="true" />
+            ) : (
+              <FileText className="size-6" aria-hidden="true" />
+            )}
             <span className="text-[13px] font-medium uppercase">{attachment.extension}</span>
           </span>
         ) : src ? (

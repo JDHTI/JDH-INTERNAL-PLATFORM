@@ -12,11 +12,12 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useActivity, useCatalog, useLastSeen } from "../hooks/use-pqrsf";
-import { ACCESS_EVENT_TYPES, actorName, describeEvent, isAccessEvent } from "../lib/event-text";
+import { useActivity, useLastSeen } from "../hooks/use-pqrsf";
 import { formatDateTime, formatRelativeTime, PQRSF_TIME_ZONE, personName } from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
-import type { ActivityEvent, ActivityFilters, Person, TrackingCatalog } from "../types/pqrsf.types";
+import { ACCESS_EVENT_TYPES, accessSentence, groupAccess, type TimelineEntry } from "../lib/timeline";
+import type { ActivityEvent, ActivityFilters, Person } from "../types/pqrsf.types";
+import { EventSentence, RailIcon, eventIcon } from "./event-line";
 import { AssigneeSelect } from "./pickers";
 
 type Scope = "all" | "changes" | "access";
@@ -71,7 +72,6 @@ function groupByDay(events: ActivityEvent[]): { key: string; label: string; item
  */
 export default function ActivityHistory({ area }: { area: string }) {
   const id = useId();
-  const catalog = useCatalog();
   const [scope, setScope] = useState<Scope>("all");
   const [code, setCode] = useState("");
   const [person, setPerson] = useState<Person | null>(null);
@@ -156,7 +156,7 @@ export default function ActivityHistory({ area }: { area: string }) {
               </div>
             </form>
 
-            <Feed query={activity} catalog={catalog.data} area={area} />
+            <Feed query={activity} area={area} />
           </section>
 
           <LastSeenPanel />
@@ -168,14 +168,12 @@ export default function ActivityHistory({ area }: { area: string }) {
 
 function Feed({
   query,
-  catalog,
   area,
 }: {
   query: ReturnType<typeof useActivity>;
-  catalog: TrackingCatalog | undefined;
   area: string;
 }) {
-  if (query.isPending || !catalog) {
+  if (query.isPending) {
     return (
       <div className="space-y-2" aria-busy="true">
         <span className="sr-only">Cargando historial</span>
@@ -219,9 +217,17 @@ function Feed({
             {group.label}
           </h3>
           <ol className="divide-y divide-border rounded-lg border border-border">
-            {group.items.map((event) => (
-              <Entry key={event.id} event={event} catalog={catalog} area={area} />
-            ))}
+            {/* Accesses fold only within the same case (or the inbox): «Abrieron
+                el caso: Ana, Juan» next to its code. */}
+            {groupAccess(group.items, (event) => `${event.event_type}:${event.case_id ?? event.case_code ?? ""}`).map(
+              (entry) => (
+                <Entry
+                  key={entry.kind === "access" ? entry.key : entry.event.id}
+                  entry={entry}
+                  area={area}
+                />
+              )
+            )}
           </ol>
         </section>
       ))}
@@ -242,43 +248,38 @@ function Feed({
   );
 }
 
-function Entry({
-  event,
-  catalog,
-  area,
-}: {
-  event: ActivityEvent;
-  catalog: TrackingCatalog;
-  area: string;
-}) {
-  const access = isAccessEvent(event);
+function Entry({ entry, area }: { entry: TimelineEntry<ActivityEvent>; area: string }) {
+  // A folded access line takes the time of its latest access.
+  const event = entry.kind === "access" ? entry.events.at(-1)! : entry.event;
+  const sentence =
+    entry.kind === "access"
+      ? accessSentence(entry)
+      : { actor: event.actor_name, title: event.title };
+  const isMessage = event.event_type === "comment" || event.event_type === "supplier_message";
   return (
     <li className="flex gap-3 px-3 py-2.5">
       <time
         dateTime={event.created_at}
         title={formatDateTime(event.created_at)}
-        className="tabular w-12 shrink-0 pt-px text-[13px] text-text-secondary"
+        className="tabular w-12 shrink-0 pt-0.5 text-[13px] text-text-secondary"
       >
         {timeLabel.format(new Date(event.created_at))}
       </time>
-      <div className="min-w-0 flex-1">
-        <p className={cn("text-sm", access && "text-text-secondary")}>
-          <span className={access ? undefined : "font-medium text-text-primary"}>
-            {actorName(event)}
-          </span>{" "}
-          {describeEvent(event, catalog)}
-          {event.case_code && (
-            <>
-              {" "}
-              <CaseCode event={event} area={area} />
-            </>
-          )}
-        </p>
-        {event.note && (
+      <RailIcon icon={eventIcon(event)} />
+      <div className="min-w-0 flex-1 pt-0.5">
+        <EventSentence
+          actor={sentence.actor}
+          title={sentence.title}
+          statusChange={entry.kind === "event" ? event.status_change : null}
+          muted={entry.kind === "access"}
+        >
+          {event.case_code && <CaseCode event={event} area={area} />}
+        </EventSentence>
+        {entry.kind === "event" && event.note && (
           <p
             className={cn(
               "mt-1 text-[13px] whitespace-pre-wrap",
-              event.event_type === "comment"
+              isMessage
                 ? "rounded-md bg-canvas-subtle px-3 py-2 text-text-primary"
                 : "text-text-secondary"
             )}

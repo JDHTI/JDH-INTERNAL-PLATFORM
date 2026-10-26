@@ -16,17 +16,18 @@ import {
   useCaseFiles,
   useClientReplies,
   useRetryClientReply,
+  useRetrySupplierEmail,
+  useSupplierEmails,
 } from "../hooks/use-pqrsf";
 import { canPreview, Preview } from "./case-files";
-import { actorName, describeEvent, isAccessEvent } from "../lib/event-text";
+import { EventSentence, RailIcon, eventIcon } from "./event-line";
 import { formatDateTime, formatRelativeTime, stripCid } from "../lib/format";
+import { accessSentence, groupAccess } from "../lib/timeline";
 import { downloadCaseFile } from "../services/pqrsf.service";
 import type {
   CaseEvent,
   CaseFile,
-  ClientReply,
   PqrsfCase,
-  TrackingCatalog,
 } from "../types/pqrsf.types";
 
 const MAX_FILES = 10;
@@ -38,31 +39,44 @@ function commentFileIds(event: CaseEvent): string[] {
   return Array.isArray(ids) ? ids.filter((value): value is string => typeof value === "string") : [];
 }
 
-const REPLY_STATUS: Record<ClientReply["status"], string> = {
-  pending: "Enviando al cliente",
-  sent: "Enviado al cliente",
-  failed: "No se pudo enviar al cliente",
+type DeliveryStatus = "pending" | "sent" | "failed";
+
+/** One email that left the case, to the client or a supplier. */
+interface Delivery {
+  id: string;
+  to: string;
+  status: DeliveryStatus;
+  error: string | null;
+}
+
+const DELIVERY_STATUS: Record<DeliveryStatus, string> = {
+  pending: "Enviando",
+  sent: "Enviado",
+  failed: "No se pudo enviar",
 };
 
-/** Files attached to a comment and, when it was a reply, the email's state. */
-function CommentExtras({
+/**
+ * What hangs from an entry: the files attached to it and, when it emailed
+ * someone (a reply to the client, a message to a supplier), each email's state.
+ */
+function EventExtras({
   caseId,
-  event,
   files,
-  reply,
+  deliveries,
+  pendingLabel,
   onRetry,
   isRetrying,
 }: {
   caseId: string;
-  event: CaseEvent;
   files: CaseFile[];
-  reply: ClientReply | undefined;
+  deliveries: Delivery[];
+  /** Shown while the email list has not loaded yet («Respuesta al cliente»). */
+  pendingLabel?: string;
   onRetry: (notificationId: string) => void;
   isRetrying: boolean;
 }) {
   const [previewing, setPreviewing] = useState<CaseFile | null>(null);
-  const wasReply = event.data.reply_to_client === true;
-  if (files.length === 0 && !reply && !wasReply) return null;
+  if (files.length === 0 && deliveries.length === 0 && !pendingLabel) return null;
 
   const download = (file: CaseFile) =>
     downloadCaseFile(caseId, file.id, file.filename).catch((error) =>
@@ -99,55 +113,73 @@ function CommentExtras({
           ))}
         </ul>
       )}
-      {(reply || wasReply) && (
-        <p className="flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
-          <span>
-            {reply ? REPLY_STATUS[reply.status] : "Respuesta al cliente"}
-            {reply ? ` · ${reply.to}` : ""}
-          </span>
-          {reply?.status === "failed" && (
-            <>
-              {reply.error && <span>{reply.error}</span>}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="max-md:h-11"
-                disabled={isRetrying}
-                onClick={() => onRetry(reply.id)}
-              >
-                <RotateCw aria-hidden="true" />
-                Reintentar
-              </Button>
-            </>
-          )}
-        </p>
+      {deliveries.length === 0 && pendingLabel && (
+        <p className="text-[13px] text-text-secondary">{pendingLabel}</p>
+      )}
+      {deliveries.length > 0 && (
+        <ul className="space-y-0.5">
+          {deliveries.map((delivery) => (
+            <li
+              key={delivery.id}
+              className="flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary"
+            >
+              <span className={delivery.status === "failed" ? "text-danger" : undefined}>
+                {DELIVERY_STATUS[delivery.status]}
+              </span>
+              <span className="min-w-0 break-all">· {delivery.to}</span>
+              {delivery.status === "failed" && (
+                <>
+                  {delivery.error && <span>{delivery.error}</span>}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="max-md:h-11"
+                    disabled={isRetrying}
+                    onClick={() => onRetry(delivery.id)}
+                  >
+                    <RotateCw aria-hidden="true" />
+                    Reintentar
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 }
 
+function EntryTime({ iso }: { iso: string }) {
+  return (
+    <time dateTime={iso} title={formatDateTime(iso)} className="text-[13px] text-text-secondary">
+      {formatRelativeTime(iso)}
+    </time>
+  );
+}
+
 /**
  * The audit trail the spreadsheet never had: who did what and when, oldest
- * first so it reads as the story of the case. Who opened the case is access
- * history, not part of the story: it stays in the module's activity history
- * and is left out here. Anyone who sees the case can comment, including
- * whoever raised it.
+ * first so it reads as the story of the case. Each entry is worded by the API
+ * («Ana Pérez · Asignó el caso a Juan»); who merely opened the case is folded
+ * into one quiet line so it does not bury the work. Anyone who sees the case
+ * can comment, including whoever raised it.
  */
 export default function CaseTimeline({
   item,
   events,
-  catalog,
 }: {
   item: PqrsfCase;
   events: CaseEvent[];
-  catalog: TrackingCatalog;
 }) {
   const id = useId();
   const comment = useAddComment(item.id);
   const caseFiles = useCaseFiles(item.id);
   const replies = useClientReplies(item.id);
   const retry = useRetryClientReply(item.id);
+  const supplierEmails = useSupplierEmails(item.id);
+  const retrySupplier = useRetrySupplierEmail(item.id);
   const fileInput = useRef<HTMLInputElement>(null);
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -209,9 +241,13 @@ export default function CaseTimeline({
       }
     );
   };
-  const ordered = events
-    .filter((event) => !isAccessEvent(event))
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const entries = groupAccess(
+    [...events].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  );
+  const filesOf = (event: CaseEvent) =>
+    (caseFiles.data ?? []).filter(
+      (file) => file.comment_event_id === event.id || commentFileIds(event).includes(file.id)
+    );
 
   return (
     <section aria-labelledby={`${id}-heading`} className="space-y-3">
@@ -219,54 +255,67 @@ export default function CaseTimeline({
         Línea de tiempo
       </h2>
 
-      {ordered.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="text-sm text-text-secondary">Todavía no hay movimientos registrados.</p>
       ) : (
-        <ol className="space-y-0 border-l border-border">
-          {ordered.map((event) => (
-            <li key={event.id} className="relative pb-4 pl-4 last:pb-0">
-              <span
-                aria-hidden="true"
-                className="absolute top-2 -left-[3px] size-[5px] rounded-full bg-border-control"
-              />
-              <p className="text-sm">
-                <span className="font-medium">{actorName(event)}</span>{" "}
-                {describeEvent(event, catalog, item.assignee)}
-              </p>
-              {event.note && (
-                <p
-                  className={
-                    event.event_type === "comment"
-                      ? "mt-1 rounded-md bg-canvas-subtle px-3 py-2 text-sm whitespace-pre-wrap"
-                      : "mt-0.5 text-[13px] whitespace-pre-wrap text-text-secondary"
-                  }
-                >
-                  {stripCid(event.note)}
-                </p>
-              )}
-              {event.event_type === "comment" && (
-                <CommentExtras
-                  caseId={item.id}
-                  event={event}
-                  files={(caseFiles.data ?? []).filter(
-                    (file) =>
-                      file.comment_event_id === event.id ||
-                      commentFileIds(event).includes(file.id)
-                  )}
-                  reply={replies.data?.find((reply) => reply.event_id === event.id)}
-                  onRetry={retry.mutate}
-                  isRetrying={retry.isPending}
+        <ol className="ml-3 border-l border-border">
+          {entries.map((entry) => {
+            if (entry.kind === "access") {
+              const last = entry.events.at(-1)!;
+              const sentence = accessSentence(entry);
+              return (
+                <li key={entry.key} className="relative pb-4 pl-6 last:pb-0">
+                  <RailIcon icon={eventIcon(last)} className="absolute top-0 -left-3" />
+                  <EventSentence actor={sentence.actor} title={sentence.title} muted />
+                  <EntryTime iso={last.created_at} />
+                </li>
+              );
+            }
+            const { event } = entry;
+            // Text people wrote reads as a message; a system note reads as a caption.
+            const isMessage = event.event_type === "comment" || event.event_type === "supplier_message";
+            return (
+              <li key={event.id} className="relative pb-4 pl-6 last:pb-0">
+                <RailIcon icon={eventIcon(event)} className="absolute top-0 -left-3" />
+                <EventSentence
+                  actor={event.actor_name}
+                  title={event.title}
+                  statusChange={event.status_change}
                 />
-              )}
-              <time
-                dateTime={event.created_at}
-                title={formatDateTime(event.created_at)}
-                className="text-[13px] text-text-secondary"
-              >
-                {formatRelativeTime(event.created_at)}
-              </time>
-            </li>
-          ))}
+                {event.note && (
+                  <p
+                    className={
+                      isMessage
+                        ? "mt-1 rounded-md bg-canvas-subtle px-3 py-2 text-sm whitespace-pre-wrap"
+                        : "mt-0.5 text-[13px] whitespace-pre-wrap text-text-secondary"
+                    }
+                  >
+                    {stripCid(event.note)}
+                  </p>
+                )}
+                {event.event_type === "comment" && (
+                  <EventExtras
+                    caseId={item.id}
+                    files={filesOf(event)}
+                    deliveries={(replies.data ?? []).filter((reply) => reply.event_id === event.id)}
+                    pendingLabel={event.data.reply_to_client === true ? "Respuesta al cliente" : undefined}
+                    onRetry={retry.mutate}
+                    isRetrying={retry.isPending}
+                  />
+                )}
+                {event.event_type === "supplier_message" && (
+                  <EventExtras
+                    caseId={item.id}
+                    files={filesOf(event)}
+                    deliveries={(supplierEmails.data ?? []).filter((email) => email.event_id === event.id)}
+                    onRetry={retrySupplier.mutate}
+                    isRetrying={retrySupplier.isPending}
+                  />
+                )}
+                <EntryTime iso={event.created_at} />
+              </li>
+            );
+          })}
         </ol>
       )}
 

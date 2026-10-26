@@ -11,6 +11,7 @@ import {
   Lock,
   Pencil,
   Trash2,
+  Truck,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,7 +31,12 @@ import {
   stripCid,
 } from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
-import type { PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
+import type {
+  IntakeRequest,
+  PqrsfCase,
+  SalesExecutive,
+  TrackingCatalog,
+} from "../types/pqrsf.types";
 import { DueLabel } from "./case-badges";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
@@ -38,6 +44,7 @@ import CaseTimeline from "./case-timeline";
 import CaseFiles from "./case-files";
 import IntakeRequestSection from "./intake-request";
 import { StatusMenu } from "./status-menu";
+import SupplierMessageDialog from "./supplier-message-dialog";
 
 export default function CaseDetailScreen({ area, caseId }: { area: string; caseId: string }) {
   const detail = useCaseDetail(caseId);
@@ -128,7 +135,7 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
   return (
     <div className="space-y-6">
       {back}
-      <CaseHeader area={area} item={item} catalog={catalog.data} />
+      <CaseHeader area={area} item={item} request={request} catalog={catalog.data} />
 
       {/* The facts sit beside the work only on very wide screens. Below that
           they become a strip on top, so the documents table keeps the full
@@ -149,7 +156,7 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
           {showsDocuments && <CaseItems item={item} catalog={catalog.data} />}
           {request && <IntakeRequestSection caseId={item.id} request={request} />}
           <CaseFiles caseId={item.id} />
-          <CaseTimeline item={item} events={events} catalog={catalog.data} />
+          <CaseTimeline item={item} events={events} />
         </div>
       </div>
     </div>
@@ -159,14 +166,18 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
 function CaseHeader({
   area,
   item,
+  request,
   catalog,
 }: {
   area: string;
   item: PqrsfCase;
+  request: IntakeRequest | null;
   catalog: TrackingCatalog;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"status" | "assign" | "edit" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<
+    "status" | "assign" | "edit" | "delete" | "supplier" | null
+  >(null);
   const [statusTarget, setStatusTarget] = useState<string | undefined>();
   const [copied, setCopied] = useState(false);
   const isClosed = item.closed_at !== null;
@@ -239,6 +250,12 @@ function CaseHeader({
               Editar datos
             </Button>
           )}
+          {canWork && !isClosed && (
+            <Button variant="outline" className="max-md:h-11" onClick={() => setDialog("supplier")}>
+              <Truck aria-hidden="true" />
+              Escribir al proveedor
+            </Button>
+          )}
           {canAssign && !isClosed && (
             <Button variant="secondary" className="max-md:h-11" onClick={() => setDialog("assign")}>
               <UserRound aria-hidden="true" />
@@ -287,6 +304,9 @@ function CaseHeader({
       {dialog === "edit" && (
         <EditCaseDialog item={item} catalog={catalog} open onOpenChange={() => setDialog(null)} />
       )}
+      {dialog === "supplier" && (
+        <SupplierMessageDialog item={item} request={request} onClose={() => setDialog(null)} />
+      )}
       {dialog === "delete" && (
         <DeleteCaseDialog
           item={item}
@@ -319,7 +339,7 @@ function CaseFacts({ item }: { item: PqrsfCase }) {
     ],
     ["Cliente", item.customer_name],
     ["NIT", item.customer_nit && <span className="tabular">{item.customer_nit}</span>],
-    ["Ejecutivo comercial", item.sales_executive_name],
+    ["Ejecutivo comercial", <SalesExecutiveFact key="se" item={item} />],
     [
       "Usuario solicitante",
       item.requester_name || item.requester_email ? (
@@ -359,6 +379,37 @@ function CaseFacts({ item }: { item: PqrsfCase }) {
         ))}
       </dl>
     </aside>
+  );
+}
+
+const SALES_EXECUTIVE_SOURCES: Record<NonNullable<SalesExecutive["source"]>, string> = {
+  invoice: "De la factura",
+  internal: "Del comercial",
+  manual: "Escrito a mano",
+};
+
+/**
+ * Who sold the invoice: the name, the seller code to look them up in the ERP,
+ * and where it came from, because a typed name is not the sales record.
+ */
+function SalesExecutiveFact({ item }: { item: PqrsfCase }) {
+  const executive = item.sales_executive;
+  const name = executive?.name ?? item.sales_executive_name;
+  if (!name) return null;
+  const details = [
+    executive?.code ? `Código ${executive.code}` : null,
+    executive?.source ? SALES_EXECUTIVE_SOURCES[executive.source] : null,
+  ].filter(Boolean);
+  return (
+    <>
+      <span className="block">{name}</span>
+      {details.length > 0 && (
+        <span className="block text-[13px] text-text-secondary">{details.join(" · ")}</span>
+      )}
+      {executive?.email && (
+        <span className="block text-[13px] break-all text-text-secondary">{executive.email}</span>
+      )}
+    </>
   );
 }
 
