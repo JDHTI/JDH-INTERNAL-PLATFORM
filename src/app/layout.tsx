@@ -12,12 +12,21 @@ export const metadata: Metadata = {
 /**
  * Applies the stored theme before first paint. Without this the page renders
  * light, then snaps to dark once the store hydrates.
+ *
+ * The public PQRSF form is always light: it is the company's face to
+ * customers, not a workspace, so it does not follow the platform's theme. Its
+ * popups render in portals outside the page, which is why the theme is decided
+ * here for the whole document and not on a wrapper.
  */
 const themeScript = `
 (function () {
   try {
+    var path = window.location.pathname;
+    var alwaysLight = path === '/pqrsf' || path.indexOf('/pqrsf/') === 0;
     var stored = localStorage.getItem('jdh-theme');
-    var mode = stored === 'dark' || stored === 'light'
+    var mode = alwaysLight
+      ? 'light'
+      : stored === 'dark' || stored === 'light'
       ? stored
       : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     document.documentElement.classList.toggle('dark', mode === 'dark');

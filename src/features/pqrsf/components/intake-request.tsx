@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, ImageOff, Loader2 } from "lucide-react";
+import { Download, FileText, ImageOff, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 
 import { errorMessage } from "@/shared/lib/api-client";
 import { formatBytes } from "@/shared/lib/format";
 
-import { formatDateTime } from "../lib/format";
+import { formatDate, formatDateTime } from "../lib/format";
 import { downloadAttachment, getAttachmentBlob } from "../services/pqrsf.service";
 import type { IntakeAttachment, IntakeRequest } from "../types/pqrsf.types";
 
@@ -31,8 +31,18 @@ export default function IntakeRequestSection({
     ["Dirección", `${request.address}, ${request.city} (${request.department})`],
     ["Sede", request.site.name],
   ];
-  if (request.subject) rows.push(["Asunto", request.subject]);
+  if (request.selected_area) rows.push(["Área elegida", request.selected_area.name]);
+  if (request.selected_subject) rows.push(["Asunto", request.selected_subject.name]);
+  if (request.selected_cause) rows.push(["Causal", request.selected_cause.name]);
+  // With a subject from the list, the written one only complements an «Otro».
+  if (request.subject) {
+    rows.push([request.selected_subject ? "Asunto escrito" : "Asunto", request.subject]);
+  }
   if (request.document_request) rows.push(["Tipo de petición", "Solicitud de documentos"]);
+  if (request.pickup_order_requested) {
+    rows.push(["Orden de recogida", pickupOrderText(request)]);
+  }
+  const products = request.products ?? [];
 
   return (
     <section aria-labelledby="intake-heading" className="space-y-3">
@@ -54,10 +64,41 @@ export default function IntakeRequestSection({
             </div>
           ))}
         </dl>
-        <div className="space-y-1">
-          <h3 className="text-[13px] font-medium">Descripción del cliente</h3>
-          <p className="text-sm whitespace-pre-wrap">{request.description}</p>
-        </div>
+        {request.description && (
+          <div className="space-y-1">
+            <h3 className="text-[13px] font-medium">Descripción del cliente</h3>
+            <p className="text-sm whitespace-pre-wrap">{request.description}</p>
+          </div>
+        )}
+        {products.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-[13px] font-medium">Productos afectados ({products.length})</h3>
+            <ul className="divide-y divide-border rounded-md border border-border">
+              {products.map((product, index) => (
+                <li key={`${product.sku}-${product.lot}-${index}`} className="space-y-2 px-3 py-2.5">
+                  <p className="min-w-0 text-sm">
+                    <span className="font-mono text-[13px]">{product.sku}</span>
+                    {product.description && (
+                      <span className="break-words"> · {product.description}</span>
+                    )}
+                  </p>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px] sm:grid-cols-4">
+                    <ProductFact label="Factura" value={product.invoice_number} mono />
+                    <ProductFact label="Lote" value={product.lot} mono />
+                    <ProductFact label="Vence" value={formatDate(product.expiry_date)} />
+                    <ProductFact label="Cantidad afectada" value={String(product.affected_quantity)} />
+                    <div className="col-span-2 min-w-0 sm:col-span-4">
+                      <dt className="text-text-secondary">Proveedor</dt>
+                      <dd className="break-words">
+                        {product.supplier_name ?? product.supplier_code ?? "Sin proveedor en el maestro"}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {request.attachments.length > 0 && (
           <div className="space-y-2">
             <h3 className="text-[13px] font-medium">Adjuntos ({request.attachments.length})</h3>
@@ -73,6 +114,26 @@ export default function IntakeRequestSection({
       </div>
     </section>
   );
+}
+
+function ProductFact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-text-secondary">{label}</dt>
+      <dd className={mono ? "break-words font-mono" : "tabular"}>{value}</dd>
+    </div>
+  );
+}
+
+const PICKUP_ORDER_LABELS = { yes: "Sí", no: "No", unknown: "No sabe" } as const;
+
+function pickupOrderText(request: IntakeRequest): string {
+  const answer = request.pickup_order_requested;
+  if (!answer) return "";
+  const label = PICKUP_ORDER_LABELS[answer];
+  return answer === "yes" && request.pickup_order_number
+    ? `${label}, número ${request.pickup_order_number}`
+    : label;
 }
 
 export function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeAttachment }) {
@@ -122,7 +183,11 @@ export function Thumbnail({ caseId, attachment }: { caseId: string; attachment: 
       <span className="flex aspect-[4/3] items-center justify-center bg-canvas-subtle">
         {!isImage ? (
           <span className="flex flex-col items-center gap-1 text-text-secondary">
-            <FileText className="size-6" aria-hidden="true" />
+            {attachment.content_type.startsWith("video/") ? (
+              <Video className="size-6" aria-hidden="true" />
+            ) : (
+              <FileText className="size-6" aria-hidden="true" />
+            )}
             <span className="text-[13px] font-medium uppercase">{attachment.extension}</span>
           </span>
         ) : src ? (

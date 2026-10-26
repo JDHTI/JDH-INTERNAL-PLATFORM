@@ -187,6 +187,7 @@ export default function FeedbackDetailScreen({
     ["Empresa", item.business_name],
     ["Correo", item.email],
     ["Sede", item.site?.name ?? null],
+    ["Área", item.area?.name ?? null],
     ["Origen", originLabel(item.origin)],
     ["Recibido", formatDateTime(item.created_at)],
     [

@@ -15,7 +15,67 @@ export interface RequestType {
   allows_document_request: boolean;
   allows_attachments: boolean;
   is_active: boolean;
+  /** `acknowledge`: a suggestion or compliment, answered with thanks and no case. */
+  handling?: "case" | "acknowledge";
+  /** One short line shown under the type on the forms (at most 120 characters). */
+  description?: string | null;
+  /** The public form asks which area the request is for. */
+  asks_area?: boolean;
 }
+
+export type RequestTypeCode = "peticion" | "queja" | "reclamo" | "sugerencia" | "felicitacion";
+
+/** `supplier`: may be escalated to the manufacturer; `internal`: a JDH process failure. */
+export type CauseRoute = "supplier" | "internal" | "none";
+
+/** A cause as the managers keep it, with what decides the treatment of its cases. */
+export interface CauseAdmin {
+  id: string;
+  subject_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  dependency_id: string | null;
+  route: CauseRoute;
+  requires_product: boolean;
+  allows_product: boolean;
+  is_other: boolean;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface SubjectAdmin {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  request_type_codes: RequestTypeCode[];
+  dependency_id: string | null;
+  is_other: boolean;
+  sort_order: number;
+  is_active: boolean;
+  causes: CauseAdmin[];
+}
+
+export type SubjectInput = Pick<
+  SubjectAdmin,
+  "code" | "name" | "description" | "request_type_codes" | "dependency_id" | "is_other" | "sort_order"
+>;
+export type SubjectUpdate = Partial<Omit<SubjectInput, "code"> & Pick<SubjectAdmin, "is_active">>;
+
+export type CauseInput = Pick<
+  CauseAdmin,
+  | "code"
+  | "name"
+  | "description"
+  | "dependency_id"
+  | "route"
+  | "requires_product"
+  | "allows_product"
+  | "is_other"
+  | "sort_order"
+>;
+export type CauseUpdate = Partial<Omit<CauseInput, "code"> & Pick<CauseAdmin, "is_active">>;
 
 export interface CaseStatus {
   id: string;
@@ -166,8 +226,61 @@ export interface PqrsfCase {
   item_count: number;
   responded_count: number;
   permissions: { can_work: boolean; can_assign: boolean; can_delete: boolean };
+  /** Who sold the invoice, filed the case, or was typed in. */
+  sales_executive?: SalesExecutive | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SalesExecutive {
+  name: string | null;
+  code: string | null;
+  email: string | null;
+  /** Platform user matched by email: they can see and comment on the case. */
+  user_id: string | null;
+  /** `invoice`: the sales data; `internal`: the comercial who filed it; `manual`: typed. */
+  source: "invoice" | "internal" | "manual" | null;
+}
+
+export type SupplierMessageKind = "request" | "response" | "improvement" | "notice";
+
+/** One email of a message to a supplier, one per recipient. */
+export interface SupplierEmail {
+  id: string;
+  event_id: string | null;
+  to: string;
+  subject: string;
+  status: "pending" | "sent" | "failed";
+  attempts: number;
+  error: string | null;
+  sent_at: string | null;
+  created_at: string | null;
+}
+
+export interface SupplierContact {
+  id: string;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  email: string;
+  contact_name: string | null;
+  last_used_at: string | null;
+}
+
+export interface SupplierMessageInput {
+  kind: SupplierMessageKind;
+  to: string[];
+  body: string;
+  supplierCode: string | null;
+  supplierName: string | null;
+  includeCaseData: boolean;
+  includeEvidence: boolean;
+  files: File[];
+}
+
+export interface SupplierMessageResult extends CaseEvent {
+  files: CaseFile[];
+  rejected_files: RejectedFile[];
+  emails: SupplierEmail[];
 }
 
 export interface CaseEvent {
@@ -192,6 +305,25 @@ export interface CaseEvent {
   note: string | null;
   data: Record<string, unknown>;
   created_at: string;
+  // The API words each event; the UI shows it as given instead of
+  // translating `event_type` (docs/pqrsf-panel-interno-plan.md, «Línea de tiempo legible»).
+  /** `external` is a sender the case does not know. */
+  actor_kind: "system" | "user" | "client" | "supplier" | "external" | string;
+  /** «Sistema», the person, the client or the supplier. */
+  actor_name: string;
+  /** One sentence in Spanish, ready to show after the actor: «Asignó el caso a Juan». */
+  title: string;
+  category:
+    | "lifecycle"
+    | "access"
+    | "assignment"
+    | "status"
+    | "communication"
+    | "documents"
+    | "classification"
+    | string;
+  /** Status names before and after, when the event moved the case. */
+  status_change: { from: string | null; to: string | null } | null;
 }
 
 /** Entry of the module history; `case_id` is null once the case is deleted. */
@@ -241,11 +373,38 @@ export interface IntakeRequest {
   city: string;
   email: string;
   subject: string | null;
-  description: string;
+  /** Optional since the subject and cause are picked from the catalog. */
+  description: string | null;
   /** The customer asked for documents; the case already lists them as items. */
   document_request: boolean;
+  /** Area the customer picked. The case's dependency may differ: the cause decides. */
+  selected_area?: IntakeClassificationRef | null;
+  selected_subject?: IntakeClassificationRef | null;
+  selected_cause?: IntakeClassificationRef | null;
+  products?: IntakeProduct[];
+  pickup_order_requested?: "yes" | "no" | "unknown" | null;
+  pickup_order_number?: string | null;
   attachments: IntakeAttachment[];
   created_at: string;
+}
+
+export interface IntakeClassificationRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/** A product line as the customer sent it, with the master data seen at that moment. */
+export interface IntakeProduct {
+  invoice_number: string;
+  sku: string;
+  description: string | null;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  lot: string;
+  /** AAAA-MM-DD */
+  expiry_date: string;
+  affected_quantity: number;
 }
 
 export interface CaseDetail {
@@ -388,6 +547,8 @@ export interface FeedbackItem {
   /** First 200 characters of the body. */
   body_excerpt: string;
   site: Pick<Site, "id" | "code" | "name"> | null;
+  /** Area the customer said it is for, on the public form. */
+  area?: IntakeClassificationRef | null;
   files_count: number;
   reply: FeedbackReply;
   read_at: string | null;
