@@ -13,7 +13,12 @@ export async function getPqrsfCatalog(): Promise<PqrsfCatalog> {
   });
   // An API without the classification catalog still serves the form: every
   // type then asks for a written subject, as it did before.
-  return { ...catalog, subjects: catalog.subjects ?? [] };
+  return {
+    ...catalog,
+    subjects: catalog.subjects ?? [],
+    dependencies: catalog.dependencies ?? [],
+    limits: catalog.limits ?? null,
+  };
 }
 
 export function searchPqrsfProducts(
@@ -35,6 +40,7 @@ export function submitPqrsfRequest(
 
   form.append("request_type_id", input.request_type_id);
   form.append("site_id", input.site_id);
+  if (input.sends_area && input.area_id) form.append("dependency_id", input.area_id);
   form.append("full_name", input.full_name);
   form.append("business_name", input.business_name);
   form.append("nit", input.nit);
@@ -87,6 +93,9 @@ export function submitPqrsfRequest(
 
   for (const image of input.images ?? []) {
     form.append("images", image, image.name);
+  }
+  for (const video of input.videos ?? []) {
+    form.append("videos", video, video.name);
   }
 
   return apiFetch<PqrsfReceipt>("/public/pqrsf/requests", {

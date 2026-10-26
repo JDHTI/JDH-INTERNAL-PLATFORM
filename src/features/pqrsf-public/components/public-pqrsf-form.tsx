@@ -8,15 +8,17 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import Image from "next/image";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import {
   ApiError,
+  LOGIN_URL,
   errorMessage,
   type ApiValidationIssue,
 } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-import { Button } from "@/shared/components/ui/button";
+import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/field";
@@ -26,15 +28,17 @@ import {
   COLOMBIA_DEPARTMENTS,
   getColombiaCities,
 } from "../data/colombia-territorial";
-import { validateFiles } from "../lib/attachments";
+import { splitEvidence, validateFiles } from "../lib/attachments";
 import {
   getPqrsfCatalog,
   submitPqrsfRequest,
 } from "../services/pqrsf-public.service";
 import type {
+  AttachmentLimits,
   PickupOrderAnswer,
   PqrsfCatalog,
   PqrsfCause,
+  PqrsfDependency,
   PqrsfErrorField,
   PqrsfFormValues,
   PqrsfProductLine,
@@ -54,9 +58,15 @@ import ProductLinesField, {
   type ProductLineField,
 } from "./product-lines-field";
 
+// TODO: the default is a placeholder number until support has a real WhatsApp
+// line; set NEXT_PUBLIC_PQRSF_SUPPORT_WHATSAPP_URL (it is inlined at build time).
+const SUPPORT_WHATSAPP_URL =
+  process.env.NEXT_PUBLIC_PQRSF_SUPPORT_WHATSAPP_URL ?? "https://wa.me/570000000000";
+
 const INITIAL_VALUES: PqrsfFormValues = {
   request_type_id: "",
   site_id: "",
+  area_id: "",
   full_name: "",
   business_name: "",
   nit: "",
@@ -87,6 +97,7 @@ const CLASSIFICATION_RESET = {
 const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   request_type_id: "Tipo de solicitud",
   site_id: "Sede",
+  area_id: "Área",
   full_name: "Nombre completo",
   business_name: "Razón social",
   nit: "NIT",
@@ -99,7 +110,7 @@ const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   document_category_id: "Categoría del documento",
   documents: "Documentos",
   document_other: "Otro documento",
-  images: "Archivos adjuntos",
+  images: "Evidencias",
   subject_id: "Asunto",
   cause_id: "Causal",
   products: "Productos afectados",
@@ -125,6 +136,7 @@ const FIELD_LIMITS: Partial<Record<PqrsfTextField, number>> = {
 const ERROR_FIELDS: PqrsfErrorField[] = [
   "request_type_id",
   "site_id",
+  "area_id",
   "full_name",
   "email",
   "business_name",
@@ -156,7 +168,15 @@ type FieldErrors = Partial<Record<PqrsfErrorField, string>>;
 interface Classification {
   type: PqrsfRequestType | undefined;
   isDocumentRequest: boolean;
+  /** Every subject the type offers: whether the type asks for a subject at all. */
   subjects: PqrsfSubject[];
+  /** Areas to pick after the site; empty when the type does not ask for one. */
+  areas: PqrsfDependency[];
+  /** The chosen area goes to the API (the type has `asks_area`). */
+  sendsArea: boolean;
+  requiresArea: boolean;
+  /** The subjects on screen: those of the chosen area, plus «Otro», which fits any area. */
+  visibleSubjects: PqrsfSubject[];
   subject: PqrsfSubject | undefined;
   cause: PqrsfCause | undefined;
   /** «Otro» in the subject or the cause: the description becomes required. */
@@ -174,12 +194,35 @@ function classify(catalog: PqrsfCatalog | null, values: PqrsfFormValues): Classi
     type && catalog && !isDocumentRequest
       ? catalog.subjects.filter((item) => item.request_type_codes.includes(type.code))
       : [];
-  const subject = subjects.find((item) => item.id === values.subject_id);
+  // The area is on screen from the start (locked with the rest until a type is
+  // picked) and leaves only for a type that says it does not ask for one
+  // (`asks_area: false`, compliments). It is sent where the type asks for it;
+  // the cause still decides where a case with one goes, and on types with
+  // subjects the area narrows the list.
+  const sendsArea = type?.asks_area === true;
+  const areas = type?.asks_area === false ? [] : catalog?.dependencies ?? [];
+  const inArea = subjects.filter((item) => item.is_other || item.dependency_id === values.area_id);
+  const visibleSubjects =
+    areas.length === 0 || subjects.length === 0
+      ? subjects
+      : !values.area_id
+        ? []
+        : // An area with no subject of its own (not even «Otro») shows them all,
+          // so a required subject is never left without options.
+          inArea.length > 0
+          ? inArea
+          : subjects;
+  const subject = visibleSubjects.find((item) => item.id === values.subject_id);
   const cause = subject?.causes.find((item) => item.id === values.cause_id);
   return {
     type,
     isDocumentRequest,
     subjects,
+    areas,
+    sendsArea,
+    // Required where it does something: it is sent, or it narrows the subjects.
+    requiresArea: areas.length > 0 && (sendsArea || subjects.length > 0),
+    visibleSubjects,
     subject,
     cause,
     isOther: Boolean(subject?.is_other || cause?.is_other),
@@ -314,9 +357,13 @@ export default function PublicPqrsfForm() {
   };
 
   const updateRequestType = (requestTypeId: string) => {
+    const nextType = catalog?.request_types.find((type) => type.id === requestTypeId);
     setValues((current) => ({
       ...current,
       ...CLASSIFICATION_RESET,
+      // The area belongs to the request, not to the type: it stays unless the
+      // new type does not ask for one.
+      area_id: nextType?.asks_area === false ? "" : current.area_id,
       request_type_id: requestTypeId,
       document_request: false,
       document_category_id: "",
@@ -327,6 +374,7 @@ export default function PublicPqrsfForm() {
     resetProducts();
     clearFieldErrors(
       "request_type_id",
+      "area_id",
       "subject_id",
       "cause_id",
       "subject",
@@ -361,6 +409,13 @@ export default function PublicPqrsfForm() {
       "document_other",
       "images"
     );
+    setSubmitError(null);
+  };
+
+  const updateArea = (areaId: string) => {
+    setValues((current) => ({ ...current, ...CLASSIFICATION_RESET, area_id: areaId }));
+    resetProducts();
+    clearFieldErrors("area_id", "subject_id", "cause_id", "subject", "description");
     setSubmitError(null);
   };
 
@@ -461,6 +516,7 @@ export default function PublicPqrsfForm() {
       values,
       classification,
       files,
+      catalog?.limits ?? null,
       productLines
     );
     if (Object.keys(nextErrors).length > 0) {
@@ -477,12 +533,18 @@ export default function PublicPqrsfForm() {
     }
 
     const products = classification.allowsProducts ? productLines : [];
+    const evidence = selectedType.allows_attachments && !isDocumentRequest ? files : [];
+    // Without published limits only photos are offered, so everything is an image.
+    const { images, videos } = catalog?.limits
+      ? splitEvidence(evidence, catalog.limits)
+      : { images: evidence, videos: [] };
 
     setIsSubmitting(true);
     try {
       const receipt = await submitPqrsfRequest(
         {
           ...values,
+          sends_area: classification.sendsArea,
           full_name: values.full_name.trim(),
           business_name: values.business_name.trim(),
           nit: values.nit.trim(),
@@ -508,7 +570,8 @@ export default function PublicPqrsfForm() {
             products.length > 0 && values.pickup_order_requested === "yes"
               ? values.pickup_order_number.trim()
               : "",
-          images: selectedType.allows_attachments && !isDocumentRequest ? files : [],
+          images,
+          videos,
         },
         crypto.randomUUID()
       );
@@ -541,21 +604,40 @@ export default function PublicPqrsfForm() {
     setSubmitError(null);
   };
 
-  const subjectList = classification.subjects;
+  const subjectList = classification.visibleSubjects;
   const causes = classification.subject?.causes ?? [];
   const showWrittenSubject = asksWrittenSubject(classification);
   const descriptionRequired = requiresDescription(classification);
 
   return (
     <main className="min-h-dvh bg-canvas text-text-primary">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 md:py-12">
-        <header className="space-y-2">
-          <p className="text-[13px] font-medium text-text-secondary">JDH Presenta tu PQRSF</p>
-          <h1 className="text-2xl font-semibold tracking-tight">¡Queremos escucharte!</h1>
-          <p className="max-w-prose text-sm text-text-secondary">
-            En nuestra empresa valoramos sus comentarios y sugerencias. Este formulario nos permite mejorar continuamente nuestros productos y servicios. Por favor, diligencie la siguiente información para brindarte una respuesta adecuada.
-          </p>
-        </header>
+      {/* The black band is the brand's anchor over an always-light form. It
+          uses the sidebar tokens, dark in every theme: white on it is 16.88:1
+          and the muted text 7.52:1. */}
+      <header className="bg-sidebar text-sidebar-foreground">
+        <div className="mx-auto w-full max-w-3xl space-y-5 px-4 pt-5 pb-7 md:px-6 md:pt-6 md:pb-8">
+          {/* Sized at what it renders (48px tall), so the srcset does not ship
+              the 1200px source. */}
+          <Image
+            src="/logos/full-white.png"
+            alt="Juan D. Hoyos Distribuciones"
+            width={126}
+            height={48}
+            priority
+            className="h-12 w-auto"
+          />
+          <div className="space-y-2">
+            <p className="text-[13px] font-medium text-sidebar-muted">Presenta tu PQRSF</p>
+            <h1 className="text-2xl font-semibold tracking-tight">¡Queremos escucharte!</h1>
+            <p className="max-w-prose text-sm text-sidebar-muted">
+              En nuestra empresa valoramos sus comentarios y sugerencias. Este formulario nos permite mejorar continuamente nuestros productos y servicios. Por favor, diligencie la siguiente información para brindarte una respuesta adecuada.
+            </p>
+            <StaffAccess />
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
 
         {catalogState === "loading" && <CatalogLoading />}
 
@@ -582,16 +664,30 @@ export default function PublicPqrsfForm() {
                   />
                 )}
 
-                <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-                  <ChoiceList
-                    id="pqrsf-request-type-id"
-                    name="request_type_id"
-                    legend="Tipo de solicitud"
-                    options={catalog.request_types}
-                    value={values.request_type_id}
-                    error={fieldErrors.request_type_id}
-                    onChange={updateRequestType}
-                  />
+                <ChoiceList
+                  id="pqrsf-request-type-id"
+                  name="request_type_id"
+                  legend="Tipo de solicitud"
+                  options={catalog.request_types}
+                  value={values.request_type_id}
+                  error={fieldErrors.request_type_id}
+                  onChange={updateRequestType}
+                />
+
+                {/* The type decides what the rest asks for, so the rest waits
+                    for it: two steps without numbering them. A disabled
+                    fieldset disables every control inside it, natively. */}
+                {!selectedType && (
+                  <p id="pqrsf-type-first" className="text-[13px] text-text-secondary">
+                    Elige el tipo de solicitud para completar el resto del formulario.
+                  </p>
+                )}
+                <fieldset
+                  disabled={!selectedType}
+                  aria-label="Datos de la solicitud"
+                  aria-describedby={selectedType ? undefined : "pqrsf-type-first"}
+                  className="grid min-w-0 gap-x-4 gap-y-5 transition-opacity disabled:opacity-50 sm:grid-cols-2"
+                >
 
                   <FormField id="pqrsf-site-id" label="Sede" error={fieldErrors.site_id}>
                     <Dropdown
@@ -610,6 +706,36 @@ export default function PublicPqrsfForm() {
                       placeholder="Selecciona una sede"
                     />
                   </FormField>
+
+                  {classification.areas.length > 0 && (
+                    <FormField
+                      id="pqrsf-area-id"
+                      label="Área a la que va dirigida"
+                      optional={Boolean(selectedType) && !classification.requiresArea}
+                      hint={
+                        classification.subjects.length > 0
+                          ? "Te mostramos solo las novedades de esa área."
+                          : undefined
+                      }
+                      error={fieldErrors.area_id}
+                    >
+                      <Dropdown
+                        id="pqrsf-area-id"
+                        name="area_id"
+                        options={classification.areas.map((area) => ({
+                          value: area.id,
+                          label: area.name,
+                        }))}
+                        value={values.area_id}
+                        onValueChange={updateArea}
+                        aria-invalid={Boolean(fieldErrors.area_id)}
+                        aria-required={!selectedType || classification.requiresArea}
+                        aria-label="Área a la que va dirigida"
+                        aria-describedby={describedBy("pqrsf-area-id", classification.subjects.length > 0, Boolean(fieldErrors.area_id))}
+                        placeholder="Selecciona un área"
+                      />
+                    </FormField>
+                  )}
 
                   <FormField id="pqrsf-full-name" label="Nombre completo" error={fieldErrors.full_name}>
                     <InputField
@@ -852,12 +978,13 @@ export default function PublicPqrsfForm() {
                   {selectedType?.allows_attachments && !isDocumentRequest && (
                     <AttachmentsField
                       files={files}
+                      limits={catalog.limits}
                       error={fieldErrors.images}
                       onFilesChange={updateFiles}
                       onError={setFilesError}
                     />
                   )}
-                </div>
+                </fieldset>
 
                 <div className="flex flex-col gap-2 border-t border-border pt-5 sm:items-end">
                   <Button
@@ -878,10 +1005,58 @@ export default function PublicPqrsfForm() {
         )}
 
         <p className="text-[13px] text-text-secondary">
-          Si necesitas ayuda para completar el formulario, comunícate con tu sede.
+          Si necesitas ayuda para completar el formulario, comunícate con soporte{" "}
+          <a
+            href={SUPPORT_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Escribir a soporte por WhatsApp (se abre en una pestaña nueva)"
+            className="rounded-sm font-medium text-text-primary underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-control"
+          >
+            aquí
+          </a>
+          .
         </p>
       </div>
     </main>
+  );
+}
+
+/**
+ * JDH staff file their complaints inside the platform, with their session.
+ * A plain link: the public form never touches the session itself. The API's
+ * login takes no return path, so the person lands on the platform's home.
+ */
+function StaffAccess() {
+  return (
+    // On the black band: outlined in the muted white (7.52:1, well over the
+    // 3:1 a control needs), with the band's own hover and focus colors.
+    <a
+      href={LOGIN_URL}
+      className={cn(
+        buttonVariants({ variant: "outline" }),
+        "mt-3 h-11 whitespace-normal border-sidebar-muted text-sidebar-foreground hover:bg-sidebar-hover sm:h-9",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
+      )}
+    >
+      <MicrosoftMark />
+      ¿Eres personal JDH y tienes una queja?
+    </a>
+  );
+}
+
+/**
+ * The Microsoft four-square mark, in the text color: the sign-in is Microsoft
+ * Entra, and the monochrome mark keeps the button in the system's one accent.
+ */
+function MicrosoftMark() {
+  return (
+    <svg viewBox="0 0 21 21" aria-hidden="true" className="size-4 shrink-0" fill="currentColor">
+      <rect x="0" y="0" width="10" height="10" />
+      <rect x="11" y="0" width="10" height="10" />
+      <rect x="0" y="11" width="10" height="10" />
+      <rect x="11" y="11" width="10" height="10" />
+    </svg>
   );
 }
 
@@ -1064,6 +1239,7 @@ function validateForm(
   values: PqrsfFormValues,
   classification: Classification,
   files: File[],
+  limits: AttachmentLimits | null,
   productLines: PqrsfProductLine[]
 ): { errors: FieldErrors; lineErrors: Record<string, ProductLineErrors> } {
   const selectedType = classification.type;
@@ -1074,7 +1250,9 @@ function validateForm(
     if (message) errors[field] = message;
   }
 
-  if (classification.subjects.length > 0) {
+  if (classification.type && classification.requiresArea && !values.area_id) {
+    errors.area_id = "Elige el área a la que va dirigida tu solicitud.";
+  } else if (classification.subjects.length > 0) {
     if (!classification.subject) {
       errors.subject_id = "Elige el asunto de tu solicitud.";
     } else if (classification.subject.causes.length > 0 && !classification.cause) {
@@ -1126,8 +1304,8 @@ function validateForm(
     if (otherLimit && values.document_other.trim().length > otherLimit) {
       errors.document_other = `${FIELD_LABELS.document_other} admite máximo ${otherLimit} caracteres.`;
     }
-  } else if (selectedType?.allows_attachments && files.length > 0) {
-    const message = validateFiles(files);
+  } else if (selectedType?.allows_attachments && files.length > 0 && limits) {
+    const message = validateFiles(files, limits);
     if (message) errors.images = message;
   }
   return { errors, lineErrors };
@@ -1183,7 +1361,9 @@ function validateField(
 function readFieldErrors(issues: ApiValidationIssue[]): FieldErrors {
   const errors: FieldErrors = {};
   for (const issue of issues) {
-    const field = [...(issue.loc ?? [])]
+    // Photos and videos are one field on screen.
+    const loc = (issue.loc ?? []).map((part) => (part === "videos" ? "images" : part));
+    const field = loc
       .reverse()
       .find((part): part is PqrsfErrorField =>
         typeof part === "string" && ERROR_FIELDS.includes(part as PqrsfErrorField)
