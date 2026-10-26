@@ -241,11 +241,36 @@ export interface IntakeRequest {
   city: string;
   email: string;
   subject: string | null;
-  description: string;
+  /** Optional since the subject and cause are picked from the catalog. */
+  description: string | null;
   /** The customer asked for documents; the case already lists them as items. */
   document_request: boolean;
+  selected_subject?: IntakeClassificationRef | null;
+  selected_cause?: IntakeClassificationRef | null;
+  products?: IntakeProduct[];
+  pickup_order_requested?: "yes" | "no" | "unknown" | null;
+  pickup_order_number?: string | null;
   attachments: IntakeAttachment[];
   created_at: string;
+}
+
+export interface IntakeClassificationRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/** A product line as the customer sent it, with the master data seen at that moment. */
+export interface IntakeProduct {
+  invoice_number: string;
+  sku: string;
+  description: string | null;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  lot: string;
+  /** AAAA-MM-DD */
+  expiry_date: string;
+  affected_quantity: number;
 }
 
 export interface CaseDetail {

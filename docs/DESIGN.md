@@ -259,6 +259,15 @@ lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobr
 | `--text-secondary` | #6c6966 · **4.85** ✅ | #b7b4ad · **6.37** ✅ |
 | `--warning` | #b54708 · **4.83** ✅ | #fdb022 · **7.17** ✅ |
 
+**Opción elegida en una lista de opciones (formulario público de PQRSF)**
+
+La descripción de cada opción va en `--text-secondary`; la opción elegida se pinta con
+`--primary-subtle` (aplanado sobre `--surface`).
+
+| Primer plano | Claro (sobre #ededed) | Oscuro (sobre #373735) |
+|---|---|---|
+| `--text-secondary` | #686867 · **4.76** ✅ | #b7b7b6 · **5.94** ✅ |
+
 **Gantt del monitoreo (marcas gráficas, umbral 3:1 de WCAG 1.4.11)**
 
 El contorno del día típico y la ETA usan `--text-secondary` como borde, no `--border-control`:

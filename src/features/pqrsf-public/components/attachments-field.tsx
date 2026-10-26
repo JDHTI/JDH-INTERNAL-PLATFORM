@@ -77,10 +77,12 @@ export default function AttachmentsField({
         aria-hidden="true"
         className="sr-only"
       />
+      {/* `image/*`, not the list: some Android browsers only open the camera
+          straight away with the generic type. validateFiles still checks the format. */}
       <input
         ref={cameraInputRef}
         type="file"
-        accept={ACCEPT_ATTRIBUTE}
+        accept="image/*"
         capture="environment"
         onChange={receive}
         tabIndex={-1}

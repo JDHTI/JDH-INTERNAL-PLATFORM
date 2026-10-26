@@ -8,7 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { CheckCircle2, TriangleAlert, X } from "lucide-react";
+import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import {
   ApiError,
@@ -32,16 +32,27 @@ import {
   submitPqrsfRequest,
 } from "../services/pqrsf-public.service";
 import type {
+  PickupOrderAnswer,
   PqrsfCatalog,
+  PqrsfCause,
   PqrsfErrorField,
   PqrsfFormValues,
+  PqrsfProductLine,
   PqrsfReceipt,
   PqrsfRequestType,
+  PqrsfSubject,
   PqrsfTextField,
 } from "../types/pqrsf-public.types";
 import AttachmentsField from "./attachments-field";
+import ChoiceList from "./choice-list";
 import DocumentRequestFields, { DOCUMENT_OTHER_LIMIT } from "./document-request-fields";
 import { FormField, describedBy } from "./form-field";
+import ProductLinesField, {
+  PICKUP_ORDER_NUMBER_LIMIT,
+  emptyProductLine,
+  type ProductLineErrors,
+  type ProductLineField,
+} from "./product-lines-field";
 
 const INITIAL_VALUES: PqrsfFormValues = {
   request_type_id: "",
@@ -59,7 +70,19 @@ const INITIAL_VALUES: PqrsfFormValues = {
   document_category_id: "",
   document_type_ids: [],
   document_other: "",
+  subject_id: "",
+  cause_id: "",
+  pickup_order_requested: "",
+  pickup_order_number: "",
 };
+
+/** What a new type, subject or document choice clears: it all hangs from them. */
+const CLASSIFICATION_RESET = {
+  subject_id: "",
+  cause_id: "",
+  pickup_order_requested: "",
+  pickup_order_number: "",
+} as const;
 
 const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   request_type_id: "Tipo de solicitud",
@@ -77,6 +100,11 @@ const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   documents: "Documentos",
   document_other: "Otro documento",
   images: "Archivos adjuntos",
+  subject_id: "Asunto",
+  cause_id: "Causal",
+  products: "Productos afectados",
+  pickup_order_requested: "Orden de recogida",
+  pickup_order_number: "Número de la orden de recogida",
 };
 
 const FIELD_LIMITS: Partial<Record<PqrsfTextField, number>> = {
@@ -90,28 +118,86 @@ const FIELD_LIMITS: Partial<Record<PqrsfTextField, number>> = {
   subject: 200,
   description: 4000,
   document_other: DOCUMENT_OTHER_LIMIT,
+  pickup_order_number: PICKUP_ORDER_NUMBER_LIMIT,
 };
 
+/** In the order the fields appear, which is the order the error summary lists them. */
 const ERROR_FIELDS: PqrsfErrorField[] = [
   "request_type_id",
   "site_id",
   "full_name",
+  "email",
   "business_name",
   "nit",
   "address",
   "department",
   "city",
-  "email",
+  "subject_id",
+  "cause_id",
   "subject",
   "document_category_id",
   "documents",
   "document_other",
   "description",
+  "products",
+  "pickup_order_requested",
+  "pickup_order_number",
   "images",
 ];
 
 type CatalogState = "loading" | "error" | "ready";
 type FieldErrors = Partial<Record<PqrsfErrorField, string>>;
+
+/**
+ * What the chosen type, subject and cause ask of the rest of the form. The
+ * catalog decides it, not this file: a type is classified when some subject
+ * lists its code, and a cause says whether it takes products.
+ */
+interface Classification {
+  type: PqrsfRequestType | undefined;
+  isDocumentRequest: boolean;
+  subjects: PqrsfSubject[];
+  subject: PqrsfSubject | undefined;
+  cause: PqrsfCause | undefined;
+  /** «Otro» in the subject or the cause: the description becomes required. */
+  isOther: boolean;
+  allowsProducts: boolean;
+  requiresProducts: boolean;
+}
+
+function classify(catalog: PqrsfCatalog | null, values: PqrsfFormValues): Classification {
+  const type = catalog?.request_types.find((item) => item.id === values.request_type_id);
+  // A document request is a petition the customer flagged: it has no evidence
+  // to attach, the documents asked for take their place, and no subject list.
+  const isDocumentRequest = Boolean(type?.allows_document_request && values.document_request);
+  const subjects =
+    type && catalog && !isDocumentRequest
+      ? catalog.subjects.filter((item) => item.request_type_codes.includes(type.code))
+      : [];
+  const subject = subjects.find((item) => item.id === values.subject_id);
+  const cause = subject?.causes.find((item) => item.id === values.cause_id);
+  return {
+    type,
+    isDocumentRequest,
+    subjects,
+    subject,
+    cause,
+    isOther: Boolean(subject?.is_other || cause?.is_other),
+    allowsProducts: Boolean(cause?.allows_product),
+    requiresProducts: Boolean(cause?.requires_product),
+  };
+}
+
+/** The written subject is the whole subject where there is no list, and a complement with «Otro». */
+function asksWrittenSubject(c: Classification) {
+  return c.subjects.length === 0 || c.isOther;
+}
+
+/** Suggestions and compliments are their description; with a list it is optional unless «Otro». */
+function requiresDescription(c: Classification) {
+  if (c.subjects.length > 0) return c.isOther;
+  return !c.isDocumentRequest;
+}
 
 export default function PublicPqrsfForm() {
   const [catalog, setCatalog] = useState<PqrsfCatalog | null>(null);
@@ -119,6 +205,8 @@ export default function PublicPqrsfForm() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [values, setValues] = useState<PqrsfFormValues>(() => ({ ...INITIAL_VALUES }));
   const [files, setFiles] = useState<File[]>([]);
+  const [productLines, setProductLines] = useState<PqrsfProductLine[]>([]);
+  const [lineErrors, setLineErrors] = useState<Record<string, ProductLineErrors>>({});
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submission, setSubmission] = useState<PqrsfReceipt | null>(null);
@@ -179,18 +267,11 @@ export default function PublicPqrsfForm() {
     };
   }, [applyCatalog, applyCatalogError, fetchCatalog]);
 
-  const selectedType = useMemo(
-    () => catalog?.request_types.find((type) => type.id === values.request_type_id),
-    [catalog, values.request_type_id]
-  );
+  const classification = useMemo(() => classify(catalog, values), [catalog, values]);
+  const { type: selectedType, isDocumentRequest } = classification;
   const cityOptions = useMemo(
     () => getColombiaCities(values.department),
     [values.department]
-  );
-  // A document request is a petition the customer flagged: it has no evidence
-  // to attach, the documents asked for take their place.
-  const isDocumentRequest = Boolean(
-    selectedType?.allows_document_request && values.document_request
   );
 
   useEffect(() => {
@@ -225,9 +306,17 @@ export default function PublicPqrsfForm() {
     setSubmitError(null);
   };
 
+  /** Products and the pickup answer belong to a cause: changing it drops them. */
+  const resetProducts = (lines: PqrsfProductLine[] = []) => {
+    setProductLines(lines);
+    setLineErrors({});
+    clearFieldErrors("products", "pickup_order_requested", "pickup_order_number");
+  };
+
   const updateRequestType = (requestTypeId: string) => {
     setValues((current) => ({
       ...current,
+      ...CLASSIFICATION_RESET,
       request_type_id: requestTypeId,
       document_request: false,
       document_category_id: "",
@@ -235,8 +324,13 @@ export default function PublicPqrsfForm() {
       document_other: "",
     }));
     setFiles([]);
+    resetProducts();
     clearFieldErrors(
       "request_type_id",
+      "subject_id",
+      "cause_id",
+      "subject",
+      "description",
       "document_category_id",
       "documents",
       "document_other",
@@ -248,6 +342,7 @@ export default function PublicPqrsfForm() {
   const updateDocumentRequest = (checked: boolean) => {
     setValues((current) => ({
       ...current,
+      ...CLASSIFICATION_RESET,
       document_request: checked,
       document_category_id: "",
       document_type_ids: [],
@@ -255,7 +350,75 @@ export default function PublicPqrsfForm() {
     }));
     // Evidence and documents exclude each other.
     if (checked) setFiles([]);
-    clearFieldErrors("document_category_id", "documents", "document_other", "images");
+    resetProducts();
+    clearFieldErrors(
+      "subject_id",
+      "cause_id",
+      "subject",
+      "description",
+      "document_category_id",
+      "documents",
+      "document_other",
+      "images"
+    );
+    setSubmitError(null);
+  };
+
+  const updateSubject = (subjectId: string) => {
+    setValues((current) => ({ ...current, ...CLASSIFICATION_RESET, subject_id: subjectId }));
+    resetProducts();
+    clearFieldErrors("subject_id", "cause_id", "subject", "description");
+    setSubmitError(null);
+  };
+
+  const updateCause = (causeId: string) => {
+    const cause = classification.subject?.causes.find((item) => item.id === causeId);
+    setValues((current) => ({
+      ...current,
+      cause_id: causeId,
+      pickup_order_requested: "",
+      pickup_order_number: "",
+    }));
+    if (!cause?.allows_product) resetProducts();
+    // A cause that requires products opens with one line, so what it asks for
+    // is in view instead of behind a button.
+    else if (cause.requires_product && productLines.length === 0) resetProducts([emptyProductLine()]);
+    clearFieldErrors("cause_id", "subject", "description", "products");
+    setSubmitError(null);
+  };
+
+  const updateProductLines = (nextLines: PqrsfProductLine[]) => {
+    // An error stays until its own field is edited, as with the other fields.
+    setLineErrors((current) => {
+      const next: Record<string, ProductLineErrors> = {};
+      for (const line of nextLines) {
+        const errors = current[line.key];
+        if (!errors) continue;
+        const previous = productLines.find((item) => item.key === line.key);
+        const kept = { ...errors };
+        for (const field of Object.keys(errors) as ProductLineField[]) {
+          if (previous && lineValue(previous, field) !== lineValue(line, field)) delete kept[field];
+        }
+        if (Object.keys(kept).length > 0) next[line.key] = kept;
+      }
+      return next;
+    });
+    if (nextLines.length === 0) {
+      setValues((current) => ({ ...current, pickup_order_requested: "", pickup_order_number: "" }));
+      clearFieldErrors("pickup_order_requested", "pickup_order_number");
+    }
+    setProductLines(nextLines);
+    if (nextLines.length !== productLines.length) clearFieldErrors("products");
+    setSubmitError(null);
+  };
+
+  const updatePickupOrder = (answer: PickupOrderAnswer) => {
+    setValues((current) => ({
+      ...current,
+      pickup_order_requested: answer,
+      pickup_order_number: answer === "yes" ? current.pickup_order_number : "",
+    }));
+    clearFieldErrors("pickup_order_requested", "pickup_order_number");
     setSubmitError(null);
   };
 
@@ -294,9 +457,15 @@ export default function PublicPqrsfForm() {
     event.preventDefault();
     setSubmitError(null);
 
-    const nextErrors = validateForm(values, selectedType, files);
+    const { errors: nextErrors, lineErrors: nextLineErrors } = validateForm(
+      values,
+      classification,
+      files,
+      productLines
+    );
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
+      setLineErrors(nextLineErrors);
       setFocusErrorSummary((current) => current + 1);
       return;
     }
@@ -306,6 +475,8 @@ export default function PublicPqrsfForm() {
       setFocusErrorSummary((current) => current + 1);
       return;
     }
+
+    const products = classification.allowsProducts ? productLines : [];
 
     setIsSubmitting(true);
     try {
@@ -319,12 +490,24 @@ export default function PublicPqrsfForm() {
           department: values.department.trim(),
           city: values.city.trim(),
           email: values.email.trim(),
-          subject: values.subject.trim(),
+          subject: asksWrittenSubject(classification) ? values.subject.trim() : "",
           description: values.description.trim(),
           document_request: isDocumentRequest,
           document_category_id: isDocumentRequest ? values.document_category_id : "",
           document_type_ids: isDocumentRequest ? values.document_type_ids : [],
           document_other: isDocumentRequest ? values.document_other.trim() : "",
+          subject_id: classification.subject?.id ?? "",
+          cause_id: classification.cause?.id ?? "",
+          products: products.map((line) => ({
+            ...line,
+            invoice_number: line.invoice_number.trim(),
+            lot: line.lot.trim(),
+          })),
+          pickup_order_requested: products.length > 0 ? values.pickup_order_requested : "",
+          pickup_order_number:
+            products.length > 0 && values.pickup_order_requested === "yes"
+              ? values.pickup_order_number.trim()
+              : "",
           images: selectedType.allows_attachments && !isDocumentRequest ? files : [],
         },
         crypto.randomUUID()
@@ -333,6 +516,8 @@ export default function PublicPqrsfForm() {
       setSubmission(receipt);
       setValues({ ...INITIAL_VALUES });
       setFiles([]);
+      setProductLines([]);
+      setLineErrors({});
       setFieldErrors({});
     } catch (error) {
       const serverFieldErrors = error instanceof ApiError
@@ -350,9 +535,16 @@ export default function PublicPqrsfForm() {
     setSubmission(null);
     setValues({ ...INITIAL_VALUES });
     setFiles([]);
+    setProductLines([]);
+    setLineErrors({});
     setFieldErrors({});
     setSubmitError(null);
   };
+
+  const subjectList = classification.subjects;
+  const causes = classification.subject?.causes ?? [];
+  const showWrittenSubject = asksWrittenSubject(classification);
+  const descriptionRequired = requiresDescription(classification);
 
   return (
     <main className="min-h-dvh bg-canvas text-text-primary">
@@ -391,43 +583,19 @@ export default function PublicPqrsfForm() {
                 )}
 
                 <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-                  <FormField
-                    id="pqrsf-request-type"
-                    label="Tipo de solicitud"
+                  <ChoiceList
+                    id="pqrsf-request-type-id"
+                    name="request_type_id"
+                    legend="Tipo de solicitud"
+                    options={catalog.request_types}
+                    value={values.request_type_id}
                     error={fieldErrors.request_type_id}
-                  >
-                    <div className="relative">
-                      <Dropdown
-                        id="pqrsf-request-type"
-                        name="request_type_id"
-                        options={catalog.request_types.map((type) => ({
-                          value: type.id,
-                          label: type.name,
-                        }))}
-                        value={values.request_type_id}
-                        onValueChange={updateRequestType}
-                        aria-invalid={Boolean(fieldErrors.request_type_id)}
-                        aria-required="true"
-                        aria-label="Tipo de solicitud"
-                        aria-describedby={describedBy("pqrsf-request-type", Boolean(fieldErrors.request_type_id))}
-                        placeholder="Selecciona una opción"
-                      />
-                      {values.request_type_id && (
-                        <button
-                          type="button"
-                          aria-label="Quitar tipo de solicitud"
-                          onClick={() => updateRequestType("")}
-                          className="absolute right-8 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
-                        >
-                          <X className="size-4" aria-hidden="true" />
-                        </button>
-                      )}
-                    </div>
-                  </FormField>
+                    onChange={updateRequestType}
+                  />
 
-                  <FormField id="pqrsf-site" label="Sede" error={fieldErrors.site_id}>
+                  <FormField id="pqrsf-site-id" label="Sede" error={fieldErrors.site_id}>
                     <Dropdown
-                      id="pqrsf-site"
+                      id="pqrsf-site-id"
                       name="site_id"
                       options={catalog.sites.map((site) => ({
                         value: site.id,
@@ -438,7 +606,7 @@ export default function PublicPqrsfForm() {
                       aria-invalid={Boolean(fieldErrors.site_id)}
                       aria-required="true"
                       aria-label="Sede"
-                      aria-describedby={describedBy("pqrsf-site", Boolean(fieldErrors.site_id))}
+                      aria-describedby={describedBy("pqrsf-site-id", false, Boolean(fieldErrors.site_id))}
                       placeholder="Selecciona una sede"
                     />
                   </FormField>
@@ -539,26 +707,6 @@ export default function PublicPqrsfForm() {
                     />
                   </FormField>
 
-                  <FormField
-                    id="pqrsf-subject"
-                    label="Asunto"
-                    error={fieldErrors.subject}
-                    hint="Resume en pocas palabras qué necesitas."
-                    className="sm:col-span-2"
-                  >
-                    <Input
-                      id="pqrsf-subject"
-                      name="subject"
-                      required
-                      value={values.subject}
-                      maxLength={FIELD_LIMITS.subject}
-                      aria-invalid={Boolean(fieldErrors.subject)}
-                      aria-describedby={describedBy("pqrsf-subject", true, Boolean(fieldErrors.subject))}
-                      onChange={(event) => updateValue("subject", event.target.value)}
-                      className={cn("min-h-11 sm:min-h-9", fieldErrors.subject && "border-danger")}
-                    />
-                  </FormField>
-
                   {selectedType?.allows_document_request && (
                     <div className="sm:col-span-2">
                       <label
@@ -583,6 +731,61 @@ export default function PublicPqrsfForm() {
                     </div>
                   )}
 
+                  {subjectList.length > 0 && (
+                    <ChoiceList
+                      id="pqrsf-subject-id"
+                      name="subject_id"
+                      legend="Asunto"
+                      hint="¿Sobre qué es tu solicitud?"
+                      options={subjectList}
+                      value={values.subject_id}
+                      error={fieldErrors.subject_id}
+                      columns={2}
+                      onChange={updateSubject}
+                    />
+                  )}
+
+                  {causes.length > 0 && (
+                    <ChoiceList
+                      id="pqrsf-cause-id"
+                      name="cause_id"
+                      legend="Causal"
+                      hint="¿Qué pasó exactamente?"
+                      options={causes}
+                      value={values.cause_id}
+                      error={fieldErrors.cause_id}
+                      columns={2}
+                      onChange={updateCause}
+                    />
+                  )}
+
+                  {selectedType && showWrittenSubject && (
+                    <FormField
+                      id="pqrsf-subject"
+                      label="Asunto"
+                      optional={classification.isOther}
+                      error={fieldErrors.subject}
+                      hint={
+                        classification.isOther
+                          ? "Un título corto para la novedad que no está en la lista."
+                          : "Resume en pocas palabras qué necesitas."
+                      }
+                      className="sm:col-span-2"
+                    >
+                      <Input
+                        id="pqrsf-subject"
+                        name="subject"
+                        required={!classification.isOther}
+                        value={values.subject}
+                        maxLength={FIELD_LIMITS.subject}
+                        aria-invalid={Boolean(fieldErrors.subject)}
+                        aria-describedby={describedBy("pqrsf-subject", true, Boolean(fieldErrors.subject))}
+                        onChange={(event) => updateValue("subject", event.target.value)}
+                        className={cn("min-h-11 sm:min-h-9", fieldErrors.subject && "border-danger")}
+                      />
+                    </FormField>
+                  )}
+
                   {isDocumentRequest && catalog.document_categories.length > 0 && (
                     <DocumentRequestFields
                       categories={catalog.document_categories}
@@ -601,17 +804,27 @@ export default function PublicPqrsfForm() {
                   <FormField
                     id="pqrsf-description"
                     label="Descripción"
+                    optional={!descriptionRequired}
                     error={fieldErrors.description}
+                    hint={
+                      classification.isOther
+                        ? "Elegiste «Otro»: cuéntanos qué pasó para dirigir el caso al área correcta."
+                        : undefined
+                    }
                     className="sm:col-span-2"
                   >
                     <Textarea
                       id="pqrsf-description"
                       name="description"
-                      required
+                      required={descriptionRequired}
                       value={values.description}
                       maxLength={FIELD_LIMITS.description}
                       aria-invalid={Boolean(fieldErrors.description)}
-                      aria-describedby={describedBy("pqrsf-description", false, Boolean(fieldErrors.description))}
+                      aria-describedby={describedBy(
+                        "pqrsf-description",
+                        classification.isOther,
+                        Boolean(fieldErrors.description)
+                      )}
                       onChange={(event) => updateValue("description", event.target.value)}
                       className={cn(
                         "min-h-32 resize-y sm:min-h-28",
@@ -619,6 +832,22 @@ export default function PublicPqrsfForm() {
                       )}
                     />
                   </FormField>
+
+                  {classification.allowsProducts && (
+                    <ProductLinesField
+                      lines={productLines}
+                      required={classification.requiresProducts}
+                      error={fieldErrors.products}
+                      lineErrors={lineErrors}
+                      pickupOrder={values.pickup_order_requested}
+                      pickupOrderNumber={values.pickup_order_number}
+                      pickupOrderError={fieldErrors.pickup_order_requested}
+                      pickupOrderNumberError={fieldErrors.pickup_order_number}
+                      onLinesChange={updateProductLines}
+                      onPickupOrderChange={updatePickupOrder}
+                      onPickupOrderNumberChange={(value) => updateValue("pickup_order_number", value)}
+                    />
+                  )}
 
                   {selectedType?.allows_attachments && !isDocumentRequest && (
                     <AttachmentsField
@@ -807,7 +1036,7 @@ function SuccessState({
         </div>
         <dl className="grid gap-2 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4">
           <dt className="font-medium">Número de radicado</dt>
-          <dd className="font-mono font-medium tabular">{receipt.reference}</dd>
+          <dd className="font-mono font-medium tabular">{receipt.tracking_code ?? receipt.reference}</dd>
           <dt className="font-medium">Fecha de recepción</dt>
           <dd className="text-text-secondary">{formatCreatedAt(receipt.created_at)}</dd>
         </dl>
@@ -829,19 +1058,62 @@ const REQUIRED_TEXT_FIELDS: PqrsfTextField[] = [
   "department",
   "city",
   "email",
-  "subject",
-  "description",
 ];
 
 function validateForm(
   values: PqrsfFormValues,
-  selectedType: PqrsfRequestType | undefined,
-  files: File[]
-): FieldErrors {
+  classification: Classification,
+  files: File[],
+  productLines: PqrsfProductLine[]
+): { errors: FieldErrors; lineErrors: Record<string, ProductLineErrors> } {
+  const selectedType = classification.type;
   const errors: FieldErrors = {};
+  let lineErrors: Record<string, ProductLineErrors> = {};
   for (const field of REQUIRED_TEXT_FIELDS) {
     const message = validateField(field, values, selectedType);
     if (message) errors[field] = message;
+  }
+
+  if (classification.subjects.length > 0) {
+    if (!classification.subject) {
+      errors.subject_id = "Elige el asunto de tu solicitud.";
+    } else if (classification.subject.causes.length > 0 && !classification.cause) {
+      errors.cause_id = "Elige la causal que mejor describe lo que pasó.";
+    }
+  }
+
+  const subject = values.subject.trim();
+  if (selectedType && classification.subjects.length === 0 && !subject) {
+    errors.subject = "Completa el asunto.";
+  } else if (subject.length > (FIELD_LIMITS.subject ?? Infinity)) {
+    errors.subject = `${FIELD_LABELS.subject} admite máximo ${FIELD_LIMITS.subject} caracteres.`;
+  }
+
+  const description = values.description.trim();
+  if (selectedType && requiresDescription(classification) && !description) {
+    errors.description = classification.isOther
+      ? "Describe la novedad: elegiste «Otro»."
+      : "Completa la descripción.";
+  } else if (description.length > (FIELD_LIMITS.description ?? Infinity)) {
+    errors.description = `${FIELD_LABELS.description} admite máximo ${FIELD_LIMITS.description} caracteres.`;
+  }
+
+  if (classification.allowsProducts) {
+    if (classification.requiresProducts && productLines.length === 0) {
+      errors.products = "Agrega al menos un producto: la causal que elegiste lo exige.";
+    }
+    lineErrors = validateProductLines(productLines);
+    const invalid = productLines
+      .map((line, index) => (lineErrors[line.key] ? index + 1 : null))
+      .filter((position): position is number => position !== null);
+    if (invalid.length > 0) {
+      errors.products = invalid.length === 1
+        ? `Completa los datos del producto ${invalid[0]}.`
+        : `Completa los datos de los productos ${invalid.join(", ")}.`;
+    }
+    if (productLines.length > 0 && !values.pickup_order_requested) {
+      errors.pickup_order_requested = "Indica si ya solicitaste la orden de recogida.";
+    }
   }
 
   if (selectedType?.allows_document_request && values.document_request) {
@@ -858,7 +1130,30 @@ function validateForm(
     const message = validateFiles(files);
     if (message) errors.images = message;
   }
-  return errors;
+  return { errors, lineErrors };
+}
+
+function validateProductLines(lines: PqrsfProductLine[]): Record<string, ProductLineErrors> {
+  const result: Record<string, ProductLineErrors> = {};
+  for (const line of lines) {
+    const errors: ProductLineErrors = {};
+    if (!line.product) errors.sku = "Busca la referencia y elígela de la lista.";
+    if (!line.invoice_number.trim()) errors.invoice_number = "Escribe el número de la factura.";
+    if (!line.lot.trim()) errors.lot = "Escribe el lote; está impreso en el empaque.";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(line.expiry_date)) {
+      errors.expiry_date = "Indica la fecha de vencimiento que trae el empaque.";
+    }
+    const quantity = Number(line.affected_quantity);
+    if (!/^\d+$/.test(line.affected_quantity.trim()) || quantity < 1) {
+      errors.affected_quantity = "Escribe cuántas unidades, un número entero mayor que 0.";
+    }
+    if (Object.keys(errors).length > 0) result[line.key] = errors;
+  }
+  return result;
+}
+
+function lineValue(line: PqrsfProductLine, field: ProductLineField): string {
+  return field === "sku" ? line.product?.sku ?? "" : line[field];
 }
 
 function validateField(
@@ -903,7 +1198,11 @@ function submissionErrorMessage(error: unknown): string {
 
   switch (error.status) {
     case 422:
-      return "El servidor encontró datos que necesitan corrección. Revisa los campos marcados.";
+      // A business rule answers with one sentence that says what to fix; only
+      // the field-by-field validation needs pointing at the marked fields.
+      return error.issues.length > 0
+        ? "Hay datos que necesitan corrección. Revisa los campos marcados."
+        : error.detail;
     case 413:
       return "Los archivos superan los límites permitidos. Revisa cantidad y tamaño e inténtalo de nuevo.";
     case 409:
