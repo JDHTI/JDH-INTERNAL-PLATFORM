@@ -80,6 +80,31 @@ export function humanize(code: string | null | undefined): string {
 export const calcMethodLabel = (code: string | null | undefined) =>
   code ? (CALC_METHOD_LABELS[code] ?? humanize(code)) : "—";
 
+/** Readable names for the codes of the closed fields; unknown codes are humanized. */
+const CHOICE_LABELS: Record<string, Record<string, string>> = {
+  calc_method: CALC_METHOD_LABELS,
+  kind: {
+    tactico_cliente: "Táctico por cliente",
+    actividad_temporal: "Actividad temporal",
+    lista_especial: "Lista especial",
+    rebate: "Rebate",
+    recuperacion_cliente: "Recuperación de cliente",
+    liquidacion_inventario: "Liquidación de inventario",
+    presupuesto: "Presupuesto",
+    excepcion_margen: "Excepción de margen",
+  },
+  funding: { proveedor: "Proveedor", jdh: "JDH", mixto: "Mixto" },
+  settlement_method: {
+    nota_credito: "Nota crédito",
+    pie_factura: "Pie de factura",
+    costo_neto_facturado: "Costo neto facturado",
+    rebate_periodico: "Rebate periódico",
+  },
+  value_unit: { unidad: "Unidad", caja: "Caja", kg: "Kilo" },
+};
+
+export const choiceLabel = (field: string, code: string) => CHOICE_LABELS[field]?.[code] ?? humanize(code);
+
 /**
  * What the supplier gives, in the unit the calc method implies: fractions are
  * shown as %, agreed net values and per-unit values as pesos.

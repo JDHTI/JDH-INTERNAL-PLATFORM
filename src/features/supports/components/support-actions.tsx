@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Ban, MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
+import { Ban, MoreHorizontal, Paperclip, Pencil, Power, PowerOff } from "lucide-react";
 
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
@@ -28,12 +28,14 @@ export function failureMessage(error: unknown): string {
 export function SupportActions({
   support,
   onEdit,
+  onAttach,
   onVoid,
   onForbidden,
   onFailure,
 }: {
   support: SupplierSupport;
   onEdit: () => void;
+  onAttach: () => void;
   onVoid: () => void;
   onForbidden: () => void;
   onFailure: (message: string) => void;
@@ -63,6 +65,9 @@ export function SupportActions({
     >
       <MenuItem onClick={onEdit} disabled={voided}>
         <Pencil aria-hidden="true" /> Editar
+      </MenuItem>
+      <MenuItem onClick={onAttach} disabled={voided}>
+        <Paperclip aria-hidden="true" /> Adjuntar soporte
       </MenuItem>
       <MenuItem onClick={toggle} disabled={voided}>
         {disabled ? <Power aria-hidden="true" /> : <PowerOff aria-hidden="true" />}

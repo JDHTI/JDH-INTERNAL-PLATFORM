@@ -11,10 +11,10 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
-import { toNumber, type Decimal } from "@/shared/lib/format";
 
 import { useUpdateSupport } from "../hooks/use-supports";
 import { calcMethodLabel, PERCENT_METHODS } from "../lib/format";
+import { toDecimal, toInput } from "../lib/form-values";
 import type { SupplierSupport, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
 
 const NO_UNIT = "";
@@ -46,19 +46,6 @@ interface Draft {
   authorized_by: string;
   notes: string;
   tiers: TierDraft[];
-}
-
-/** Fractions are typed as percentages: 5 means 0.05. */
-function toInput(value: Decimal | null | undefined, percent: boolean): string {
-  const parsed = toNumber(value);
-  if (parsed === null) return "";
-  return String(percent ? Number((parsed * 100).toFixed(6)) : parsed);
-}
-
-function toDecimal(text: string, percent: boolean): number | null {
-  const parsed = Number(text.trim().replace(",", "."));
-  if (text.trim() === "" || !Number.isFinite(parsed)) return null;
-  return percent ? Number((parsed / 100).toFixed(8)) : parsed;
 }
 
 function draftOf(support: SupplierSupport): Draft {
@@ -214,6 +201,7 @@ function EditForm({
               { value: NO_UNIT, label: "Sin base" },
               { value: "unidad", label: "Unidad" },
               { value: "caja", label: "Caja" },
+              { value: "kg", label: "Kilo" },
             ]}
           />
         </Field>
