@@ -6,7 +6,7 @@ import type { Decimal } from "@/shared/lib/format";
  */
 export type SupportState = "vigente" | "vencido" | "programado" | "inactivo" | "anulado";
 
-export type ValueUnit = "caja" | "unidad";
+export type ValueUnit = "caja" | "unidad" | "kg";
 export type UnitBasisSource = "hoja" | "inferido_dwh" | "manual" | "desconocido";
 
 /** An amount in both selling units; null when the API cannot convert it. */
@@ -101,6 +101,8 @@ export interface SupplierSupport {
   notes: string | null;
   version: number;
   derived: SupportDerived | null;
+  /** Supporting documents linked to it. Missing on API builds older than the attachments. */
+  attachment_count?: number;
 }
 
 export interface SupportConflict {
@@ -173,6 +175,7 @@ export interface SupportSearchBody {
   product_skus?: string[];
   has_issues?: boolean;
   has_conflicts?: boolean;
+  has_attachments?: boolean;
   effective_only?: boolean;
   sort: string[];
   page: number;
@@ -270,4 +273,185 @@ export interface SpecialCaseParams {
   status: string;
   page: number;
   size: number;
+}
+
+/** How a field is typed in the form and read from a bulk file. */
+export type FormFieldType = "text" | "sku" | "nit" | "date" | "number" | "fraction" | "choice" | "list";
+
+export interface FormFieldSpec {
+  name: string;
+  label: string;
+  group: string;
+  type: FormFieldType;
+  /** Codes of a closed field; empty for the rest. */
+  choices: string[];
+  help: string;
+  max_length: number | null;
+}
+
+export interface CalcMethodRule {
+  /** How `supplier_value` is typed: a percentage, pesos, or not at all. */
+  value_kind: "percent" | "money" | "none";
+  requires: string[];
+  shows: string[];
+  help: string;
+}
+
+/** `GET /supplier-supports/form-schema`: the creation form describes itself. */
+export interface SupportFormSchema {
+  fields: FormFieldSpec[];
+  methods: Record<string, CalcMethodRule>;
+  required_always: string[];
+  tiers: { threshold_types: string[]; max: number };
+}
+
+/** A new support. Percentages are fractions (0.05 = 5%); a missing key is left to the API. */
+export type SupportCreateBody = {
+  kind: string;
+  calc_method: string;
+  supplier_code: string;
+} & Record<string, string | number | string[]>;
+
+/**
+ * Values of a profile as the API stores them: fractions as text ("0.05"),
+ * scopes as upper-case lists, closed fields as codes.
+ */
+export type ProfileDefaults = Record<string, string | string[]>;
+
+/** Field -> headers of the supplier's own file. */
+export type ColumnMap = Record<string, string[]>;
+
+export interface SupportProfile {
+  supplier_code: string;
+  supplier_name: string;
+  defaults: ProfileDefaults;
+  column_map: ColumnMap;
+  sheet: string | null;
+  notes: string | null;
+  version: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** The whole profile is replaced. Without `version` it is created; with it, 409 if it changed. */
+export interface SupportProfileBody {
+  defaults: ProfileDefaults;
+  column_map: ColumnMap;
+  sheet: string | null;
+  notes: string | null;
+  version?: number;
+}
+
+export interface BulkRowIssue {
+  row_number: number;
+  field: string | null;
+  message: string;
+}
+
+export interface BulkPreviewRow {
+  row_number: number;
+  supplier_code: string | null;
+  kind: string;
+  calc_method: string;
+  program: string | null;
+  customer_nit: string | null;
+  product_sku: string | null;
+  supplier_value: Decimal | null;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
+/** Result of a bulk load. All or nothing: one error sets `blocked` and nothing is saved. */
+export interface BulkReport {
+  applied: boolean;
+  blocked: boolean;
+  sheet: string;
+  header_row: number;
+  rows_read: number;
+  valid: number;
+  invalid: number;
+  errors: BulkRowIssue[];
+  errors_truncated: boolean;
+  /** The first 50 valid rows. */
+  preview: BulkPreviewRow[];
+  /** Field -> headers of the file that fed it. */
+  mapped_columns: ColumnMap;
+  /** Headers no field used: candidates for the column map. */
+  ignored_columns: string[];
+  profile_used: boolean;
+  created: string[];
+  with_conflicts: number;
+}
+
+/** A document of the document manager backing a support. */
+export interface SupportAttachment {
+  document_id: string;
+  name: string;
+  original_filename: string;
+  extension: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: string;
+  uploaded_at: string;
+  linked_by: string;
+  linked_at: string;
+  /** How many supports this document backs in all. */
+  support_count: number;
+}
+
+/** A signed, short-lived link to show (inline) or save a support's document. Never stored. */
+export interface AttachmentView {
+  url: string;
+  filename: string;
+  name: string;
+  content_type: string;
+  extension: string;
+  size_bytes: number;
+  inline: boolean;
+  /** Seconds the link stays valid. */
+  expires_in: number;
+}
+
+/** The search part takes the list's filters; page, size and sort are ignored. */
+export type SupportSearchFilters = Omit<SupportSearchBody, "page" | "size" | "sort">;
+
+/** Supports by id, the ones a search finds, or both (added up without repeats). */
+export interface AttachmentSelection {
+  support_ids: string[];
+  search?: SupportSearchFilters;
+}
+
+export interface SelectionPreview {
+  total: number;
+  /** Over the per-upload limit: the upload would be rejected. */
+  capped: boolean;
+  limit: number;
+  /** The first 20, as a sample. */
+  support_ids: string[];
+}
+
+export interface AttachResult {
+  documents: string[];
+  supports: number;
+  links_created: number;
+}
+
+export interface AttachmentUpload {
+  files: File[];
+  /** Only with a single file. */
+  name?: string;
+  description?: string;
+  /** Comma-separated. */
+  tags?: string;
+}
+
+export interface BulkLoadInput {
+  file: File;
+  apply: boolean;
+  supplierCode: string | null;
+  sheet: string | null;
+  defaults: ProfileDefaults;
+  columnMap: ColumnMap;
 }

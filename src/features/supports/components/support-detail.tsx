@@ -8,6 +8,7 @@ import { toNumber } from "@/shared/lib/format";
 import { useSupport, useSupportConflicts } from "../hooks/use-supports";
 import {
   calcMethodLabel,
+  choiceLabel,
   formatCop,
   formatDay,
   formatNumber,
@@ -15,11 +16,31 @@ import {
   formatSupplierValue,
   humanize,
 } from "../lib/format";
-import type { SupplierSupport, SupportConflict, SupportTier } from "../types/support.types";
+import type { SupplierSupport, SupportAttachment, SupportConflict, SupportTier } from "../types/support.types";
+import SupportAttachments from "./support-attachments";
 import { FlagBadges, StateBadge } from "./support-badges";
 
-/** Read-only detail of one support: its terms, derived figures, issues, tiers and conflicts. */
-export default function SupportDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
+/**
+ * Detail of one support: its terms, derived figures, issues, tiers, conflicts
+ * and supporting documents. Managers can attach documents from here; while
+ * an upload is being filled, an outside click no longer closes the dialog.
+ */
+export default function SupportDetail({
+  id,
+  onClose,
+  canWrite = false,
+  composing = false,
+  onComposingChange = () => undefined,
+  onLinkElsewhere = () => undefined,
+}: {
+  id: string | null;
+  onClose: () => void;
+  /** Without it (the order validator's read-only view) the documents can only be listed and opened. */
+  canWrite?: boolean;
+  composing?: boolean;
+  onComposingChange?: (composing: boolean) => void;
+  onLinkElsewhere?: (attachment: SupportAttachment) => void;
+}) {
   const detail = useSupport(id);
   const support = detail.data;
   const conflicts = useSupportConflicts(id, support?.has_conflicts === true);
@@ -32,6 +53,7 @@ export default function SupportDetail({ id, onClose }: { id: string | null; onCl
       }}
       title={support?.supplier_name ?? "Detalle del apoyo"}
       description={support ? calcMethodLabel(support.calc_method) : undefined}
+      isForm={composing}
       wide
     >
       {detail.isPending ? (
@@ -41,7 +63,17 @@ export default function SupportDetail({ id, onClose }: { id: string | null; onCl
           {errorMessage(detail.error)}
         </p>
       ) : (
-        support && <Body support={support} conflicts={conflicts} />
+        support && (
+          <Body support={support} conflicts={conflicts}>
+            <SupportAttachments
+              supportId={support.id}
+              canWrite={canWrite && support.state !== "anulado"}
+              composing={composing}
+              onComposingChange={onComposingChange}
+              onLinkElsewhere={onLinkElsewhere}
+            />
+          </Body>
+        )
       )}
     </Dialog>
   );
@@ -50,9 +82,12 @@ export default function SupportDetail({ id, onClose }: { id: string | null; onCl
 function Body({
   support,
   conflicts,
+  children,
 }: {
   support: SupplierSupport;
   conflicts: ReturnType<typeof useSupportConflicts>;
+  /** The supporting documents, right under the badges: they back everything below. */
+  children: React.ReactNode;
 }) {
   const derived = support.derived;
   const jdhPctLabel = formatPct(support.jdh_pct);
@@ -64,9 +99,11 @@ function Body({
         <FlagBadges support={support} />
       </div>
 
+      {children}
+
       <Section title="Apoyo">
-        <Row label="Tipo">{humanize(support.kind)}</Row>
-        <Row label="Financia">{humanize(support.funding)}</Row>
+        <Row label="Tipo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
+        <Row label="Financia">{support.funding ? choiceLabel("funding", support.funding) : "—"}</Row>
         <Row label="Programa">{support.program ?? "—"}</Row>
         <Row label="Referencia externa" mono>{support.external_ref ?? "—"}</Row>
         <Row label="Forma de cálculo">{calcMethodLabel(support.calc_method)}</Row>

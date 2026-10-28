@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardCheck, GitCompareArrows } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, GitCompareArrows, Paperclip } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -16,6 +16,18 @@ const STATE_TONE: Record<SupportState, BadgeTone> = {
 /** The one state a support has; review is a separate flag, never a state. */
 export function StateBadge({ value }: { value: SupportState }) {
   return <Badge tone={STATE_TONE[value] ?? "neutral"}>{STATE_LABELS[value] ?? humanize(value)}</Badge>;
+}
+
+/** How many documents back the support; nothing when it has none (the "Sin soporte" filter finds those). */
+export function AttachmentBadge({ support }: { support: SupplierSupport }) {
+  const total = support.attachment_count ?? 0;
+  if (total === 0) return null;
+  return (
+    <Badge tone="neutral">
+      <Paperclip aria-hidden="true" />
+      {total === 1 ? "1 soporte" : `${total} soportes`}
+    </Badge>
+  );
 }
 
 /** Review, conflicts and issues only render when present: a clean row stays quiet. */

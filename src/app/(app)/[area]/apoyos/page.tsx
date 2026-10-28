@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import SupportsBrowser from "@/features/supports/components/supports-browser";
+import SupportsToolbar from "@/features/supports/components/supports-toolbar";
+import PageHeader from "@/shared/components/page-header";
 import { isAvailableModule } from "@/shared/config/areas.config";
 
 export default async function ApoyosPage({
@@ -18,13 +20,11 @@ export default async function ApoyosPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Maestro de apoyos</h1>
-        <p className="text-sm text-text-secondary">
-          Apoyos de proveedores por cliente y referencia, con su estado, sus novedades y los conflictos
-          entre ellos.
-        </p>
-      </div>
+      <PageHeader
+        title="Maestro de apoyos"
+        description="Apoyos de proveedores por cliente y referencia, con su estado, sus novedades y los conflictos entre ellos."
+        aside={<SupportsToolbar area={area} />}
+      />
       <SupportsBrowser key={caso ?? "all"} specialCase={caso ? { id: caso, code: codigo ?? "del caso" } : undefined} />
     </div>
   );

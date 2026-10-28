@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, CloudOff, FileX2, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CloudOff, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -17,11 +17,11 @@ import { cn } from "@/shared/lib/utils";
 import { useCanManage, useFilterFields, useSupportCatalogs, useSupportSearch } from "../hooks/use-supports";
 import {
   calcMethodLabel,
+  choiceLabel,
   formatCop,
   formatDay,
   formatPct,
   formatSupplierValue,
-  humanize,
   STATE_LABELS,
   toOptions,
 } from "../lib/format";
@@ -30,13 +30,15 @@ import type {
   PerUnit,
   SupplierSupport,
   SupportSearchBody,
+  SupportSearchFilters,
   SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "./base-picker";
+import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
 import { SupportActions, SupportVoidDialog } from "./support-actions";
-import { FlagBadges, StateBadge } from "./support-badges";
+import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
 import SupportDetail from "./support-detail";
 
 const PAGE_SIZE = 50;
@@ -124,7 +126,7 @@ const COLUMNS: Column[] = [
       </>
     ),
   },
-  { key: "kind", label: "Tipo", sortField: "kind", cell: (s) => humanize(s.kind) },
+  { key: "kind", label: "Tipo", sortField: "kind", cell: (s) => (s.kind ? choiceLabel("kind", s.kind) : dash) },
   {
     key: "customer",
     label: "Cliente",
@@ -194,6 +196,7 @@ const COLUMNS: Column[] = [
     label: "Marcas",
     cell: (s) => (
       <span className="flex flex-wrap gap-1.5">
+        <AttachmentBadge support={s} />
         <FlagBadges support={s} />
       </span>
     ),
@@ -229,6 +232,11 @@ export default function SupportsBrowser({
   const [needsReview, setNeedsReview] = useState(false);
   const [hasIssues, setHasIssues] = useState(false);
   const [hasConflicts, setHasConflicts] = useState(false);
+  const [withoutAttachments, setWithoutAttachments] = useState(false);
+  // Ticked rows, kept across pages and filters until attached or cleared.
+  const [selected, setSelected] = useState<string[]>([]);
+  const [composeId, setComposeId] = useState<string | null>(null);
+  const [bulkAttach, setBulkAttach] = useState<{ document: ExistingDocument | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ match: "all" | "any"; conditions: FilterCondition[] }>({
     match: "all",
     conditions: [],
@@ -271,11 +279,12 @@ export default function SupportsBrowser({
       needs_review: needsReview || undefined,
       has_issues: hasIssues || undefined,
       has_conflicts: hasConflicts || undefined,
+      has_attachments: withoutAttachments ? false : undefined,
       sort,
       page,
       size: PAGE_SIZE,
     };
-  }, [q, customer, supplier, product, caseScope, state, kind, needsReview, hasIssues, hasConflicts, advanced, sort, page, fields]);
+  }, [q, customer, supplier, product, caseScope, state, kind, needsReview, hasIssues, hasConflicts, withoutAttachments, advanced, sort, page, fields]);
 
   const search = useSupportSearch(body);
   const result = search.data;
@@ -298,7 +307,20 @@ export default function SupportsBrowser({
     needsReview ||
     hasIssues ||
     hasConflicts ||
+    withoutAttachments ||
     advanced.conditions.length > 0;
+
+  // The collective upload reuses the list's filters; with none it would reach every support.
+  const attachFilters: SupportSearchFilters | null = filtered ? searchFiltersOf(body) : null;
+
+  const pageIds = items.map((item) => item.id);
+  const pageSelected = pageIds.length > 0 && pageIds.every((itemId) => selected.includes(itemId));
+  const toggleSelected = (itemId: string) =>
+    setSelected((current) => (current.includes(itemId) ? current.filter((x) => x !== itemId) : [...current, itemId]));
+  const togglePage = () =>
+    setSelected((current) =>
+      pageSelected ? current.filter((x) => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]
+    );
 
   const reset = (apply: () => void) => {
     apply();
@@ -316,6 +338,7 @@ export default function SupportsBrowser({
     setNeedsReview(false);
     setHasIssues(false);
     setHasConflicts(false);
+    setWithoutAttachments(false);
     setAdvanced({ match: "all", conditions: [] });
     setPage(1);
   };
@@ -348,6 +371,10 @@ export default function SupportsBrowser({
     <SupportActions
       support={support}
       onEdit={() => setEditId(support.id)}
+      onAttach={() => {
+        setOpenId(support.id);
+        setComposeId(support.id);
+      }}
       onVoid={() => setVoidId(support.id)}
       onForbidden={onForbidden}
       onFailure={setNotice}
@@ -412,6 +439,7 @@ export default function SupportsBrowser({
         <Check label="Por revisar" checked={needsReview} onChange={(value) => reset(() => setNeedsReview(value))} />
         <Check label="Con novedades" checked={hasIssues} onChange={(value) => reset(() => setHasIssues(value))} />
         <Check label="Con conflictos" checked={hasConflicts} onChange={(value) => reset(() => setHasConflicts(value))} />
+        <Check label="Sin soporte" checked={withoutAttachments} onChange={(value) => reset(() => setWithoutAttachments(value))} />
         {caseScope && (
           <span className="inline-flex items-center gap-1 rounded-sm bg-canvas-subtle py-0.5 pl-2 pr-0.5">
             Caso {caseScope.code}
@@ -425,10 +453,29 @@ export default function SupportsBrowser({
             </button>
           </span>
         )}
+        {canWrite && selected.length > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-sm bg-canvas-subtle py-0.5 pl-2 pr-0.5 tabular-nums">
+            {selected.length === 1 ? "1 seleccionado" : `${selected.length} seleccionados`}
+            <button
+              type="button"
+              onClick={() => setSelected([])}
+              aria-label="Quitar la selección"
+              className="flex size-6 items-center justify-center rounded-sm text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          </span>
+        )}
+        {canWrite && (
+          <Button variant="outline" size="sm" className="ml-auto max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
+            <Paperclip aria-hidden="true" />
+            Adjuntar soporte
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
-          className="ml-auto"
+          className={cn(!canWrite && "ml-auto")}
           onClick={() => setShowAdvanced((value) => !value)}
           aria-expanded={showAdvanced}
           aria-controls="supports-advanced"
@@ -493,6 +540,7 @@ export default function SupportsBrowser({
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface md:hidden">
             {items.map((support) => (
               <li key={support.id} className={cn("flex items-start", support.state === "inactivo" && "opacity-60")}>
+                {canWrite && <RowCheck support={support} checked={selected.includes(support.id)} onChange={() => toggleSelected(support.id)} />}
                 <button
                   type="button"
                   onClick={() => setOpenId(support.id)}
@@ -515,6 +563,7 @@ export default function SupportsBrowser({
                   </span>
                   <span className="flex flex-wrap gap-1.5">
                     <StateBadge value={support.state} />
+                    <AttachmentBadge support={support} />
                     <FlagBadges support={support} />
                   </span>
                 </button>
@@ -527,6 +576,17 @@ export default function SupportsBrowser({
             <table className="w-full min-w-max text-left text-sm">
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
+                  {canWrite && (
+                    <th scope="col" className="w-10 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={pageSelected}
+                        onChange={togglePage}
+                        aria-label="Seleccionar los apoyos de esta página"
+                        className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      />
+                    </th>
+                  )}
                   {columns.map((column) => {
                     const sortField = column.sortField && sortable.has(column.sortField) ? column.sortField : null;
                     return (
@@ -566,6 +626,17 @@ export default function SupportsBrowser({
                 {items.map((support) => (
                   // A disabled support stays in the list, muted: it is reversible, not gone.
                   <tr key={support.id} className={cn("hover:bg-primary-subtle", support.state === "inactivo" && "opacity-60")}>
+                    {canWrite && (
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(support.id)}
+                          onChange={() => toggleSelected(support.id)}
+                          aria-label={`Seleccionar el apoyo de ${support.supplier_name ?? "proveedor"}${support.product_sku ? `, SKU ${support.product_sku}` : ""}`}
+                          className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        />
+                      </td>
+                    )}
                     {columns.map((column) => (
                       <td key={column.key} className={cn("max-w-56 px-3 py-2", alignClass(column))}>
                         {column.cell(support, () => setOpenId(support.id))}
@@ -594,7 +665,28 @@ export default function SupportsBrowser({
         </div>
       )}
 
-      <SupportDetail id={openId} onClose={() => setOpenId(null)} />
+      <SupportDetail
+        id={openId}
+        onClose={() => {
+          setOpenId(null);
+          setComposeId(null);
+        }}
+        canWrite={canWrite}
+        composing={composeId !== null && composeId === openId}
+        onComposingChange={(composing) => setComposeId(composing ? openId : null)}
+        onLinkElsewhere={(attachment) => {
+          setOpenId(null);
+          setComposeId(null);
+          setBulkAttach({ document: { id: attachment.document_id, name: attachment.name } });
+        }}
+      />
+      <BulkAttachDialog
+        open={bulkAttach !== null}
+        onClose={() => setBulkAttach(null)}
+        selectedIds={selected}
+        filters={attachFilters}
+        document={bulkAttach?.document ?? null}
+      />
       <SupportEditDialog support={editing} onClose={() => setEditId(null)} onForbidden={onForbidden} />
       <SupportVoidDialog support={voiding} onClose={() => setVoidId(null)} onForbidden={onForbidden} />
     </div>
@@ -605,6 +697,29 @@ export default function SupportsBrowser({
 function subject(support: SupplierSupport): string {
   const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
+}
+
+function searchFiltersOf(body: SupportSearchBody): SupportSearchFilters {
+  const filters: Partial<SupportSearchBody> = { ...body };
+  delete filters.page;
+  delete filters.size;
+  delete filters.sort;
+  return filters as SupportSearchFilters;
+}
+
+/** Row tick on the mobile list; its own 44px target, apart from the row that opens the detail. */
+function RowCheck({ support, checked, onChange }: { support: SupplierSupport; checked: boolean; onChange: () => void }) {
+  return (
+    <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        aria-label={`Seleccionar el apoyo de ${support.supplier_name ?? "proveedor"}${support.product_sku ? `, SKU ${support.product_sku}` : ""}`}
+        className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      />
+    </label>
+  );
 }
 
 function Check({
