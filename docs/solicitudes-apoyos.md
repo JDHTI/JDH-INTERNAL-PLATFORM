@@ -195,3 +195,13 @@ Las bandejas Comercial y BI muestran tablas con una fila completa por solicitud:
 Validación de este ajuste: TypeScript, ESLint, build de producción y `git diff --check` sin errores; 21 pruebas automatizadas aprobadas. Las nuevas pruebas comprueban semántica/color de avisos y render de ambas bandejas en filas completas sin enlace al maestro. La comprobación de render es controlada y no sustituye el click-through visual integrado pendiente en Docker, móvil y ambos temas.
 
 Dependencia de integración: [API PR #32](https://github.com/JDHTI/JDH-INTERNAL-PLATFORM-API/pull/32). La publicación del PR UI queda a cargo del coordinador para evitar duplicados; este worktree solo entrega commit y descripción preparada.
+
+## Simplificación compartida de solicitudes
+
+Ajuste posterior sobre el PR UI #38, con la misma experiencia para solicitantes y revisores. Cada fila se identifica como «Apoyo JDH · proveedor», usando `supplier_name` / `supplier_code` del nivel raíz de lista/detalle y fallback al snapshot para compatibilidad. Cliente ocupa la columna contigua; referencia muestra solamente el SKU, sin programa ni identificadores adicionales. «Acciones», al extremo derecho, ofrece «Ver solicitud» y «Ver justificación».
+
+La justificación completa se consulta en un Dialog separado; ya no ocupa una columna extensa ni el cuerpo principal del detalle. El detalle muestra JDH al solicitar, JDH vigente y JDH propuesto, estado y decisión. Auditoría y versiones se conservan accesibles dentro de «Ver auditoría», cerrado inicialmente. El control de versiones, recarga y confirmación ante 409 continúa vigente. No se limita el negocio a porcentajes: costo pactado JDH conserva precisión y unidad de la propuesta, separado del proveedor.
+
+El formulario batch también muestra solo JDH vigente por registro, su propuesta y justificación, evitando el desglose completo de acuerdo, proveedor, vigencias y referencias de cálculo. Mantiene las reglas de elegibilidad, proveedor/cliente, modalidades/unidades y atomicidad existentes.
+
+Validación: TypeScript, ESLint, build y `git diff --check` sin errores; 23 pruebas aprobadas. Las pruebas de presentación comprueban proveedor real/fallback, acciones y ausencia de textos extensos en filas/detalle, Dialog independiente, auditoría colapsada y comparación compacta de costo neto con todos los decimales. Pendiente recorrido visual integrado en Docker. El coordinador actualiza PR #38 y despliegue; no se publica un PR adicional desde este worktree.

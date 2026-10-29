@@ -26,39 +26,73 @@ test("success feedback uses green status semantics while failures remain danger 
 });
 
 const Button = ({ children, ...props }) => React.createElement("button", props, children);
+const labels = await load("../src/features/supports/lib/request-label.ts", {});
+const valueMock = { formatRequestValue: (value, net) => value === null || value === undefined ? "sin JDH" : `${net ? "$" : "%"}${value}` };
+const jdhValues = await load("../src/features/supports/components/request-jdh-values.tsx", { "../lib/request-values": valueMock });
+const Dialog = ({ children, title, description }) => React.createElement("section", {}, React.createElement("h2", {}, title), description && React.createElement("p", {}, description), children);
+const justification = await load("../src/features/supports/components/request-justification-dialog.tsx", { "@/shared/components/ui/dialog": { Dialog }, "../lib/request-label": labels });
 const rows = await load("../src/features/supports/components/request-rows.tsx", {
   "@/shared/components/ui/button": { Button },
   "@/shared/components/ui/badge": { Badge: ({ children }) => React.createElement("span", {}, children) },
   "../lib/request-values": { formatRequestValue: value => String(value) },
   "./jdh-support": { dateTime: value => value },
+  "../lib/request-label": labels,
 });
-const item = { id: "request-1", support_id: "support-1", mode: "porcentaje", value: ".05", reason: "Justificación completa sin truncar", status: "rechazada", requested_by: "comercial@example.com", created_at: "2026-10-29T12:00:00Z", snapshot: { supplier_name: "Proveedor", customer_name: "Cliente", customer_nit: "80140929", product_sku: "SKU-1", value_unit: "caja" }, decided_by: "bi@example.com", decided_at: "2026-10-29T13:00:00Z", decision_reason: "Motivo completo de rechazo" };
+const item = { id: "request-1", support_id: "support-1", supplier_name: "Proveedor real", supplier_code: "P1", mode: "porcentaje", value: ".05", reason: "Justificación completa sin truncar", status: "rechazada", requested_by: "comercial@example.com", created_at: "2026-10-29T12:00:00Z", snapshot: { supplier_name: "Proveedor snapshot", customer_name: "Cliente", customer_nit: "80140929", product_sku: "SKU-1", value_unit: "caja", program: "PROGRAMA OCULTO", calc_method: "pct_costo", jdh_pct: ".01" }, decided_by: "bi@example.com", decided_at: "2026-10-29T13:00:00Z", decision_reason: "Motivo completo de rechazo", version: 2, support_version: 3, support: { calc_method: "pct_costo", jdh_pct: ".02", version: 4 }, events: [] };
 
 test("Commercial and BI render full request rows with no link back to the master", async () => {
   const browser = await load("../src/features/supports/components/requests-browser.tsx", {
     "@/shared/components/ui/alert": { Alert },
     "@/shared/components/pager": { __esModule: true, default: () => null },
     "@/shared/components/ui/button": { Button },
-    "@/shared/components/ui/dialog": {},
+    "@/shared/components/ui/dialog": { Dialog },
     "@/shared/components/ui/dropdown": { Dropdown: () => null },
     "@/shared/components/ui/input": { Input: () => null },
     "@/shared/components/ui/textarea": {},
     "@/shared/hooks/use-debounced-value": { useDebouncedValue: value => value },
     "@/shared/lib/api-client": {},
-    "../hooks/use-requests": { useRequests: () => ({ data: { items: [item], total: 1, page: 1, size: 25 } }) },
+    "../hooks/use-requests": { useRequests: () => ({ data: { items: [item], total: 1, page: 1, size: 25 } }), useRequest: () => ({ data: item }), useRequestAction: () => ({}) },
     "../hooks/use-supports": { useSupportPermissions: () => ({ data: { can_request: true, can_review: true } }) },
     "../lib/request-values": {},
-    "./jdh-support": {},
-    "./discard-dialog": {},
+    "./jdh-support": { dateTime: value => value, JdhEvents: () => React.createElement("p", {}, "Eventos de auditoría") },
+    "./discard-dialog": { __esModule: true, default: () => null },
     "./request-rows": rows,
+    "./request-jdh-values": jdhValues,
+    "./request-justification-dialog": justification,
+    "../lib/request-label": labels,
   });
   for (const review of [false, true]) {
     const html = renderToStaticMarkup(React.createElement(browser.default, { review }));
     assert.match(html, /<table/);
     assert.match(html, /<tbody[^>]*><tr/);
-    assert.match(html, /Justificación completa sin truncar/);
-    assert.match(html, /Motivo completo de rechazo/);
+    assert.match(html, /Apoyo JDH · Proveedor real/);
+    assert.match(html, /Ver justificación/);
+    assert.match(html, /Acciones<\/th>/);
+    assert.doesNotMatch(html, /Justificación completa sin truncar|Motivo completo de rechazo|PROGRAMA OCULTO|Proveedor snapshot/);
     assert.match(html, /80140929/);
     assert.doesNotMatch(html, /line-clamp|Volver al maestro|href=/);
+    const detail = renderToStaticMarkup(React.createElement(browser.RequestDialog, { id: item.id, review, onClose: () => {} }));
+    assert.match(detail, /JDH al solicitar/);
+    assert.match(detail, /JDH vigente/);
+    assert.match(detail, /JDH propuesto/);
+    assert.match(detail, /Motivo completo de rechazo/);
+    assert.match(detail, /<details[^>]*><summary/);
+    assert.doesNotMatch(detail, /<details[^>]*open|Justificación completa sin truncar|Costo de referencia|Unidades por caja|Vigencia/);
   }
+});
+
+test("justification is complete in its separate dialog and provider label supports fallback", () => {
+  const html = renderToStaticMarkup(React.createElement(justification.default, { request: item, onClose: () => {} }));
+  assert.match(html, /Justificación completa sin truncar/);
+  assert.match(html, /Apoyo JDH · Proveedor real/);
+  assert.equal(labels.requestSupplier({ ...item, supplier_name: null }), "P1");
+  assert.equal(labels.requestSupplier({ ...item, supplier_name: null, supplier_code: null }), "Proveedor snapshot");
+});
+
+test("compact JDH comparison preserves net cost, unit and precision independently of supplier value", () => {
+  const net = { ...item, mode: "costo_neto", value: "78.123456", snapshot: { calc_method: "costo_neto", jdh_net_cost: "70.123456", supplier_value: "999", value_unit: "kg" }, support: { calc_method: "costo_neto", jdh_net_cost: "75.654321", supplier_value: "999", value_unit: "kg" } };
+  const html = renderToStaticMarkup(React.createElement(jdhValues.default, { request: net }));
+  for (const amount of ["70.123456", "75.654321", "78.123456"]) assert.match(html, new RegExp(amount.replace(".", "\\.")));
+  assert.match(html, /kg/);
+  assert.doesNotMatch(html, /999|Proveedor|Vigencia/);
 });

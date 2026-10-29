@@ -12,7 +12,7 @@ import { getSupport } from "../services/supports.service";
 import { requestSelectionError } from "../lib/request-selection";
 import { requestValue } from "../lib/request-values";
 import type { SupplierSupport } from "../types/support.types";
-import { JdhValues } from "./jdh-support";
+import { CurrentJdh } from "./request-jdh-values";
 import DiscardDialog from "./discard-dialog";
 
 export default function BatchRequestDialog({ records, onClose, onSuccess }: { records: SupplierSupport[]; onClose: () => void; onSuccess: () => void }) {
@@ -47,8 +47,8 @@ export default function BatchRequestDialog({ records, onClose, onSuccess }: { re
     <form onSubmit={submit} className="space-y-4">
       <p className="text-sm">Proveedor: {current[0]?.supplier_name ?? current[0]?.supplier_code} · Cliente: {current[0]?.customer_name ?? current[0]?.customer_group ?? "Todos los clientes"} · NIT {current[0]?.customer_nit ?? "sin NIT"}</p>
       {current.map((record, index) => <fieldset key={record.id} className="space-y-3 rounded-lg border border-border p-4" disabled={mutation.isPending}>
-        <legend className="px-1 font-semibold">{record.product_sku ? `SKU ${record.product_sku}` : "Todos los productos"} · {record.program ?? record.id}</legend>
-        <JdhValues support={record} />
+        <legend className="px-1 font-semibold">{record.product_sku ?? "Todos los productos"}</legend>
+        <p className="text-sm">JDH vigente: <strong className="tabular-nums"><CurrentJdh support={record} /></strong></p>
         {queries[index].isError && <p role="alert" className="text-danger">{errorMessage(queries[index].error)} <Button type="button" variant="outline" onClick={() => void queries[index].refetch()}>Recargar</Button></p>}
         <label className="block text-sm">{record.calc_method === "costo_neto" ? `Costo pactado JDH (${record.value_unit ?? "sin unidad"})` : "Porcentaje JDH (%)"}<Input type="number" required min={record.calc_method === "costo_neto" ? 0 : -100} max={record.calc_method === "costo_neto" ? undefined : 100} step="any" value={drafts[record.id].value} onChange={event => update(record.id, "value", event.target.value)} /><span className="text-xs text-text-secondary">{record.calc_method === "costo_neto" ? "Importe menor a 10¹², hasta 6 decimales." : "Entre -100 y 100 %, hasta 4 decimales. 5 equivale a 5 %."}</span></label>
         {drafts[record.id].value && items[index].value === null && <p role="alert" className="text-sm text-danger">Revisa el rango y los decimales del valor.</p>}
