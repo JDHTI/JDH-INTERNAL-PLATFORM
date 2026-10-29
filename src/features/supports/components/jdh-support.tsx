@@ -14,16 +14,21 @@ import type { SupportEvent } from "../types/request.types";
 import { formatRequestValue, requestValue } from "../lib/request-values";
 import DiscardDialog from "./discard-dialog";
 
-const eventLabels: Record<string, string> = { solicitada: "Solicitud creada", aprobada: "Solicitud aprobada", rechazada: "Solicitud rechazada", cancelada: "Aporte JDH cancelado", actualizacion_maestro: "Acuerdo actualizado por administración", creacion: "Acuerdo creado", migracion: "Valores iniciales de migración" };
-const fieldLabels: Record<string, string> = { supplier_value: "Valor del proveedor", jdh_pct: "Porcentaje JDH", jdh_net_cost: "Costo pactado JDH", version: "Versión del acuerdo", value: "Valor solicitado", mode: "Modalidad", reference_cost: "Costo de referencia", reference_list_price: "Lista de referencia", value_unit: "Unidad", pack_factor: "Unidades por caja", product_sku: "SKU", customer_nit: "NIT cliente", customer_name: "Cliente", program: "Programa", valid_from: "Desde", valid_to: "Hasta", status: "Estado", is_enabled: "Habilitado" };
-function eventValue(key: string, values: Record<string, unknown> | null) {
-  const value = values?.[key];
-  if (value === null || value === undefined) return "—";
-  if (key === "jdh_pct") return formatRequestValue(String(value), false);
-  if (key === "supplier_value") return formatSupplierValue(typeof values?.calc_method === "string" ? values.calc_method : null, String(value));
-  if (key === "jdh_net_cost" || key === "value") return formatRequestValue(String(value), key === "jdh_net_cost" || values?.mode === "costo_neto");
-  if (typeof value === "boolean") return value ? "Sí" : "No";
-  return String(value);
+const eventLabels: Record<string, string> = { solicitada: "Solicitud creada", aprobada: "Solicitud aprobada", rechazada: "Solicitud rechazada", cancelada: "Aporte JDH cancelado", actualizacion_maestro: "Acuerdo actualizado", creacion: "Acuerdo creado", migracion: "Valores iniciales registrados" };
+function eventSummary(event: SupportEvent) {
+  if (event.event_type === "solicitada") {
+    const value = event.after?.value;
+    const net = event.after?.mode === "costo_neto";
+    const unit = event.before?.value_unit;
+    return `Solicitó ${net ? "costo JDH" : "apoyo JDH"} por ${value == null ? "un valor no disponible" : formatRequestValue(String(value), net)}${net && unit ? ` / ${String(unit)}` : ""}.`;
+  }
+  if (event.event_type === "aprobada") return "Aprobó la solicitud.";
+  if (event.event_type === "rechazada") return "Rechazó la solicitud.";
+  if (event.event_type === "cancelada") return "Canceló el aporte JDH.";
+  if (event.event_type === "actualizacion_maestro") return "Actualizó el acuerdo.";
+  if (event.event_type === "creacion") return "Creó el acuerdo.";
+  if (event.event_type === "migracion") return "Registró los valores iniciales.";
+  return event.event_type.replaceAll("_", " ");
 }
 
 export const dateTime = (date: string | null) => date ? new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota" }).format(new Date(date)) : "—";
@@ -38,12 +43,14 @@ export function JdhValues({ support }: { support: Partial<SupplierSupport> }) {
   </dl>;
 }
 export function JdhEvents({ events }: { events: SupportEvent[] }) {
-  return <div className="space-y-3">{events.length === 0 ? <p>Sin eventos registrados.</p> : events.map(event => <article key={event.id} className="rounded-lg border border-border p-3 text-sm">
-    <p className="font-medium">{eventLabels[event.event_type] ?? event.event_type.replaceAll("_", " ")} · {dateTime(event.created_at)}</p>
-    <p>{event.actor} {event.request_id && `· solicitud ${event.request_id}`}</p>
-    {event.reason && <p className="whitespace-pre-wrap">{event.reason}</p>}
-    <div className="mt-2 overflow-x-auto"><table className="w-full text-left"><caption className="sr-only">Valores anteriores y nuevos del evento</caption><thead><tr><th className="p-2">Concepto</th><th className="p-2">Anterior</th><th className="p-2">Nuevo</th></tr></thead><tbody>{[...new Set(["supplier_value", "jdh_pct", "jdh_net_cost", "version", ...Object.keys(event.before ?? {}), ...Object.keys(event.after ?? {})])].filter(key => fieldLabels[key]).map(key => <tr key={key} className="border-t border-border"><th className="p-2 font-normal">{fieldLabels[key]}</th><td className="p-2">{eventValue(key, event.before)}</td><td className="p-2">{eventValue(key, event.after)}</td></tr>)}</tbody></table></div>
-  </article>)}</div>;
+  return events.length === 0 ? <p>Sin eventos registrados.</p> : <ol aria-label="Historial de solicitudes" className="ml-2 space-y-0 border-l border-border">
+    {events.map(event => <li key={event.id} className="relative pb-4 pl-5 text-sm last:pb-0">
+      <span aria-hidden="true" className="absolute -left-[5px] top-1.5 h-2 w-2 rounded-full bg-primary" />
+      <p className="font-medium">{eventLabels[event.event_type] ?? event.event_type.replaceAll("_", " ")} <span className="font-normal text-text-secondary">· {dateTime(event.created_at)}</span></p>
+      <p>{event.actor} {eventSummary(event)}</p>
+      {event.reason && <p className="mt-1 text-text-secondary">Motivo: {event.reason}</p>}
+    </li>)}
+  </ol>;
 }
 
 export default function JdhSupport({ support, context, onEditingChange = () => undefined }: { support: SupplierSupport; context: "commercial" | "manage"; onEditingChange?: (editing: boolean) => void }) {
