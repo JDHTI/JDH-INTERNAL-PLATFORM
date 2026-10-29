@@ -25,7 +25,7 @@ export default async function ApoyosPage({
         description="Apoyos de proveedores por cliente y referencia, con su estado, sus novedades y los conflictos entre ellos."
         aside={<SupportsToolbar area={area} />}
       />
-      <SupportsBrowser key={caso ?? "all"} specialCase={caso ? { id: caso, code: codigo ?? "del caso" } : undefined} />
+      <SupportsBrowser readOnly={area === "comercial"} key={caso ?? "all"} specialCase={caso ? { id: caso, code: codigo ?? "del caso" } : undefined} />
     </div>
   );
 }

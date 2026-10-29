@@ -135,3 +135,37 @@ En esta fase solo se revisa coherencia documental y diff. No se ejecutan ni cert
 ### Señal al frente UI
 
 La entrega de planificación API `c71db46` queda recibida y documentada en este worktree UI. La señal habilita exclusivamente planificación y documentación; la implementación funcional y publicación quedan para una fase posterior. La tarjeta del worktree registra el commit documental UI como constancia de recepción.
+
+## Implementación UI autorizada posteriormente (2026-10-29)
+
+El usuario amplió expresamente el alcance después del commit documental `03a0309`: desarrollar la UI funcional completa coordinada con API. Las referencias anteriores a una fase exclusivamente documental describen la entrega inicial; esta sección registra el alcance y el estado posterior. Continúa la restricción de no hacer push ni PR hasta validación.
+
+Implementado: maestro `/comercial/apoyos` en consulta incluso con permisos BI, solicitud individual desde el detalle, seguimiento propio `/comercial/apoyos/solicitudes`, bandeja `/bi/solicitudes-apoyos` con pendientes por defecto, aprobación exacta, rechazo motivado, comparación original/actual/propuesta e historial. Maestro BI incorpora cancelación exclusiva JDH con motivo y confirmación, independiente de anulación del acuerdo. El historial presenta etiquetas humanas y tabla anterior/nuevo de proveedor, JDH, versión y demás condiciones reconocidas. Los formularios piden confirmación para descartar cambios.
+
+Permisos confirmados `can_manage`, `can_request`, `can_review`; errores de permisos no habilitan escritura. Las rutas administrativas bajo Comercial quedan bloqueadas. Lista y detalle Comercial envían `mine=true`, incluida la combinación de permisos Comercial y BI; no se consulta el historial completo desde Comercial. Consultas y mutaciones invalidan maestro, detalle, solicitudes e historial relacionados.
+
+### Contrato confirmado con los archivos API
+
+- Crear: `POST /supplier-supports/{id}/requests` con `{version,value,reason}`.
+- Lista: `GET /supplier-support-requests?page&size&status&q`, con `mine=true` desde Comercial; devuelve `{items,total,page,size}`.
+- Detalle: `GET /supplier-support-requests/{id}`, con `mine=true` desde Comercial; devuelve solicitud al nivel raíz más `support` actual y `events`.
+- Aprobar: `POST /supplier-support-requests/{id}/approve` con `{version,support_version}`. Rechazar: `POST /supplier-support-requests/{id}/reject` con `{version,reason}`. Ambas devuelven la solicitud raíz sin `support/events`; UI invalida y recarga el detalle.
+- Historial: `GET /supplier-supports/{id}/jdh-history`, array directo, solo contexto BI.
+- Cancelar JDH: `DELETE /supplier-supports/{id}/jdh-support` con `{version,reason}`; devuelve maestro actualizado.
+
+Solicitud: `id,support_id,mode,value,reason,status,requested_by,created_at,version,support_version,snapshot,decided_by,decided_at,decision_reason`. Snapshot plano del acuerdo. Eventos: `id,support_id,request_id,event_type,actor,created_at,reason,before,after`. Etiquetas soportadas: `solicitada`, `aprobada`, `rechazada`, `cancelada`, `actualizacion_maestro`, `creacion`, `migracion`. Los decimales API llegan como strings; los tipos UI aceptan también número por compatibilidad.
+
+El porcentaje API es fracción entre -1 y 1 con máximo 6 decimales; la entrada UI usa puntos entre -100 y 100, máximo 4 decimales. Costo pactado no negativo, menor a 10^12, máximo 6 decimales; no modifica el costo del proveedor. Motivos de 3 a 2000 caracteres. Las comparaciones de JDH y propuesta conservan toda la precisión del contrato. Fechas de eventos en `America/Bogota`.
+
+Un 409 recarga datos y elimina la confirmación previa; la nueva acción exige revisar y confirmar la versión vigente. Tampoco se puede enviar una creación/cancelación si un refetch automático cambió la versión después de confirmar: el valor mostrado y el token de confirmación deben corresponder a la misma revisión. Los errores 403 se muestran y no se convierten en éxito.
+
+### Validación real y límites
+
+Resultados locales: TypeScript, ESLint y build de producción completados sin errores; 9 pruebas automatizadas aprobadas. `git diff --check` limpio.
+
+- TypeScript: `node node_modules/typescript/bin/tsc --noEmit`.
+- ESLint sobre el frente supports, las rutas afectadas, navegación y pruebas.
+- Build de producción: `node node_modules/next/dist/bin/next build`, incluye las dos rutas nuevas.
+- Pruebas UI/contrato: `node --test tests/*.test.mjs`: aislamiento de controles e historial Comercial con permisos BI; controles BI y denegación; conversión, límites y precisión; `mine=true`; payloads/versiones de decisiones/cancelación; 409 sin reintento automático; 403 sin decisión exitosa.
+
+Las pruebas de contexto renderizan componentes a HTML en servidor con dependencias controladas; las de contrato usan el cliente HTTP real con fetch simulado. No sustituyen un recorrido real de navegador. Pendiente click-through integrado con API, incluyendo dos aprobadores, descarte de formularios, refetch/409, móvil y ambos temas. No se realizó validación visual. El resultado de la suite PostgreSQL/API lo valida el frente API, no esta entrega UI.

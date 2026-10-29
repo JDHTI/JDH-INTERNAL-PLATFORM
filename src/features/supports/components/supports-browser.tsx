@@ -164,11 +164,11 @@ const COLUMNS: Column[] = [
   },
   {
     key: "jdh",
-    label: "% apoyo JDH",
+    label: "Aporte JDH",
     sortField: "jdh_pct",
     align: "right",
-    // Only some supports carry it; zero is as empty as null.
-    cell: (s) => <span className="tabular-nums">{toNumber(s.jdh_pct) ? formatPct(s.jdh_pct) : dash}</span>,
+    // JDH net cost is independent from the supplier value, including zero.
+    cell: (s) => <span className="tabular-nums">{s.calc_method === "costo_neto" ? formatCop(s.jdh_net_cost) : formatPct(s.jdh_pct)}</span>,
   },
   { key: "net-unit", label: "Neto unitario", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
   { key: "net-box", label: "Neto caja", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "box") },
@@ -213,7 +213,9 @@ const alignClass = (column: Column) => (column.align === "right" ? "text-right" 
  */
 export default function SupportsBrowser({
   specialCase,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   /** A special case to scope the list to, from its "ver apoyos" link. */
   specialCase?: { id: string; code: string };
 }) {
@@ -248,7 +250,7 @@ export default function SupportsBrowser({
   const [editId, setEditId] = useState<string | null>(null);
   const [voidId, setVoidId] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
-  const canWrite = useCanManage() && !denied;
+  const canWrite = useCanManage() && !denied && !readOnly;
   const [notice, setNotice] = useState<string | null>(null);
   const q = useDebouncedValue(text.trim());
 
@@ -672,6 +674,7 @@ export default function SupportsBrowser({
           setComposeId(null);
         }}
         canWrite={canWrite}
+        jdhContext={readOnly ? "commercial" : "manage"}
         composing={composeId !== null && composeId === openId}
         onComposingChange={(composing) => setComposeId(composing ? openId : null)}
         onLinkElsewhere={(attachment) => {
