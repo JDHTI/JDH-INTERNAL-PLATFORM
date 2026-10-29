@@ -12,11 +12,10 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { useRequest, useRequestAction, useRequests } from "../hooks/use-requests";
 import { useSupportPermissions } from "../hooks/use-supports";
-import type { RequestStatus, SupportRequest } from "../types/request.types";
+import type { RequestStatus } from "../types/request.types";
 import { dateTime } from "./jdh-support";
 import DiscardDialog from "./discard-dialog";
 import RequestRows from "./request-rows";
-import RequestJustificationDialog from "./request-justification-dialog";
 import RequestJdhValues from "./request-jdh-values";
 import { requestSupplier } from "../lib/request-label";
 
@@ -28,7 +27,6 @@ export default function RequestsBrowser({ review = false }: { review?: boolean }
   const [status, setStatus] = useState(review ? "pendiente" : "");
   const [text, setText] = useState("");
   const [id, setId] = useState<string | null>(null);
-  const [justification, setJustification] = useState<SupportRequest | null>(null);
   const q = useDebouncedValue(text.trim());
   const query = useRequests({ page, size: 25, status: (status || undefined) as RequestStatus | undefined, q, mine: !review }, allowed, review ? "review" : "own");
   if (permissions.isPending) return <p aria-busy="true">Validando permisos…</p>;
@@ -38,11 +36,10 @@ export default function RequestsBrowser({ review = false }: { review?: boolean }
     <div className="flex flex-col gap-3 sm:flex-row"><Input aria-label="Buscar solicitudes" type="search" maxLength={100} placeholder="Buscar solicitudes" value={text} onChange={e => { setText(e.target.value); setPage(1); }} /><Dropdown aria-label="Estado de solicitud" value={status} options={statuses} onValueChange={value => { setStatus(value); setPage(1); }} /><Button variant="outline" onClick={() => void query.refetch()}>Recargar</Button></div>
     {query.isPending ? <p aria-busy="true">Cargando solicitudes…</p> : query.isError ? <p role="alert" className="text-danger">{errorMessage(query.error)}</p> : <>
       {query.data.items.length === 0 && <p>No hay solicitudes para estos filtros.</p>}
-      {query.data.items.length > 0 && <RequestRows items={query.data.items} onOpen={setId} onJustification={setJustification} />}
+      {query.data.items.length > 0 && <RequestRows items={query.data.items} onOpen={setId} />}
       <Pager page={query.data.page} size={query.data.size} total={query.data.total} count={query.data.items.length} onPageChange={setPage} />
     </>}
     {id && <RequestDialog key={id} id={id} review={review} onClose={() => setId(null)} />}
-    {justification && <RequestJustificationDialog request={justification} onClose={() => setJustification(null)} />}
   </div>;
 }
 export function RequestDialog({ id, review, onClose }: { id: string; review: boolean; onClose: () => void }) {
@@ -55,7 +52,6 @@ export function RequestDialog({ id, review, onClose }: { id: string; review: boo
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState("");
   const [discard, setDiscard] = useState(false);
-  const [showJustification, setShowJustification] = useState(false);
   const data = query.data;
   const revision = data ? `${data.version}:${data.support.version}` : "";
   async function submit(event: React.FormEvent) {
@@ -74,7 +70,7 @@ export function RequestDialog({ id, review, onClose }: { id: string; review: boo
       <p>{data.status} · {data.requested_by} · {dateTime(data.created_at)}</p>
       <p>{data.snapshot.customer_name ?? data.snapshot.customer_group ?? "Todos los clientes"} · {data.snapshot.product_sku ?? "Todos los productos"}</p>
       <RequestJdhValues request={data} />
-      <Button variant="ghost" onClick={() => setShowJustification(true)}>Ver justificación</Button>
+      <section className="space-y-1"><h3 className="text-sm font-medium">Justificación</h3><p className="whitespace-pre-wrap break-words text-sm">{data.reason}</p></section>
       {data.decided_at && <p>Decisión: {data.decided_by} · {dateTime(data.decided_at)} · {data.decision_reason ?? "Sin motivo adicional"}</p>}
       {notice && <Alert severity="success">{notice}</Alert>}
       {conflict && <p role="alert" className="text-danger">La versión cambió (409). Se recargaron los datos. Compara los valores y confirma nuevamente.</p>}
@@ -87,5 +83,5 @@ export function RequestDialog({ id, review, onClose }: { id: string; review: boo
       </form>}
       {mutation.isError && <p role="alert" className="text-danger">{errorMessage(mutation.error)}</p>}
     </div>}
-  </Dialog>{showJustification && data && <RequestJustificationDialog request={data} onClose={() => setShowJustification(false)} />}<DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={onClose} /></>;
+  </Dialog><DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={onClose} /></>;
 }

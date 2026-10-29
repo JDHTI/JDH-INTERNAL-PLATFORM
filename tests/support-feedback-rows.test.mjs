@@ -30,7 +30,6 @@ const labels = await load("../src/features/supports/lib/request-label.ts", {});
 const valueMock = { formatRequestValue: (value, net) => value === null || value === undefined ? "sin JDH" : `${net ? "$" : "%"}${value}` };
 const jdhValues = await load("../src/features/supports/components/request-jdh-values.tsx", { "../lib/request-values": valueMock });
 const Dialog = ({ children, title, description }) => React.createElement("section", {}, React.createElement("h2", {}, title), description && React.createElement("p", {}, description), children);
-const justification = await load("../src/features/supports/components/request-justification-dialog.tsx", { "@/shared/components/ui/dialog": { Dialog }, "../lib/request-label": labels });
 const rows = await load("../src/features/supports/components/request-rows.tsx", {
   "@/shared/components/ui/button": { Button },
   "@/shared/components/ui/badge": { Badge: ({ children }) => React.createElement("span", {}, children) },
@@ -58,7 +57,6 @@ test("Commercial and BI render full request rows with no link back to the master
     "./discard-dialog": { __esModule: true, default: () => null },
     "./request-rows": rows,
     "./request-jdh-values": jdhValues,
-    "./request-justification-dialog": justification,
     "../lib/request-label": labels,
   });
   for (const review of [false, true]) {
@@ -66,7 +64,8 @@ test("Commercial and BI render full request rows with no link back to the master
     assert.match(html, /<table/);
     assert.match(html, /<tbody[^>]*><tr/);
     assert.match(html, /Apoyo JDH · Proveedor real/);
-    assert.match(html, /Ver justificación/);
+    assert.match(html, /Ver solicitud/);
+    assert.doesNotMatch(html, /Ver justificacion/);
     assert.match(html, /Acciones<\/th>/);
     assert.doesNotMatch(html, /Justificación completa sin truncar|Motivo completo de rechazo|PROGRAMA OCULTO|Proveedor snapshot/);
     assert.match(html, /80140929/);
@@ -75,15 +74,13 @@ test("Commercial and BI render full request rows with no link back to the master
     assert.match(detail, /JDH al solicitar/);
     assert.match(detail, /JDH vigente/);
     assert.match(detail, /JDH propuesto/);
+    assert.match(detail, /sin truncar/);
     assert.match(detail, /Motivo completo de rechazo/);
-    assert.doesNotMatch(detail, /<details|Eventos de auditoría|Justificación completa sin truncar|Costo de referencia|Unidades por caja|Vigencia/);
+    assert.doesNotMatch(detail, /<details|Eventos de auditor|Costo de referencia|Unidades por caja|Vigencia/);
   }
 });
 
-test("justification is complete in its separate dialog and provider label supports fallback", () => {
-  const html = renderToStaticMarkup(React.createElement(justification.default, { request: item, onClose: () => {} }));
-  assert.match(html, /Justificación completa sin truncar/);
-  assert.match(html, /Apoyo JDH · Proveedor real/);
+test("justification appears in request details and provider label supports fallback", () => {
   assert.equal(labels.requestSupplier({ ...item, supplier_name: null }), "P1");
   assert.equal(labels.requestSupplier({ ...item, supplier_name: null, supplier_code: null }), "Proveedor snapshot");
 });
