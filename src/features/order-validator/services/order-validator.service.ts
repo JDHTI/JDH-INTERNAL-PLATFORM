@@ -4,6 +4,7 @@ import type {
   BatchPage,
   OrderPage,
   OrderParams,
+  RuleSection,
   ValidationBatch,
   ValidatorCatalogs,
 } from "../types/order-validator.types";
@@ -16,6 +17,11 @@ export async function getValidatorPermissions(): Promise<{ can_manage: boolean }
 
 export async function getValidatorCatalogs(): Promise<ValidatorCatalogs> {
   return apiFetch<ValidatorCatalogs>(`${BASE}/catalogs`);
+}
+
+/** The rules the validator applies, with the values in force. Open to every signed-in user. */
+export async function getValidatorRules(): Promise<RuleSection[]> {
+  return apiFetch<RuleSection[]>(`${BASE}/rules`);
 }
 
 export async function listBatches(page: number, size: number): Promise<BatchPage> {

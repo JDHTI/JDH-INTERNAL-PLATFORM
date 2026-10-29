@@ -10,6 +10,7 @@ import {
   getBatch,
   getValidatorCatalogs,
   getValidatorPermissions,
+  getValidatorRules,
   listBatches,
   listOrders,
   revalidateBatch,
@@ -22,6 +23,7 @@ import type { OrderParams } from "../types/order-validator.types";
 export const validatorKeys = {
   all: ["order-validations"] as const,
   catalogs: () => [...validatorKeys.all, "catalogs"] as const,
+  rules: () => [...validatorKeys.all, "rules"] as const,
   permissions: () => [...validatorKeys.all, "permissions"] as const,
   batches: (page: number, size: number) => [...validatorKeys.all, "batches", page, size] as const,
   batch: (id: string) => [...validatorKeys.all, "batch", id] as const,
@@ -46,6 +48,15 @@ export function useValidatorCatalogs() {
   return useQuery({
     queryKey: validatorKeys.catalogs(),
     queryFn: getValidatorCatalogs,
+    staleTime: 10 * 60_000,
+    retry: retryTransient,
+  });
+}
+
+export function useValidatorRules() {
+  return useQuery({
+    queryKey: validatorKeys.rules(),
+    queryFn: getValidatorRules,
     staleTime: 10 * 60_000,
     retry: retryTransient,
   });
@@ -85,12 +96,16 @@ export function useUploadBatch() {
   });
 }
 
-/** An approval changes the orders' status, so the batch totals and every cached page of orders are stale. */
+/**
+ * An approval changes the orders' status, so the batch totals and every cached
+ * page of orders are stale. A refused one (409) also refreshes them: something
+ * changed under the selection.
+ */
 export function useApproveOrders(batchId: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ documents, note }: { documents: string[]; note: string | null }) => approveOrders(batchId, documents, note),
-    onSuccess: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
+    onSettled: () => client.invalidateQueries({ queryKey: validatorKeys.all }),
   });
 }
 

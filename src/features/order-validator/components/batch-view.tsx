@@ -28,6 +28,7 @@ import type { ValidationBatch, ValidationStatus } from "../types/order-validator
 import ApprovalDialog, { type ApprovalAction } from "./approval-dialog";
 import DeleteBatchDialog from "./delete-batch-dialog";
 import { OrdersList, OrdersTable } from "./orders-table";
+import RulesLink from "./rules-link";
 import { StatusBadge } from "./status-badges";
 import ThresholdControl from "./threshold-control";
 
@@ -73,8 +74,9 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
 
-  // Only pending orders can be ticked. The selection is read back from the
-  // rows on screen, so an order that stopped being pending drops out of it.
+  // Only pending orders can be ticked, and not one with a 100 % margin product:
+  // the API refuses to approve it. The selection is read back from the rows on
+  // screen, so an order that stopped being pending drops out of it.
   const pendingOrders = rows.filter((order) => order.status === "pendiente_validacion");
   const selectedDocuments = pendingOrders.filter((order) => selected.has(order.document)).map((order) => order.document);
   const allSelected = pendingOrders.length > 0 && selectedDocuments.length === pendingOrders.length;
@@ -341,12 +343,15 @@ function Header({
 }) {
   return (
     <div className="space-y-3">
-      <Link
-        href={basePath}
-        className="inline-flex items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <ArrowLeft className="size-4" aria-hidden="true" /> Todos los archivos
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <Link
+          href={basePath}
+          className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" /> Todos los archivos
+        </Link>
+        <RulesLink basePath={basePath} />
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 basis-80 space-y-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{batch.file_name}</h1>

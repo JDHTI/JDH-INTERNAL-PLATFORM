@@ -22,7 +22,8 @@ function failureMessage(error: unknown): string {
     if (error.status === 405) return "El servicio no permite aprobar pedidos a mano.";
     if (error.status === 404) return "No se encontró el pedido o su aprobación. La lista se actualizó.";
     if (error.status === 403) return "Tu usuario puede consultar los pedidos, pero no aprobarlos.";
-    if (error.status === 409) return "Alguno de los pedidos ya no está pendiente. La lista se actualizó; revisa la selección.";
+    // The API's own detail says which case it is: no longer pending, or a 100 % margin product.
+    if (error.status === 409) return `${error.detail} La lista se actualizó; revisa la selección.`;
   }
   return errorMessage(error);
 }

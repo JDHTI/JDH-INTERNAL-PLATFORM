@@ -15,10 +15,41 @@ export interface ReasonEntry {
   status: ValidationStatus;
 }
 
-/** Labels come from the API so the UI never spells a status or a reason by hand. */
+/** A warning on an order or a line. Older API builds send none. */
+export type AlertCode = "margen_100" | "bajo_objetivo" | "falta_impuesto_licor";
+
+/** Labels come from the API so the UI never spells a status, a reason or an alert by hand. */
 export interface ValidatorCatalogs {
   statuses: StatusEntry[];
   reasons: ReasonEntry[];
+  alerts?: { value: AlertCode; label: string }[];
+}
+
+/** An order's warning, with the file rows (`row_number` of its lines) behind it. */
+export interface OrderAlert {
+  code: AlertCode;
+  label: string;
+  message: string;
+  row_numbers: number[];
+}
+
+/** What a rule does: releases, holds, warns, or only explains how something is computed. */
+export type RuleEffect = "libera" | "retiene" | "alerta" | "informa";
+
+export interface ValidatorRule {
+  code: string;
+  title: string;
+  description: string;
+  effect: RuleEffect;
+  /** The values in force, already formatted by the API ("18 %", "2", "4"). */
+  parameters: Record<string, string>;
+}
+
+/** `linea`, `pedido`, `aprobacion`, in the order the validator applies them. */
+export interface RuleSection {
+  code: string;
+  title: string;
+  rules: ValidatorRule[];
 }
 
 export interface ValidationBatch {
@@ -63,7 +94,7 @@ export interface SupportCheck {
   required_margin_pct: Decimal | null;
 }
 
-export type ReleaseBasis = "lineas" | "manual" | "margen";
+export type ReleaseBasis = "lineas" | "manual" | "margen" | "tolerancia";
 
 /** Which of the product's margins the line was compared against. */
 export type MarginBasis = "lista" | "mayoristas" | "salsamentarias";
@@ -103,6 +134,14 @@ export interface OrderLine {
   liquor_tax_amount?: Decimal | null;
   /** What the file carried in "Vlr. imp. IMPTOLIC" per unit; null when the file has no such column. */
   liquor_tax_value?: Decimal | null;
+  /**
+   * The margin this line brings to the order's margin: with its support when an
+   * active support with money decided it, otherwise the file's `margin_pct`.
+   */
+  order_margin_pct?: Decimal | null;
+  /** Points (as a fraction, 0.05 is 5 points) below its target with its support; null when not below. */
+  points_below_target?: Decimal | null;
+  alerts?: AlertCode[];
   checks: SupportCheck[];
 }
 
@@ -138,7 +177,10 @@ export interface ValidationOrder {
   required_margin_pct: Decimal | null;
   /** `margin_pct` plus the file's threshold; only present when the threshold is above zero. */
   margin_with_threshold_pct?: Decimal | null;
-  /** Why the order is ready: all its lines are, a person approved it, or its margin reaches the target. Null while pending. */
+  /**
+   * Why the order is ready: all its lines are, a person approved it, its margin
+   * reaches the target, or it falls within the tolerance. Null while pending.
+   */
   release_basis?: ReleaseBasis | null;
   /**
    * True when the order is ready only because the threshold was added to its
@@ -150,6 +192,7 @@ export interface ValidationOrder {
   without_support_line_count?: number;
   /** True when some line is missing its liquor tax; the rest leave it out. */
   has_liquor_tax?: boolean;
+  alerts?: OrderAlert[];
   lines: OrderLine[];
 }
 

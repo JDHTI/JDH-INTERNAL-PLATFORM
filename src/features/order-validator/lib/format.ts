@@ -1,7 +1,47 @@
 import { formatPct } from "@/features/supports/lib/format";
-import type { Decimal } from "@/shared/lib/format";
+import { toNumber, type Decimal } from "@/shared/lib/format";
 
-import type { CheckOutcome, MarginBasis } from "../types/order-validator.types";
+import type { CheckOutcome, MarginBasis, OrderLine, RuleEffect, ValidationOrder } from "../types/order-validator.types";
+
+/** File rows the order's alerts point at, to mark those lines. */
+export function alertedRows(order: ValidationOrder): Set<number> {
+  return new Set((order.alerts ?? []).flatMap((alert) => alert.row_numbers));
+}
+
+/** The margin a line brings to the order: with its support when one with money decided it. */
+export function lineOrderMargin(line: OrderLine): number | null {
+  return toNumber(line.order_margin_pct) ?? toNumber(line.effective_margin_pct) ?? toNumber(line.margin_pct);
+}
+
+/** Two margins that print the same are the same to the reader. */
+export const differs = (a: number | null, b: number | null) => a !== null && b !== null && Math.abs(a - b) > 0.00005;
+
+const pointsFormat = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
+
+/** A gap in margin points from a fraction: 0.052 is "5,2 puntos". */
+export function formatPointsGap(value: Decimal | null | undefined): string {
+  const parsed = toNumber(value);
+  return parsed === null ? "—" : `${pointsFormat.format(parsed * 100)} puntos`;
+}
+
+/** How each effect of a rule reads on its badge. */
+export const RULE_EFFECT_LABELS: Record<RuleEffect, string> = {
+  libera: "Libera",
+  retiene: "Retiene",
+  alerta: "Alerta",
+  informa: "Informa",
+};
+
+/**
+ * Names for the keys of a rule's `parameters`; the values always come from the
+ * API. A key the UI does not know yet is shown with its code made readable.
+ */
+export const RULE_PARAMETER_LABELS: Record<string, string> = {
+  margen_minimo_pedido: "Margen mínimo del pedido",
+  lineas_maximas: "Líneas máximas por debajo del objetivo",
+  puntos_maximos: "Puntos máximos por debajo del objetivo",
+  umbral: "Umbral",
+};
 
 const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
 const day = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeZone: "UTC" });

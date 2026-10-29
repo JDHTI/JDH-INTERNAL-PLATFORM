@@ -9,9 +9,9 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS, formatMarginPct } from "../lib/format";
+import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
 import type { OrderLine, SupportCheck } from "../types/order-validator.types";
-import { LiquorTaxBadge, OutcomeBadge, StatusBadge } from "./status-badges";
+import { LineAlertBadges, LiquorTaxBadge, OutcomeBadge, StatusBadge } from "./status-badges";
 
 /**
  * The lines of one order, each with its decision. A line is a block rather
@@ -21,18 +21,28 @@ import { LiquorTaxBadge, OutcomeBadge, StatusBadge } from "./status-badges";
  */
 export default function OrderLines({
   lines,
+  alertedRows,
   onOpenSupport,
 }: {
   lines: OrderLine[];
+  /** File rows an order alert points at; their lines are marked. */
+  alertedRows: Set<number>;
   onOpenSupport: (supportId: string) => void;
 }) {
   return (
     <ul className="divide-y divide-border">
-      {lines.map((line) => (
-        <li key={line.id}>
-          <LineBlock line={line} onOpenSupport={onOpenSupport} />
-        </li>
-      ))}
+      {lines.map((line) => {
+        const flagged = alertedRows.has(line.row_number) || (line.alerts?.length ?? 0) > 0;
+        const full = line.alerts?.includes("margen_100") || line.reason === "margen_100";
+        return (
+          <li
+            key={line.id}
+            className={cn(flagged && (full ? "shadow-[inset_3px_0_0_var(--danger)]" : "shadow-[inset_3px_0_0_var(--warning)]"))}
+          >
+            <LineBlock line={line} onOpenSupport={onOpenSupport} />
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -45,11 +55,12 @@ export default function OrderLines({
 function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (supportId: string) => void }) {
   const checksId = useId();
   const [showChecks, setShowChecks] = useState(false);
-  // With no support the two margins are the same number, so only one is shown.
-  const orderMargin = toNumber(line.margin_pct);
+  // The margin the line brings to the order leads; the file's follows only when the support moved it,
+  // and the support's own figure only when it is neither of the two (e.g. a minimum-margin exception).
+  const orderMargin = lineOrderMargin(line);
+  const fileMargin = toNumber(line.margin_pct);
   const effectiveMargin = toNumber(line.effective_margin_pct);
-  const supportChangedMargin =
-    orderMargin !== null && effectiveMargin !== null && Math.abs(orderMargin - effectiveMargin) > 0.00005;
+  const showEffective = differs(effectiveMargin, orderMargin) && differs(effectiveMargin, fileMargin);
 
   return (
     <div className="space-y-3 px-4 py-3">
@@ -68,13 +79,15 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <StatusBadge status={line.status} label={line.status_label} />
           <span className="text-sm text-text-secondary">{line.reason_label}</span>
+          <LineAlertBadges codes={line.alerts ?? []} pointsBelow={line.points_below_target} />
           {line.liquor_tax && <LiquorTaxBadge amount={line.liquor_tax_amount} />}
         </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-        <Figure label="Margen del pedido" value={formatMarginPct(line.margin_pct)} />
-        {supportChangedMargin && <Figure label="Margen con apoyo" value={formatMarginPct(line.effective_margin_pct)} />}
+        <Figure label="Margen en el pedido" value={formatMarginPct(orderMargin)} />
+        {differs(fileMargin, orderMargin) && <Figure label="Margen del archivo" value={formatMarginPct(fileMargin)} />}
+        {showEffective && <Figure label="Margen con apoyo" value={formatMarginPct(effectiveMargin)} />}
         <Figure
           label="Margen objetivo"
           value={`${formatMarginPct(line.required_margin_pct)}${line.margin_basis ? ` (${MARGIN_BASIS_LABELS[line.margin_basis]})` : ""}`}
