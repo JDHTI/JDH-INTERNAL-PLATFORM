@@ -1,11 +1,11 @@
-import { CheckCircle2, Clock, Scale, SlidersHorizontal, UserCheck, Wine } from "lucide-react";
+import { Ban, CheckCircle2, Clock, Scale, SlidersHorizontal, TrendingDown, UserCheck, Wine, type LucideIcon } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { OUTCOME_LABELS } from "../lib/format";
-import type { CheckOutcome, ValidationStatus } from "../types/order-validator.types";
+import { OUTCOME_LABELS, RULE_EFFECT_LABELS, formatPointsGap } from "../lib/format";
+import type { AlertCode, CheckOutcome, OrderAlert, RuleEffect, ValidationStatus } from "../types/order-validator.types";
 
 const STATUS_TONE: Record<ValidationStatus, BadgeTone> = {
   listo_para_liberar: "success",
@@ -82,6 +82,88 @@ export function MarginReleaseBadge({ compact = false }: { compact?: boolean }) {
       )}
     </Badge>
   );
+}
+
+/**
+ * Ready by tolerance: the order's margin reaches the minimum and only a few
+ * lines fall a little short of their target. The lines keep their reasons.
+ */
+export function ToleranceReleaseBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <Badge tone="info" title="El margen del pedido alcanza el mínimo de la tolerancia y solo unas pocas líneas quedan cerca de su objetivo.">
+      <Scale aria-hidden="true" />
+      {compact ? (
+        <>
+          Tolerancia<span className="sr-only">: liberado por tolerancia</span>
+        </>
+      ) : (
+        "Liberado por tolerancia"
+      )}
+    </Badge>
+  );
+}
+
+const ALERT_LOOK: Record<AlertCode, { tone: BadgeTone; icon: LucideIcon; short: string }> = {
+  margen_100: { tone: "danger", icon: Ban, short: "Margen 100 %, revisar" },
+  bajo_objetivo: { tone: "warning", icon: TrendingDown, short: "Bajo objetivo" },
+  falta_impuesto_licor: { tone: "warning", icon: Wine, short: "Licor" },
+};
+
+/**
+ * One alert of an order, with the API's label (or a short form in the dense
+ * table) and its message as the tooltip and for screen readers. A 100 %
+ * margin is red: nothing releases that order.
+ */
+export function AlertBadge({
+  alert,
+  compact = false,
+  withMessage = true,
+}: {
+  alert: OrderAlert;
+  compact?: boolean;
+  /** False where the message is already written next to the badge. */
+  withMessage?: boolean;
+}) {
+  const look = ALERT_LOOK[alert.code] ?? { tone: "warning" as BadgeTone, icon: TrendingDown, short: alert.label };
+  const Icon = look.icon;
+  return (
+    <Badge tone={look.tone} title={withMessage ? alert.message : undefined}>
+      <Icon aria-hidden="true" />
+      {compact ? look.short : alert.label}
+      {withMessage && <span className="sr-only">: {alert.message}</span>}
+    </Badge>
+  );
+}
+
+/** A line's own alerts, beside its reason. The liquor tax keeps its own badge, so it is left out here. */
+export function LineAlertBadges({ codes, pointsBelow }: { codes: AlertCode[]; pointsBelow?: Decimal | null }) {
+  return (
+    <>
+      {codes.includes("margen_100") && (
+        <Badge tone="danger" className="py-0 text-xs">
+          <Ban aria-hidden="true" /> Margen 100 %, revisar
+        </Badge>
+      )}
+      {codes.includes("bajo_objetivo") && (
+        <Badge tone="warning" className="py-0 text-xs" title="Está por debajo de su objetivo más de lo que se tolera.">
+          <TrendingDown aria-hidden="true" />
+          {toNumber(pointsBelow) !== null ? `${formatPointsGap(pointsBelow)} bajo objetivo` : "Bajo objetivo"}
+        </Badge>
+      )}
+    </>
+  );
+}
+
+const EFFECT_TONE: Record<RuleEffect, BadgeTone> = {
+  libera: "success",
+  retiene: "danger",
+  alerta: "warning",
+  informa: "neutral",
+};
+
+/** What a rule does, as a badge with its word: the color is never the only cue. */
+export function RuleEffectBadge({ effect }: { effect: RuleEffect }) {
+  return <Badge tone={EFFECT_TONE[effect] ?? "neutral"}>{RULE_EFFECT_LABELS[effect] ?? effect}</Badge>;
 }
 
 /**

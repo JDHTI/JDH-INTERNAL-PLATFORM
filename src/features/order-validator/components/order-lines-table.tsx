@@ -9,9 +9,9 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS, formatMarginPct } from "../lib/format";
+import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
 import type { OrderLine } from "../types/order-validator.types";
-import { LiquorTaxBadge, OutcomeBadge } from "./status-badges";
+import { LineAlertBadges, LiquorTaxBadge, OutcomeBadge } from "./status-badges";
 
 /**
  * The lines of one order as a dense table, in the order the API sends them.
@@ -20,9 +20,12 @@ import { LiquorTaxBadge, OutcomeBadge } from "./status-badges";
  */
 export default function OrderLinesTable({
   lines,
+  alertedRows,
   onOpenSupport,
 }: {
   lines: OrderLine[];
+  /** File rows an order alert points at; their lines are marked. */
+  alertedRows: Set<number>;
   onOpenSupport: (supportId: string) => void;
 }) {
   const [withChecks, setWithChecks] = useState<Set<string>>(new Set());
@@ -42,7 +45,7 @@ export default function OrderLinesTable({
           <th scope="col" className="px-2 py-1">Descripción</th>
           <th scope="col" className="px-2 py-1 text-right">Cant.</th>
           <th scope="col" className="px-2 py-1 text-right">Precio</th>
-          <th scope="col" className="px-2 py-1 text-right">Margen</th>
+          <th scope="col" className="px-2 py-1 text-right">Margen en pedido</th>
           <th scope="col" className="px-2 py-1 text-right">Objetivo</th>
           <th scope="col" className="px-2 py-1">Motivo</th>
           <th scope="col" className="py-1 pl-2 pr-4"><span className="sr-only">Apoyos</span></th>
@@ -50,10 +53,12 @@ export default function OrderLinesTable({
       </thead>
       {lines.map((line) => {
         const open = withChecks.has(line.id);
+        const flagged = alertedRows.has(line.row_number) || (line.alerts?.length ?? 0) > 0;
         return (
           <tbody key={line.id} className="border-t border-border">
             <LineRow
               line={line}
+              flagged={flagged}
               open={open}
               onToggleChecks={() => toggleChecks(line.id)}
               onOpenSupport={onOpenSupport}
@@ -90,36 +95,48 @@ export default function OrderLinesTable({
 
 function LineRow({
   line,
+  flagged,
   open,
   onToggleChecks,
   onOpenSupport,
 }: {
   line: OrderLine;
+  /** An alert points at this line: it gets an edge in the alert's color, beside its alert badge. */
+  flagged: boolean;
   open: boolean;
   onToggleChecks: () => void;
   onOpenSupport: (supportId: string) => void;
 }) {
-  const margin = toNumber(line.effective_margin_pct) ?? toNumber(line.margin_pct);
+  // The margin the line brings to the order; the file's is shown under it when the support moved it.
+  const margin = lineOrderMargin(line);
+  const fileMargin = toNumber(line.margin_pct);
   const target = toNumber(line.required_margin_pct);
   const ready = line.status === "listo_para_liberar";
   const Icon = ready ? CheckCircle2 : Clock;
-  const orderMargin = toNumber(line.margin_pct);
-  const supportMoved = orderMargin !== null && margin !== null && Math.abs(orderMargin - margin) > 0.00005;
+  const supportMoved = differs(fileMargin, margin);
+  const alerts = line.alerts ?? [];
+  const full = alerts.includes("margen_100") || line.reason === "margen_100";
 
   return (
-    <tr className="h-8 align-middle">
-      <td className="whitespace-nowrap py-1 pl-4 pr-2 font-mono">{line.sku ?? "—"}</td>
+    <tr
+      className={cn(
+        "h-8 align-middle",
+        flagged && (full ? "shadow-[inset_3px_0_0_var(--danger)]" : "shadow-[inset_3px_0_0_var(--warning)]")
+      )}
+    >
+      <td className="whitespace-nowrap py-1 pl-4 pr-2 font-mono">
+        {line.sku ?? "—"}
+        {flagged && <span className="sr-only"> (línea con alerta, fila {line.row_number})</span>}
+      </td>
       <td className="max-w-72 truncate px-2 py-1" title={line.description ?? undefined}>
         {line.description ?? "Sin descripción"}
         {line.liquor_tax && <LiquorTaxBadge className="ml-2 py-0 text-xs" amount={line.liquor_tax_amount} />}
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatNumber(line.quantity)}</td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(line.unit_price)}</td>
-      <td
-        className="whitespace-nowrap px-2 py-1 text-right tabular-nums"
-        title={supportMoved ? `En el pedido: ${formatMarginPct(line.margin_pct)}. Con apoyo: ${formatMarginPct(margin)}.` : undefined}
-      >
+      <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
         {margin === null ? "—" : formatMarginPct(margin)}
+        {supportMoved && <span className="block text-xs text-text-secondary">Archivo {formatMarginPct(fileMargin)}</span>}
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
         {target === null ? (
@@ -132,10 +149,13 @@ function LineRow({
         )}
       </td>
       <td className="px-2 py-1">
-        <span className={cn("inline-flex items-center gap-1", ready ? "text-success" : "text-warning")}>
-          <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="sr-only">{line.status_label}: </span>
-          {line.reason_label}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className={cn("inline-flex items-center gap-1", ready ? "text-success" : "text-warning")}>
+            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="sr-only">{line.status_label}: </span>
+            {line.reason_label}
+          </span>
+          <LineAlertBadges codes={alerts} pointsBelow={line.points_below_target} />
         </span>
       </td>
       <td className="whitespace-nowrap py-1 pl-2 pr-4 text-right">

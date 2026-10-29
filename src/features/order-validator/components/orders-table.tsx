@@ -7,13 +7,20 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { formatMarginPct, formatOrderDate } from "../lib/format";
+import { alertedRows, formatMarginPct, formatOrderDate } from "../lib/format";
 import type { OrderLine, ValidationOrder } from "../types/order-validator.types";
 import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
 import OrderLinesTable from "./order-lines-table";
 import SelectBox from "./select-box";
-import { LiquorTaxBadge, ManualApprovalBadge, MarginReleaseBadge, StatusBadge, ThresholdReleaseIcon } from "./status-badges";
+import {
+  AlertBadge,
+  ManualApprovalBadge,
+  MarginReleaseBadge,
+  StatusBadge,
+  ThresholdReleaseIcon,
+  ToleranceReleaseBadge,
+} from "./status-badges";
 
 interface OrdersViewProps {
   rows: ValidationOrder[];
@@ -29,6 +36,68 @@ interface OrdersViewProps {
 const isPending = (order: ValidationOrder) => order.status === "pendiente_validacion";
 
 /**
+ * The status of an order and how it was released, the same in the table and on
+ * the card. Alerts (100 % margin, below target, liquor tax) are not shown here:
+ * they belong to the breakdown of each line in the order's detail.
+ */
+function OrderBadges({ order, compact = false }: { order: ValidationOrder; compact?: boolean }) {
+  return (
+    <>
+      <StatusBadge status={order.status} label={order.status_label} />
+      {order.manual_approval && <ManualApprovalBadge compact={compact} />}
+      {/* "Por margen" stays; an order the threshold tipped over gets a small icon after it. */}
+      {order.release_basis === "margen" && <MarginReleaseBadge compact={compact} />}
+      {order.release_basis === "tolerancia" && <ToleranceReleaseBadge compact={compact} />}
+      {order.released_by_threshold && <ThresholdReleaseIcon />}
+    </>
+  );
+}
+
+function SelectSlot({
+  order,
+  checked,
+  onSelect,
+}: {
+  order: ValidationOrder;
+  checked: boolean;
+  onSelect: () => void;
+}) {
+  if (!isPending(order)) return null;
+  return <SelectBox checked={checked} onChange={onSelect} label={`Seleccionar el pedido ${order.document}`} />;
+}
+
+/**
+ * The order's alerts written out above its lines in the detail, with the file
+ * rows they point at (those lines are marked in the list below).
+ */
+function OrderAlerts({ order }: { order: ValidationOrder; canManage: boolean }) {
+  const alerts = order.alerts ?? [];
+  if (alerts.length === 0) return null;
+  return (
+    <div className="space-y-1.5 border-b border-border px-4 py-2.5 text-sm">
+      {alerts.length > 0 && (
+        <ul className="space-y-1.5" aria-label="Alertas del pedido">
+          {alerts.map((alert) => (
+            <li key={alert.code} className="flex flex-wrap items-start gap-x-2 gap-y-1">
+              <AlertBadge alert={alert} withMessage={false} />
+              <span className="min-w-0 flex-1 basis-60">
+                {alert.message}
+                {alert.row_numbers.length > 0 && (
+                  <span className="tabular-nums text-text-secondary">
+                    {" "}
+                    ({alert.row_numbers.length === 1 ? "fila" : "filas"} {alert.row_numbers.join(", ")})
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * An order's lines in two groups: "N sin apoyo" (no support covers them) and
  * "N cumplen" (they meet their target). They stand in for a column per line,
  * so an order is one row. A group with no lines is not shown.
@@ -37,8 +106,6 @@ function LineGroups({ order }: { order: ValidationOrder }) {
   // The API counts the lines with no support; if it does not, they are counted here.
   const withoutSupport =
     order.without_support_line_count ?? order.lines.filter((line: OrderLine) => line.reason === "sin_acuerdo").length;
-  // Liquor products whose line came without the tax are held back for it: they are not "cumplen".
-  const missingLiquorTax = order.lines.filter((line: OrderLine) => line.liquor_tax).length;
   const meet = order.ready_line_count;
 
   return (
@@ -47,17 +114,6 @@ function LineGroups({ order }: { order: ValidationOrder }) {
         <li>
           <Badge tone="warning" className="px-1.5 py-0 text-xs leading-5">
             <span className="tabular-nums">{withoutSupport}</span> sin apoyo
-          </Badge>
-        </li>
-      )}
-      {missingLiquorTax > 0 && (
-        <li>
-          <Badge
-            tone="warning"
-            className="px-1.5 py-0 text-xs leading-5"
-            title="Falta el impuesto al licor: el producto lo tiene y la línea no lo trae."
-          >
-            <span className="tabular-nums">{missingLiquorTax}</span> falta impuesto
           </Badge>
         </li>
       )}
@@ -170,9 +226,7 @@ export function OrdersTable({
               >
                 {canManage && (
                   <td className="px-2 py-1">
-                    {isPending(order) && (
-                      <SelectBox checked={isSelected} onChange={() => onSelect(order.document)} label={`Seleccionar el pedido ${order.document}`} />
-                    )}
+                    <SelectSlot order={order} checked={isSelected} onSelect={() => onSelect(order.document)} />
                   </td>
                 )}
                 <td className="whitespace-nowrap px-2 py-1">
@@ -189,13 +243,8 @@ export function OrdersTable({
                   </button>
                 </td>
                 <td className="px-2 py-1">
-                  <span className="flex items-center gap-1 whitespace-nowrap">
-                    <StatusBadge status={order.status} label={order.status_label} />
-                    {order.manual_approval && <ManualApprovalBadge compact />}
-                    {/* "Por margen" stays; an order the threshold tipped over gets a small icon after it. */}
-                    {order.release_basis === "margen" && <MarginReleaseBadge compact />}
-                    {order.released_by_threshold && <ThresholdReleaseIcon />}
-                    {order.has_liquor_tax && <LiquorTaxBadge compact />}
+                  <span className="flex max-w-80 flex-wrap items-center gap-1 whitespace-nowrap">
+                    <OrderBadges order={order} compact />
                   </span>
                 </td>
                 <td className="max-w-40 px-2 py-1">
@@ -217,8 +266,9 @@ export function OrdersTable({
                 <tr id={panelId}>
                   <td colSpan={canManage ? 8 : 7} className="bg-canvas-subtle p-0">
                     <OrderMeta order={order} />
+                    <OrderAlerts order={order} canManage={canManage} />
                     <ApprovalSummary order={order} canManage={canManage} onRevoke={() => onRevoke(order.document)} />
-                    <OrderLinesTable lines={order.lines} onOpenSupport={onOpenSupport} />
+                    <OrderLinesTable lines={order.lines} alertedRows={alertedRows(order)} onOpenSupport={onOpenSupport} />
                   </td>
                 </tr>
               )}
@@ -243,13 +293,7 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
             <div className="flex items-start">
               {canManage && (
                 <span className="flex min-h-14 w-11 shrink-0 items-center justify-center">
-                  {isPending(order) && (
-                    <SelectBox
-                      checked={selected.has(order.document)}
-                      onChange={() => onSelect(order.document)}
-                      label={`Seleccionar el pedido ${order.document}`}
-                    />
-                  )}
+                  <SelectSlot order={order} checked={selected.has(order.document)} onSelect={() => onSelect(order.document)} />
                 </span>
               )}
               <button
@@ -270,11 +314,7 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                   <ChevronDown className={cn("mt-1 size-4 shrink-0 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
                 </span>
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <StatusBadge status={order.status} label={order.status_label} />
-                  {order.manual_approval && <ManualApprovalBadge />}
-                  {order.release_basis === "margen" && <MarginReleaseBadge />}
-                  {order.released_by_threshold && <ThresholdReleaseIcon />}
-                  {order.has_liquor_tax && <LiquorTaxBadge />}
+                  <OrderBadges order={order} />
                 </span>
                 <span className="text-xs text-text-secondary">
                   Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatMarginPct(target)}</>} · {formatCop(order.total_amount)}
@@ -285,8 +325,9 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
             {open && (
               <div id={panelId} className="border-t border-border bg-canvas-subtle">
                 <OrderMeta order={order} />
+                <OrderAlerts order={order} canManage={canManage} />
                 <ApprovalSummary order={order} canManage={canManage} onRevoke={() => onRevoke(order.document)} />
-                <OrderLines lines={order.lines} onOpenSupport={onOpenSupport} />
+                <OrderLines lines={order.lines} alertedRows={alertedRows(order)} onOpenSupport={onOpenSupport} />
               </div>
             )}
           </li>
