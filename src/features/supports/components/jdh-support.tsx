@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
+import { Alert } from "@/shared/components/ui/alert";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
@@ -86,7 +87,7 @@ function JdhForm({ initial, kind, onClose, onSaved }: { initial: SupplierSupport
       if (error instanceof ApiError && error.status === 409) { setConflict(true); setConfirmed(false); await detail.refetch(); }
     }
   }
-  if (message) return <div role="status">{message}<Button variant="outline" onClick={onClose}>Cerrar</Button></div>;
+  if (message) return <div className="space-y-3"><Alert severity="success">{message}</Alert><Button variant="outline" onClick={onClose}>Cerrar</Button></div>;
   return <><form onSubmit={submit} className="space-y-3 border-t border-border pt-3">
     <h4 className="font-medium">{kind === "create" ? "Nueva solicitud individual" : "Cancelar únicamente JDH"}</h4>
     <p>Registro {support.id} · {support.product_sku ?? "Todos los productos"} · {support.customer_name ?? "Todos los clientes"}</p>

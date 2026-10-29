@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, CloudOff, FileX2, Paperclip, RefreshCw, Search, Sli
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
+import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
@@ -258,7 +259,7 @@ export default function SupportsBrowser({
   const [denied, setDenied] = useState(false);
   const canWrite = useCanManage() && !denied && !readOnly;
   const canSelect = canWrite || canRequest;
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ severity: AlertSeverity; message: string } | null>(null);
   const q = useDebouncedValue(text.trim());
 
   const sortable = new Set(fields.filter((field) => field.sortable).map((field) => field.field));
@@ -335,13 +336,13 @@ export default function SupportsBrowser({
     if (!record) return;
     const next = [...requestSelected, record];
     const error = requestSelectionError(next);
-    if (error) setNotice(error); else { setRequestSelected(next); setNotice(null); }
+    if (error) setNotice({ severity: "danger", message: error }); else { setRequestSelected(next); setNotice(null); }
   };
   const togglePage = () => {
     if (!readOnly) { setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]); return; }
     const next = pageSelected ? requestSelected.filter(record => !pageIds.includes(record.id)) : [...requestSelected, ...selectablePage.filter(record => !selectionIds.includes(record.id))];
     const error = next.length ? requestSelectionError(next) : null;
-    if (error) setNotice(error); else setRequestSelected(next);
+    if (error) setNotice({ severity: "danger", message: error }); else setRequestSelected(next);
   };
 
   const reset = (apply: () => void) => {
@@ -386,7 +387,7 @@ export default function SupportsBrowser({
 
   const onForbidden = () => {
     setDenied(true);
-    setNotice("Tu usuario puede consultar los apoyos, pero no modificarlos.");
+    setNotice({ severity: "danger", message: "Tu usuario puede consultar los apoyos, pero no modificarlos." });
   };
 
   const actions = (support: SupplierSupport) => (
@@ -399,7 +400,7 @@ export default function SupportsBrowser({
       }}
       onVoid={() => setVoidId(support.id)}
       onForbidden={onForbidden}
-      onFailure={setNotice}
+      onFailure={message => setNotice({ severity: "danger", message })}
     />
   );
 
@@ -532,19 +533,7 @@ export default function SupportsBrowser({
         )}
       </div>
 
-      {notice && (
-        <p role="alert" className="flex items-start justify-between gap-3 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
-          {notice}
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            aria-label="Cerrar aviso"
-            className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </p>
-      )}
+      {notice && <Alert severity={notice.severity} onDismiss={() => setNotice(null)}>{notice.message}</Alert>}
 
       {search.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando apoyos" />
@@ -713,7 +702,7 @@ export default function SupportsBrowser({
           setBulkAttach({ document: { id: attachment.document_id, name: attachment.name } });
         }}
       />
-      {batchOpen && <BatchRequestDialog records={requestSelected} onClose={() => setBatchOpen(false)} onSuccess={() => { setBatchOpen(false); setRequestSelected([]); setNotice("Solicitudes enviadas. Cada registro conserva su decisión BI independiente."); }} />}
+      {batchOpen && <BatchRequestDialog records={requestSelected} onClose={() => setBatchOpen(false)} onSuccess={() => { setBatchOpen(false); setRequestSelected([]); setNotice({ severity: "success", message: "Solicitudes enviadas. Cada registro conserva su decisión BI independiente." }); }} />}
       <BulkAttachDialog
         open={bulkAttach !== null}
         onClose={() => setBulkAttach(null)}

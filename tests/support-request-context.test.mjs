@@ -15,6 +15,7 @@ function renderContext(context, permissions) {
   const stubButton = props => React.createElement("button", props, props.children);
   const mocks = {
     "@/shared/components/ui/button": { Button: stubButton },
+    "@/shared/components/ui/alert": { Alert: props => React.createElement("div", {}, props.children) },
     "@/shared/components/ui/input": { Input: "input" },
     "@/shared/components/ui/textarea": { Textarea: "textarea" },
     "@/shared/lib/api-client": { errorMessage: String },

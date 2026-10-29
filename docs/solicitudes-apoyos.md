@@ -185,3 +185,13 @@ Antes consultaba `q,page=1,size=20`, sin filtro `is_active`, y ocultaba errores.
 Comprobación HTTP local: `GET /commercial/customers?q=80140929&page=1&size=50` devuelve tres sucursales de `SALAMANCA MEDINA MIGUEL ANGEL`; el render UI controlado las presenta como una opción con `value=80140929`, nombre completo y `NIT 80140929`. La búsqueda por frase continua no encontraba el nombre al omitir MEDINA; API amplió la búsqueda por palabras y normalización de NIT. No se promete corregir el typo `slamanca`.
 
 Validación UI de esta ampliación: TypeScript, ESLint de archivos afectados, build de producción y `git diff --check` sin errores; 19 pruebas aprobadas con `node --test tests/*.test.mjs`. Incluyen alcance por proveedor/cliente/sucursal, modalidades mixtas, límite 100, proveedor nulo, lote en una petición, 409 sin envío individual, consulta NIT sin filtro de activos, paginación y render de Salamanca. Sigue pendiente el click-through visual integrado en Docker, móvil y ambos temas. Sin push, merge ni PR.
+
+## Ajuste de presentación de bandejas y avisos
+
+Las bandejas Comercial y BI muestran tablas con una fila completa por solicitud: identificador/proveedor, cliente/NIT, referencia, modalidad/unidad, propuesta, estado, solicitante/fecha, justificación y decisión. Los textos de justificación y motivo de decisión no se truncan. La tabla permite desplazamiento horizontal en pantallas pequeñas y acceso al detalle mediante botón identificado. La navegación entre bandejas y maestro usa el sidebar; se eliminó el enlace «Volver al maestro de apoyos» del flujo de solicitudes, conservando enlaces de otros flujos como creación de acuerdos y carga masiva.
+
+`Alert` reutilizable en `src/shared/components/ui/alert.tsx`: severidades `success`, `danger` e `info`, con tokens semánticos de ambos temas. Éxito usa verde y `role=status`; errores usan danger y `role=alert`. El maestro conserva severidad y mensaje por separado en su estado de aviso. Envío de solicitudes, cancelación JDH y decisión BI muestran Alert success; errores de validación, permisos y acciones conservan danger.
+
+Validación de este ajuste: TypeScript, ESLint, build de producción y `git diff --check` sin errores; 21 pruebas automatizadas aprobadas. Las nuevas pruebas comprueban semántica/color de avisos y render de ambas bandejas en filas completas sin enlace al maestro. La comprobación de render es controlada y no sustituye el click-through visual integrado pendiente en Docker, móvil y ambos temas.
+
+Dependencia de integración: [API PR #32](https://github.com/JDHTI/JDH-INTERNAL-PLATFORM-API/pull/32). La publicación del PR UI queda a cargo del coordinador para evitar duplicados; este worktree solo entrega commit y descripción preparada.
