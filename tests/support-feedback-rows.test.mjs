@@ -76,8 +76,7 @@ test("Commercial and BI render full request rows with no link back to the master
     assert.match(detail, /JDH vigente/);
     assert.match(detail, /JDH propuesto/);
     assert.match(detail, /Motivo completo de rechazo/);
-    assert.match(detail, /<details[^>]*><summary/);
-    assert.doesNotMatch(detail, /<details[^>]*open|Justificación completa sin truncar|Costo de referencia|Unidades por caja|Vigencia/);
+    assert.doesNotMatch(detail, /<details|Eventos de auditoría|Justificación completa sin truncar|Costo de referencia|Unidades por caja|Vigencia/);
   }
 });
 

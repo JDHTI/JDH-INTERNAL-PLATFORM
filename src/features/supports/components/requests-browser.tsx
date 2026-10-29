@@ -13,7 +13,7 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { useRequest, useRequestAction, useRequests } from "../hooks/use-requests";
 import { useSupportPermissions } from "../hooks/use-supports";
 import type { RequestStatus, SupportRequest } from "../types/request.types";
-import { dateTime, JdhEvents } from "./jdh-support";
+import { dateTime } from "./jdh-support";
 import DiscardDialog from "./discard-dialog";
 import RequestRows from "./request-rows";
 import RequestJustificationDialog from "./request-justification-dialog";
@@ -86,7 +86,6 @@ export function RequestDialog({ id, review, onClose }: { id: string; review: boo
         </>}
       </form>}
       {mutation.isError && <p role="alert" className="text-danger">{errorMessage(mutation.error)}</p>}
-      <details className="space-y-3 text-sm"><summary className="cursor-pointer font-medium">Ver auditoría</summary><p>Versión de solicitud {data.version} · acuerdo al solicitar {data.support_version} · acuerdo vigente {data.support.version}</p><JdhEvents events={data.events} /></details>
     </div>}
   </Dialog>{showJustification && data && <RequestJustificationDialog request={data} onClose={() => setShowJustification(false)} />}<DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={onClose} /></>;
 }

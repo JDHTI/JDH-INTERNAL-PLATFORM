@@ -20,7 +20,7 @@ export default function RequestRows({ items, onOpen, onJustification }: { items:
         <td className="px-3 py-3 text-right tabular-nums">{formatRequestValue(item.value, item.mode === "costo_neto")}{item.mode === "costo_neto" && item.snapshot.value_unit ? ` / ${item.snapshot.value_unit}` : ""}</td>
         <td className="px-3 py-3"><Badge tone={item.status === "aprobada" ? "success" : item.status === "rechazada" ? "danger" : "warning"}>{item.status === "aprobada" ? "Aprobada" : item.status === "rechazada" ? "Rechazada" : "Pendiente"}</Badge></td>
         <td className="px-3 py-3"><p>{item.requested_by}</p><p className="mt-1 text-xs text-text-secondary">{dateTime(item.created_at)}</p></td>
-        <td className="px-3 py-3"><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => onOpen(item.id)} aria-label={`Ver solicitud ${item.id}`}>Ver solicitud</Button><Button variant="ghost" size="sm" onClick={() => onJustification(item)} aria-label={`Ver justificación ${item.id}`}>Ver justificación</Button></div></td>
+        <td className="px-3 py-3"><div className="inline-flex items-center gap-1 whitespace-nowrap"><Button variant="outline" size="sm" onClick={() => onOpen(item.id)} aria-label={`Ver solicitud ${item.id}`}>Ver solicitud</Button><Button variant="ghost" size="sm" onClick={() => onJustification(item)} aria-label={`Ver justificación ${item.id}`}>Ver justificación</Button></div></td>
       </tr>)}</tbody>
     </table>
   </div>;
