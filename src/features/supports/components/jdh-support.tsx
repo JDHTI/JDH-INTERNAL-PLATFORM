@@ -11,6 +11,7 @@ import { calcMethodLabel, formatCop, formatSupplierValue } from "../lib/format";
 import type { SupplierSupport } from "../types/support.types";
 import type { SupportEvent } from "../types/request.types";
 import { formatRequestValue, requestValue } from "../lib/request-values";
+import DiscardDialog from "./discard-dialog";
 
 const eventLabels: Record<string, string> = { solicitada: "Solicitud creada", aprobada: "Solicitud aprobada", rechazada: "Solicitud rechazada", cancelada: "Aporte JDH cancelado", actualizacion_maestro: "Acuerdo actualizado por administración", creacion: "Acuerdo creado", migracion: "Valores iniciales de migración" };
 const fieldLabels: Record<string, string> = { supplier_value: "Valor del proveedor", jdh_pct: "Porcentaje JDH", jdh_net_cost: "Costo pactado JDH", version: "Versión del acuerdo", value: "Valor solicitado", mode: "Modalidad", reference_cost: "Costo de referencia", reference_list_price: "Lista de referencia", value_unit: "Unidad", pack_factor: "Unidades por caja", product_sku: "SKU", customer_nit: "NIT cliente", customer_name: "Cliente", program: "Programa", valid_from: "Desde", valid_to: "Hasta", status: "Estado", is_enabled: "Habilitado" };
@@ -52,7 +53,7 @@ export default function JdhSupport({ support, context, onEditingChange = () => u
   return <section className="space-y-3 rounded-lg border border-border p-4">
     <h3 className="font-semibold">Aporte JDH</h3><JdhValues support={support} />
     {permissions.isError && <p role="alert">{errorMessage(permissions.error)}</p>}
-    {context === "commercial" && permissions.data?.can_request && <Button variant="outline" disabled={action !== null || support.state !== "vigente" || support.needs_review} onClick={() => { setAction("create"); onEditingChange(true); }}>Solicitar apoyo JDH</Button>}
+    {context === "commercial" && permissions.data?.can_request && <p>Selecciona los registros con las casillas del maestro y usa la barra «Solicitar apoyo JDH».</p>}
     {context === "commercial" && (support.state !== "vigente" || support.needs_review) && <p>Solo se puede solicitar sobre un acuerdo vigente, habilitado y sin revisión pendiente.</p>}
     {context === "manage" && permissions.data?.can_manage && <Button variant="outline" disabled={action !== null} onClick={() => { setAction("cancel"); onEditingChange(true); }}>Cancelar solo aporte JDH</Button>}
     {context === "manage" && permissions.data?.can_review && <Button variant="outline" onClick={() => setShowHistory(!showHistory)}>Historial JDH</Button>}
@@ -68,6 +69,7 @@ function JdhForm({ initial, kind, onClose, onSaved }: { initial: SupplierSupport
   const [conflict, setConflict] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState("");
+  const [discard, setDiscard] = useState(false);
   const mutation = useRequestAction();
   const support = detail.data ?? initial;
   const net = support.calc_method === "costo_neto";
@@ -85,7 +87,7 @@ function JdhForm({ initial, kind, onClose, onSaved }: { initial: SupplierSupport
     }
   }
   if (message) return <div role="status">{message}<Button variant="outline" onClick={onClose}>Cerrar</Button></div>;
-  return <form onSubmit={submit} className="space-y-3 border-t border-border pt-3">
+  return <><form onSubmit={submit} className="space-y-3 border-t border-border pt-3">
     <h4 className="font-medium">{kind === "create" ? "Nueva solicitud individual" : "Cancelar únicamente JDH"}</h4>
     <p>Registro {support.id} · {support.product_sku ?? "Todos los productos"} · {support.customer_name ?? "Todos los clientes"}</p>
     <JdhValues support={support} />
@@ -94,6 +96,6 @@ function JdhForm({ initial, kind, onClose, onSaved }: { initial: SupplierSupport
     {conflict && <div role="alert" className="space-y-2"><p>El acuerdo cambió (409). Revisa el valor vigente y confirma nuevamente.</p><JdhValues support={support} />{detail.isError && <p>{errorMessage(detail.error)}</p>}</div>}
     {mutation.isError && <p role="alert" className="text-danger">{errorMessage(mutation.error)}</p>}
     <label className="flex gap-2"><input type="checkbox" checked={confirmed && version === support.version} disabled={detail.isFetching || detail.isError} onChange={e => { setConfirmed(e.target.checked); if (e.target.checked) setVersion(support.version); }} />Confirmo la acción sobre los valores vigentes mostrados (versión {support.version}).</label>
-    <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => { if (window.confirm("¿Descartar este formulario sin enviar los cambios?")) onClose(); }}>Volver</Button><Button type="submit" disabled={!valid || reason.trim().length < 3 || !confirmed || version !== support.version || detail.isFetching || detail.isError || mutation.isPending || (kind === "create" && (support.state !== "vigente" || support.needs_review))}>{mutation.isPending ? "Enviando…" : kind === "create" ? "Enviar solicitud" : "Confirmar cancelación JDH"}</Button></div>
-  </form>;
+    <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => { if (value || reason) setDiscard(true); else onClose(); }}>Volver</Button><Button type="submit" disabled={!valid || reason.trim().length < 3 || !confirmed || version !== support.version || detail.isFetching || detail.isError || mutation.isPending || (kind === "create" && (support.state !== "vigente" || support.needs_review))}>{mutation.isPending ? "Enviando…" : kind === "create" ? "Enviar solicitud" : "Confirmar cancelación JDH"}</Button></div>
+  </form><DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={onClose} /></>;
 }

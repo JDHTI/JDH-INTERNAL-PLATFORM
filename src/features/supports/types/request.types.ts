@@ -18,3 +18,4 @@ export interface SupportEvent {
 export interface RequestDetail extends SupportRequest { support: SupplierSupport; events: SupportEvent[] }
 export interface RequestPage { items: SupportRequest[]; total: number; page: number; size: number }
 export interface RequestParams { page: number; size: number; status?: RequestStatus; q?: string; mine?: boolean }
+export interface BatchRequestItem { support_id: string; version: number; value: number; reason: string }

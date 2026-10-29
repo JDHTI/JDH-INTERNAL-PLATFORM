@@ -15,6 +15,7 @@ import { useSupportPermissions } from "../hooks/use-supports";
 import { formatRequestValue } from "../lib/request-values";
 import type { RequestStatus } from "../types/request.types";
 import { dateTime, JdhEvents, JdhValues } from "./jdh-support";
+import DiscardDialog from "./discard-dialog";
 
 const statuses = [{ value: "", label: "Todos los estados" }, { value: "pendiente", label: "Pendientes" }, { value: "aprobada", label: "Aprobadas" }, { value: "rechazada", label: "Rechazadas" }];
 export default function RequestsBrowser({ review = false }: { review?: boolean }) {
@@ -54,6 +55,7 @@ function RequestDialog({ id, review, onClose }: { id: string; review: boolean; o
   const [confirmed, setConfirmed] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState("");
+  const [discard, setDiscard] = useState(false);
   const data = query.data;
   const revision = data ? `${data.version}:${data.support.version}` : "";
   async function submit(event: React.FormEvent) {
@@ -67,7 +69,7 @@ function RequestDialog({ id, review, onClose }: { id: string; review: boolean; o
       if (error instanceof ApiError && error.status === 409) { setConflict(true); await query.refetch(); }
     }
   }
-  return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending && (!decision || window.confirm("¿Descartar esta decisión sin enviarla?"))) onClose(); }} title="Solicitud de apoyo JDH" isForm wide>
+  return <><Dialog open onOpenChange={open => { if (!open && !mutation.isPending) { if (decision && (reason || confirmed)) setDiscard(true); else onClose(); } }} title="Solicitud de apoyo JDH" isForm wide>
     {query.isPending ? <p aria-busy="true">Cargando solicitud…</p> : query.isError ? <p role="alert">{errorMessage(query.error)} <Button onClick={() => void query.refetch()}>Reintentar</Button></p> : data && <div className="space-y-4">
       <p>{data.status} · {data.requested_by} · {dateTime(data.created_at)}</p>
       <p className="whitespace-pre-wrap">Justificación: {data.reason}</p>
@@ -86,5 +88,5 @@ function RequestDialog({ id, review, onClose }: { id: string; review: boolean; o
       {mutation.isError && <p role="alert" className="text-danger">{errorMessage(mutation.error)}</p>}
       <h3 className="font-semibold">Historial de la solicitud</h3><JdhEvents events={data.events} />
     </div>}
-  </Dialog>;
+  </Dialog><DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={onClose} /></>;
 }

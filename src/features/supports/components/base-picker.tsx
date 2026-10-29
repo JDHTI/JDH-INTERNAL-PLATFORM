@@ -1,12 +1,14 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 
 import { Autocomplete, type AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
-import { apiFetch } from "@/shared/lib/api-client";
+import { errorMessage } from "@/shared/lib/api-client";
+import { Button } from "@/shared/components/ui/button";
+import { getPickerPage, nextPickerPage } from "../services/base-picker.service";
 
 type Row = Record<string, unknown>;
 
@@ -77,19 +79,19 @@ export default function BasePicker({
   const q = useDebouncedValue(input.trim());
   const enabled = selected === null && q.length >= MIN_CHARS;
 
-  const suggestions = useQuery({
+  const suggestions = useInfiniteQuery({
     queryKey: ["supports-base-picker", config.endpoint, q],
-    queryFn: async () => {
-      const page = await apiFetch<{ items: Row[] }>(config.endpoint, { query: { q, page: 1, size: 20 } });
-      const seen = new Set<string>();
-      return page.items
-        .map(config.toOption)
-        .filter((option) => option.value !== "" && !seen.has(option.value) && seen.add(option.value));
-    },
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => getPickerPage(config.endpoint, q, pageParam),
+    getNextPageParam: nextPickerPage,
     enabled,
     staleTime: 60_000,
     retry: false,
   });
+  const seen = new Set<string>();
+  const options = (suggestions.data?.pages.flatMap(page => page.items) ?? []).map(config.toOption)
+    .filter(option => option.value !== "" && !seen.has(option.value) && seen.add(option.value));
+  const currentInput = enabled && input.trim() === q;
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -115,19 +117,23 @@ export default function BasePicker({
           </button>
         </div>
       ) : (
-        <Autocomplete
+        <><Autocomplete
           id={id}
           value={input}
           onValueChange={setInput}
-          options={enabled ? (suggestions.data ?? []) : []}
+          options={currentInput ? options : []}
           isLoading={enabled && suggestions.isFetching}
-          emptyText={enabled && suggestions.isSuccess ? "Sin coincidencias" : undefined}
+          emptyText={currentInput && suggestions.isSuccess ? "Sin coincidencias. Prueba con el NIT o menos palabras del nombre." : undefined}
           onSelect={(option) => {
             setInput("");
             onSelect(option);
           }}
           placeholder={config.placeholder}
         />
+        {currentInput && suggestions.isError && <p role="alert" className="text-xs text-danger">{errorMessage(suggestions.error)} <Button size="sm" variant="ghost" onClick={() => void suggestions.refetch()}>Reintentar</Button></p>}
+        {currentInput && suggestions.hasNextPage && <Button size="sm" variant="outline" disabled={suggestions.isFetchingNextPage} onClick={() => void suggestions.fetchNextPage()}>{suggestions.isFetchingNextPage ? "Cargando…" : "Cargar más coincidencias"}</Button>}
+        {currentInput && suggestions.isSuccess && options.length > 0 && <p className="text-xs text-text-secondary">{options.length} opciones cargadas. {suggestions.hasNextPage ? "Hay más resultados; precisa el nombre o NIT o carga la siguiente página." : "Busca por nombre o NIT y elige una opción."}</p>}
+        </>
       )}
     </div>
   );

@@ -20,6 +20,7 @@ import {
 import type { SupplierSupport, SupportAttachment, SupportConflict, SupportTier } from "../types/support.types";
 import SupportAttachments from "./support-attachments";
 import JdhSupport from "./jdh-support";
+import DiscardDialog from "./discard-dialog";
 import { FlagBadges, StateBadge } from "./support-badges";
 
 /**
@@ -47,14 +48,15 @@ export default function SupportDetail({
 }) {
   const detail = useSupport(id);
   const [jdhEditing, setJdhEditing] = useState(false);
+  const [discard, setDiscard] = useState(false);
   const support = detail.data;
   const conflicts = useSupportConflicts(id, support?.has_conflicts === true);
 
   return (
-    <Dialog
+    <><Dialog
       open={id !== null}
       onOpenChange={(open) => {
-        if (!open && (!jdhEditing || window.confirm("¿Descartar el formulario JDH sin enviar los cambios?"))) { setJdhEditing(false); onClose(); }
+        if (!open) { if (jdhEditing) setDiscard(true); else onClose(); }
       }}
       title={support?.supplier_name ?? "Detalle del apoyo"}
       description={support ? calcMethodLabel(support.calc_method) : undefined}
@@ -81,7 +83,7 @@ export default function SupportDetail({
           </Body>
         )
       )}
-    </Dialog>
+    </Dialog><DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={() => { setDiscard(false); setJdhEditing(false); onClose(); }} /></>
   );
 }
 

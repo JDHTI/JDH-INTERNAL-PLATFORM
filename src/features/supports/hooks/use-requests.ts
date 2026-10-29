@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { approveRequest, cancelJdh, createRequest, getJdhHistory, getRequest, listRequests, rejectRequest } from "../services/requests.service";
-import type { RequestParams } from "../types/request.types";
+import { approveRequest, cancelJdh, createRequest, createRequestBatch, getJdhHistory, getRequest, listRequests, rejectRequest } from "../services/requests.service";
+import type { BatchRequestItem, RequestParams } from "../types/request.types";
 import { supportKeys } from "./use-supports";
 
 export const requestKeys = { all: ["support-requests"] as const, detail: (id: string) => ["support-requests", "detail", id] as const };
@@ -28,6 +28,13 @@ export function useRequestAction() {
         case "cancel": return cancelJdh(id, { version, reason: action.reason });
       }
     },
+    onSettled: async () => { await Promise.all([client.invalidateQueries({ queryKey: supportKeys.all }), client.invalidateQueries({ queryKey: requestKeys.all })]); },
+  });
+}
+
+export function useBatchRequests() {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: (items: BatchRequestItem[]) => createRequestBatch(items), retry: false,
     onSettled: async () => { await Promise.all([client.invalidateQueries({ queryKey: supportKeys.all }), client.invalidateQueries({ queryKey: requestKeys.all })]); },
   });
 }

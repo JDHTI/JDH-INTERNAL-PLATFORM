@@ -169,3 +169,19 @@ Resultados locales: TypeScript, ESLint y build de producción completados sin er
 - Pruebas UI/contrato: `node --test tests/*.test.mjs`: aislamiento de controles e historial Comercial con permisos BI; controles BI y denegación; conversión, límites y precisión; `mine=true`; payloads/versiones de decisiones/cancelación; 409 sin reintento automático; 403 sin decisión exitosa.
 
 Las pruebas de contexto renderizan componentes a HTML en servidor con dependencias controladas; las de contrato usan el cliente HTTP real con fetch simulado. No sustituyen un recorrido real de navegador. Pendiente click-through integrado con API, incluyendo dos aprobadores, descarte de formularios, refetch/409, móvil y ambos temas. No se realizó validación visual. El resultado de la suite PostgreSQL/API lo valida el frente API, no esta entrega UI.
+
+## Ampliación: selección Comercial y envío atómico
+
+Requisito posterior autorizado: solicitar desde las casillas del maestro Comercial, sin abrir el proveedor. Se conserva la selección entre filtros y páginas, con barra para revisar/quitar registros e iniciar la solicitud. Hasta 100 registros; únicamente acuerdos elegibles del mismo `commercial_supplier_id` y cliente. Con NIT se permiten sucursales distintas del mismo NIT; sin NIT deben coincidir `customer_group`, `customer_name` y `customer_branch_id`. Proveedor nulo no admite lote. El checkbox de cabecera selecciona los elegibles de la página que comparten proveedor/cliente con la selección actual o con el primer elegible de la página. Las otras filas siguen consultables.
+
+El formulario muestra cada registro, modalidad, unidad, base, valor vigente y versión, con valor propuesto y justificación independientes. Envía una sola petición `POST /supplier-supports/requests/batch` con `{items:[{support_id,version,value,reason}]}`; respuesta array de `SupportRequestResponse`. No envía peticiones individuales sucesivas. El backend garantiza todo o nada; cada solicitud conserva su decisión BI independiente. Se recargan todos los acuerdos al abrir y tras 409; cualquier cambio de versión invalida la confirmación del conjunto. Las solicitudes no se reintentan automáticamente. Contrato coordinado con API `580e080`.
+
+Se eliminaron todas las llamadas `window.confirm` del frente supports. Descartar formularios de solicitud, cancelación o decisión usa el Dialog del diseño con «Seguir editando» y «Descartar cambios» cuando hay datos que perder. El detalle Comercial orienta a la barra del maestro; no es necesario abrirlo para solicitar.
+
+### Hallazgo y ajuste del selector de clientes
+
+Antes consultaba `q,page=1,size=20`, sin filtro `is_active`, y ocultaba errores. No aplica un filtro local por texto: las sugerencias provienen de API y se deduplican por NIT. Ahora usa páginas de 50 con «Cargar más coincidencias», error visible/reintento y reapertura de sugerencias al volver al campo. Se mantienen accesibles clientes activos e inactivos. Una búsqueda nueva no ofrece resultados de la consulta anterior mientras espera el debounce.
+
+Comprobación HTTP local: `GET /commercial/customers?q=80140929&page=1&size=50` devuelve tres sucursales de `SALAMANCA MEDINA MIGUEL ANGEL`; el render UI controlado las presenta como una opción con `value=80140929`, nombre completo y `NIT 80140929`. La búsqueda por frase continua no encontraba el nombre al omitir MEDINA; API amplió la búsqueda por palabras y normalización de NIT. No se promete corregir el typo `slamanca`.
+
+Validación UI de esta ampliación: TypeScript, ESLint de archivos afectados, build de producción y `git diff --check` sin errores; 19 pruebas aprobadas con `node --test tests/*.test.mjs`. Incluyen alcance por proveedor/cliente/sucursal, modalidades mixtas, límite 100, proveedor nulo, lote en una petición, 409 sin envío individual, consulta NIT sin filtro de activos, paginación y render de Salamanca. Sigue pendiente el click-through visual integrado en Docker, móvil y ambos temas. Sin push, merge ni PR.

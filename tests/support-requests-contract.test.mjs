@@ -54,3 +54,19 @@ test("403 preserves the backend denial and cannot produce a successful decision"
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ detail: "Solo BI y administradores pueden gestionar solicitudes" }), { status: 403, headers: { "Content-Type": "application/json" } }));
   await assert.rejects(service.rejectRequest("r", { version: 1, reason: "Sin autorización" }), error => error.status === 403 && error.message.includes("Solo BI"));
 });
+test("batch is one atomic request with distinct values, reasons and reviewed versions", async t => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => { calls.push({ url: new URL(url), options }); return new Response("[]", { headers: { "Content-Type": "application/json" } }); });
+  const items = [{ support_id: "s1", version: 3, value: 12.345678, reason: "Costo pactado por kg" }, { support_id: "s2", version: 8, value: -.05, reason: "Porcentaje sobre costo" }];
+  await service.createRequestBatch(items);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url.pathname.endsWith("/supplier-supports/requests/batch"), true);
+  assert.equal(calls[0].options.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { items });
+});
+test("batch 409 is surfaced without retrying rows individually", async t => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; return new Response(JSON.stringify({ detail: "Cambió un acuerdo" }), { status: 409, headers: { "Content-Type": "application/json" } }); });
+  await assert.rejects(service.createRequestBatch([{ support_id: "s1", version: 1, value: .05, reason: "Apoyo pedido" }]), error => error.status === 409);
+  assert.equal(calls, 1);
+});

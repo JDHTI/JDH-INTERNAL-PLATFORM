@@ -43,6 +43,7 @@ export function Autocomplete({
   emptyText,
   onKeyDown,
   onBlur,
+  onFocus,
   className,
   ...inputProps
 }: AutocompleteProps) {
@@ -111,6 +112,7 @@ export function Autocomplete({
           setIsOpen(false);
           onBlur?.(event);
         }}
+        onFocus={(event) => { setIsOpen(true); onFocus?.(event); }}
         onKeyDown={handleKeyDown}
         className={isLoading ? "pr-8" : undefined}
       />

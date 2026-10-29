@@ -22,6 +22,7 @@ function renderContext(context, permissions) {
     "../hooks/use-requests": { useJdhHistory: (_id, enabled) => { historyEnabled = enabled; return {}; } },
     "../lib/format": Object.fromEntries(["calcMethodLabel", "formatCop", "formatPct", "formatSupplierValue"].map(key => [key, value => value ?? "—"])),
     "../lib/request-values": { formatRequestValue: value => value ?? "—" },
+    "./discard-dialog": { default: () => null },
   };
   const loaded = { exports: {} };
   new Function("require", "module", "exports", code)(id => mocks[id] ?? require(id), loaded, loaded.exports);
@@ -32,7 +33,8 @@ function renderContext(context, permissions) {
 }
 test("Commercial remains read-only for BI administrators and never fetches complete history", () => {
   const { html, historyEnabled } = renderContext("commercial", { can_request: true, can_review: true, can_manage: true });
-  assert.match(html, /Solicitar apoyo JDH/);
+  assert.match(html, /casillas del maestro/);
+  assert.doesNotMatch(html, /<button[^>]*>Solicitar apoyo JDH/);
   assert.doesNotMatch(html, /Cancelar solo aporte JDH|Historial JDH/);
   assert.equal(historyEnabled, false);
 });

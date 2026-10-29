@@ -57,6 +57,8 @@ export interface SupportDerived {
 
 export interface SupplierSupport {
   id: string;
+  commercial_supplier_id?: string | null;
+  customer_branch_id?: string | null;
   supplier_code: string | null;
   supplier_name: string | null;
   kind: string | null;
