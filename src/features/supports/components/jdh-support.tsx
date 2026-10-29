@@ -43,12 +43,12 @@ export function JdhValues({ support }: { support: Partial<SupplierSupport> }) {
   </dl>;
 }
 export function JdhEvents({ events }: { events: SupportEvent[] }) {
-  return events.length === 0 ? <p>Sin eventos registrados.</p> : <ol aria-label="Historial de solicitudes" className="ml-2 space-y-0 border-l border-border">
-    {events.map(event => <li key={event.id} className="relative pb-4 pl-5 text-sm last:pb-0">
+  const requestEvents = events.filter(event => ["solicitada", "aprobada", "rechazada"].includes(event.event_type));
+  return requestEvents.length === 0 ? <p>Sin solicitudes históricas registradas.</p> : <ol aria-label="Historial de solicitudes" className="ml-2 space-y-0 border-l border-border">
+    {requestEvents.map(event => <li key={event.id} className="relative pb-4 pl-5 text-sm last:pb-0">
       <span aria-hidden="true" className="absolute -left-[5px] top-1.5 h-2 w-2 rounded-full bg-primary" />
       <p className="font-medium">{eventLabels[event.event_type] ?? event.event_type.replaceAll("_", " ")} <span className="font-normal text-text-secondary">· {dateTime(event.created_at)}</span></p>
       <p>{event.actor} {eventSummary(event)}</p>
-      {event.reason && <p className="mt-1 text-text-secondary">Motivo: {event.reason}</p>}
     </li>)}
   </ol>;
 }
@@ -63,8 +63,10 @@ export default function JdhSupport({ support, context, onEditingChange = () => u
     {permissions.isError && <p role="alert">{errorMessage(permissions.error)}</p>}
     {context === "commercial" && permissions.data?.can_request && <p>Selecciona los registros con las casillas del maestro y usa la barra «Solicitar apoyo JDH».</p>}
     {context === "commercial" && (support.state !== "vigente" || support.needs_review) && <p>Solo se puede solicitar sobre un acuerdo vigente, habilitado y sin revisión pendiente.</p>}
-    {context === "manage" && permissions.data?.can_manage && <Button variant="outline" disabled={action !== null} onClick={() => { setAction("cancel"); onEditingChange(true); }}>Cancelar solo aporte JDH</Button>}
-    {context === "manage" && permissions.data?.can_review && <Button variant="outline" onClick={() => setShowHistory(!showHistory)}>Historial JDH</Button>}
+    {context === "manage" && <div className="flex flex-wrap items-center gap-2">
+      {permissions.data?.can_manage && <Button variant="outline" disabled={action !== null} onClick={() => { setAction("cancel"); onEditingChange(true); }}>Cancelar solo aporte JDH</Button>}
+      {permissions.data?.can_review && <Button variant="secondary" onClick={() => setShowHistory(!showHistory)}>Historial JDH</Button>}
+    </div>}
     {showHistory && (history.isPending ? <p aria-busy="true">Cargando historial…</p> : history.isError ? <p role="alert">{errorMessage(history.error)} <Button onClick={() => void history.refetch()}>Reintentar</Button></p> : <JdhEvents events={history.data ?? []} />)}
     {action && <JdhForm key={`${support.id}-${action}`} initial={support} kind={action} onSaved={() => onEditingChange(false)} onClose={() => { setAction(null); onEditingChange(false); }} />}
   </section>;
