@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -18,6 +19,8 @@ import {
 } from "../lib/format";
 import type { SupplierSupport, SupportAttachment, SupportConflict, SupportTier } from "../types/support.types";
 import SupportAttachments from "./support-attachments";
+import JdhSupport from "./jdh-support";
+import DiscardDialog from "./discard-dialog";
 import { FlagBadges, StateBadge } from "./support-badges";
 
 /**
@@ -29,6 +32,7 @@ export default function SupportDetail({
   id,
   onClose,
   canWrite = false,
+  jdhContext,
   composing = false,
   onComposingChange = () => undefined,
   onLinkElsewhere = () => undefined,
@@ -37,23 +41,26 @@ export default function SupportDetail({
   onClose: () => void;
   /** Without it (the order validator's read-only view) the documents can only be listed and opened. */
   canWrite?: boolean;
+  jdhContext?: "commercial" | "manage";
   composing?: boolean;
   onComposingChange?: (composing: boolean) => void;
   onLinkElsewhere?: (attachment: SupportAttachment) => void;
 }) {
   const detail = useSupport(id);
+  const [jdhEditing, setJdhEditing] = useState(false);
+  const [discard, setDiscard] = useState(false);
   const support = detail.data;
   const conflicts = useSupportConflicts(id, support?.has_conflicts === true);
 
   return (
-    <Dialog
+    <><Dialog
       open={id !== null}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) { if (jdhEditing) setDiscard(true); else onClose(); }
       }}
       title={support?.supplier_name ?? "Detalle del apoyo"}
       description={support ? calcMethodLabel(support.calc_method) : undefined}
-      isForm={composing}
+      isForm={composing || jdhEditing}
       wide
     >
       {detail.isPending ? (
@@ -65,6 +72,7 @@ export default function SupportDetail({
       ) : (
         support && (
           <Body support={support} conflicts={conflicts}>
+            {jdhContext && <JdhSupport support={support} context={jdhContext} onEditingChange={setJdhEditing} />}
             <SupportAttachments
               supportId={support.id}
               canWrite={canWrite && support.state !== "anulado"}
@@ -75,7 +83,7 @@ export default function SupportDetail({
           </Body>
         )
       )}
-    </Dialog>
+    </Dialog><DiscardDialog open={discard} onCancel={() => setDiscard(false)} onDiscard={() => { setDiscard(false); setJdhEditing(false); onClose(); }} /></>
   );
 }
 
@@ -111,6 +119,7 @@ function Body({
           {formatSupplierValue(support.calc_method, support.supplier_value)}
           {support.value_unit ? ` (${support.value_unit})` : ""}
         </Row>
+        {support.calc_method === "costo_neto" && <Row label="Costo pactado JDH" tabular>{formatCop(support.jdh_net_cost)}</Row>}
         <Row label="% apoyo JDH" tabular>{toNumber(support.jdh_pct) ? jdhPctLabel : "—"}</Row>
         <Row label="Unidades por caja" tabular>{formatNumber(support.pack_factor)}</Row>
         <Row label="Vigencia" tabular>

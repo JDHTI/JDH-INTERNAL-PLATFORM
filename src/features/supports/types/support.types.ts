@@ -57,6 +57,8 @@ export interface SupportDerived {
 
 export interface SupplierSupport {
   id: string;
+  commercial_supplier_id?: string | null;
+  customer_branch_id?: string | null;
   supplier_code: string | null;
   supplier_name: string | null;
   kind: string | null;
@@ -78,6 +80,7 @@ export interface SupplierSupport {
   supplier_value: Decimal | null;
   /** Fraction: 0.05 is 5%. */
   jdh_pct: Decimal | null;
+  jdh_net_cost?: Decimal | null;
   value_unit: ValueUnit | null;
   /** Units per box. */
   pack_factor: Decimal | null;

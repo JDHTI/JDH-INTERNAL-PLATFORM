@@ -82,12 +82,11 @@ export function useFilterFields() {
 
 /**
  * Whether the user may write supports and special cases. Controls stay hidden
- * until the API says yes; if the endpoint itself fails they show, and the
- * API's 403 on a write remains the fallback.
+ * until the API confirms permission. Backend authorization remains mandatory.
  */
 export function useCanManage(): boolean {
   const permissions = useSupportPermissions();
-  return permissions.isError ? true : permissions.data?.can_manage === true;
+  return permissions.data?.can_manage === true;
 }
 
 export function useSupportPermissions() {

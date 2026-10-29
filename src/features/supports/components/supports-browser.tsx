@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, CloudOff, FileX2, Paperclip, RefreshCw, Search, Sli
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
+import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
@@ -14,7 +15,9 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { useCanManage, useFilterFields, useSupportCatalogs, useSupportSearch } from "../hooks/use-supports";
+import { useCanManage, useFilterFields, useSupportCatalogs, useSupportPermissions, useSupportSearch } from "../hooks/use-supports";
+import { requestEligible, requestSelectionError, sameRequestScope } from "../lib/request-selection";
+import BatchRequestDialog from "./batch-request-dialog";
 import {
   calcMethodLabel,
   choiceLabel,
@@ -164,11 +167,11 @@ const COLUMNS: Column[] = [
   },
   {
     key: "jdh",
-    label: "% apoyo JDH",
+    label: "Aporte JDH",
     sortField: "jdh_pct",
     align: "right",
-    // Only some supports carry it; zero is as empty as null.
-    cell: (s) => <span className="tabular-nums">{toNumber(s.jdh_pct) ? formatPct(s.jdh_pct) : dash}</span>,
+    // JDH net cost is independent from the supplier value, including zero.
+    cell: (s) => <span className="tabular-nums">{s.calc_method === "costo_neto" ? formatCop(s.jdh_net_cost) : formatPct(s.jdh_pct)}</span>,
   },
   { key: "net-unit", label: "Neto unitario", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
   { key: "net-box", label: "Neto caja", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "box") },
@@ -213,7 +216,9 @@ const alignClass = (column: Column) => (column.align === "right" ? "text-right" 
  */
 export default function SupportsBrowser({
   specialCase,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   /** A special case to scope the list to, from its "ver apoyos" link. */
   specialCase?: { id: string; code: string };
 }) {
@@ -235,6 +240,10 @@ export default function SupportsBrowser({
   const [withoutAttachments, setWithoutAttachments] = useState(false);
   // Ticked rows, kept across pages and filters until attached or cleared.
   const [selected, setSelected] = useState<string[]>([]);
+  const [requestSelected, setRequestSelected] = useState<SupplierSupport[]>([]);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const permissions = useSupportPermissions();
+  const canRequest = readOnly && permissions.data?.can_request === true;
   const [composeId, setComposeId] = useState<string | null>(null);
   const [bulkAttach, setBulkAttach] = useState<{ document: ExistingDocument | null } | null>(null);
   const [advanced, setAdvanced] = useState<{ match: "all" | "any"; conditions: FilterCondition[] }>({
@@ -248,8 +257,9 @@ export default function SupportsBrowser({
   const [editId, setEditId] = useState<string | null>(null);
   const [voidId, setVoidId] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
-  const canWrite = useCanManage() && !denied;
-  const [notice, setNotice] = useState<string | null>(null);
+  const canWrite = useCanManage() && !denied && !readOnly;
+  const canSelect = canWrite || canRequest;
+  const [notice, setNotice] = useState<{ severity: AlertSeverity; message: string } | null>(null);
   const q = useDebouncedValue(text.trim());
 
   const sortable = new Set(fields.filter((field) => field.sortable).map((field) => field.field));
@@ -313,14 +323,27 @@ export default function SupportsBrowser({
   // The collective upload reuses the list's filters; with none it would reach every support.
   const attachFilters: SupportSearchFilters | null = filtered ? searchFiltersOf(body) : null;
 
-  const pageIds = items.map((item) => item.id);
-  const pageSelected = pageIds.length > 0 && pageIds.every((itemId) => selected.includes(itemId));
-  const toggleSelected = (itemId: string) =>
-    setSelected((current) => (current.includes(itemId) ? current.filter((x) => x !== itemId) : [...current, itemId]));
-  const togglePage = () =>
-    setSelected((current) =>
-      pageSelected ? current.filter((x) => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]
-    );
+  const selectionIds = readOnly ? requestSelected.map(record => record.id) : selected;
+  const requestAnchor = requestSelected[0] ?? items.find(requestEligible);
+  const selectablePage = readOnly ? items.filter(record => requestEligible(record) && requestAnchor && sameRequestScope(requestAnchor, record)) : items;
+  const pageIds = selectablePage.map(item => item.id);
+  const pageSelected = pageIds.length > 0 && pageIds.every(itemId => selectionIds.includes(itemId));
+  const selectionDisabled = (record: SupplierSupport) => readOnly && !selectionIds.includes(record.id) && (!requestEligible(record) || requestSelected.length >= 100 || (requestSelected.length > 0 && !sameRequestScope(requestSelected[0], record)));
+  const toggleSelected = (itemId: string) => {
+    if (!readOnly) { setSelected(current => current.includes(itemId) ? current.filter(x => x !== itemId) : [...current, itemId]); return; }
+    if (selectionIds.includes(itemId)) { setRequestSelected(current => current.filter(record => record.id !== itemId)); return; }
+    const record = items.find(item => item.id === itemId);
+    if (!record) return;
+    const next = [...requestSelected, record];
+    const error = requestSelectionError(next);
+    if (error) setNotice({ severity: "danger", message: error }); else { setRequestSelected(next); setNotice(null); }
+  };
+  const togglePage = () => {
+    if (!readOnly) { setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]); return; }
+    const next = pageSelected ? requestSelected.filter(record => !pageIds.includes(record.id)) : [...requestSelected, ...selectablePage.filter(record => !selectionIds.includes(record.id))];
+    const error = next.length ? requestSelectionError(next) : null;
+    if (error) setNotice({ severity: "danger", message: error }); else setRequestSelected(next);
+  };
 
   const reset = (apply: () => void) => {
     apply();
@@ -364,7 +387,7 @@ export default function SupportsBrowser({
 
   const onForbidden = () => {
     setDenied(true);
-    setNotice("Tu usuario puede consultar los apoyos, pero no modificarlos.");
+    setNotice({ severity: "danger", message: "Tu usuario puede consultar los apoyos, pero no modificarlos." });
   };
 
   const actions = (support: SupplierSupport) => (
@@ -377,12 +400,19 @@ export default function SupportsBrowser({
       }}
       onVoid={() => setVoidId(support.id)}
       onForbidden={onForbidden}
-      onFailure={setNotice}
+      onFailure={message => setNotice({ severity: "danger", message })}
     />
   );
 
   return (
     <div className="space-y-4">
+      {canRequest && <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
+        <p className="text-sm">Marca los apoyos para solicitar JDH. Puedes seleccionar hasta 100 del mismo proveedor y cliente; cada registro tendrá su propuesta.</p>
+        {requestSelected.length > 0 && <><p className="text-sm font-medium">{requestSelected.length} seleccionados · {requestSelected[0].supplier_name ?? requestSelected[0].supplier_code} · {requestSelected[0].customer_name ?? requestSelected[0].customer_group ?? "Todos los clientes"} · NIT {requestSelected[0].customer_nit ?? "sin NIT"}</p>
+          <div className="flex flex-wrap gap-2"><Button onClick={() => setBatchOpen(true)}>Solicitar apoyo JDH ({requestSelected.length})</Button><Button variant="outline" onClick={() => setRequestSelected([])}>Quitar selección</Button></div>
+          <details className="text-sm"><summary className="cursor-pointer">Ver selección y quitar registros</summary><ul>{requestSelected.map(record => <li key={record.id} className="flex items-center justify-between gap-2 py-1"><span>{record.product_sku ?? "Todos los productos"} · {record.program ?? record.id}</span><Button variant="ghost" onClick={() => setRequestSelected(current => current.filter(item => item.id !== record.id))}>Quitar</Button></li>)}</ul></details>
+        </>}
+      </div>}
       <div className="grid gap-3 md:grid-cols-3">
         <BasePicker
           config={CUSTOMER_PICKER}
@@ -503,19 +533,7 @@ export default function SupportsBrowser({
         )}
       </div>
 
-      {notice && (
-        <p role="alert" className="flex items-start justify-between gap-3 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
-          {notice}
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            aria-label="Cerrar aviso"
-            className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </p>
-      )}
+      {notice && <Alert severity={notice.severity} onDismiss={() => setNotice(null)}>{notice.message}</Alert>}
 
       {search.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando apoyos" />
@@ -540,7 +558,7 @@ export default function SupportsBrowser({
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface md:hidden">
             {items.map((support) => (
               <li key={support.id} className={cn("flex items-start", support.state === "inactivo" && "opacity-60")}>
-                {canWrite && <RowCheck support={support} checked={selected.includes(support.id)} onChange={() => toggleSelected(support.id)} />}
+                {canSelect && <RowCheck support={support} checked={selectionIds.includes(support.id)} disabled={selectionDisabled(support)} onChange={() => toggleSelected(support.id)} />}
                 <button
                   type="button"
                   onClick={() => setOpenId(support.id)}
@@ -576,13 +594,14 @@ export default function SupportsBrowser({
             <table className="w-full min-w-max text-left text-sm">
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  {canWrite && (
+                  {canSelect && (
                     <th scope="col" className="w-10 px-3 py-2">
                       <input
                         type="checkbox"
                         checked={pageSelected}
+                        disabled={pageIds.length === 0}
                         onChange={togglePage}
-                        aria-label="Seleccionar los apoyos de esta página"
+                        aria-label={readOnly ? "Seleccionar apoyos de esta página del mismo proveedor y cliente" : "Seleccionar los apoyos de esta página"}
                         className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       />
                     </th>
@@ -626,11 +645,13 @@ export default function SupportsBrowser({
                 {items.map((support) => (
                   // A disabled support stays in the list, muted: it is reversible, not gone.
                   <tr key={support.id} className={cn("hover:bg-primary-subtle", support.state === "inactivo" && "opacity-60")}>
-                    {canWrite && (
+                    {canSelect && (
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
-                          checked={selected.includes(support.id)}
+                          checked={selectionIds.includes(support.id)}
+                          disabled={selectionDisabled(support)}
+                          title={readOnly ? "Solo acuerdos vigentes del mismo proveedor y cliente; máximo 100" : undefined}
                           onChange={() => toggleSelected(support.id)}
                           aria-label={`Seleccionar el apoyo de ${support.supplier_name ?? "proveedor"}${support.product_sku ? `, SKU ${support.product_sku}` : ""}`}
                           className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -672,6 +693,7 @@ export default function SupportsBrowser({
           setComposeId(null);
         }}
         canWrite={canWrite}
+        jdhContext={readOnly ? "commercial" : "manage"}
         composing={composeId !== null && composeId === openId}
         onComposingChange={(composing) => setComposeId(composing ? openId : null)}
         onLinkElsewhere={(attachment) => {
@@ -680,6 +702,7 @@ export default function SupportsBrowser({
           setBulkAttach({ document: { id: attachment.document_id, name: attachment.name } });
         }}
       />
+      {batchOpen && <BatchRequestDialog records={requestSelected} onClose={() => setBatchOpen(false)} onSuccess={() => { setBatchOpen(false); setRequestSelected([]); setNotice({ severity: "success", message: "Solicitudes enviadas. Cada registro conserva su decisión BI independiente." }); }} />}
       <BulkAttachDialog
         open={bulkAttach !== null}
         onClose={() => setBulkAttach(null)}
@@ -708,12 +731,13 @@ function searchFiltersOf(body: SupportSearchBody): SupportSearchFilters {
 }
 
 /** Row tick on the mobile list; its own 44px target, apart from the row that opens the detail. */
-function RowCheck({ support, checked, onChange }: { support: SupplierSupport; checked: boolean; onChange: () => void }) {
+function RowCheck({ support, checked, disabled, onChange }: { support: SupplierSupport; checked: boolean; disabled?: boolean; onChange: () => void }) {
   return (
     <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={onChange}
         aria-label={`Seleccionar el apoyo de ${support.supplier_name ?? "proveedor"}${support.product_sku ? `, SKU ${support.product_sku}` : ""}`}
         className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

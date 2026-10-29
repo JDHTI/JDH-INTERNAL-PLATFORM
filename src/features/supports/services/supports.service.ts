@@ -1,5 +1,7 @@
 import { ApiError, apiDownload, apiFetch } from "@/shared/lib/api-client";
 
+import type { SupportPermissions } from "../types/request.types";
+
 import type {
   AttachmentSelection,
   AttachmentUpload,
@@ -35,8 +37,8 @@ export async function listFilterFields(): Promise<FilterField[]> {
   return apiFetch<FilterField[]>("/supplier-supports/search/fields");
 }
 
-export async function getSupportPermissions(): Promise<{ can_manage: boolean }> {
-  return apiFetch<{ can_manage: boolean }>("/supplier-supports/permissions");
+export async function getSupportPermissions(): Promise<SupportPermissions> {
+  return apiFetch<SupportPermissions>("/supplier-supports/permissions");
 }
 
 export async function getSupportCatalogs(): Promise<SupportCatalogs> {
