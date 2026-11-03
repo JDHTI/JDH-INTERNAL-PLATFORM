@@ -7,16 +7,21 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  FileCheck2,
+  CheckCircle2,
   FileSpreadsheet,
   FileText,
   FileX2,
+  Hourglass,
   Loader2,
+  MessageSquareWarning,
   MoreHorizontal,
   PackagePlus,
   RefreshCw,
   Search,
+  Send,
+  Sheet,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,31 +39,41 @@ import SupportDetail from "@/features/supports/components/support-detail";
 
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
 import { useLineImport } from "../hooks/use-line-import";
-import { useDeleteQuotation, useQuotation, useRefreshQuotation, useRemoveLine } from "../hooks/use-quotations";
-import { formatCount, formatDateTime, formatDay } from "../lib/format";
+import {
+  useDeleteQuotation,
+  useQuotation,
+  useQuotationPermissions,
+  useRefreshQuotation,
+  useRemoveLine,
+} from "../hooks/use-quotations";
+import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
-import GenerateDialog from "./generate-dialog";
 import LineDetailDialog from "./line-detail-dialog";
-import { LinesList, LinesTable } from "./lines-table";
+import { LinesList, LinesTable, type LineSelection } from "./lines-table";
+import MarginSelectionBar from "./margin-selection-bar";
 import { QuotationStatusBadge } from "./quotation-badges";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
+import { ConfirmDialog, ReturnDialog, ValidateDialog } from "./review-dialogs";
+import TemplateDialog from "./template-dialog";
 import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
 
 /** "imported" is what the last paste added or revalidated; it exists only after one. */
-type LineFilter = "all" | "changed" | "failing" | "support" | "added" | "imported";
+type LineFilter = "all" | "changed" | "failing" | "below" | "support" | "added" | "inactive" | "imported";
 
-const failing = (line: QuotationLine) => line.compliance !== null && line.compliance !== "cumple";
+const failing = (line: QuotationLine) => line.is_active && line.compliance !== null && line.compliance !== "cumple";
 
 const FILTERS: Record<Exclude<LineFilter, "imported">, (line: QuotationLine) => boolean> = {
   all: () => true,
-  changed: (line) => line.new_price !== null,
+  changed: (line) => line.new_price !== null && line.is_active,
   failing,
+  below: (line) => line.below_target,
   support: (line) => line.support !== null,
   added: (line) => line.origin === "agregado",
+  inactive: (line) => !line.is_active,
 };
 
 export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
@@ -92,6 +107,14 @@ export default function QuotationEditor({ quotationId, basePath }: { quotationId
 
 function Editor({ quotation, basePath }: { quotation: Quotation; basePath: string }) {
   const router = useRouter();
+  // The gate around this screen has already loaded the permissions.
+  const permissions = useQuotationPermissions().data;
+  const canManage = permissions?.can_manage === true;
+  const canValidate = permissions?.can_validate === true;
+  const pendingReview = quotation.status === "pendiente_validacion";
+  // Commercial edits anything but a quotation waiting for validation; whoever only validates never edits.
+  const editable = canManage && !pendingReview;
+
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
@@ -105,8 +128,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [filter, setFilter] = useState<LineFilter>("all");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
-  const [generating, setGenerating] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "template" | "delete" | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
@@ -118,8 +141,10 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       all: quotation.lines.length,
       changed: quotation.lines.filter(FILTERS.changed).length,
       failing: quotation.lines.filter(failing).length,
+      below: quotation.lines.filter(FILTERS.below).length,
       support: quotation.lines.filter(FILTERS.support).length,
       added: quotation.lines.filter(FILTERS.added).length,
+      inactive: quotation.lines.filter(FILTERS.inactive).length,
     }),
     [quotation.lines]
   );
@@ -153,10 +178,31 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   };
 
   const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
-  const generated = quotation.status === "generado";
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
+
+  const selection: LineSelection | undefined = editable
+    ? {
+        selected,
+        toggle: (sku) =>
+          setSelected((current) => {
+            const next = new Set(current);
+            if (!next.delete(sku)) next.add(sku);
+            return next;
+          }),
+        togglePage: (skus) =>
+          setSelected((current) => {
+            const next = new Set(current);
+            const all = skus.every((sku) => next.has(sku));
+            for (const sku of skus) {
+              if (all) next.delete(sku);
+              else next.add(sku);
+            }
+            return next;
+          }),
+      }
+    : undefined;
 
   const openImport = () => {
     setImportResult(null);
@@ -213,7 +259,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     removeLine.mutate(
       { version: quotation.version, sku: line.sku },
       {
-        onSuccess: () => toast.success(`Se quitó ${line.sku} de la cotización.`),
+        onSuccess: () => {
+          setSelected((current) => {
+            const next = new Set(current);
+            next.delete(line.sku);
+            return next;
+          });
+          toast.success(`Se quitó ${line.sku} de la cotización.`);
+        },
         onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
         onSettled: () => setRemovingSku(null),
       }
@@ -246,6 +299,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       onError: (failure) => setDeleteError(errorMessage(failure)),
     });
 
+  const closeDialog = () => setDialog(null);
+
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -268,11 +323,18 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
-            <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
-            {refresh.isPending ? "Refrescando…" : "Refrescar"}
-          </Button>
-          {generated && (
+          {editable && (
+            <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
+              <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
+              {refresh.isPending ? "Refrescando…" : "Refrescar"}
+            </Button>
+          )}
+          {editable && (
+            <Button variant="outline" onClick={() => setDialog("template")} disabled={busy} className="max-md:h-11">
+              <Sheet aria-hidden="true" /> Plantilla
+            </Button>
+          )}
+          {isValidated(quotation.status) && (
             <>
               <Button variant="outline" onClick={() => void download("xlsx")} disabled={downloading !== null} className="max-md:h-11">
                 {downloading === "xlsx" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileSpreadsheet aria-hidden="true" />}
@@ -284,59 +346,90 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               </Button>
             </>
           )}
-          <Button
-            onClick={() => setGenerating(true)}
-            disabled={busy || counts.changed === 0}
-            title={counts.changed === 0 ? "Escribe al menos un precio nuevo para generar el formato." : undefined}
-            className="max-md:h-11"
-          >
-            <FileCheck2 aria-hidden="true" /> {generated ? "Generar de nuevo" : "Generar"}
-          </Button>
-          <Menu
-            align="end"
-            trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
-            triggerClassName={cn(buttonVariants({ variant: "ghost", size: "icon" }), "max-md:size-11")}
-            triggerLabel="Más acciones de la cotización"
-          >
-            <MenuItem onClick={() => { setDeleteError(null); setDeleting(true); }}>
-              <Trash2 aria-hidden="true" /> Eliminar cotización
-            </MenuItem>
-          </Menu>
+          {pendingReview && canValidate && (
+            <>
+              <Button variant="outline" onClick={() => setDialog("return")} className="max-md:h-11">
+                <Undo2 aria-hidden="true" /> Devolver
+              </Button>
+              <Button onClick={() => setDialog("validate")} className="max-md:h-11">
+                <CheckCircle2 aria-hidden="true" /> Validar
+              </Button>
+            </>
+          )}
+          {pendingReview && canManage && !canValidate && (
+            <Button variant="outline" onClick={() => setDialog("return")} className="max-md:h-11">
+              <Undo2 aria-hidden="true" /> Retirar de validación
+            </Button>
+          )}
+          {canManage && quotation.status === "borrador" && (
+            <Button
+              onClick={() => setDialog("confirm")}
+              disabled={busy || counts.changed === 0}
+              title={counts.changed === 0 ? "Escribe al menos un precio nuevo para confirmar." : undefined}
+              className="max-md:h-11"
+            >
+              <Send aria-hidden="true" /> Confirmar
+            </Button>
+          )}
+          {canManage && (
+            <Menu
+              align="end"
+              trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
+              triggerClassName={cn(buttonVariants({ variant: "ghost", size: "icon" }), "max-md:size-11")}
+              triggerLabel="Más acciones de la cotización"
+            >
+              <MenuItem
+                onClick={() => {
+                  setDeleteError(null);
+                  setDialog("delete");
+                }}
+              >
+                <Trash2 aria-hidden="true" /> Eliminar cotización
+              </MenuItem>
+            </Menu>
+          )}
         </div>
       </header>
 
+      <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       <Warnings quotation={quotation} />
       <Summary quotation={quotation} />
 
-      <SaveStatus editor={editor} />
+      {editable && <SaveStatus editor={editor} />}
 
       <div className={cn("sticky top-0 z-20 space-y-2 bg-canvas py-2", !hasRows && "hidden")}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
-          <Input
-            type="search"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Referencia, descripción o proveedor"
-            aria-label="Buscar referencias"
-            className="pl-9 max-md:h-11"
-          />
-        </div>
-        {/* Next to the references it adds to, not among the quotation's own actions. */}
-        <Button variant="outline" onClick={openImport} disabled={busy} className="sm:ml-auto max-md:h-11">
-          <PackagePlus aria-hidden="true" /> Agregar productos
-        </Button>
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+            <Input
+              type="search"
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Referencia, descripción o proveedor"
+              aria-label="Buscar referencias"
+              className="pl-9 max-md:h-11"
+            />
+          </div>
+          {editable && (
+            // Next to the references it adds to, not among the quotation's own actions.
+            <Button variant="outline" onClick={openImport} disabled={busy} className="sm:ml-auto max-md:h-11">
+              <PackagePlus aria-hidden="true" /> Agregar productos
+            </Button>
+          )}
         </div>
         <div role="group" aria-label="Filtrar referencias" className="flex flex-wrap gap-2">
           <ToggleChip active={filter === "all"} onClick={() => chooseFilter("all")} count={counts.all}>Todas</ToggleChip>
           <ToggleChip active={filter === "changed"} onClick={() => chooseFilter("changed")} count={counts.changed}>Con precio nuevo</ToggleChip>
           <ToggleChip active={filter === "failing"} onClick={() => chooseFilter("failing")} count={counts.failing}>No cumplen</ToggleChip>
+          <ToggleChip active={filter === "below"} onClick={() => chooseFilter("below")} count={counts.below}>Bajo el objetivo</ToggleChip>
           <ToggleChip active={filter === "support"} onClick={() => chooseFilter("support")} count={counts.support}>Con apoyo</ToggleChip>
           <ToggleChip active={filter === "added"} onClick={() => chooseFilter("added")} count={counts.added}>Agregados</ToggleChip>
+          {counts.inactive > 0 && (
+            <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter("inactive")} count={counts.inactive}>Inactivas</ToggleChip>
+          )}
           {importer.lastImport && (
             <ToggleChip
               active={filter === "imported"}
@@ -347,6 +440,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             </ToggleChip>
           )}
         </div>
+        {editable && (
+          <MarginSelectionBar
+            quotation={quotation}
+            selected={selected}
+            filteredSkus={visible.map((line) => line.sku)}
+            onSelectionChange={setSelected}
+            disabled={busy}
+          />
+        )}
       </div>
 
       {!hasRows ? (
@@ -354,14 +456,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           icon={PackagePlus}
           title="El cliente no tiene ventas en la ventana"
           action={
-            <Button onClick={openImport} disabled={busy} className="max-md:h-11">
-              <PackagePlus aria-hidden="true" /> Agregar productos
-            </Button>
+            editable ? (
+              <Button onClick={openImport} disabled={busy} className="max-md:h-11">
+                <PackagePlus aria-hidden="true" /> Agregar productos
+              </Button>
+            ) : undefined
           }
         >
           No compró nada en los últimos {quotation.window_months} meses, así que no hay último precio de qué partir.
-          Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de
-          licores.
+          {editable && " Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de licores."}
         </StatePanel>
       ) : visible.length === 0 && pending.length === 0 ? (
         <StatePanel
@@ -371,31 +474,37 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         >
           {filter === "failing"
             ? "Todos los precios nuevos cumplen la regla."
-            : filter === "changed"
-              ? "Aún no hay precios nuevos: escríbelos en la columna «Precio nuevo»."
-              : filter === "added"
-                ? "Aún no agregaste referencias fuera del histórico. Usa «Agregar productos»."
-                : "Prueba con otra referencia o con menos palabras de la descripción."}
+            : filter === "below"
+              ? "Ningún último precio deja el margen bajo el objetivo."
+              : filter === "changed"
+                ? "Aún no hay precios nuevos: escríbelos en la columna «Precio nuevo»."
+                : filter === "added"
+                  ? "Aún no agregaste referencias fuera del histórico. Usa «Agregar productos»."
+                  : "Prueba con otra referencia o con menos palabras de la descripción."}
         </StatePanel>
       ) : (
         <div className="space-y-3">
           <LinesList
             lines={pageLines}
             editor={editor}
+            editable={editable}
             onOpenDetail={setDetailLine}
             onRemove={runRemoveLine}
             removing={removingSku}
             canRemove={!busy}
+            selection={selection}
             pending={pending}
             highlight={importer.highlight}
           />
           <LinesTable
             lines={pageLines}
             editor={editor}
+            editable={editable}
             onOpenDetail={setDetailLine}
             onRemove={runRemoveLine}
             removing={removingSku}
             canRemove={!busy}
+            selection={selection}
             pending={pending}
             highlight={importer.highlight}
           />
@@ -409,7 +518,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       )}
 
-      <GenerateDialog quotation={quotation} open={generating} onOpenChange={setGenerating} />
+      <ConfirmDialog quotation={quotation} open={dialog === "confirm"} onOpenChange={(open) => !open && closeDialog()} />
+      <ReturnDialog
+        quotation={quotation}
+        open={dialog === "return"}
+        onOpenChange={(open) => !open && closeDialog()}
+        asValidator={canValidate}
+      />
+      <ValidateDialog quotation={quotation} open={dialog === "validate"} onOpenChange={(open) => !open && closeDialog()} />
+      <TemplateDialog quotation={quotation} open={dialog === "template"} onOpenChange={(open) => !open && closeDialog()} />
       <AddProductsDialog
         quotation={quotation}
         open={adding}
@@ -437,8 +554,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       />
       <SupportDetail id={agreementId} onClose={() => setAgreementId(null)} />
       <ConfirmDeleteDialog
-        open={deleting}
-        onOpenChange={setDeleting}
+        open={dialog === "delete"}
+        onOpenChange={(open) => !open && closeDialog()}
         title="¿Eliminar esta cotización?"
         confirmLabel="Eliminar cotización"
         onConfirm={confirmDelete}
@@ -462,6 +579,9 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
       </span>,
     ],
     ["CO que factura", quotation.billing_center_code ?? "—"],
+    ["Regional", quotation.regional_label ?? "—"],
+    ["Familia", quotation.price_family_label ?? "—"],
+    ["Bodega", quotation.stock_source ?? "—"],
     ["Vendedor", quotation.salesperson_name ?? "—"],
     ["Ventana", `${quotation.window_months} meses`],
   ];
@@ -478,21 +598,80 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
       <p className="text-[13px] text-text-secondary">
         Armada el {formatDateTime(quotation.built_at)}
         {quotation.cost_cut_date && ` · costo al corte del ${formatDay(quotation.cost_cut_date)}`}
-        {quotation.generated_at &&
-          ` · generada el ${formatDateTime(quotation.generated_at)}${quotation.generated_by ? ` por ${quotation.generated_by}` : ""}`}
-        {quotation.activation_date && ` · activa desde el ${formatDay(quotation.activation_date)}`}
+        {quotation.confirmed_at &&
+          ` · confirmada el ${formatDateTime(quotation.confirmed_at)}${quotation.confirmed_by ? ` por ${quotation.confirmed_by}` : ""}`}
+        {quotation.validated_at &&
+          ` · validada el ${formatDateTime(quotation.validated_at)}${quotation.validated_by ? ` por ${quotation.validated_by}` : ""}`}
       </p>
     </div>
   );
 }
 
+/**
+ * Where the quotation stands in the review, in words: why it came back, what
+ * it is waiting for and what was asked, or what was released.
+ */
+function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotation; canManage: boolean; canValidate: boolean }) {
+  const target = quotation.export_price_list_id ?? quotation.price_list_id ?? "—";
+  const plan =
+    quotation.list_action === "creacion"
+      ? `Crear la lista ${target}${quotation.new_list_name ? ` (${quotation.new_list_name})` : ""}`
+      : `Actualizar la lista ${target}`;
+  const activation = quotation.activation_date ? `, activa desde el ${formatDay(quotation.activation_date)}` : "";
+
+  if (quotation.status === "borrador" && quotation.review_note) {
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-warning-surface px-4 py-3 text-sm">
+        <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+        <p>
+          <strong>Devuelta a borrador:</strong> {quotation.review_note}
+        </p>
+      </div>
+    );
+  }
+  if (quotation.status === "pendiente_validacion") {
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-warning-surface px-4 py-3 text-sm">
+        <Hourglass className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+        <p>
+          <strong>{plan}{activation}.</strong>{" "}
+          {canValidate
+            ? "Revisa los precios y valídala para liberar el Excel y el plano, o devuélvela al asesor con una nota."
+            : canManage
+              ? "Espera la validación del área BI; mientras tanto no se puede editar. Si necesitas cambiar algo, retírala de validación."
+              : "Espera la validación del área BI."}
+        </p>
+      </div>
+    );
+  }
+  if (isValidated(quotation.status)) {
+    // Validated: what was decided is done, so it reads in the past.
+    const done =
+      quotation.list_action === "creacion"
+        ? `Validada para crear la lista ${target}${quotation.new_list_name ? ` (${quotation.new_list_name})` : ""}`
+        : `Validada para actualizar la lista ${target}`;
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-success-surface px-4 py-3 text-sm">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+        <p>
+          <strong>{done}{activation}.</strong> Descarga el Excel y el plano para cargarlos en SIESA
+          {quotation.list_action === "creacion" ? "; asignar la lista nueva al cliente se hace a mano en SIESA." : "."}
+          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
 /*
  * Warnings the editor does not show. The shared list is said where it matters,
- * in the generate dialog before anyone writes to it; the branch mismatches
+ * in the confirm dialog before anyone writes to it; the branch mismatches
  * (several CO or lists among the branches) were noise for the advisor, by
- * business decision (2026-11-03). "sin ventas" has its own empty state.
+ * business decision (2026-11-03); list 1 is explained in the confirm dialog.
+ * "sin ventas" has its own empty state.
  */
-const HIDDEN_WARNINGS = new Set(["lista_compartida", "co_distintos", "listas_distintas"]);
+const HIDDEN_WARNINGS = new Set(["lista_compartida", "co_distintos", "listas_distintas", "lista_general"]);
 
 /** What the API found odd about the customer, in its words. */
 function Warnings({ quotation }: { quotation: Quotation }) {
@@ -513,17 +692,26 @@ function Warnings({ quotation }: { quotation: Quotation }) {
 }
 
 function Summary({ quotation }: { quotation: Quotation }) {
-  const items: { label: string; value: number; alert?: boolean }[] = [
+  const items: { label: string; value: number; alert?: "danger" | "warning" }[] = [
     { label: "Referencias", value: quotation.line_count },
     { label: "Con precio nuevo", value: quotation.changed_count },
-    { label: "No cumplen la regla", value: quotation.below_rule_count, alert: quotation.below_rule_count > 0 },
+    { label: "No cumplen la regla", value: quotation.below_rule_count, alert: quotation.below_rule_count > 0 ? "danger" : undefined },
+    { label: "Bajo el objetivo", value: quotation.below_target_count, alert: quotation.below_target_count > 0 ? "warning" : undefined },
   ];
   return (
-    <dl className="grid grid-cols-3 gap-3">
+    <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {items.map((item) => (
         <div key={item.label} className="min-w-0 rounded-lg border border-border bg-surface px-4 py-3">
           <dt className="text-[13px] text-text-secondary">{item.label}</dt>
-          <dd className={cn("text-2xl font-semibold tabular-nums", item.alert && "text-danger")}>{formatCount(item.value)}</dd>
+          <dd
+            className={cn(
+              "text-2xl font-semibold tabular-nums",
+              item.alert === "danger" && "text-danger",
+              item.alert === "warning" && "text-warning"
+            )}
+          >
+            {formatCount(item.value)}
+          </dd>
         </div>
       ))}
     </dl>

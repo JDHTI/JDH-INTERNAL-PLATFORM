@@ -276,6 +276,7 @@ badge, nunca en texto rojo directo.
 | `--text-primary` sobre fila azul (revalidada, 2,5 s) | #1d1d1b / #ecf2fc · **15.01** ✅ | #ffffff / #333840 · **11.79** ✅ |
 | `--text-secondary` sobre fila azul | #686a6c / #ecf2fc · **4.83** ✅ | #b6b7ba / #333840 · **5.88** ✅ |
 | `--success` sobre banda ámbar (ícono del resumen al pegar) | #067647 / #f9f0eb · **5.07** ✅ | #47cd89 / #42382a · **5.66** ✅ |
+| `--text-primary` sobre banda verde (cotización validada, sobre `--canvas`) | #1d1d1b / #ebf3ef · **14.95** ✅ | #ffffff / #22322a · **13.48** ✅ |
 
 **Opción elegida en una lista de opciones (formulario público de PQRSF)**
 

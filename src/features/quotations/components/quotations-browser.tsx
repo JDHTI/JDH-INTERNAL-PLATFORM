@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calculator, FileX2, Plus, Search } from "lucide-react";
+import { Calculator, CheckCircle2, FileX2, Plus, Search } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -14,8 +14,8 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useQuotations } from "../hooks/use-quotations";
-import { formatCount, formatDateTime } from "../lib/format";
+import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
+import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
 import type { QuotationStatus, QuotationSummary } from "../types/quotations.types";
 import { QuotationStatusBadge } from "./quotation-badges";
 import NewQuotationDialog from "./new-quotation-dialog";
@@ -26,14 +26,21 @@ const PAGE_SIZE = 20;
 
 const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
   { value: "", label: "Todos los estados" },
-  { value: "borrador", label: "Borrador" },
-  { value: "generado", label: "Generado" },
+  ...(Object.entries(STATUS_LABELS) as [QuotationStatus, string][]).map(([value, label]) => ({ value, label })),
 ];
 
-/** Saved quotations, newest first: the person's own by default, everyone's on request. */
+/**
+ * Saved quotations, newest first. An advisor starts on their own; whoever only
+ * validates (BI) has none of their own, so they see everyone's, opened on the
+ * ones waiting for them, and cannot start one.
+ */
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
-  const [mine, setMine] = useState(true);
-  const [status, setStatus] = useState<QuotationStatus | "">("");
+  // The gate around this screen has already loaded the permissions.
+  const permissions = useQuotationPermissions().data;
+  const canManage = permissions?.can_manage === true;
+  const validatorOnly = !canManage && permissions?.can_validate === true;
+  const [mine, setMine] = useState(!validatorOnly);
+  const [status, setStatus] = useState<QuotationStatus | "">(validatorOnly ? "pendiente_validacion" : "");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -58,14 +65,16 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-          <div role="group" aria-label="De quién" className="flex gap-2">
-            <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
-              Mis cotizaciones
-            </ToggleChip>
-            <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
-              Todas
-            </ToggleChip>
-          </div>
+          {canManage && (
+            <div role="group" aria-label="De quién" className="flex gap-2">
+              <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
+                Mis cotizaciones
+              </ToggleChip>
+              <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
+                Todas
+              </ToggleChip>
+            </div>
+          )}
           <div className="relative w-full sm:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
@@ -82,12 +91,14 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
             options={STATUS_FILTERS}
             value={status}
             onValueChange={(next) => reset(() => setStatus(next as QuotationStatus | ""))}
-            className="w-full sm:w-48"
+            className="w-full sm:w-56"
           />
         </div>
-        <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
-          <Plus aria-hidden="true" /> Nueva cotización
-        </Button>
+        {canManage && (
+          <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
+            <Plus aria-hidden="true" /> Nueva cotización
+          </Button>
+        )}
       </div>
 
       {quotations.isPending ? (
@@ -95,13 +106,25 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       ) : quotations.isError && !result ? (
         <QuotationLoadError error={quotations.error} onRetry={() => void quotations.refetch()} subject="las cotizaciones" />
       ) : items.length === 0 ? (
-        filtered ? (
+        validatorOnly && status === "pendiente_validacion" && q === "" ? (
+          <StatePanel
+            icon={CheckCircle2}
+            title="No hay cotizaciones por validar"
+            action={<Button variant="outline" onClick={clearFilters}>Ver todas las cotizaciones</Button>}
+          >
+            Cuando un asesor confirme una lista de precios, aparecerá aquí para que la valides o la devuelvas.
+          </StatePanel>
+        ) : filtered ? (
           <StatePanel
             icon={FileX2}
             title="Ninguna cotización coincide con la búsqueda"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
             Prueba con el NIT completo o quita el filtro de estado.
+          </StatePanel>
+        ) : !canManage ? (
+          <StatePanel icon={Calculator} title="Aún no hay cotizaciones">
+            Las arma el área Comercial; las que confirmen aparecerán aquí para validarlas.
           </StatePanel>
         ) : (
           <StatePanel
@@ -156,6 +179,9 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
             <th scope="col" className="px-3 py-2 text-right">Referencias</th>
             <th scope="col" className="px-3 py-2 text-right">Cambiadas</th>
             <th scope="col" className="px-3 py-2 text-right">No cumplen</th>
+            <th scope="col" className="px-3 py-2 text-right" title="Referencias cuyo último precio deja el margen bajo el objetivo, contando el apoyo">
+              Bajo objetivo
+            </th>
             <th scope="col" className="px-3 py-2">Actualizada</th>
           </tr>
         </thead>
@@ -169,7 +195,9 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
                 <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
               </td>
               <td className="hidden px-3 py-2 xl:table-cell">{item.channel ?? "—"}</td>
-              <td className="px-3 py-2 font-mono text-[13px]">{item.price_list_id ?? "—"}</td>
+              <td className="px-3 py-2">
+                <ListTarget item={item} />
+              </td>
               <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>
               <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
@@ -177,6 +205,7 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
               <td className={cn("px-3 py-2 text-right tabular-nums", item.below_rule_count > 0 && "font-semibold text-danger")}>
                 {formatCount(item.below_rule_count)}
               </td>
+              <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.below_target_count)}</td>
               <td className="px-3 py-2">
                 <span className="block whitespace-nowrap tabular-nums">{formatDateTime(item.updated_at)}</span>
                 {showAuthor && <span className="block text-xs text-text-secondary">{item.created_by}</span>}
@@ -186,6 +215,31 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * The customer's list, and once confirmed what happens to it: written over
+ * (update) or a new list created with its own code.
+ */
+function ListTarget({ item }: { item: QuotationSummary }) {
+  const creates = item.list_action === "creacion" && item.export_price_list_id && item.export_price_list_id !== item.price_list_id;
+  return (
+    <>
+      <span className="block font-mono text-[13px]">
+        {item.price_list_id ?? "—"}
+        {creates && (
+          <>
+            <span aria-hidden="true" className="font-sans text-text-secondary"> → </span>
+            <span className="sr-only">, lista nueva </span>
+          </>
+        )}
+        {creates && item.export_price_list_id}
+      </span>
+      {item.status !== "borrador" && item.list_action_label && (
+        <span className="block text-xs text-text-secondary">{item.list_action_label}</span>
+      )}
+    </>
   );
 }
 

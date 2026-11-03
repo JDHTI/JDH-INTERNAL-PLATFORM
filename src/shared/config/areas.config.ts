@@ -373,6 +373,8 @@ export const MODULES: ModuleItem[] = [
   { id: "comercial-apoyos", name: "Maestro de apoyos", path: "/comercial/apoyos", areaSlug: "comercial", category: "Maestros", icon: HandCoins, available: true },
   { id: "comercial-cotizador", name: "Cotizador", path: "/comercial/cotizador", areaSlug: "comercial", category: "Operación", icon: Calculator, available: true },
   { id: "comercial-solicitudes-apoyos", name: "Mis solicitudes JDH", path: "/comercial/apoyos/solicitudes", areaSlug: "comercial", category: "Operación", icon: ClipboardList, available: true },
+  // BI validates the quotations commercial confirms; the same screens, opened on the pending ones.
+  { id: "bi-cotizador", name: "Validar cotizaciones", path: "/bi/cotizador", areaSlug: "bi", category: "Operación", icon: Calculator, available: true },
   { id: "bi-solicitudes-apoyos", name: "Solicitudes de apoyo JDH", path: "/bi/solicitudes-apoyos", areaSlug: "bi", category: "Operación", icon: ClipboardList, available: true },
   // ── BI ──
   {

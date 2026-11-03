@@ -6,21 +6,24 @@ import { ApiError } from "@/shared/lib/api-client";
 
 import {
   addLines,
+  confirmQuotation,
   createQuotation,
   deleteQuotation,
-  generateQuotation,
   getQuotation,
   getQuotationPermissions,
   getQuotationRules,
   listQuotations,
   refreshQuotation,
   removeLine,
+  returnQuotation,
   updateLines,
+  uploadQuotationTemplate,
+  validateQuotation,
 } from "../services/quotations.service";
 import type {
-  GenerateOptions,
+  ConfirmOptions,
+  LineChange,
   LineImport,
-  LinePrice,
   Quotation,
   QuotationListParams,
   WindowMonths,
@@ -97,7 +100,7 @@ export function useCreateQuotation() {
 export function useUpdateLines(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, lines }: { version: number; lines: LinePrice[] }) => updateLines(id, version, lines),
+    mutationFn: ({ version, lines }: { version: number; lines: LineChange[] }) => updateLines(id, version, lines),
     onSuccess: store,
   });
 }
@@ -127,11 +130,34 @@ export function useRefreshQuotation(id: string) {
   });
 }
 
-export function useGenerateQuotation(id: string) {
+export function useConfirmQuotation(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, options }: { version: number; options: GenerateOptions }) =>
-      generateQuotation(id, version, options),
+    mutationFn: ({ version, options }: { version: number; options: ConfirmOptions }) => confirmQuotation(id, version, options),
+    onSuccess: store,
+  });
+}
+
+export function useReturnQuotation(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, note }: { version: number; note: string }) => returnQuotation(id, version, note),
+    onSuccess: store,
+  });
+}
+
+export function useValidateQuotation(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: (version: number) => validateQuotation(id, version),
+    onSuccess: store,
+  });
+}
+
+export function useUploadTemplate(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, file }: { version: number; file: File }) => uploadQuotationTemplate(id, version, file),
     onSuccess: store,
   });
 }

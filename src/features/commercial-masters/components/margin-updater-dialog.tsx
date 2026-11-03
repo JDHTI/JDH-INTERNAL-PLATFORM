@@ -8,10 +8,12 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { errorMessage } from "@/shared/lib/api-client";
+import type { Decimal } from "@/shared/lib/format";
+import { formatCop } from "@/features/supports/lib/format";
 
 import { useDownloadMarginTemplate, useUploadMargins } from "../hooks/use-commercial-masters";
 import { MARGIN_LABELS, formatMargin } from "../lib/margins";
-import type { MarginChange, MarginField, MarginReport } from "../types/commercial-master.types";
+import type { LiquorTaxField, MarginChange, MarginField, MarginReport } from "../types/commercial-master.types";
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 const ACCEPT = ".xlsx,.csv";
@@ -228,8 +230,21 @@ function Count({ label, value }: { label: string; value: number }) {
   );
 }
 
+const TAX_LABELS: Record<LiquorTaxField, string> = {
+  liquor_tax: "Imp. licores Nacional",
+  liquor_tax_coast: "Imp. licores Costa",
+  liquor_tax_group: "Grupo de licor",
+};
+
+/** Amounts in pesos; the group is a code and prints as is. */
+function formatTax(field: LiquorTaxField, value: Decimal | string | null): string {
+  if (value === null || value === undefined || value === "") return "—";
+  return field === "liquor_tax_group" ? String(value) : formatCop(value);
+}
+
 function ChangeRow({ change }: { change: MarginChange }) {
   const margins = Object.entries(change.margins) as [MarginField, { from: string | null; to: string | null }][];
+  const taxes = Object.entries(change.taxes ?? {}) as [LiquorTaxField, { from: Decimal | string | null; to: Decimal | string | null }][];
   return (
     <tr className="align-top">
       <td className="max-w-64 px-3 py-1.5">
@@ -242,6 +257,12 @@ function ChangeRow({ change }: { change: MarginChange }) {
             <li key={field} className="tabular-nums">
               <span className="text-text-secondary">{MARGIN_LABELS[field] ?? field}: </span>
               {formatMargin(value.from)} → {formatMargin(value.to)}
+            </li>
+          ))}
+          {taxes.map(([field, value]) => (
+            <li key={field} className="tabular-nums">
+              <span className="text-text-secondary">{TAX_LABELS[field] ?? field}: </span>
+              {formatTax(field, value.from)} → {formatTax(field, value.to)}
             </li>
           ))}
           {change.notes && (

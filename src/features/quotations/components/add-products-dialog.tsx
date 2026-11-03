@@ -3,7 +3,6 @@
 import { useId } from "react";
 import { AlertTriangle, CheckCircle2, PackagePlus, X } from "lucide-react";
 
-import BasePicker, { PRODUCT_PICKER, type BasePickerConfig } from "@/shared/components/pickers/base-picker";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Textarea } from "@/shared/components/ui/field";
@@ -11,22 +10,9 @@ import { cn } from "@/shared/lib/utils";
 
 import { MAX_REFERENCES_PER_IMPORT, formatCount, parseReferenceText } from "../lib/format";
 import type { ImportResult, Quotation } from "../types/quotations.types";
+import ProductMultiSearch, { type ProductPick } from "./product-multi-search";
 
-/**
- * The product master, worded for this step. The search is indexed in the API
- * (20 to 115 ms), so it waits 200 ms instead of the usual 350.
- */
-const PRODUCT_SEARCH: BasePickerConfig = {
-  ...PRODUCT_PICKER,
-  label: "Buscar un producto",
-  placeholder: "SKU o nombre, por ejemplo 26278 o ginebra",
-  debounceMs: 200,
-};
-
-export interface ImportPick {
-  sku: string;
-  description?: string;
-}
+export type ImportPick = ProductPick;
 
 export interface ImportDraft {
   picks: ImportPick[];
@@ -80,7 +66,7 @@ export default function AddProductsDialog({
       isForm
       wide
       title="Agregar productos a la cotización"
-      description="Busca productos o pega una columna de Excel. Los nuevos entran al final con su costo, margen objetivo, apoyos e impuesto de licores; los que ya están se revalidan con los datos de hoy y conservan su precio nuevo."
+      description="Busca y marca varios productos, o pega una columna de Excel. Los nuevos entran al final con su costo, margen objetivo, apoyos e impuesto de licores; los que ya están se revalidan con los datos de hoy y conservan su precio nuevo."
     >
       <form
         noValidate
@@ -94,18 +80,25 @@ export default function AddProductsDialog({
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="min-w-0 space-y-3">
-            <BasePicker
-              config={PRODUCT_SEARCH}
-              selected={null}
-              onSelect={(option) =>
-                draft.picks.some((pick) => pick.sku === option.value)
-                  ? undefined
-                  : setPicks([...draft.picks, { sku: option.value, description: option.hint }])
+            <ProductMultiSearch
+              picked={draft.picks}
+              existing={existing}
+              onToggle={(pick) =>
+                setPicks(
+                  draft.picks.some((item) => item.sku === pick.sku)
+                    ? draft.picks.filter((item) => item.sku !== pick.sku)
+                    : [...draft.picks, pick]
+                )
               }
-              onClear={() => undefined}
+              onPickMany={(picks) => setPicks([...draft.picks, ...picks])}
             />
-            {draft.picks.length > 0 ? (
-              <ul className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Productos elegidos">
+            {draft.picks.length > 0 && (
+              <h3 className="text-[13px] font-medium">
+                Marcados <span className="tabular-nums">({formatCount(draft.picks.length)})</span>
+              </h3>
+            )}
+            {draft.picks.length > 0 && (
+              <ul className="max-h-40 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Productos marcados">
                 {draft.picks.map((pick) => (
                   <li key={pick.sku} className="flex min-h-10 items-center gap-3 px-3 py-1.5 text-sm">
                     <span className="w-16 shrink-0 font-mono text-[13px]">{pick.sku}</span>
@@ -122,8 +115,6 @@ export default function AddProductsDialog({
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-[13px] text-text-secondary">Elige un resultado y queda en esta lista; puedes buscar varios.</p>
             )}
           </div>
 
