@@ -13,7 +13,7 @@ import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import { useProfiles } from "../hooks/use-supports";
 import { calcMethodLabel, choiceLabel, formatDay } from "../lib/format";
 import type { SupportProfile } from "../types/support.types";
-import BasePicker, { SUPPLIER_PICKER } from "./base-picker";
+import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 
 const profileHref = (area: string, code: string) => `/${area}/apoyos/perfiles/${encodeURIComponent(code)}`;
 

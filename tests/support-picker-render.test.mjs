@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
-const source = await readFile(new URL("../src/features/supports/components/base-picker.tsx", import.meta.url), "utf8");
+const source = await readFile(new URL("../src/shared/components/pickers/base-picker.tsx", import.meta.url), "utf8");
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 test("Salamanca's three branches render one selectable NIT without local text filtering", () => {
   let receivedOptions;
@@ -19,7 +19,7 @@ test("Salamanca's three branches render one selectable NIT without local text fi
     "@/shared/components/ui/autocomplete": { Autocomplete: props => { receivedOptions = props.options; return React.createElement("span", {}, props.options.map(option => `${option.label} ${option.hint}`).join("; ")); } },
     "@/shared/components/ui/button": { Button: "button" },
     "@/shared/lib/api-client": { errorMessage: String },
-    "../services/base-picker.service": {},
+    "./base-picker.service": {},
   };
   const loaded = { exports: {} };
   new Function("require", "module", "exports", code)(id => mocks[id] ?? require(id), loaded, loaded.exports);

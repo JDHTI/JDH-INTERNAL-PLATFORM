@@ -10,7 +10,7 @@ async function moduleUrl(path, replacements = {}) {
   return `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
 }
 const client = await moduleUrl("../src/shared/lib/api-client.ts");
-const { getPickerPage, nextPickerPage } = await import(await moduleUrl("../src/features/supports/services/base-picker.service.ts", { "@/shared/lib/api-client": client }));
+const { getPickerPage, nextPickerPage } = await import(await moduleUrl("../src/shared/components/pickers/base-picker.service.ts", { "@/shared/lib/api-client": client }));
 test("customer NIT is sent unchanged, with pagination and no active filter", async t => {
   let url;
   t.mock.method(globalThis, "fetch", async requested => { url = new URL(requested); return new Response(JSON.stringify({ items: [{ nit: "80140929", legal_name: "SALAMANCA MEDINA MIGUEL ANGEL" }], total: 1, page: 1, size: 50 }), { headers: { "Content-Type": "application/json" } }); });

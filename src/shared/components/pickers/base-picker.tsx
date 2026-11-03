@@ -6,9 +6,9 @@ import { X } from "lucide-react";
 
 import { Autocomplete, type AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
-import { errorMessage } from "@/shared/lib/api-client";
+import { errorMessage, type Query } from "@/shared/lib/api-client";
 import { Button } from "@/shared/components/ui/button";
-import { getPickerPage, nextPickerPage } from "../services/base-picker.service";
+import { getPickerPage, nextPickerPage } from "./base-picker.service";
 
 type Row = Record<string, unknown>;
 
@@ -16,6 +16,20 @@ export interface BasePickerConfig {
   label: string;
   placeholder: string;
   endpoint: string;
+  /** Extra filters the endpoint takes besides `q` and paging, e.g. `{ scope: "mine" }`. */
+  query?: Query;
+  /**
+   * Characters typed before asking the API. 0 lists on focus with nothing
+   * typed, for a short list such as a seller's own customers.
+   */
+  minChars?: number;
+  /**
+   * Pause after typing before asking, in ms. DESIGN.md §7.3 sets 350 for every
+   * search; an endpoint that is indexed and answers fast can ask for less.
+   */
+  debounceMs?: number;
+  /** What the open list says when the endpoint finds nothing. */
+  emptyText?: string;
   /** One option per distinct value: the masters repeat a NIT once per branch. */
   toOption: (row: Row) => AutocompleteOption;
 }
@@ -58,10 +72,10 @@ export const PRODUCT_PICKER: BasePickerConfig = {
 const MIN_CHARS = 2;
 
 /**
- * One optional filter of the base search bar. Empty it is a search field with
- * suggestions from the masters; once a value is chosen it shows as a removable
- * chip, so the active filter is always visible. Requests wait for two
- * characters and for typing to pause: the endpoints are rate limited.
+ * A search field with suggestions from a paged endpoint (the masters, the
+ * quotation customers). Once a value is chosen it shows as a removable chip,
+ * so the choice is always visible. Requests wait for typing to pause and, by
+ * default, for two characters: the endpoints are rate limited.
  */
 export default function BasePicker({
   config,
@@ -76,13 +90,13 @@ export default function BasePicker({
 }) {
   const id = useId();
   const [input, setInput] = useState("");
-  const q = useDebouncedValue(input.trim());
-  const enabled = selected === null && q.length >= MIN_CHARS;
+  const q = useDebouncedValue(input.trim(), config.debounceMs);
+  const enabled = selected === null && q.length >= (config.minChars ?? MIN_CHARS);
 
   const suggestions = useInfiniteQuery({
-    queryKey: ["supports-base-picker", config.endpoint, q],
+    queryKey: ["base-picker", config.endpoint, config.query ?? {}, q],
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => getPickerPage(config.endpoint, q, pageParam),
+    queryFn: ({ pageParam }) => getPickerPage(config.endpoint, q, pageParam, config.query),
     getNextPageParam: nextPickerPage,
     enabled,
     staleTime: 60_000,
@@ -123,7 +137,7 @@ export default function BasePicker({
           onValueChange={setInput}
           options={currentInput ? options : []}
           isLoading={enabled && suggestions.isFetching}
-          emptyText={currentInput && suggestions.isSuccess ? "Sin coincidencias. Prueba con el NIT o menos palabras del nombre." : undefined}
+          emptyText={currentInput && suggestions.isSuccess ? (config.emptyText ?? "Sin coincidencias. Prueba con el NIT o menos palabras del nombre.") : undefined}
           onSelect={(option) => {
             setInput("");
             onSelect(option);

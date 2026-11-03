@@ -21,7 +21,7 @@ import type {
   SpecialCaseStatus,
 } from "../types/support.types";
 import { failureMessage } from "./support-actions";
-import BasePicker, { CUSTOMER_PICKER, SUPPLIER_PICKER } from "./base-picker";
+import BasePicker, { CUSTOMER_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 
 const STATUS_OPTIONS = Object.entries(CASE_STATUS_LABELS).map(([value, label]) => ({ value, label }));
 const PRIORITY_OPTIONS = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));
