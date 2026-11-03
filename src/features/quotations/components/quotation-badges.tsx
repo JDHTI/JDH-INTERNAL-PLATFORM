@@ -28,12 +28,12 @@ const COMPLIANCE_LOOK: Record<Compliance, { tone: BadgeTone; icon: typeof CheckC
  * carries it (DESIGN.md §3.6). The badge background is opaque, so it stays AA
  * on a tinted row (§3.5).
  */
-export function ComplianceBadge({ compliance }: { compliance: Compliance }) {
+export function ComplianceBadge({ compliance, label }: { compliance: Compliance; label?: string | null }) {
   const look = COMPLIANCE_LOOK[compliance] ?? { tone: "neutral" as BadgeTone, icon: AlertTriangle };
   const Icon = look.icon;
   return (
     <Badge tone={look.tone}>
-      <Icon aria-hidden="true" /> {COMPLIANCE_LABELS[compliance] ?? compliance}
+      <Icon aria-hidden="true" /> {label || COMPLIANCE_LABELS[compliance] || compliance}
     </Badge>
   );
 }

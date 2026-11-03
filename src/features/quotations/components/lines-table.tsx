@@ -82,14 +82,16 @@ export function LinesTable({ lines, editor, onOpenSupport }: LinesProps) {
               <td className={cn(td, num)}>
                 <span className="block">{formatMargin(line.target_margin_pct)}</span>
                 {line.margin_basis && (
-                  <span className="block text-xs text-text-secondary">{MARGIN_BASIS_LABELS[line.margin_basis] ?? line.margin_basis}</span>
+                  <span className="block text-xs text-text-secondary">
+                    {line.margin_basis_label || MARGIN_BASIS_LABELS[line.margin_basis] || line.margin_basis}
+                  </span>
                 )}
               </td>
               <td className={cn(td, "max-w-48")}>
                 <span className="block truncate" title={line.supplier_name ?? undefined}>{line.supplier_name ?? line.supplier_code ?? "—"}</span>
               </td>
               <td className={cn(td, "text-right")}><PriceInput line={line} editor={editor} /></td>
-              <td className={cn(td, num)}>{formatMoney(line.min_price)}</td>
+              <td className={cn(td, num)}><MinPrice line={line} /></td>
               <td className={cn(td, num)}>
                 <NewMargin line={line} />
               </td>
@@ -121,7 +123,7 @@ export function LinesList({ lines, editor, onOpenSupport }: LinesProps) {
             <Pair label="Costo"><Cost line={line} /></Pair>
             <Pair label="Margen actual">{formatMargin(line.current_margin_with_support_pct)}</Pair>
             <Pair label="Margen objetivo">{formatMargin(line.target_margin_pct)}</Pair>
-            <Pair label="Precio mínimo">{formatMoney(line.min_price)}</Pair>
+            <Pair label="Precio mínimo"><MinPrice line={line} /></Pair>
             <Pair label="Apoyo"><SupportCell line={line} onOpen={onOpenSupport} /></Pair>
           </dl>
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -224,6 +226,17 @@ function SupportCell({ line, onOpen }: { line: QuotationLine; onOpen: (line: Quo
   );
 }
 
+/**
+ * The floor that still passes the rule, rounded up to the peso: the advisor
+ * types it as a base, and rounding down would land a fraction under the rule.
+ * The exact value stays in the tooltip.
+ */
+function MinPrice({ line }: { line: QuotationLine }) {
+  const exact = toNumber(line.min_price);
+  if (exact === null) return <>—</>;
+  return <span title={`Exacto: ${formatMoney(exact)}`}>{formatMoney(Math.ceil(exact))}</span>;
+}
+
 /** The margin the new price leaves with the support, and whether it passes the rule. */
 function NewMargin({ line }: { line: QuotationLine }) {
   if (line.new_price === null) return <span className="text-text-secondary">—</span>;
@@ -232,7 +245,7 @@ function NewMargin({ line }: { line: QuotationLine }) {
       <span title={line.support ? `Sin apoyo: ${formatMargin(line.new_margin_pct)}` : undefined}>
         {formatMargin(line.new_margin_with_support_pct ?? line.new_margin_pct)}
       </span>
-      {line.compliance && <ComplianceBadge compliance={line.compliance} />}
+      {line.compliance && <ComplianceBadge compliance={line.compliance} label={line.compliance_label} />}
     </span>
   );
 }

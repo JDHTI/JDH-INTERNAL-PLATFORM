@@ -376,7 +376,7 @@ function Summary({ quotation }: { quotation: Quotation }) {
   const items: { label: string; value: number; alert?: boolean }[] = [
     { label: "Referencias", value: quotation.line_count },
     { label: "Con precio nuevo", value: quotation.changed_count },
-    { label: "Bajo el mínimo", value: quotation.below_rule_count, alert: quotation.below_rule_count > 0 },
+    { label: "No cumplen la regla", value: quotation.below_rule_count, alert: quotation.below_rule_count > 0 },
   ];
   return (
     <dl className="grid grid-cols-3 gap-3">

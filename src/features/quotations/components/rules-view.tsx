@@ -14,11 +14,15 @@ import { QuotationLoadError } from "./quotations-gate";
 
 /** Same vocabulary as the validator's rules; an effect the UI does not know yet prints readable and neutral. */
 const EFFECT_LOOK: Record<string, { tone: BadgeTone; label: string }> = {
-  bloquea: { tone: "danger", label: "Bloquea" },
   retiene: { tone: "danger", label: "Retiene" },
   alerta: { tone: "warning", label: "Alerta" },
   libera: { tone: "success", label: "Libera" },
   informa: { tone: "neutral", label: "Informa" },
+};
+
+/** Names for the keys of a rule's `parameters`; the values always come from the API. */
+const PARAMETER_LABELS: Record<string, string> = {
+  puntos_maximos: "Puntos máximos bajo el objetivo",
 };
 
 /**
@@ -99,7 +103,7 @@ function Rule({ rule, step }: { rule: QuotationRule; step: number }) {
           <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
             {parameters.map(([key, value]) => (
               <div key={key} className="flex gap-1">
-                <dt className="text-text-secondary">{humanize(key)}:</dt>
+                <dt className="text-text-secondary">{PARAMETER_LABELS[key] ?? humanize(key)}:</dt>
                 <dd className="font-medium tabular-nums">{value}</dd>
               </div>
             ))}

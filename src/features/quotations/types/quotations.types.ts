@@ -132,6 +132,8 @@ export interface QuotationLine {
   cost_is_global: boolean;
   target_margin_pct: DecimalText | null;
   margin_basis: MarginBasis | null;
+  /** The API's own words for `margin_basis`, ready to show. */
+  margin_basis_label: string | null;
   min_margin_pct: DecimalText | null;
   support: LineSupport | null;
   support_candidates: SupportCandidate[];
@@ -143,6 +145,7 @@ export interface QuotationLine {
   new_margin_with_support_pct: DecimalText | null;
   variation_pct: DecimalText | null;
   compliance: Compliance | null;
+  compliance_label: string | null;
   price_with_taxes: DecimalText | null;
   problems: string[];
   problem_labels: string[];
@@ -169,7 +172,7 @@ export interface Quotation extends QuotationSummary {
 
 export interface LinePrice {
   sku: string;
-  /** Null removes the new price. */
+  /** Null removes the new price; up to 4 decimals. */
   new_price: DecimalText | null;
 }
 

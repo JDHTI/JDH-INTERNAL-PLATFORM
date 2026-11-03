@@ -55,8 +55,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           <div role="group" aria-label="De quién" className="flex gap-2">
             <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
               Mis cotizaciones
@@ -65,7 +65,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
               Todas
             </ToggleChip>
           </div>
-          <div className="relative w-full sm:w-80">
+          <div className="relative w-full sm:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -84,7 +84,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
             className="w-full sm:w-48"
           />
         </div>
-        <Link href={newHref} className={cn(buttonVariants(), "max-md:h-11")}>
+        <Link href={newHref} className={cn(buttonVariants(), "w-full sm:w-auto max-md:h-11")}>
           <Plus aria-hidden="true" /> Nueva cotización
         </Link>
       </div>
@@ -148,13 +148,13 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
         <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
             <th scope="col" className="px-3 py-2">Cliente</th>
-            <th scope="col" className="px-3 py-2">Canal</th>
+            <th scope="col" className="hidden px-3 py-2 xl:table-cell">Canal</th>
             <th scope="col" className="px-3 py-2">Lista</th>
-            <th scope="col" className="px-3 py-2 text-right">Ventana</th>
+            <th scope="col" className="hidden px-3 py-2 text-right xl:table-cell">Ventana</th>
             <th scope="col" className="px-3 py-2">Estado</th>
             <th scope="col" className="px-3 py-2 text-right">Referencias</th>
             <th scope="col" className="px-3 py-2 text-right">Cambiadas</th>
-            <th scope="col" className="px-3 py-2 text-right">Bajo la regla</th>
+            <th scope="col" className="px-3 py-2 text-right">No cumplen</th>
             <th scope="col" className="px-3 py-2">Actualizada</th>
           </tr>
         </thead>
@@ -167,9 +167,9 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
                 </Link>
                 <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
               </td>
-              <td className="px-3 py-2">{item.channel ?? "—"}</td>
+              <td className="hidden px-3 py-2 xl:table-cell">{item.channel ?? "—"}</td>
               <td className="px-3 py-2 font-mono text-[13px]">{item.price_list_id ?? "—"}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{item.window_months} meses</td>
+              <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>
               <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.changed_count)}</td>
@@ -208,7 +208,7 @@ function QuotationCards({ items, basePath }: { items: QuotationSummary[]; basePa
                 {formatCount(item.changed_count)} de {formatCount(item.line_count)} cambiadas
               </span>
               {item.below_rule_count > 0 && (
-                <span className="font-semibold tabular-nums text-danger">{formatCount(item.below_rule_count)} bajo la regla</span>
+                <span className="font-semibold tabular-nums text-danger">{formatCount(item.below_rule_count)} no cumplen la regla</span>
               )}
             </span>
           </Link>
