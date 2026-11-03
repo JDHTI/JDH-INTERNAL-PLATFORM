@@ -259,6 +259,21 @@ lienzo y opaco (`color-mix`, 8% en claro sobre `--neutral-0`, 12% en oscuro sobr
 | `--text-secondary` | #6c6966 · **4.85** ✅ | #b7b4ad · **6.37** ✅ |
 | `--warning` | #b54708 · **4.83** ✅ | #fdb022 · **7.17** ✅ |
 
+**Fila teñida por estado (tabla del cotizador)**
+
+`--danger-surface` y `--warning-surface` aplanados sobre `--surface`. Sobre la fila van
+`--text-primary`, `--text-secondary` y badges (fondo opaco `--*-badge`). **`--danger` como
+texto suelto sobre la fila roja no pasa en oscuro**, así que un error dentro de la fila va en
+badge, nunca en texto rojo directo.
+
+| Primer plano | Claro | Oscuro |
+|---|---|---|
+| `--text-primary` sobre fila roja | #1d1d1b / #f9edec · **14.76** ✅ | #ffffff / #41312e · **12.33** ✅ |
+| `--text-secondary` sobre fila roja | #6c6866 / #f9edec · **4.82** ✅ | #bbb5b4 / #41312e · **6.09** ✅ |
+| `--text-secondary` sobre fila ámbar | #6c6966 / #f9f0eb · **4.85** ✅ | #bbb8b1 / #42382a · **5.79** ✅ |
+| `--warning` sobre fila ámbar (ícono) | #b54708 / #f9f0eb · **4.83** ✅ | #fdb022 / #42382a · **6.23** ✅ |
+| `--danger` sobre fila roja | #b42318 / #f9edec · **5.75** ✅ | #f97066 / #41312e · **4.42** ❌ — no usar |
+
 **Opción elegida en una lista de opciones (formulario público de PQRSF)**
 
 La descripción de cada opción va en `--text-secondary`; la opción elegida se pinta con

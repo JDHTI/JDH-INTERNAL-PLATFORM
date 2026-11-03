@@ -5,6 +5,7 @@ import {
   Banknote,
   BookOpen,
   Building2,
+  Calculator,
   CalendarCheck,
   CalendarClock,
   ClipboardCheck,
@@ -370,6 +371,7 @@ export const MODULES: ModuleItem[] = [
   },
 
   { id: "comercial-apoyos", name: "Maestro de apoyos", path: "/comercial/apoyos", areaSlug: "comercial", category: "Maestros", icon: HandCoins, available: true },
+  { id: "comercial-cotizador", name: "Cotizador", path: "/comercial/cotizador", areaSlug: "comercial", category: "Operación", icon: Calculator, available: true },
   { id: "comercial-solicitudes-apoyos", name: "Mis solicitudes JDH", path: "/comercial/apoyos/solicitudes", areaSlug: "comercial", category: "Operación", icon: ClipboardList, available: true },
   { id: "bi-solicitudes-apoyos", name: "Solicitudes de apoyo JDH", path: "/bi/solicitudes-apoyos", areaSlug: "bi", category: "Operación", icon: ClipboardList, available: true },
   // ── BI ──
