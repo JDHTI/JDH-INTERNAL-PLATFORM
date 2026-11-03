@@ -1,17 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Calculator, Loader2 } from "lucide-react";
+import { Calculator, Loader2 } from "lucide-react";
 
 import BasePicker, { type BasePickerConfig } from "@/shared/components/pickers/base-picker";
-import { Alert } from "@/shared/components/ui/alert";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Button } from "@/shared/components/ui/button";
+import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 
 import { useCreateQuotation, useQuotationPermissions } from "../hooks/use-quotations";
 import { WINDOW_OPTIONS } from "../lib/format";
@@ -55,16 +53,54 @@ const WINDOW_HINT: Record<WindowMonths, string> = {
   12: "Incluye referencias de temporada o de rotación lenta.",
 };
 
-export default function NewQuotationForm({ basePath }: { basePath: string }) {
+/**
+ * New quotation, as a modal over the list: customer and sales window, then
+ * the editor. Building it reads the DWH (2 to 15 seconds, more when it is
+ * cold), so while it runs the dialog cannot be dismissed: closing it would
+ * leave a request running that later navigates away on its own.
+ */
+export default function NewQuotationDialog({
+  basePath,
+  open,
+  onOpenChange,
+}: {
+  basePath: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const create = useCreateQuotation();
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && create.isPending) return;
+        onOpenChange(next);
+      }}
+      isForm
+      title="Nueva cotización"
+      description="Toma el último precio que el cliente pagó por cada referencia en la ventana, con el costo de hoy, el margen objetivo de su canal y los apoyos vigentes."
+    >
+      {open && <NewQuotationForm basePath={basePath} create={create} onCancel={() => onOpenChange(false)} />}
+    </Dialog>
+  );
+}
+
+function NewQuotationForm({
+  basePath,
+  create,
+  onCancel,
+}: {
+  basePath: string;
+  create: ReturnType<typeof useCreateQuotation>;
+  onCancel: () => void;
+}) {
   const router = useRouter();
   const permissions = useQuotationPermissions();
-  const create = useCreateQuotation();
   const sellerLinked = permissions.data?.seller_linked === true;
   const [scopeChoice, setScopeChoice] = useState<CustomerScope | null>(null);
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
   const [error, setError] = useState<string | null>(null);
-  useBreadcrumbLabel(`${basePath}/nueva`, "Nueva cotización");
 
   // Without a linked seller "mis clientes" is always empty, so it starts on everyone.
   const scope: CustomerScope = scopeChoice ?? (sellerLinked ? "mine" : "all");
@@ -91,24 +127,9 @@ export default function NewQuotationForm({ basePath }: { basePath: string }) {
   };
 
   return (
-    <div className="max-w-[640px] space-y-6">
-      <div className="space-y-3">
-        <Link
-          href={basePath}
-          className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" /> Cotizaciones
-        </Link>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Nueva cotización</h1>
-          <p className="text-sm text-text-secondary">
-            Toma el último precio que el cliente pagó por cada referencia en la ventana, con el costo de hoy, el margen
-            objetivo de su canal y los apoyos vigentes.
-          </p>
-        </div>
-      </div>
-
-      <form onSubmit={submit} className="space-y-5" noValidate>
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      {/* min-w-0: a fieldset defaults to min-content width, which defeats the chip's truncation. */}
+      <fieldset disabled={create.isPending} className="min-w-0 space-y-5">
         <div className="space-y-2">
           <div role="group" aria-label="Clientes a buscar" className="flex flex-wrap gap-2">
             <ToggleChip active={scope === "mine"} onClick={() => chooseScope("mine")}>
@@ -142,7 +163,7 @@ export default function NewQuotationForm({ basePath }: { basePath: string }) {
           onClear={() => setCustomer(null)}
         />
 
-        <fieldset className="space-y-2">
+        <fieldset className="min-w-0 space-y-2">
           <legend className="text-[13px] font-medium">Ventana de ventas</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {WINDOW_OPTIONS.map((months) => (
@@ -169,22 +190,23 @@ export default function NewQuotationForm({ basePath }: { basePath: string }) {
             ))}
           </div>
         </fieldset>
+      </fieldset>
 
-        {error && <Alert severity="danger">{error}</Alert>}
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Link
-            href={basePath}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-border-control px-4 text-sm font-medium hover:bg-canvas-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11"
-          >
-            Cancelar
-          </Link>
-          <Button type="submit" size="lg" disabled={create.isPending} className="max-md:h-11">
-            {create.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Calculator aria-hidden="true" />}
-            {create.isPending ? "Leyendo ventas y costos…" : "Armar cotización"}
-          </Button>
-        </div>
-      </form>
-    </div>
+      {create.isPending && (
+        <p className="text-[13px] text-text-secondary" aria-live="polite">
+          Leyendo las ventas, el costo y los apoyos del cliente en el datawarehouse. Suele tardar entre 2 y 15 segundos.
+        </p>
+      )}
+      <DialogError message={error} />
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={create.isPending} className="max-md:h-11">
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={create.isPending} className="max-md:h-11">
+          {create.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Calculator aria-hidden="true" />}
+          {create.isPending ? "Armando cotización…" : "Armar cotización"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }

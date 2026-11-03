@@ -7,7 +7,7 @@ import { Calculator, FileX2, Plus, Search } from "lucide-react";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import TableSkeleton from "@/shared/components/table-skeleton";
-import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -18,6 +18,7 @@ import { useQuotations } from "../hooks/use-quotations";
 import { formatCount, formatDateTime } from "../lib/format";
 import type { QuotationStatus, QuotationSummary } from "../types/quotations.types";
 import { QuotationStatusBadge } from "./quotation-badges";
+import NewQuotationDialog from "./new-quotation-dialog";
 import { QuotationLoadError } from "./quotations-gate";
 import { ToggleChip } from "./toggle-chip";
 
@@ -35,6 +36,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   const [status, setStatus] = useState<QuotationStatus | "">("");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
+  const [creating, setCreating] = useState(false);
   const q = useDebouncedValue(text.trim());
 
   const quotations = useQuotations({ mine, status, q, page, size: PAGE_SIZE });
@@ -51,10 +53,9 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
     setText("");
   });
 
-  const newHref = `${basePath}/nueva`;
-
   return (
     <div className="space-y-4">
+      <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           <div role="group" aria-label="De quién" className="flex gap-2">
@@ -84,9 +85,9 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
             className="w-full sm:w-48"
           />
         </div>
-        <Link href={newHref} className={cn(buttonVariants(), "w-full sm:w-auto max-md:h-11")}>
+        <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
           <Plus aria-hidden="true" /> Nueva cotización
-        </Link>
+        </Button>
       </div>
 
       {quotations.isPending ? (
@@ -107,9 +108,9 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
             icon={Calculator}
             title={mine ? "Aún no tienes cotizaciones" : "Aún no hay cotizaciones"}
             action={
-              <Link href={newHref} className={cn(buttonVariants({ variant: "outline" }), "max-md:h-11")}>
+              <Button variant="outline" onClick={() => setCreating(true)} className="max-md:h-11">
                 <Plus aria-hidden="true" /> Cotizar un cliente
-              </Link>
+              </Button>
             }
           >
             Elige un cliente y una ventana de 6 o 12 meses: la cotización parte del último precio que pagó cada

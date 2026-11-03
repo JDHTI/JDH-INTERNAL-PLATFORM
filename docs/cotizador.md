@@ -21,8 +21,7 @@ páginas en `src/app/(app)/[area]/cotizador/`. El módulo `comercial-cotizador` 
 
 | Ruta | Pantalla |
 | --- | --- |
-| `/comercial/cotizador` | Cotizaciones guardadas: «Mis cotizaciones» por defecto o todas, búsqueda por cliente o NIT, estado |
-| `/comercial/cotizador/nueva` | Cliente y ventana (6 o 12 meses). El selector busca en `GET /quotations/customers` con `scope=mine` (lista al enfocar) o `scope=all` (desde dos letras). Sin vendedor vinculado arranca en «Todos los clientes» |
+| `/comercial/cotizador` | Cotizaciones guardadas: «Mis cotizaciones» por defecto o todas, búsqueda por cliente o NIT, estado. «Nueva cotización» abre un **modal** (no hay ruta propia): cliente y ventana (6 o 12 meses). El selector busca en `GET /quotations/customers` con `scope=mine` (lista al enfocar) o `scope=all` (desde dos letras); sin vendedor vinculado arranca en «Todos los clientes». Mientras arma la cotización (lee el DWH, 2 a 15 s) el modal no se puede cerrar, y al terminar abre el editor |
 | `/comercial/cotizador/<id>` | Editor: cabecera del cliente, lista SIESA con cuántos clientes la comparten, avisos, resumen, tabla de referencias y acciones |
 | `/comercial/cotizador/reglas` | `GET /quotations/rules`, abierta a todos |
 
