@@ -55,11 +55,19 @@ la caché; lo que se escribe mientras un guardado está en vuelo va en el siguie
 salidas: «Guardar mis precios» (lee la versión actual del API y reenvía) o «Descartar mis
 precios». Salir de la página con precios sin guardar pide confirmación al navegador.
 
-**Agregar productos.** Botón en la barra del editor: un diálogo con el selector de productos
-(`/commercial/products`, varias referencias) y un campo para pegar una lista (una por línea o
-separadas por comas, punto y coma o espacios). Las que ya están se omiten antes de enviar y
-todo sale en un solo `POST /lines` (máximo 200); el 422 del API (referencia inexistente,
-inactiva) se muestra en el diálogo. Las filas agregadas llevan el badge «Agregado» y un botón
+**Avisos.** La cabecera muestra la lista SIESA del cliente como un dato más (el nombre en el
+tooltip). Por decisión del negocio (2026-11-03) el editor no muestra los avisos
+`lista_compartida`, `co_distintos` ni `listas_distintas`; cuántos clientes comparten la lista
+se dice en el diálogo de Generar, antes de escribir en ella. Los demás avisos sí se muestran.
+
+**Agregar productos.** Botón junto a la búsqueda de la tabla. El diálogo va en tres pasos en
+una sola pantalla: 1) buscar el producto (`/commercial/products`, desde dos letras) y elegirlo
+en los resultados, que lo pasa a la lista y deja el buscador listo para el siguiente; 2) la
+lista «Productos por agregar», con un botón para quitar cada uno; 3) «Agregar N productos».
+Pegar una columna de SKU desde Excel es opcional y está plegado bajo «¿Tienes los SKU en
+Excel? Pégalos». Las que ya están se omiten antes de enviar y todo sale en un solo
+`POST /lines` (máximo 200); el 422 del API (referencia inexistente, inactiva) se muestra en el
+diálogo. Al agregar, la tabla pasa al filtro «Agregados» para que se vean las filas nuevas. Las filas agregadas llevan el badge «Agregado» y un botón
 para quitarlas (`DELETE /lines/{sku}?version=N`); las del histórico no lo tienen. Su último
 precio, margen actual y variación muestran un guion. Un cliente sin ventas en la ventana
 (`sin_ventas`) muestra un estado vacío cuya acción es «Agregar productos».

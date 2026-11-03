@@ -208,9 +208,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setAdding(true)} disabled={busy} className="max-md:h-11">
-            <PackagePlus aria-hidden="true" /> Agregar productos
-          </Button>
           <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
             <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
             {refresh.isPending ? "Refrescando…" : "Refrescar"}
@@ -248,14 +245,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       </header>
 
-      <PriceListNotice quotation={quotation} />
       <Warnings quotation={quotation} />
       <Summary quotation={quotation} />
 
       <SaveStatus editor={editor} />
 
-      <div className={cn("sticky top-0 z-20 flex flex-col gap-3 bg-canvas py-2 lg:flex-row lg:items-center", quotation.lines.length === 0 && "hidden")}>
-        <div className="relative w-full lg:max-w-sm">
+      <div className={cn("sticky top-0 z-20 space-y-2 bg-canvas py-2", quotation.lines.length === 0 && "hidden")}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <Input
             type="search"
@@ -268,6 +265,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             aria-label="Buscar referencias"
             className="pl-9 max-md:h-11"
           />
+        </div>
+        {/* Next to the references it adds to, not among the quotation's own actions. */}
+        <Button variant="outline" onClick={() => setAdding(true)} disabled={busy} className="sm:ml-auto max-md:h-11">
+          <PackagePlus aria-hidden="true" /> Agregar productos
+        </Button>
         </div>
         <div role="group" aria-label="Filtrar referencias" className="flex flex-wrap gap-2">
           <ToggleChip active={filter === "all"} onClick={() => chooseFilter("all")} count={counts.all}>Todas</ToggleChip>
@@ -335,7 +337,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       <GenerateDialog quotation={quotation} open={generating} onOpenChange={setGenerating} />
-      <AddProductsDialog quotation={quotation} open={adding} onOpenChange={setAdding} />
+      <AddProductsDialog quotation={quotation} open={adding} onOpenChange={setAdding} onAdded={() => chooseFilter("added")} />
       <LineDetailDialog
         line={detailLine}
         onClose={() => setDetailLine(null)}
@@ -364,6 +366,12 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
   const facts: [string, React.ReactNode][] = [
     ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
     ["Canal", quotation.channel ?? "Sin canal"],
+    [
+      "Lista SIESA",
+      <span key="list" className="font-mono" title={quotation.price_list_name ?? undefined}>
+        {quotation.price_list_id ?? "—"}
+      </span>,
+    ],
     ["CO que factura", quotation.billing_center_code ?? "—"],
     ["Vendedor", quotation.salesperson_name ?? "—"],
     ["Ventana", `${quotation.window_months} meses`],
@@ -389,40 +397,18 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
   );
 }
 
-/** The SIESA list the prices go to, and how many customers share it. */
-function PriceListNotice({ quotation }: { quotation: Quotation }) {
-  const shared = quotation.price_list_customers ?? 0;
-  const target = quotation.export_price_list_id ?? quotation.price_list_id;
-  return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3 text-sm sm:flex-row sm:items-baseline sm:gap-3">
-      <p>
-        <span className="text-text-secondary">Lista SIESA del cliente </span>
-        <span className="font-mono font-semibold">{quotation.price_list_id ?? "—"}</span>
-        {quotation.price_list_name && <span> {quotation.price_list_name}</span>}
-        {target && target !== quotation.price_list_id && (
-          <span className="text-text-secondary">
-            {" "}· el formato se generó para la lista <span className="font-mono text-text-primary">{target}</span>
-          </span>
-        )}
-      </p>
-      {shared > 1 && (
-        <p className="flex items-start gap-1.5 text-text-secondary">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-          <span>
-            La comparten <strong className="tabular-nums text-text-primary">{formatCount(shared)}</strong> clientes activos: un
-            precio cargado en ella les cambia a todos.
-          </span>
-        </p>
-      )}
-    </div>
-  );
-}
+/*
+ * Warnings the editor does not show. The shared list is said where it matters,
+ * in the generate dialog before anyone writes to it; the branch mismatches
+ * (several CO or lists among the branches) were noise for the advisor, by
+ * business decision (2026-11-03). "sin ventas" has its own empty state.
+ */
+const HIDDEN_WARNINGS = new Set(["lista_compartida", "co_distintos", "listas_distintas"]);
 
 /** What the API found odd about the customer, in its words. */
 function Warnings({ quotation }: { quotation: Quotation }) {
-  // The shared list has its own notice, and "sin ventas" its own empty state with the way out.
   const warnings = quotation.warnings.filter(
-    (warning) => warning.code !== "lista_compartida" && !(warning.code === "sin_ventas" && quotation.lines.length === 0)
+    (warning) => !HIDDEN_WARNINGS.has(warning.code) && !(warning.code === "sin_ventas" && quotation.lines.length === 0)
   );
   if (warnings.length === 0) return null;
   return (
