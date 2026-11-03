@@ -2,8 +2,10 @@ import { apiDownload, apiFetch } from "@/shared/lib/api-client";
 
 import type {
   GenerateOptions,
+  LineImport,
   LinePrice,
   Quotation,
+  QuotationWithImport,
   QuotationListParams,
   QuotationPage,
   QuotationPermissions,
@@ -48,11 +50,16 @@ export function updateLines(id: string, version: number, lines: LinePrice[]): Pr
 }
 
 /**
- * Adds references the customer did not buy in the window (1 to 200), all or
- * none: 422 names the one that does not exist, is inactive or is already there.
+ * Adds a pasted list and/or picked SKUs (up to 500). New references go to the
+ * end, ones already there are revalidated keeping their new price, and unknown
+ * or inactive ones are reported in `import_result` without blocking the rest.
+ * 422 only when none served; 409 when `version` is stale.
  */
-export function addLines(id: string, version: number, skus: string[]): Promise<Quotation> {
-  return apiFetch<Quotation>(`${one(id)}/lines`, { method: "POST", body: { version, skus } });
+export function addLines(id: string, version: number, { text, skus }: LineImport): Promise<QuotationWithImport> {
+  const body: { version: number; text?: string; skus?: string[] } = { version };
+  if (text && text.trim() !== "") body.text = text;
+  if (skus && skus.length > 0) body.skus = skus;
+  return apiFetch<QuotationWithImport>(`${one(id)}/lines`, { method: "POST", body });
 }
 
 /** Removes an added reference; 422 for one from the sales history. */

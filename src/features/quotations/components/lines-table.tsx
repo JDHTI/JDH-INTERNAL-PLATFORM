@@ -22,6 +22,10 @@ interface LinesProps {
   removing: string | null;
   /** False while prices are unsaved or another write is running: removing needs the current version. */
   canRemove: boolean;
+  /** References a paste is adding, painted at the end until the API answers. */
+  pending?: string[];
+  /** Revalidated by the last paste: tinted for a moment so they can be found. */
+  highlight?: Set<string>;
 }
 
 /*
@@ -53,7 +57,9 @@ const PIN = {
  * opaque background: the surface, with the row's tint (or hover) laid on top
  * as an image so it matches the rest of the row.
  */
-function pinnedBackground(line: QuotationLine): string {
+function pinnedBackground(line: QuotationLine, highlighted = false): string {
+  // The flash after a paste wins over the compliance tint for its 2.5 seconds.
+  if (highlighted) return "bg-surface bg-[linear-gradient(var(--info-surface),var(--info-surface))]";
   if (line.compliance === "bajo_minimo") return "bg-surface bg-[linear-gradient(var(--danger-surface),var(--danger-surface))]";
   if (line.compliance === "sin_objetivo" || line.compliance === "sin_costo")
     return "bg-surface bg-[linear-gradient(var(--warning-surface),var(--warning-surface))]";
@@ -95,10 +101,11 @@ export function LinesTable(props: LinesProps) {
         </thead>
         <tbody className="divide-y divide-border">
           {lines.map((line) => {
-            const pinned = pinnedBackground(line);
-            const tint = line.compliance ? COMPLIANCE_ROW[line.compliance] : undefined;
+            const highlighted = props.highlight?.has(line.sku) ?? false;
+            const pinned = pinnedBackground(line, highlighted);
+            const tint = highlighted ? "bg-info-surface" : line.compliance ? COMPLIANCE_ROW[line.compliance] : undefined;
             return (
-              <tr key={line.sku} className={cn("group", tint ?? "hover:bg-primary-subtle")}>
+              <tr key={line.sku} className={cn("group transition-colors duration-300", tint ?? "hover:bg-primary-subtle")}>
                 <td className={cn(td, PIN.sku, pinned)}>
                   <Reference line={line} {...props} />
                 </td>
@@ -122,6 +129,20 @@ export function LinesTable(props: LinesProps) {
               </tr>
             );
           })}
+          {(props.pending ?? []).map((sku) => (
+            <tr key={`pending-${sku}`} aria-busy="true">
+              <td className={cn(td, PIN.sku, "bg-surface")}>
+                <span className="font-mono text-[13px]">{sku}</span>
+              </td>
+              <td className={td} colSpan={9}>
+                <PendingLabel />
+              </td>
+              <td className={cn(td, PIN.price, "bg-surface")} />
+              <td className={cn(td, PIN.min, "bg-surface")} />
+              <td className={cn(td, PIN.margin, "bg-surface")} />
+              <td className={cn(td, PIN.variation, "bg-surface")} />
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -138,7 +159,13 @@ export function LinesList(props: LinesProps) {
   return (
     <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:hidden">
       {lines.map((line) => (
-        <li key={line.sku} className={cn("space-y-3 rounded-lg border border-border p-3", pinnedBackground(line))}>
+        <li
+          key={line.sku}
+          className={cn(
+            "space-y-3 rounded-lg border border-border p-3 transition-colors duration-300",
+            pinnedBackground(line, props.highlight?.has(line.sku) ?? false)
+          )}
+        >
           <div className="min-w-0 space-y-0.5">
             <Reference line={line} {...props} />
             <p className="truncate text-sm" title={line.description ?? undefined}>{line.description ?? "—"}</p>
@@ -166,7 +193,22 @@ export function LinesList(props: LinesProps) {
           </div>
         </li>
       ))}
+      {(props.pending ?? []).map((sku) => (
+        <li key={`pending-${sku}`} aria-busy="true" className="space-y-1 rounded-lg border border-dashed border-border-control bg-surface p-3">
+          <p className="font-mono text-[13px]">{sku}</p>
+          <PendingLabel />
+        </li>
+      ))}
     </ul>
+  );
+}
+
+/** A pasted reference the API has not answered for yet: no numbers until it does. */
+function PendingLabel() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
+      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> Agregando…
+    </span>
   );
 }
 

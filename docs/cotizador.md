@@ -60,14 +60,26 @@ tooltip). Por decisión del negocio (2026-11-03) el editor no muestra los avisos
 `lista_compartida`, `co_distintos` ni `listas_distintas`; cuántos clientes comparten la lista
 se dice en el diálogo de Generar, antes de escribir en ella. Los demás avisos sí se muestran.
 
-**Agregar productos.** Botón junto a la búsqueda de la tabla. El diálogo va en tres pasos en
-una sola pantalla: 1) buscar el producto (`/commercial/products`, desde dos letras) y elegirlo
-en los resultados, que lo pasa a la lista y deja el buscador listo para el siguiente; 2) la
-lista «Productos por agregar», con un botón para quitar cada uno; 3) «Agregar N productos».
-Pegar una columna de SKU desde Excel es opcional y está plegado bajo «¿Tienes los SKU en
-Excel? Pégalos». Las que ya están se omiten antes de enviar y todo sale en un solo
-`POST /lines` (máximo 200); el 422 del API (referencia inexistente, inactiva) se muestra en el
-diálogo. Al agregar, la tabla pasa al filtro «Agregados» para que se vean las filas nuevas. Las filas agregadas llevan el badge «Agregado» y un botón
+**Agregar productos.** Botón junto a la búsqueda de la tabla. El diálogo tiene, lado a lado,
+el buscador de productos (`/commercial/products`, indexado en el API: espera 200 ms en vez de
+los 350 de §7.3 de `DESIGN.md`) con la lista de los elegidos, y el campo «Pegar referencias»
+(una columna de Excel o separadas por coma, punto y coma, tabulador o espacio). Debajo del
+campo, un conteo en vivo con la misma regla del API (`2537.0` es `2537`, las repetidas se
+cuentan una vez), y cuántas son nuevas y cuántas ya están. Todo sale en un solo
+`POST /lines` con `text` (lo pegado, tal cual) y `skus` (los elegidos); máximo 500.
+
+Al enviar, el diálogo se cierra de inmediato y la tabla pasa al filtro «Última importación»
+con las referencias nuevas pintadas al final como «Agregando…», sin números. La respuesta del
+POST las reemplaza (no hay un GET después). Con `import_result`:
+
+- Todo sirvió: aviso «N agregadas · N revalidadas» y las revalidadas se tiñen de azul 2,5 s.
+- Hubo no encontradas o inactivas: el diálogo se reabre con ese resumen y las no encontradas en
+  el campo, para corregirlas; las inactivas solo se listan. Las revalidadas se tiñen al cerrarlo.
+- 422 (ninguna sirvió) o 409: el diálogo se reabre con el mensaje del API y lo que se había
+  escrito.
+
+Medido en MASSER (120 líneas): 9 referencias (5 nuevas, 3 revalidadas, 1 inexistente,
+1 repetida) en 567 ms; las mismas 8 válidas otra vez en 150 ms. Las filas agregadas llevan el badge «Agregado» y un botón
 para quitarlas (`DELETE /lines/{sku}?version=N`); las del histórico no lo tienen. Su último
 precio, margen actual y variación muestran un guion. Un cliente sin ventas en la ventana
 (`sin_ventas`) muestra un estado vacío cuya acción es «Agregar productos».
@@ -215,7 +227,7 @@ siguen abriendo. Decimales en texto; márgenes y variación como fracción (`0.1
 | `POST /quotations/{id}/generate` | `{version, activation_date?, price_list_id?}`: valida la regla y deja la cotización `generado` con la fecha de activación (por defecto mañana) y la lista destino (por defecto la del cliente). 422 si no hay líneas con precio nuevo o alguna no cumple |
 | `GET /quotations/{id}/export.xlsx` | El Excel (solo `generado`; si no, 409) |
 | `GET /quotations/{id}/export.txt` | El plano SIESA (solo `generado`; si no, 409) |
-| `POST /quotations/{id}/lines` | `{version, skus: ["26278", …]}` (1 a 200): agrega referencias que el cliente no compró, al final y con `origin: agregado`. Todo o nada: 422 si alguna no existe en `consumo.productos`, está inactiva o ya está en la cotización. 409 por versión. Vuelve a `borrador` |
+| `POST /quotations/{id}/lines` | Pegar una lista: `{version, text: "26278\n12014\n…"}` (columna de Excel, o separadas por coma, punto y coma, tabulador o espacio; `2537.0` se lee `2537`) y/o `{skus: [...]}`; hasta 500 por vez. Las que **ya están** se revalidan (costo, objetivo, apoyo e impuesto de hoy) conservando su precio nuevo; las **nuevas** se agregan al final con `origin: agregado`; las que no existen o están inactivas se informan y se omiten. Devuelve la cotización con `import_result: {added, revalidated, not_found, inactive, repeated}`. 422 solo si ninguna sirve. 409 por versión. Vuelve a `borrador` |
 | `DELETE /quotations/{id}/lines/{sku}?version=N` | Quita una referencia **agregada** y devuelve la cotización; 422 si es del histórico, 404 si no está |
 | `DELETE /quotations/{id}` | 204. Quien la creó o un administrador |
 

@@ -11,7 +11,7 @@ async function moduleUrl(path, replacements = {}) {
 }
 const sharedFormat = await moduleUrl("../src/shared/lib/format.ts");
 const client = await moduleUrl("../src/shared/lib/api-client.ts");
-const { parsePriceInput, priceInputText, samePrice, parseSkuList } = await import(
+const { parsePriceInput, priceInputText, samePrice, parseReferenceText } = await import(
   await moduleUrl("../src/features/quotations/lib/format.ts", { "@/shared/lib/format": sharedFormat })
 );
 const service = await import(
@@ -44,10 +44,14 @@ test("what the cell prints reads back as the same price", () => {
   }
 });
 
-test("pasted SKU lists split on lines, commas, semicolons and spaces", () => {
-  assert.deepEqual(parseSkuList("26278\n10833\r\n 2505 "), ["26278", "10833", "2505"]);
-  assert.deepEqual(parseSkuList("26278, 10833;2505\t1861"), ["26278", "10833", "2505", "1861"]);
-  assert.deepEqual(parseSkuList(" \n , "), []);
+test("pasted references split like the API: lines, commas, semicolons, tabs, spaces", () => {
+  assert.deepEqual(parseReferenceText("26278\n10833\r\n 2505 "), { skus: ["26278", "10833", "2505"], repeated: 0 });
+  assert.deepEqual(parseReferenceText("26278, 10833;2505\t1861"), { skus: ["26278", "10833", "2505", "1861"], repeated: 0 });
+  assert.deepEqual(parseReferenceText(" \n , "), { skus: [], repeated: 0 });
+});
+
+test("an Excel number with decimals is the plain reference, and repeats are counted", () => {
+  assert.deepEqual(parseReferenceText("2537.0\n2537\n26278.00\nAB.0"), { skus: ["2537", "26278", "AB.0"], repeated: 1 });
 });
 
 function captureFetch(t, body = {}) {
@@ -80,11 +84,14 @@ test("line updates go as one batch with the version", async (t) => {
 
 test("added references go in one POST, and removal carries the version in the query", async (t) => {
   const calls = captureFetch(t);
-  await service.addLines("q-1", 4, ["26278", "10833"]);
+  await service.addLines("q-1", 4, { text: "2537.0\n26278", skus: ["10833"] });
   await service.removeLine("q-1", "26278", 5);
+  await service.addLines("q-1", 6, { text: "  ", skus: ["10833"] });
   assert.equal(calls[0].init.method, "POST");
   assert.ok(calls[0].url.pathname.endsWith("/quotations/q-1/lines"));
-  assert.deepEqual(JSON.parse(calls[0].init.body), { version: 4, skus: ["26278", "10833"] });
+  // The text goes as pasted: the API is the one that splits and normalizes it.
+  assert.deepEqual(JSON.parse(calls[0].init.body), { version: 4, text: "2537.0\n26278", skus: ["10833"] });
+  assert.deepEqual(JSON.parse(calls[2].init.body), { version: 6, skus: ["10833"] });
   assert.equal(calls[1].init.method, "DELETE");
   assert.ok(calls[1].url.pathname.endsWith("/quotations/q-1/lines/26278"));
   assert.equal(calls[1].url.searchParams.get("version"), "5");

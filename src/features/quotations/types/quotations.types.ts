@@ -177,6 +177,30 @@ export interface Quotation extends QuotationSummary {
   lines: QuotationLine[];
 }
 
+/**
+ * What `POST /lines` did with a pasted list. Only a list where nothing served
+ * is refused (422); otherwise the bad references are reported, not blocking.
+ */
+export interface ImportResult {
+  added: string[];
+  /** Already in the quotation: cost, target, support and liquor tax refreshed, new price kept. */
+  revalidated: string[];
+  not_found: string[];
+  inactive: string[];
+  /** How many references appeared more than once in the paste. */
+  repeated: number;
+}
+
+export interface QuotationWithImport extends Quotation {
+  import_result?: ImportResult;
+}
+
+export interface LineImport {
+  /** What the advisor pasted, as is: the API splits and normalizes it. */
+  text?: string;
+  skus?: string[];
+}
+
 export interface LinePrice {
   sku: string;
   /** Null removes the new price; up to 4 decimals. */

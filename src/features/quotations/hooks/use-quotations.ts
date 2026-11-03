@@ -17,7 +17,14 @@ import {
   removeLine,
   updateLines,
 } from "../services/quotations.service";
-import type { GenerateOptions, LinePrice, Quotation, QuotationListParams, WindowMonths } from "../types/quotations.types";
+import type {
+  GenerateOptions,
+  LineImport,
+  LinePrice,
+  Quotation,
+  QuotationListParams,
+  WindowMonths,
+} from "../types/quotations.types";
 
 export const quotationKeys = {
   all: ["quotations"] as const,
@@ -98,7 +105,8 @@ export function useUpdateLines(id: string) {
 export function useAddLines(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, skus }: { version: number; skus: string[] }) => addLines(id, version, skus),
+    // The answer is the whole quotation: it goes to the cache as is, with no GET after it.
+    mutationFn: ({ version, ...input }: { version: number } & LineImport) => addLines(id, version, input),
     onSuccess: store,
   });
 }

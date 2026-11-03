@@ -113,10 +113,20 @@ export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
 
 export const WINDOW_OPTIONS = [6, 12] as const;
 
-/** SKUs pasted from a sheet or a message: one per line, or separated by commas, semicolons or spaces. */
-export function parseSkuList(text: string): string[] {
-  return text
+export const MAX_REFERENCES_PER_IMPORT = 500;
+
+/**
+ * References pasted from a sheet or a message, read the way the API reads
+ * them: split on line breaks, commas, semicolons, tabs or spaces; a number
+ * Excel printed with decimals ("2537.0") is the reference "2537". The API is
+ * the one that decides; this is for the live count and the rows painted
+ * while it answers.
+ */
+export function parseReferenceText(text: string): { skus: string[]; repeated: number } {
+  const tokens = text
     .split(/[\s,;]+/)
-    .map((sku) => sku.trim())
+    .map((token) => token.trim().replace(/^(\d+)\.0+$/, "$1"))
     .filter(Boolean);
+  const skus = Array.from(new Set(tokens));
+  return { skus, repeated: tokens.length - skus.length };
 }

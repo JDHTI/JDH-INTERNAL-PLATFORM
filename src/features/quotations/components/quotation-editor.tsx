@@ -33,11 +33,12 @@ import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import SupportDetail from "@/features/supports/components/support-detail";
 
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
+import { useLineImport } from "../hooks/use-line-import";
 import { useDeleteQuotation, useQuotation, useRefreshQuotation, useRemoveLine } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay } from "../lib/format";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import type { Quotation, QuotationLine } from "../types/quotations.types";
-import AddProductsDialog from "./add-products-dialog";
+import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
+import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import GenerateDialog from "./generate-dialog";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable } from "./lines-table";
@@ -47,11 +48,12 @@ import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
 
-type LineFilter = "all" | "changed" | "failing" | "support" | "added";
+/** "imported" is what the last paste added or revalidated; it exists only after one. */
+type LineFilter = "all" | "changed" | "failing" | "support" | "added" | "imported";
 
 const failing = (line: QuotationLine) => line.compliance !== null && line.compliance !== "cumple";
 
-const FILTERS: Record<LineFilter, (line: QuotationLine) => boolean> = {
+const FILTERS: Record<Exclude<LineFilter, "imported">, (line: QuotationLine) => boolean> = {
   all: () => true,
   changed: (line) => line.new_price !== null,
   failing,
@@ -94,7 +96,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
   const remove = useDeleteQuotation();
+  const importer = useLineImport(quotation);
   const [adding, setAdding] = useState(false);
+  const [importDraft, setImportDraft] = useState<ImportDraft>(EMPTY_DRAFT);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [removingSku, setRemovingSku] = useState<string | null>(null);
   const [filter, setFilter] = useState<LineFilter>("all");
   const [text, setText] = useState("");
@@ -118,17 +124,18 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     [quotation.lines]
   );
 
+  const imported = useMemo(() => new Set(importer.lastImport ?? []), [importer.lastImport]);
   const visible = useMemo(
     () =>
       quotation.lines.filter(
         (line) =>
-          FILTERS[filter](line) &&
+          (filter === "imported" ? imported.has(line.sku) : FILTERS[filter](line)) &&
           (q === "" ||
             line.sku.toLowerCase().includes(q) ||
             (line.description ?? "").toLowerCase().includes(q) ||
             (line.supplier_name ?? "").toLowerCase().includes(q))
       ),
-    [quotation.lines, filter, q]
+    [quotation.lines, filter, q, imported]
   );
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
@@ -145,8 +152,61 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setPage(1);
   };
 
-  const busy = editor.unsaved || refresh.isPending || removeLine.isPending;
+  const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
   const generated = quotation.status === "generado";
+  // Pending rows go after the last row of the list, so only the last page shows them.
+  const pending = currentPage === lastPage ? importer.pending : [];
+  const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
+
+  const openImport = () => {
+    setImportResult(null);
+    setImportError(null);
+    setAdding(true);
+  };
+
+  /*
+   * The dialog closes the moment the list is sent: the table shows what is
+   * being added as pending rows. It reopens only when something is left to
+   * do: references that do not exist (back in the paste box to correct), or
+   * a refusal (the draft is kept as typed).
+   */
+  const submitImport = () => {
+    const draft = importDraft;
+    setAdding(false);
+    setText("");
+    chooseFilter("imported");
+    importer.run(
+      { text: draft.text, skus: draft.picks.map((pick) => pick.sku) },
+      {
+        onResult: (result) => {
+          const summary = [
+            result.added.length > 0 ? `${formatCount(result.added.length)} ${result.added.length === 1 ? "agregada" : "agregadas"}` : null,
+            result.revalidated.length > 0
+              ? `${formatCount(result.revalidated.length)} ${result.revalidated.length === 1 ? "revalidada" : "revalidadas"}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          if (result.not_found.length > 0 || result.inactive.length > 0) {
+            setImportDraft({ picks: [], text: result.not_found.join("\n") });
+            setImportResult(result);
+            setImportError(null);
+            setAdding(true);
+          } else {
+            setImportDraft(EMPTY_DRAFT);
+            importer.flash(result.revalidated);
+            toast.success(`${summary}. Escribe el precio nuevo en la tabla.`);
+          }
+        },
+        onError: (failure) => {
+          setImportResult(null);
+          setImportError(errorMessage(failure));
+          setAdding(true);
+          chooseFilter("all");
+        },
+      }
+    );
+  };
 
   const runRemoveLine = (line: QuotationLine) => {
     setRemovingSku(line.sku);
@@ -250,7 +310,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
 
       <SaveStatus editor={editor} />
 
-      <div className={cn("sticky top-0 z-20 space-y-2 bg-canvas py-2", quotation.lines.length === 0 && "hidden")}>
+      <div className={cn("sticky top-0 z-20 space-y-2 bg-canvas py-2", !hasRows && "hidden")}>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
@@ -267,7 +327,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           />
         </div>
         {/* Next to the references it adds to, not among the quotation's own actions. */}
-        <Button variant="outline" onClick={() => setAdding(true)} disabled={busy} className="sm:ml-auto max-md:h-11">
+        <Button variant="outline" onClick={openImport} disabled={busy} className="sm:ml-auto max-md:h-11">
           <PackagePlus aria-hidden="true" /> Agregar productos
         </Button>
         </div>
@@ -277,15 +337,24 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           <ToggleChip active={filter === "failing"} onClick={() => chooseFilter("failing")} count={counts.failing}>No cumplen</ToggleChip>
           <ToggleChip active={filter === "support"} onClick={() => chooseFilter("support")} count={counts.support}>Con apoyo</ToggleChip>
           <ToggleChip active={filter === "added"} onClick={() => chooseFilter("added")} count={counts.added}>Agregados</ToggleChip>
+          {importer.lastImport && (
+            <ToggleChip
+              active={filter === "imported"}
+              onClick={() => chooseFilter("imported")}
+              count={importer.isPending ? null : importer.lastImport.length}
+            >
+              Última importación
+            </ToggleChip>
+          )}
         </div>
       </div>
 
-      {quotation.lines.length === 0 ? (
+      {!hasRows ? (
         <StatePanel
           icon={PackagePlus}
           title="El cliente no tiene ventas en la ventana"
           action={
-            <Button onClick={() => setAdding(true)} disabled={busy} className="max-md:h-11">
+            <Button onClick={openImport} disabled={busy} className="max-md:h-11">
               <PackagePlus aria-hidden="true" /> Agregar productos
             </Button>
           }
@@ -294,7 +363,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de
           licores.
         </StatePanel>
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && pending.length === 0 ? (
         <StatePanel
           icon={FileX2}
           title="Ninguna referencia coincide"
@@ -317,6 +386,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             onRemove={runRemoveLine}
             removing={removingSku}
             canRemove={!busy}
+            pending={pending}
+            highlight={importer.highlight}
           />
           <LinesTable
             lines={pageLines}
@@ -325,6 +396,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             onRemove={runRemoveLine}
             removing={removingSku}
             canRemove={!busy}
+            pending={pending}
+            highlight={importer.highlight}
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">
@@ -337,7 +410,23 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       <GenerateDialog quotation={quotation} open={generating} onOpenChange={setGenerating} />
-      <AddProductsDialog quotation={quotation} open={adding} onOpenChange={setAdding} onAdded={() => chooseFilter("added")} />
+      <AddProductsDialog
+        quotation={quotation}
+        open={adding}
+        onOpenChange={(open) => {
+          setAdding(open);
+          // Reopened to correct a paste: the revalidated rows flash once the table is visible again.
+          if (!open && importResult) {
+            importer.flash(importResult.revalidated);
+            setImportResult(null);
+          }
+        }}
+        draft={importDraft}
+        onDraftChange={setImportDraft}
+        result={importResult}
+        error={importError}
+        onSubmit={submitImport}
+      />
       <LineDetailDialog
         line={detailLine}
         onClose={() => setDetailLine(null)}

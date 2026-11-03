@@ -1,248 +1,224 @@
 "use client";
 
-import { useId, useState } from "react";
-import { ChevronDown, Loader2, PackagePlus, X } from "lucide-react";
-import { toast } from "sonner";
+import { useId } from "react";
+import { AlertTriangle, CheckCircle2, PackagePlus, X } from "lucide-react";
 
 import BasePicker, { PRODUCT_PICKER, type BasePickerConfig } from "@/shared/components/pickers/base-picker";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Textarea } from "@/shared/components/ui/field";
-import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useAddLines } from "../hooks/use-quotations";
-import { formatCount, parseSkuList } from "../lib/format";
-import type { Quotation } from "../types/quotations.types";
+import { MAX_REFERENCES_PER_IMPORT, formatCount, parseReferenceText } from "../lib/format";
+import type { ImportResult, Quotation } from "../types/quotations.types";
 
-export const MAX_ADDED_PER_REQUEST = 200;
-
-/** The product master, worded for this step: the label says what to do, not what the field is. */
+/**
+ * The product master, worded for this step. The search is indexed in the API
+ * (20 to 115 ms), so it waits 200 ms instead of the usual 350.
+ */
 const PRODUCT_SEARCH: BasePickerConfig = {
   ...PRODUCT_PICKER,
-  label: "1. Busca el producto",
+  label: "Buscar un producto",
   placeholder: "SKU o nombre, por ejemplo 26278 o ginebra",
+  debounceMs: 200,
 };
 
-interface Pick {
+export interface ImportPick {
   sku: string;
   description?: string;
 }
 
+export interface ImportDraft {
+  picks: ImportPick[];
+  text: string;
+}
+
+export const EMPTY_DRAFT: ImportDraft = { picks: [], text: "" };
+
 /**
- * Quote references the customer has not bought in the window. The dialog is
- * three steps on one screen: search, review the list, add. Picking a result
- * moves it to the list and clears the search for the next one; nothing is
- * sent until the button. Everything goes in one request: the API adds all or
- * none, and says which reference stopped it.
+ * Add references to the quotation: pick them from the master, paste a column
+ * from Excel, or both; everything goes in one request. References already in
+ * the quotation are revalidated, not refused, and unknown ones do not block
+ * the rest. The draft lives in the editor, so the dialog can close the moment
+ * it is sent (the table paints the rows as pending) and reopen with what is
+ * left to fix.
  */
 export default function AddProductsDialog({
   quotation,
   open,
   onOpenChange,
-  onAdded,
+  draft,
+  onDraftChange,
+  result,
+  error,
+  onSubmit,
 }: {
   quotation: Quotation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Lets the editor show the new rows right away. */
-  onAdded?: () => void;
+  draft: ImportDraft;
+  onDraftChange: (draft: ImportDraft) => void;
+  /** The last paste's outcome, when it left references to correct. */
+  result: ImportResult | null;
+  error: string | null;
+  onSubmit: () => void;
 }) {
+  const pasteId = useId();
+  const existing = new Set(quotation.lines.map((line) => line.sku));
+  const pasted = parseReferenceText(draft.text);
+  const all = [...new Set([...draft.picks.map((pick) => pick.sku), ...pasted.skus])];
+  const fresh = all.filter((sku) => !existing.has(sku)).length;
+  const already = all.length - fresh;
+  const tooMany = all.length > MAX_REFERENCES_PER_IMPORT;
+
+  const setPicks = (picks: ImportPick[]) => onDraftChange({ ...draft, picks });
+
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       isForm
+      wide
       title="Agregar productos a la cotización"
-      description="Para cotizarle al cliente productos que no compró en la ventana. Entran al final de la tabla con su costo, margen objetivo, apoyos e impuesto de licores, sin último precio; después les escribes el precio nuevo."
+      description="Busca productos o pega una columna de Excel. Los nuevos entran al final con su costo, margen objetivo, apoyos e impuesto de licores; los que ya están se revalidan con los datos de hoy y conservan su precio nuevo."
     >
-      {open && (
-        <AddProductsForm
-          quotation={quotation}
-          onClose={() => onOpenChange(false)}
-          onAdded={() => {
-            onOpenChange(false);
-            onAdded?.();
-          }}
-        />
-      )}
+      <form
+        noValidate
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (all.length > 0 && !tooMany) onSubmit();
+        }}
+      >
+        {result && <ResultSummary result={result} />}
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="min-w-0 space-y-3">
+            <BasePicker
+              config={PRODUCT_SEARCH}
+              selected={null}
+              onSelect={(option) =>
+                draft.picks.some((pick) => pick.sku === option.value)
+                  ? undefined
+                  : setPicks([...draft.picks, { sku: option.value, description: option.hint }])
+              }
+              onClear={() => undefined}
+            />
+            {draft.picks.length > 0 ? (
+              <ul className="max-h-48 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-label="Productos elegidos">
+                {draft.picks.map((pick) => (
+                  <li key={pick.sku} className="flex min-h-10 items-center gap-3 px-3 py-1.5 text-sm">
+                    <span className="w-16 shrink-0 font-mono text-[13px]">{pick.sku}</span>
+                    <span className="min-w-0 flex-1 truncate" title={pick.description}>{pick.description ?? "—"}</span>
+                    {existing.has(pick.sku) && <span className="shrink-0 text-xs text-text-secondary">Se revalida</span>}
+                    <button
+                      type="button"
+                      onClick={() => setPicks(draft.picks.filter((item) => item.sku !== pick.sku))}
+                      aria-label={`Quitar ${pick.sku} de la lista`}
+                      className="flex size-7 shrink-0 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring max-md:size-11"
+                    >
+                      <X className="size-4" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[13px] text-text-secondary">Elige un resultado y queda en esta lista; puedes buscar varios.</p>
+            )}
+          </div>
+
+          <div className="min-w-0 space-y-1.5">
+            <label htmlFor={pasteId} className="block text-[13px] font-medium">Pegar referencias</label>
+            <Textarea
+              id={pasteId}
+              value={draft.text}
+              onChange={(event) => onDraftChange({ ...draft, text: event.target.value })}
+              placeholder="Pega una columna de Excel o separa por comas"
+              aria-describedby={`${pasteId}-count`}
+              className="min-h-32 font-mono"
+              spellCheck={false}
+            />
+            <p id={`${pasteId}-count`} className="text-[13px] text-text-secondary" aria-live="polite">
+              {pasted.skus.length === 0
+                ? "Una por línea, o separadas por coma, punto y coma, tabulador o espacio."
+                : `${pasted.skus.length === 1 ? "Se detectó 1 referencia" : `Se detectaron ${formatCount(pasted.skus.length)} referencias`}${
+                    pasted.repeated === 1
+                      ? " (1 repetida se cuenta una vez)"
+                      : pasted.repeated > 1
+                        ? ` (${formatCount(pasted.repeated)} repetidas se cuentan una vez)`
+                        : ""
+                  }.`}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm" aria-live="polite">
+          {all.length === 0
+            ? "Aún no hay referencias para enviar."
+            : [
+                fresh > 0 ? `${formatCount(fresh)} ${fresh === 1 ? "nueva" : "nuevas"}` : null,
+                already > 0 ? `${formatCount(already)} ya en la cotización (se revalidan)` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+        </p>
+        {tooMany && (
+          <p role="alert" className="text-sm text-danger">
+            Son {formatCount(all.length)}; se envían máximo {MAX_REFERENCES_PER_IMPORT} por vez. Divide la lista.
+          </p>
+        )}
+
+        <DialogError message={error} />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-md:h-11">Cancelar</Button>
+          <Button type="submit" disabled={all.length === 0 || tooMany} className="max-md:h-11">
+            <PackagePlus aria-hidden="true" />
+            {all.length === 0 ? "Agregar" : all.length === 1 ? "Agregar 1 referencia" : `Agregar ${formatCount(all.length)} referencias`}
+          </Button>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }
 
-function AddProductsForm({ quotation, onClose, onAdded }: { quotation: Quotation; onClose: () => void; onAdded: () => void }) {
-  const add = useAddLines(quotation.id);
-  const pasteId = useId();
-  const listId = useId();
-  const [picks, setPicks] = useState<Pick[]>([]);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasted, setPasted] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const existing = new Set(quotation.lines.map((line) => line.sku));
-  const pastedSkus = parseSkuList(pasted);
-  const all = [...new Set([...picks.map((pick) => pick.sku), ...pastedSkus])];
-  const already = all.filter((sku) => existing.has(sku));
-  const toAdd = all.filter((sku) => !existing.has(sku));
-  const tooMany = toAdd.length > MAX_ADDED_PER_REQUEST;
-  const pastedOnly = pastedSkus.filter((sku) => !picks.some((pick) => pick.sku === sku) && !existing.has(sku));
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (toAdd.length === 0) {
-      setError("Busca un producto y elígelo de la lista de resultados; después pulsa «Agregar».");
-      return;
-    }
-    if (tooMany) return;
-    setError(null);
-    add.mutate(
-      { version: quotation.version, skus: toAdd },
-      {
-        onSuccess: () => {
-          toast.success(
-            toAdd.length === 1
-              ? `Se agregó ${toAdd[0]}. Escríbele el precio nuevo en la tabla.`
-              : `Se agregaron ${formatCount(toAdd.length)} productos. Escríbeles el precio nuevo en la tabla.`
-          );
-          onAdded();
-        },
-        onError: (failure) => setError(errorMessage(failure)),
-      }
-    );
-  };
-
+/**
+ * What the last paste did, shown when some references could not be added: the
+ * unknown ones are back in the paste box to correct, the inactive ones are
+ * only listed (retyping them will not help).
+ */
+function ResultSummary({ result }: { result: ImportResult }) {
+  const counts = [
+    result.added.length > 0 ? `${formatCount(result.added.length)} ${result.added.length === 1 ? "agregada" : "agregadas"}` : null,
+    result.revalidated.length > 0
+      ? `${formatCount(result.revalidated.length)} ${result.revalidated.length === 1 ? "revalidada" : "revalidadas"}`
+      : null,
+  ].filter(Boolean);
   return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
-      <div className="space-y-1.5">
-        <BasePicker
-          config={PRODUCT_SEARCH}
-          selected={null}
-          onSelect={(option) => {
-            setError(null);
-            setPicks((current) =>
-              current.some((pick) => pick.sku === option.value) ? current : [...current, { sku: option.value, description: option.hint }]
-            );
-          }}
-          onClear={() => undefined}
-        />
-        <p className="text-[13px] text-text-secondary">
-          Escribe al menos dos letras y elige el producto en los resultados. Pasa a la lista de abajo y puedes buscar el siguiente.
-        </p>
-      </div>
-
-      <section aria-labelledby={listId} className="space-y-2">
-        <h3 id={listId} className="text-[13px] font-medium">
-          2. Productos por agregar{toAdd.length > 0 && <span className="tabular-nums"> ({formatCount(toAdd.length)})</span>}
-        </h3>
-        {picks.length === 0 && pastedOnly.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border-control px-3 py-3 text-sm text-text-secondary">
-            Aún no has elegido ninguno.
-          </p>
-        ) : (
-          <ul className="max-h-56 divide-y divide-border overflow-y-auto rounded-md border border-border" aria-live="polite">
-            {picks.map((pick) => (
-              <PickRow
-                key={pick.sku}
-                sku={pick.sku}
-                description={pick.description}
-                already={existing.has(pick.sku)}
-                onRemove={() => setPicks((current) => current.filter((item) => item.sku !== pick.sku))}
-              />
-            ))}
-            {pastedOnly.map((sku) => (
-              <PickRow key={`pasted-${sku}`} sku={sku} description="Pegado" already={false} />
-            ))}
-          </ul>
-        )}
-        {already.length > 0 && (
-          <p className="text-[13px] text-text-secondary">
-            {already.length === 1 ? `${already[0]} ya está en la cotización y no se agrega de nuevo.` : `${formatCount(already.length)} ya están en la cotización y no se agregan de nuevo.`}
-          </p>
-        )}
-      </section>
-
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => setPasteOpen((current) => !current)}
-          aria-expanded={pasteOpen}
-          aria-controls={pasteId}
-          className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
-        >
-          <ChevronDown className={cn("size-4 transition-transform duration-200", pasteOpen && "rotate-180")} aria-hidden="true" />
-          ¿Tienes los SKU en Excel? Pégalos
-        </button>
-        {pasteOpen && (
-          <div className="space-y-1.5">
-            <label htmlFor={pasteId} className="sr-only">SKU pegados</label>
-            <Textarea
-              id={pasteId}
-              value={pasted}
-              onChange={(event) => {
-                setPasted(event.target.value);
-                setError(null);
-              }}
-              aria-describedby={`${pasteId}-hint`}
-              className="font-mono"
-              rows={3}
-            />
-            <p id={`${pasteId}-hint`} className="text-[13px] text-text-secondary">
-              Copia la columna de SKU y pégala aquí: uno por línea, o separados por comas o espacios. Se suman a la lista de arriba.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {tooMany && (
-        <p role="alert" className="text-sm text-danger">
-          Son {formatCount(toAdd.length)}; se agregan máximo {MAX_ADDED_PER_REQUEST} por vez. Divide la lista.
+    <div className="space-y-2 rounded-md bg-warning-surface px-3 py-2 text-sm" role="status">
+      {counts.length > 0 && (
+        <p className="flex items-start gap-2">
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+          <span>{counts.join(" · ")}.</span>
         </p>
       )}
-
-      <DialogError message={error} />
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} className="max-md:h-11">Cancelar</Button>
-        <Button type="submit" disabled={add.isPending || toAdd.length === 0 || tooMany} className="max-md:h-11">
-          {add.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <PackagePlus aria-hidden="true" />}
-          {toAdd.length === 0
-            ? "3. Agregar"
-            : toAdd.length === 1
-              ? "3. Agregar 1 producto"
-              : `3. Agregar ${formatCount(toAdd.length)} productos`}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-function PickRow({
-  sku,
-  description,
-  already,
-  onRemove,
-}: {
-  sku: string;
-  description?: string;
-  already: boolean;
-  onRemove?: () => void;
-}) {
-  return (
-    <li className="flex min-h-10 items-center gap-3 px-3 py-1.5 text-sm">
-      <span className="w-20 shrink-0 font-mono text-[13px]">{sku}</span>
-      <span className={cn("min-w-0 flex-1 truncate", already && "text-text-secondary line-through")} title={description}>
-        {description ?? "—"}
-      </span>
-      {already && <span className="shrink-0 text-xs text-text-secondary">Ya está</span>}
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Quitar ${sku} de la lista`}
-          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring max-md:size-11"
-        >
-          <X className="size-4" aria-hidden="true" />
-        </button>
+      {result.not_found.length > 0 && (
+        <p className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span>
+            <strong>No existen en el maestro ({formatCount(result.not_found.length)}):</strong>{" "}
+            <span className="font-mono">{result.not_found.join(", ")}</span>. Quedaron abajo para que las corrijas.
+          </span>
+        </p>
       )}
-    </li>
+      {result.inactive.length > 0 && (
+        <p className={cn("flex items-start gap-2")}>
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span>
+            <strong>Inactivas, no se agregan ({formatCount(result.inactive.length)}):</strong>{" "}
+            <span className="font-mono">{result.inactive.join(", ")}</span>.
+          </span>
+        </p>
+      )}
+    </div>
   );
 }

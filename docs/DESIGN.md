@@ -273,6 +273,9 @@ badge, nunca en texto rojo directo.
 | `--text-secondary` sobre fila ámbar | #6c6966 / #f9f0eb · **4.85** ✅ | #bbb8b1 / #42382a · **5.79** ✅ |
 | `--warning` sobre fila ámbar (ícono) | #b54708 / #f9f0eb · **4.83** ✅ | #fdb022 / #42382a · **6.23** ✅ |
 | `--danger` sobre fila roja | #b42318 / #f9edec · **5.75** ✅ | #f97066 / #41312e · **4.42** ❌ — no usar |
+| `--text-primary` sobre fila azul (revalidada, 2,5 s) | #1d1d1b / #ecf2fc · **15.01** ✅ | #ffffff / #333840 · **11.79** ✅ |
+| `--text-secondary` sobre fila azul | #686a6c / #ecf2fc · **4.83** ✅ | #b6b7ba / #333840 · **5.88** ✅ |
+| `--success` sobre banda ámbar (ícono del resumen al pegar) | #067647 / #f9f0eb · **5.07** ✅ | #47cd89 / #42382a · **5.66** ✅ |
 
 **Opción elegida en una lista de opciones (formulario público de PQRSF)**
 

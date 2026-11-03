@@ -23,6 +23,11 @@ export interface BasePickerConfig {
    * typed, for a short list such as a seller's own customers.
    */
   minChars?: number;
+  /**
+   * Pause after typing before asking, in ms. DESIGN.md §7.3 sets 350 for every
+   * search; an endpoint that is indexed and answers fast can ask for less.
+   */
+  debounceMs?: number;
   /** What the open list says when the endpoint finds nothing. */
   emptyText?: string;
   /** One option per distinct value: the masters repeat a NIT once per branch. */
@@ -85,7 +90,7 @@ export default function BasePicker({
 }) {
   const id = useId();
   const [input, setInput] = useState("");
-  const q = useDebouncedValue(input.trim());
+  const q = useDebouncedValue(input.trim(), config.debounceMs);
   const enabled = selected === null && q.length >= (config.minChars ?? MIN_CHARS);
 
   const suggestions = useInfiniteQuery({
