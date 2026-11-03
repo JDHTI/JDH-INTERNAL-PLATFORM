@@ -25,7 +25,7 @@ import { calcMethodLabel, choiceLabel, formatDay, formatSupplierValue } from "..
 import { PROFILE_DEFAULT_FIELDS, readDraft, withoutKey, type Draft } from "../lib/form-values";
 import { downloadBulkTemplate } from "../services/supports.service";
 import type { BulkLoadInput, BulkReport, ColumnMap, FormFieldSpec } from "../types/support.types";
-import BasePicker, { SUPPLIER_PICKER } from "./base-picker";
+import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import SchemaFields from "./schema-fields";
 
 const NOT_USED = "";

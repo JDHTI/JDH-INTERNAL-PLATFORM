@@ -37,7 +37,7 @@ import type {
   SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
-import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "./base-picker";
+import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
 import { SupportActions, SupportVoidDialog } from "./support-actions";

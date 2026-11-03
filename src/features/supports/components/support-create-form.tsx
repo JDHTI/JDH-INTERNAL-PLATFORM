@@ -23,7 +23,7 @@ import {
   type Draft,
 } from "../lib/form-values";
 import type { SupplierSupport, SupportCreateBody, SupportFormSchema } from "../types/support.types";
-import BasePicker, { SUPPLIER_PICKER } from "./base-picker";
+import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import SchemaFields from "./schema-fields";
 
 interface FormState {

@@ -12,7 +12,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { choiceLabel, toOptions } from "../lib/format";
 import { isPercentField, type Draft } from "../lib/form-values";
 import type { CalcMethodRule, FormFieldSpec, SupportCatalogs } from "../types/support.types";
-import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, type BasePickerConfig } from "./base-picker";
+import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, type BasePickerConfig } from "@/shared/components/pickers/base-picker";
 import MultiSelect from "./multi-select";
 
 const PICKERS: Record<string, BasePickerConfig> = {
