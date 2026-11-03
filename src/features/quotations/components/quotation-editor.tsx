@@ -13,6 +13,7 @@ import {
   FileX2,
   Loader2,
   MoreHorizontal,
+  PackagePlus,
   RefreshCw,
   Search,
   Trash2,
@@ -32,12 +33,13 @@ import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import SupportDetail from "@/features/supports/components/support-detail";
 
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
-import { useDeleteQuotation, useQuotation, useRefreshQuotation } from "../hooks/use-quotations";
+import { useDeleteQuotation, useQuotation, useRefreshQuotation, useRemoveLine } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay } from "../lib/format";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { Quotation, QuotationLine } from "../types/quotations.types";
+import AddProductsDialog from "./add-products-dialog";
 import GenerateDialog from "./generate-dialog";
-import LineSupportDialog from "./line-support-dialog";
+import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable } from "./lines-table";
 import { QuotationStatusBadge } from "./quotation-badges";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
@@ -45,7 +47,7 @@ import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
 
-type LineFilter = "all" | "changed" | "failing" | "support";
+type LineFilter = "all" | "changed" | "failing" | "support" | "added";
 
 const failing = (line: QuotationLine) => line.compliance !== null && line.compliance !== "cumple";
 
@@ -54,6 +56,7 @@ const FILTERS: Record<LineFilter, (line: QuotationLine) => boolean> = {
   changed: (line) => line.new_price !== null,
   failing,
   support: (line) => line.support !== null,
+  added: (line) => line.origin === "agregado",
 };
 
 export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
@@ -89,14 +92,17 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const router = useRouter();
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
+  const removeLine = useRemoveLine(quotation.id);
   const remove = useDeleteQuotation();
+  const [adding, setAdding] = useState(false);
+  const [removingSku, setRemovingSku] = useState<string | null>(null);
   const [filter, setFilter] = useState<LineFilter>("all");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const [generating, setGenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [supportLine, setSupportLine] = useState<QuotationLine | null>(null);
+  const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
@@ -107,6 +113,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       changed: quotation.lines.filter(FILTERS.changed).length,
       failing: quotation.lines.filter(failing).length,
       support: quotation.lines.filter(FILTERS.support).length,
+      added: quotation.lines.filter(FILTERS.added).length,
     }),
     [quotation.lines]
   );
@@ -138,8 +145,20 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setPage(1);
   };
 
-  const busy = editor.unsaved || refresh.isPending;
+  const busy = editor.unsaved || refresh.isPending || removeLine.isPending;
   const generated = quotation.status === "generado";
+
+  const runRemoveLine = (line: QuotationLine) => {
+    setRemovingSku(line.sku);
+    removeLine.mutate(
+      { version: quotation.version, sku: line.sku },
+      {
+        onSuccess: () => toast.success(`Se quitó ${line.sku} de la cotización.`),
+        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+        onSettled: () => setRemovingSku(null),
+      }
+    );
+  };
 
   const runRefresh = () =>
     refresh.mutate(quotation.version, {
@@ -168,7 +187,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     });
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-[1600px] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <Link
           href={basePath}
@@ -189,6 +208,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setAdding(true)} disabled={busy} className="max-md:h-11">
+            <PackagePlus aria-hidden="true" /> Agregar productos
+          </Button>
           <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
             <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
             {refresh.isPending ? "Refrescando…" : "Refrescar"}
@@ -205,7 +227,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               </Button>
             </>
           )}
-          <Button onClick={() => setGenerating(true)} disabled={busy} className="max-md:h-11">
+          <Button
+            onClick={() => setGenerating(true)}
+            disabled={busy || counts.changed === 0}
+            title={counts.changed === 0 ? "Escribe al menos un precio nuevo para generar el formato." : undefined}
+            className="max-md:h-11"
+          >
             <FileCheck2 aria-hidden="true" /> {generated ? "Generar de nuevo" : "Generar"}
           </Button>
           <Menu
@@ -227,7 +254,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
 
       <SaveStatus editor={editor} />
 
-      <div className="sticky top-0 z-20 flex flex-col gap-3 bg-canvas py-2 lg:flex-row lg:items-center">
+      <div className={cn("sticky top-0 z-20 flex flex-col gap-3 bg-canvas py-2 lg:flex-row lg:items-center", quotation.lines.length === 0 && "hidden")}>
         <div className="relative w-full lg:max-w-sm">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <Input
@@ -247,12 +274,23 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           <ToggleChip active={filter === "changed"} onClick={() => chooseFilter("changed")} count={counts.changed}>Con precio nuevo</ToggleChip>
           <ToggleChip active={filter === "failing"} onClick={() => chooseFilter("failing")} count={counts.failing}>No cumplen</ToggleChip>
           <ToggleChip active={filter === "support"} onClick={() => chooseFilter("support")} count={counts.support}>Con apoyo</ToggleChip>
+          <ToggleChip active={filter === "added"} onClick={() => chooseFilter("added")} count={counts.added}>Agregados</ToggleChip>
         </div>
       </div>
 
       {quotation.lines.length === 0 ? (
-        <StatePanel icon={FileX2} title="Esta cotización no tiene referencias">
-          El cliente no tuvo ventas en la ventana de {quotation.window_months} meses. Refresca si ya facturó algo nuevo.
+        <StatePanel
+          icon={PackagePlus}
+          title="El cliente no tiene ventas en la ventana"
+          action={
+            <Button onClick={() => setAdding(true)} disabled={busy} className="max-md:h-11">
+              <PackagePlus aria-hidden="true" /> Agregar productos
+            </Button>
+          }
+        >
+          No compró nada en los últimos {quotation.window_months} meses, así que no hay último precio de qué partir.
+          Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de
+          licores.
         </StatePanel>
       ) : visible.length === 0 ? (
         <StatePanel
@@ -264,12 +302,28 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             ? "Todos los precios nuevos cumplen la regla."
             : filter === "changed"
               ? "Aún no hay precios nuevos: escríbelos en la columna «Precio nuevo»."
-              : "Prueba con otra referencia o con menos palabras de la descripción."}
+              : filter === "added"
+                ? "Aún no agregaste referencias fuera del histórico. Usa «Agregar productos»."
+                : "Prueba con otra referencia o con menos palabras de la descripción."}
         </StatePanel>
       ) : (
         <div className="space-y-3">
-          <LinesList lines={pageLines} editor={editor} onOpenSupport={setSupportLine} />
-          <LinesTable lines={pageLines} editor={editor} onOpenSupport={setSupportLine} />
+          <LinesList
+            lines={pageLines}
+            editor={editor}
+            onOpenDetail={setDetailLine}
+            onRemove={runRemoveLine}
+            removing={removingSku}
+            canRemove={!busy}
+          />
+          <LinesTable
+            lines={pageLines}
+            editor={editor}
+            onOpenDetail={setDetailLine}
+            onRemove={runRemoveLine}
+            removing={removingSku}
+            canRemove={!busy}
+          />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">
               {formatCount(visible.length)} {visible.length === 1 ? "referencia" : "referencias"}
@@ -281,7 +335,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       <GenerateDialog quotation={quotation} open={generating} onOpenChange={setGenerating} />
-      <LineSupportDialog line={supportLine} onClose={() => setSupportLine(null)} onOpenAgreement={(id) => { setSupportLine(null); setAgreementId(id); }} />
+      <AddProductsDialog quotation={quotation} open={adding} onOpenChange={setAdding} />
+      <LineDetailDialog
+        line={detailLine}
+        onClose={() => setDetailLine(null)}
+        onOpenAgreement={(id) => {
+          setDetailLine(null);
+          setAgreementId(id);
+        }}
+      />
       <SupportDetail id={agreementId} onClose={() => setAgreementId(null)} />
       <ConfirmDeleteDialog
         open={deleting}
@@ -292,7 +354,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         isPending={remove.isPending}
         error={deleteError}
       >
-        Se pierden los precios nuevos de {quotation.customer_name}. Los archivos ya descargados no cambian.
+        Los precios nuevos de {quotation.customer_name} se pierden; los archivos ya descargados no cambian.
       </ConfirmDeleteDialog>
     </div>
   );
@@ -358,7 +420,10 @@ function PriceListNotice({ quotation }: { quotation: Quotation }) {
 
 /** What the API found odd about the customer, in its words. */
 function Warnings({ quotation }: { quotation: Quotation }) {
-  const warnings = quotation.warnings.filter((warning) => warning.code !== "lista_compartida");
+  // The shared list has its own notice, and "sin ventas" its own empty state with the way out.
+  const warnings = quotation.warnings.filter(
+    (warning) => warning.code !== "lista_compartida" && !(warning.code === "sin_ventas" && quotation.lines.length === 0)
+  );
   if (warnings.length === 0) return null;
   return (
     <ul className="space-y-1 rounded-lg bg-warning-surface px-4 py-3 text-sm" aria-label="Avisos de la cotización">
@@ -420,9 +485,12 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
         "Cambios sin guardar; se guardan al dejar de escribir."
       ) : editor.state === "error" ? (
         <span className="text-danger">No se guardaron los últimos precios: {editor.failure} Corrige el valor y se intentará de nuevo.</span>
-      ) : editor.invalidCount > 0 ? (
+      ) : editor.invalid.length > 0 ? (
         <span className="text-danger">
-          {editor.invalidCount === 1 ? "Un precio no se puede leer" : `${editor.invalidCount} precios no se pueden leer`}; no se guardan hasta corregirlos.
+          {editor.invalid.length === 1
+            ? `El precio de ${editor.invalid[0].sku} no se puede leer: ${editor.invalid[0].message}`
+            : `${editor.invalid.length} precios no se pueden leer (${editor.invalid.map((item) => item.sku).join(", ")}); se marcan en rojo.`}{" "}
+          No se guarda hasta corregirlo.
         </span>
       ) : (
         <><Check className="size-3.5" aria-hidden="true" /> Precios guardados</>

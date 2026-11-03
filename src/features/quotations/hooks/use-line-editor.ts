@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { parsePriceInput, priceInputText, samePrice } from "../lib/format";
+import { getQuotation } from "../services/quotations.service";
 import type { Quotation } from "../types/quotations.types";
 import { quotationKeys, useUpdateLines } from "./use-quotations";
 
@@ -120,10 +121,26 @@ export function useLineEditor(quotation: Quotation) {
     schedule();
   };
 
-  /** After a 409: send the queued prices again over the version just reloaded. */
+  /**
+   * After a 409: read the current version straight from the API, so the save
+   * never depends on whether a background refetch has landed in the cache,
+   * then send the queued prices over it.
+   */
   const retry = async () => {
-    await client.refetchQueries({ queryKey: quotationKeys.detail(quotation.id) });
-    setSaveState(pending.current.size > 0 ? "waiting" : "idle");
+    if (inflight.current) return;
+    setSaveState("saving");
+    try {
+      const fresh = await getQuotation(quotation.id);
+      client.setQueryData(quotationKeys.detail(quotation.id), fresh);
+    } catch (error) {
+      setFailure(errorMessage(error));
+      setSaveState("conflict");
+      return;
+    }
+    if (pending.current.size === 0) {
+      setSaveState("idle");
+      return;
+    }
     await flush();
   };
 
@@ -165,7 +182,8 @@ export function useLineEditor(quotation: Quotation) {
     state,
     failure,
     unsaved,
-    invalidCount: Object.keys(errors).length,
+    /** Cells whose text is not a price, with why: the cell itself only turns red. */
+    invalid: Object.entries(errors).map(([sku, message]) => ({ sku, message })),
   };
 }
 

@@ -5,6 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  addLines,
   createQuotation,
   deleteQuotation,
   generateQuotation,
@@ -13,6 +14,7 @@ import {
   getQuotationRules,
   listQuotations,
   refreshQuotation,
+  removeLine,
   updateLines,
 } from "../services/quotations.service";
 import type { GenerateOptions, LinePrice, Quotation, QuotationListParams, WindowMonths } from "../types/quotations.types";
@@ -89,6 +91,22 @@ export function useUpdateLines(id: string) {
   const store = useStoreQuotation();
   return useMutation({
     mutationFn: ({ version, lines }: { version: number; lines: LinePrice[] }) => updateLines(id, version, lines),
+    onSuccess: store,
+  });
+}
+
+export function useAddLines(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, skus }: { version: number; skus: string[] }) => addLines(id, version, skus),
+    onSuccess: store,
+  });
+}
+
+export function useRemoveLine(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, sku }: { version: number; sku: string }) => removeLine(id, sku, version),
     onSuccess: store,
   });
 }

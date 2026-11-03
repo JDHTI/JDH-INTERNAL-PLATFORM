@@ -11,7 +11,7 @@ async function moduleUrl(path, replacements = {}) {
 }
 const sharedFormat = await moduleUrl("../src/shared/lib/format.ts");
 const client = await moduleUrl("../src/shared/lib/api-client.ts");
-const { parsePriceInput, priceInputText, samePrice } = await import(
+const { parsePriceInput, priceInputText, samePrice, parseSkuList } = await import(
   await moduleUrl("../src/features/quotations/lib/format.ts", { "@/shared/lib/format": sharedFormat })
 );
 const service = await import(
@@ -44,6 +44,12 @@ test("what the cell prints reads back as the same price", () => {
   }
 });
 
+test("pasted SKU lists split on lines, commas, semicolons and spaces", () => {
+  assert.deepEqual(parseSkuList("26278\n10833\r\n 2505 "), ["26278", "10833", "2505"]);
+  assert.deepEqual(parseSkuList("26278, 10833;2505\t1861"), ["26278", "10833", "2505", "1861"]);
+  assert.deepEqual(parseSkuList(" \n , "), []);
+});
+
 function captureFetch(t, body = {}) {
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
@@ -70,6 +76,18 @@ test("line updates go as one batch with the version", async (t) => {
     version: 7,
     lines: [{ sku: "123", new_price: "100.5" }, { sku: "456", new_price: null }],
   });
+});
+
+test("added references go in one POST, and removal carries the version in the query", async (t) => {
+  const calls = captureFetch(t);
+  await service.addLines("q-1", 4, ["26278", "10833"]);
+  await service.removeLine("q-1", "26278", 5);
+  assert.equal(calls[0].init.method, "POST");
+  assert.ok(calls[0].url.pathname.endsWith("/quotations/q-1/lines"));
+  assert.deepEqual(JSON.parse(calls[0].init.body), { version: 4, skus: ["26278", "10833"] });
+  assert.equal(calls[1].init.method, "DELETE");
+  assert.ok(calls[1].url.pathname.endsWith("/quotations/q-1/lines/26278"));
+  assert.equal(calls[1].url.searchParams.get("version"), "5");
 });
 
 test("create and generate send the contract's fields", async (t) => {

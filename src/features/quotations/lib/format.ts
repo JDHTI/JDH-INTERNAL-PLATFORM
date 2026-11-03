@@ -30,9 +30,6 @@ export const formatMargin = withNumber((value) => percent.format(Math.abs(value)
 /** Variation with its sign: "+4,2 %", "-1,5 %". */
 export const formatVariation = withNumber((value) => signedPercent.format(Math.abs(value) < 0.00005 ? 0 : value));
 
-/** VAT comes in points ("19"): "19 %". */
-export const formatVat = withNumber((value) => `${integer.format(value)} %`);
-
 export const formatCount = (value: number | null | undefined) => (value === null || value === undefined ? "—" : integer.format(value));
 
 /** Sale dates are "YYYY-MM-DD"; read as UTC so the day never shifts. */
@@ -115,3 +112,11 @@ export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
 };
 
 export const WINDOW_OPTIONS = [6, 12] as const;
+
+/** SKUs pasted from a sheet or a message: one per line, or separated by commas, semicolons or spaces. */
+export function parseSkuList(text: string): string[] {
+  return text
+    .split(/[\s,;]+/)
+    .map((sku) => sku.trim())
+    .filter(Boolean);
+}

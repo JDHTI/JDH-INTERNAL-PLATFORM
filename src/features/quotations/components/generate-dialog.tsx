@@ -98,7 +98,8 @@ function GenerateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       <p className="text-sm">
-        Se exportan <strong className="tabular-nums">{formatCount(changed.length)}</strong>{" "}
+        {changed.length === 1 ? "Se exporta " : "Se exportan "}
+        <strong className="tabular-nums">{formatCount(changed.length)}</strong>{" "}
         {changed.length === 1 ? "referencia" : "referencias"} con precio nuevo.
       </p>
 
@@ -126,7 +127,10 @@ function GenerateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
             id={listId}
             value={list}
             maxLength={LIST_ID_MAX}
-            onChange={(event) => setList(event.target.value)}
+            onChange={(event) => {
+              setList(event.target.value);
+              setListError(null);
+            }}
             onBlur={() => setList((current) => current.trim().toUpperCase())}
             aria-invalid={listError ? true : undefined}
             aria-describedby={listError ? `${listId}-error` : `${listId}-hint`}

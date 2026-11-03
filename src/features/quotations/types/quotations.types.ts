@@ -123,8 +123,9 @@ export interface QuotationLine {
   last_quantity: DecimalText | null;
   sales_in_window: number | null;
   list_price: DecimalText | null;
-  /** VAT in points: "19" is 19 %. */
-  vat_pct: DecimalText | null;
+  /** Still sent, never shown: the quotation works before VAT. */
+  vat_pct?: DecimalText | null;
+  /** Liquor consumption tax only (`0011` imported, `0024` national); null for every other product. */
   value_tax_key: string | null;
   value_tax_name: string | null;
   value_tax_amount: DecimalText | null;
@@ -146,10 +147,16 @@ export interface QuotationLine {
   variation_pct: DecimalText | null;
   compliance: Compliance | null;
   compliance_label: string | null;
+  /** New (or last) price plus the liquor tax, without VAT; null on an added line with no new price. */
   price_with_taxes: DecimalText | null;
   problems: string[];
   problem_labels: string[];
+  /** `historico`: from the sales window. `agregado`: added by the advisor, with `last_*` null. */
+  origin: LineOrigin;
+  origin_label: string;
 }
+
+export type LineOrigin = "historico" | "agregado";
 
 export interface Quotation extends QuotationSummary {
   channel_code: string | null;

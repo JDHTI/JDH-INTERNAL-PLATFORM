@@ -47,6 +47,19 @@ export function updateLines(id: string, version: number, lines: LinePrice[]): Pr
   return apiFetch<Quotation>(`${one(id)}/lines`, { method: "PUT", body: { version, lines } });
 }
 
+/**
+ * Adds references the customer did not buy in the window (1 to 200), all or
+ * none: 422 names the one that does not exist, is inactive or is already there.
+ */
+export function addLines(id: string, version: number, skus: string[]): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/lines`, { method: "POST", body: { version, skus } });
+}
+
+/** Removes an added reference; 422 for one from the sales history. */
+export function removeLine(id: string, sku: string, version: number): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}`, { method: "DELETE", query: { version } });
+}
+
 /** Rebuilds from the DWH keeping the new prices by reference; back to draft. */
 export function refreshQuotation(id: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/refresh`, { method: "POST", body: { version } });
