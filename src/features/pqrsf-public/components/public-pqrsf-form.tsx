@@ -84,6 +84,7 @@ const INITIAL_VALUES: PqrsfFormValues = {
   cause_id: "",
   pickup_order_requested: "",
   pickup_order_number: "",
+  delivery_date: "",
 };
 
 /** What a new type, subject or document choice clears: it all hangs from them. */
@@ -92,6 +93,7 @@ const CLASSIFICATION_RESET = {
   cause_id: "",
   pickup_order_requested: "",
   pickup_order_number: "",
+  delivery_date: "",
 } as const;
 
 const FIELD_LABELS: Record<PqrsfErrorField, string> = {
@@ -116,6 +118,7 @@ const FIELD_LABELS: Record<PqrsfErrorField, string> = {
   products: "Productos afectados",
   pickup_order_requested: "Orden de recogida",
   pickup_order_number: "Número de la orden de recogida",
+  delivery_date: "Fecha de entrega del pedido",
 };
 
 const FIELD_LIMITS: Partial<Record<PqrsfTextField, number>> = {
@@ -152,6 +155,7 @@ const ERROR_FIELDS: PqrsfErrorField[] = [
   "document_other",
   "description",
   "products",
+  "delivery_date",
   "pickup_order_requested",
   "pickup_order_number",
   "images",
@@ -353,7 +357,7 @@ export default function PublicPqrsfForm() {
   const resetProducts = (lines: PqrsfProductLine[] = []) => {
     setProductLines(lines);
     setLineErrors({});
-    clearFieldErrors("products", "pickup_order_requested", "pickup_order_number");
+    clearFieldErrors("products", "pickup_order_requested", "pickup_order_number", "delivery_date");
   };
 
   const updateRequestType = (requestTypeId: string) => {
@@ -433,6 +437,7 @@ export default function PublicPqrsfForm() {
       cause_id: causeId,
       pickup_order_requested: "",
       pickup_order_number: "",
+      delivery_date: "",
     }));
     if (!cause?.allows_product) resetProducts();
     // A cause that requires products opens with one line, so what it asks for
@@ -459,8 +464,13 @@ export default function PublicPqrsfForm() {
       return next;
     });
     if (nextLines.length === 0) {
-      setValues((current) => ({ ...current, pickup_order_requested: "", pickup_order_number: "" }));
-      clearFieldErrors("pickup_order_requested", "pickup_order_number");
+      setValues((current) => ({
+        ...current,
+        pickup_order_requested: "",
+        pickup_order_number: "",
+        delivery_date: "",
+      }));
+      clearFieldErrors("pickup_order_requested", "pickup_order_number", "delivery_date");
     }
     setProductLines(nextLines);
     if (nextLines.length !== productLines.length) clearFieldErrors("products");
@@ -570,6 +580,7 @@ export default function PublicPqrsfForm() {
             products.length > 0 && values.pickup_order_requested === "yes"
               ? values.pickup_order_number.trim()
               : "",
+          delivery_date: products.length > 0 ? values.delivery_date : "",
           images,
           videos,
         },
@@ -972,6 +983,10 @@ export default function PublicPqrsfForm() {
                       onLinesChange={updateProductLines}
                       onPickupOrderChange={updatePickupOrder}
                       onPickupOrderNumberChange={(value) => updateValue("pickup_order_number", value)}
+                      deliveryDate={values.delivery_date}
+                      deliveryDateError={fieldErrors.delivery_date}
+                      maxDeliveryDate={localToday()}
+                      onDeliveryDateChange={(value) => updateValue("delivery_date", value)}
                     />
                   )}
 
@@ -1292,6 +1307,13 @@ function validateForm(
     if (productLines.length > 0 && !values.pickup_order_requested) {
       errors.pickup_order_requested = "Indica si ya solicitaste la orden de recogida.";
     }
+    if (productLines.length > 0) {
+      if (!values.delivery_date) {
+        errors.delivery_date = "Indica la fecha de entrega del pedido.";
+      } else if (values.delivery_date > localToday()) {
+        errors.delivery_date = "La fecha de entrega no puede ser futura.";
+      }
+    }
   }
 
   if (selectedType?.allows_document_request && values.document_request) {
@@ -1394,6 +1416,14 @@ function submissionErrorMessage(error: unknown): string {
     default:
       return errorMessage(error);
   }
+}
+
+/** Today on the requester's device, as AAAA-MM-DD (not UTC, which runs ahead at night). */
+function localToday(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 function fieldInputId(field: PqrsfErrorField) {

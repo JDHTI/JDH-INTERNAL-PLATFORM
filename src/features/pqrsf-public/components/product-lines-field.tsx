@@ -63,9 +63,13 @@ export default function ProductLinesField({
   pickupOrderNumber,
   pickupOrderError,
   pickupOrderNumberError,
+  deliveryDate,
+  deliveryDateError,
+  maxDeliveryDate,
   onLinesChange,
   onPickupOrderChange,
   onPickupOrderNumberChange,
+  onDeliveryDateChange,
 }: {
   lines: PqrsfProductLine[];
   required: boolean;
@@ -75,9 +79,15 @@ export default function ProductLinesField({
   pickupOrderNumber: string;
   pickupOrderError?: string;
   pickupOrderNumberError?: string;
+  /** AAAA-MM-DD: when the order with these products was delivered. */
+  deliveryDate: string;
+  deliveryDateError?: string;
+  /** Today in AAAA-MM-DD: a delivery is never in the future. */
+  maxDeliveryDate: string;
   onLinesChange: (lines: PqrsfProductLine[]) => void;
   onPickupOrderChange: (value: PickupOrderAnswer) => void;
   onPickupOrderNumberChange: (value: string) => void;
+  onDeliveryDateChange: (value: string) => void;
 }) {
   const update = (key: string, patch: Partial<PqrsfProductLine>) =>
     onLinesChange(lines.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -148,6 +158,29 @@ export default function ProductLinesField({
           </p>
         )}
       </section>
+
+      {lines.length > 0 && (
+        <FormField
+          id="pqrsf-delivery-date"
+          label="Fecha de entrega del pedido"
+          hint="El día que recibiste el pedido con estos productos."
+          error={deliveryDateError}
+          className="sm:max-w-xs"
+        >
+          <Input
+            id="pqrsf-delivery-date"
+            name="delivery_date"
+            type="date"
+            aria-required="true"
+            max={maxDeliveryDate}
+            value={deliveryDate}
+            aria-invalid={Boolean(deliveryDateError)}
+            aria-describedby={describedBy("pqrsf-delivery-date", true, Boolean(deliveryDateError))}
+            onChange={(event) => onDeliveryDateChange(event.target.value)}
+            className={cn("min-h-11 sm:min-h-9", deliveryDateError && "border-danger")}
+          />
+        </FormField>
+      )}
 
       {lines.length > 0 && (
         <fieldset

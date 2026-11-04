@@ -38,8 +38,10 @@ import type {
   TrackingCatalog,
 } from "../types/pqrsf.types";
 import { DueLabel } from "./case-badges";
+import CaseClassification from "./case-classification";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
+import CaseProducts from "./case-products";
 import CaseTimeline from "./case-timeline";
 import CaseFiles from "./case-files";
 import IntakeRequestSection from "./intake-request";
@@ -153,6 +155,8 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
               )}
             </section>
           )}
+          <CaseClassification item={item} />
+          <CaseProducts item={item} />
           {showsDocuments && <CaseItems item={item} catalog={catalog.data} />}
           {request && <IntakeRequestSection caseId={item.id} request={request} />}
           <CaseFiles caseId={item.id} />
