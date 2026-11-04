@@ -1,31 +1,61 @@
-import { LogIn } from "lucide-react";
+import { AlertCircle } from "lucide-react"
 
-import StatePanel from "@/shared/components/state-panel";
-import { buttonVariants } from "@/shared/components/ui/button";
-import { LOGIN_URL } from "@/shared/lib/api-client";
+import { SignInButton } from "@/intranet/components/auth/sign-in-button"
+import { Stagger, StaggerItem } from "@/intranet/components/motion/stagger"
+import { Alert, AlertDescription } from "@/intranet/components/ui/alert"
+import { siteConfig } from "@/intranet/config/site"
 
-export default function LoginPage() {
+export const metadata = { title: "Iniciar sesión" }
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const params = await searchParams
+  const year = new Date().getFullYear()
+
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-8 text-text-primary">
-      <div className="w-full max-w-md space-y-6">
-        <div className="space-y-1">
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-text-secondary">
-            JDH
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Inicia sesión</h1>
-        </div>
-        <StatePanel
-          icon={LogIn}
-          title="Accede con tu cuenta corporativa"
-          action={
-            <a href={LOGIN_URL} className={buttonVariants({ variant: "primary" })}>
-              Iniciar sesión con Microsoft
-            </a>
-          }
-        >
-          La plataforma usa la sesión corporativa de Microsoft y no guarda contraseñas.
-        </StatePanel>
-      </div>
-    </main>
-  );
+    // `h2`, not `h1`: the showcase panel's headline is the page's single `h1`.
+    <Stagger staggerDelay={0.08} className="flex flex-col gap-8">
+      <StaggerItem className="flex flex-col gap-2">
+        <p className="font-mono text-xs tracking-[0.08em] text-muted-foreground uppercase">
+          Acceso
+        </p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          Iniciar sesión
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Ingresa con tu cuenta corporativa de {siteConfig.company}.
+        </p>
+      </StaggerItem>
+
+      {params.error ? (
+        <StaggerItem>
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>
+              No fue posible iniciar sesión. Verifica que estás usando tu cuenta
+              corporativa de Microsoft; si el problema continúa, contacta a la
+              mesa de ayuda.
+            </AlertDescription>
+          </Alert>
+        </StaggerItem>
+      ) : null}
+
+      <StaggerItem>
+        <SignInButton />
+      </StaggerItem>
+
+      <StaggerItem className="flex flex-col gap-4 border-t border-border pt-6">
+        <p className="text-xs text-muted-foreground">
+          El acceso es exclusivo para colaboradores con cuenta corporativa. Si
+          no puedes ingresar, contacta a la mesa de ayuda de TI.
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          © {year} {siteConfig.companyLegal} · Intranet {siteConfig.version}
+        </p>
+      </StaggerItem>
+    </Stagger>
+  )
 }
