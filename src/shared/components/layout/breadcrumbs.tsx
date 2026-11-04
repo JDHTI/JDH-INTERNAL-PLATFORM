@@ -7,12 +7,18 @@ import { ChevronRight } from "lucide-react";
 
 import { useAreas } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
-import {
-  findModuleByPath,
-  findUtilityLinkByPath,
-} from "@/shared/config/areas.config";
+import { findModuleByPath } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbStore } from "@/shared/store/use-breadcrumb-store";
+
+/** The name of a page under a module, as the sidebar shows it. */
+function findModulePageByPath(href: string): string | undefined {
+  const [, areaSlug, segment] = href.split("/");
+  if (!areaSlug || !segment) return undefined;
+  return findModuleByPath(`/${areaSlug}/${segment}`)?.subItems?.find(
+    (item) => item.path === href
+  )?.name;
+}
 
 /** Turns an unmatched URL segment into something a person can read. */
 function segmentToLabel(segment: string): string {
@@ -32,7 +38,7 @@ function labelForHref(
   return (
     registered[href] ??
     findModuleByPath(href)?.name ??
-    findUtilityLinkByPath(href)?.name ??
+    findModulePageByPath(href) ??
     segmentToLabel(segment)
   );
 }

@@ -5,6 +5,9 @@ import {
   Banknote,
   BookOpen,
   Building2,
+  Contact,
+  MapPin,
+  UserCog,
   Calculator,
   CalendarCheck,
   CalendarClock,
@@ -19,7 +22,6 @@ import {
   Hourglass,
   KeyRound,
   Laptop,
-  Lightbulb,
   LifeBuoy,
   ListChecks,
   MessageSquareWarning,
@@ -30,6 +32,7 @@ import {
   TrendingUp,
   ShieldCheck,
   ThumbsUp,
+  Users,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +50,21 @@ export const BOARD_SEGMENT = "monitoreo";
 
 /** TI's monitored applications, and each one's page under it. */
 export const APPS_SEGMENT = "aplicativos";
+
+/** Platform administration is a TI module, not a third place outside the workspace. */
+export const ADMIN_AREA_SLUG = "ti";
+export const ADMIN_SEGMENT = "administracion";
+export const ADMIN_PATH = `/${ADMIN_AREA_SLUG}/${ADMIN_SEGMENT}`;
+
+export const ADMIN_SECTIONS = [
+  { key: "areas", name: "Áreas y equipos", icon: Users },
+  { key: "usuarios", name: "Usuarios de la plataforma", icon: UserCog },
+  { key: "directorio", name: "Directorio de empleados", icon: Contact },
+  { key: "sedes", name: "Sedes", icon: MapPin },
+  { key: "maestros", name: "Maestros", icon: Database },
+] as const;
+
+export type AdminSection = (typeof ADMIN_SECTIONS)[number]["key"];
 
 /*
  * Areas themselves come from the API (features/areas). This file keeps what
@@ -103,6 +121,8 @@ export interface ModuleItem {
    * module with pages that also has a landing screen needs no flag.
    */
   hasPage?: boolean;
+  /** Only platform administrators see the row; the pages enforce it too. */
+  adminOnly?: boolean;
 }
 
 /**
@@ -184,6 +204,24 @@ export const MODULES: ModuleItem[] = [
     category: "Administración",
     icon: KeyRound,
     available: false,
+  },
+  {
+    id: "ti-administracion",
+    name: "Panel administrador",
+    path: ADMIN_PATH,
+    areaSlug: ADMIN_AREA_SLUG,
+    category: "Administración",
+    icon: ShieldCheck,
+    available: true,
+    adminOnly: true,
+    // The sections are the module; there is no landing screen above them.
+    hasPage: false,
+    subItems: ADMIN_SECTIONS.map((section) => ({
+      id: `ti-administracion-${section.key}`,
+      name: section.name,
+      path: `${ADMIN_PATH}/${section.key}`,
+      icon: section.icon,
+    })),
   },
   {
     id: "ti-monitoreo",
@@ -466,40 +504,3 @@ export function isAvailableModule(areaSlug: string, segment: string): boolean {
   return findModuleByPath(`/${areaSlug}/${segment}`)?.available === true;
 }
 
-/**
- * Platform-wide destinations that do not belong to any single area. They sit
- * in the sidebar footer, above the theme switch, and stay in place as the
- * user moves between areas.
- */
-export interface UtilityLink {
-  id: string;
-  name: string;
-  path: string;
-  icon: LucideIcon;
-}
-
-export const UTILITY_LINKS: UtilityLink[] = [
-  {
-    id: "sugerencias",
-    name: "Sugerencias",
-    path: "/sugerencias",
-    icon: Lightbulb,
-  },
-  {
-    id: "configuracion",
-    name: "Configuración",
-    path: "/configuracion",
-    icon: Settings,
-  },
-];
-
-export const ADMIN_LINK: UtilityLink = {
-  id: "administracion",
-  name: "Panel administrador",
-  path: "/administracion",
-  icon: ShieldCheck,
-};
-
-export function findUtilityLinkByPath(path: string): UtilityLink | undefined {
-  return [...UTILITY_LINKS, ADMIN_LINK].find((link) => link.path === path);
-}

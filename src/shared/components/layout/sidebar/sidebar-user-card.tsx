@@ -5,11 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
 import { toast } from "sonner";
 
+import SessionAvatar from "@/features/directory/components/session-avatar";
 import { useSession } from "@/features/session/hooks/use-session";
-import {
-  getInitials,
-  type SessionUser,
-} from "@/features/session/types/session.types";
+import type { SessionUser } from "@/features/session/types/session.types";
 import { LOGIN_URL, logoutSession } from "@/shared/lib/api-client";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
@@ -93,29 +91,5 @@ export default function SidebarUserCard() {
 }
 
 function UserAvatar({ user }: { user: SessionUser }) {
-  if (user.photoUrl) {
-    return (
-      // The photo is served by the API with the same HttpOnly session cookies.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={user.photoUrl}
-        alt=""
-        width={32}
-        height={32}
-        className="size-8 shrink-0 rounded-sm object-cover"
-      />
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-sm",
-        "bg-sidebar-active text-[11px] font-semibold text-sidebar-foreground"
-      )}
-      aria-hidden="true"
-    >
-      {getInitials(user.displayName)}
-    </span>
-  );
+  return <SessionAvatar user={user} />;
 }

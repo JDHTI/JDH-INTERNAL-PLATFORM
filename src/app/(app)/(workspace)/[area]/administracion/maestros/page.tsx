@@ -1,5 +1,5 @@
 import AdminManager from "@/features/admin/components/admin-manager";
 
 export default function AdministrationMastersPage() {
-  return <AdminManager initialSection="maestros" />;
+  return <AdminManager section="maestros" />;
 }

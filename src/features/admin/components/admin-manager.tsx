@@ -1,10 +1,8 @@
 "use client";
 
 import { createElement, useMemo, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -14,7 +12,6 @@ import {
   Save,
   Search,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,13 +37,17 @@ import {
 } from "@/features/admin/services/admin.service";
 import type { AreaDraft } from "@/features/admin/types/admin.types";
 import { areaToDraft } from "@/features/admin/types/admin.types";
+import DirectoryAdmin from "@/features/directory/components/admin/directory-admin";
+import SitesAdmin from "@/features/directory/components/admin/sites-admin";
 import MastersBrowser from "@/features/masters/components/masters-browser";
+import PageHeader from "@/shared/components/page-header";
+import { ADMIN_SECTIONS, type AdminSection } from "@/shared/config/areas.config";
 import {
   AREA_ICON_OPTIONS,
   DEFAULT_AREA_ICON,
   resolveAreaIcon,
 } from "@/features/areas/area-icons";
-import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
@@ -54,7 +55,14 @@ import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-type AdminSection = "areas" | "usuarios" | "maestros";
+const SECTION_COPY: Record<AdminSection, string> = {
+  areas: "Las áreas de la organización, sus roles y quién tiene acceso a cada una.",
+  usuarios: "Las personas que ya entraron a la plataforma o que la sincronización creó.",
+  directorio:
+    "Las personas del directorio, qué se muestra de cada una y la sincronización nocturna con Microsoft Entra.",
+  sedes: "Las sedes físicas de la compañía, para el directorio y el perfil de cada persona.",
+  maestros: "Los maestros compartidos que usa toda la plataforma.",
+};
 
 const EMPTY_AREA: AreaDraft = {
   slug: "",
@@ -64,13 +72,13 @@ const EMPTY_AREA: AreaDraft = {
   responsible_email: "",
 };
 
-export default function AdminManager({
-  initialSection,
-}: {
-  initialSection: AdminSection;
-}) {
+/**
+ * Platform administration, one section per route under TI. The sidebar lists
+ * the sections, so this screen carries no navigation of its own.
+ */
+export default function AdminManager({ section }: { section: AdminSection }) {
   const queryClient = useQueryClient();
-  const [section, setSection] = useState(initialSection);
+  const sectionName = ADMIN_SECTIONS.find((item) => item.key === section)!.name;
   const [selectedSlug, setSelectedSlug] = useState<string>();
   const [areaDraft, setAreaDraft] = useState<AreaDraft>(EMPTY_AREA);
   const [editingAreaSlug, setEditingAreaSlug] = useState<string | null>(null);
@@ -79,8 +87,9 @@ export default function AdminManager({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const areasQuery = useAdminAreas();
-  const usersQuery = useActiveUsers(userOffset);
+  // Each section loads only what it shows.
+  const areasQuery = useAdminAreas(section === "areas");
+  const usersQuery = useActiveUsers(userOffset, section === "areas" || section === "usuarios");
   const areas = areasQuery.data ?? [];
   const activeArea = areas.find((area) => area.slug === selectedSlug) ?? areas[0];
   const rolesQuery = useAreaRoles(activeArea?.slug);
@@ -173,57 +182,18 @@ export default function AdminManager({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-text-secondary">
-            Administración global
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Panel administrador</h1>
-          <p className="max-w-2xl text-sm text-text-secondary">
-            Gestiona las áreas de la organización, sus roles, las personas que tienen acceso y los
-            maestros compartidos que usa toda la plataforma.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <ArrowLeft aria-hidden="true" />
-            Volver a la plataforma
-          </Link>
-          {section === "areas" && (
+      <PageHeader
+        title={sectionName}
+        description={SECTION_COPY[section]}
+        aside={
+          section === "areas" && (
             <Button onClick={openCreateArea}>
               <Plus aria-hidden="true" />
               Nueva área
             </Button>
-          )}
-        </div>
-      </header>
-
-      <nav aria-label="Secciones de administración" className="flex gap-1 border-b border-border">
-        <Link
-          href="/administracion/areas"
-          onClick={() => setSection("areas")}
-          className={tabClass(section === "areas")}
-        >
-          <Users aria-hidden="true" /> Áreas y equipos
-        </Link>
-        <Link
-          href="/administracion/usuarios"
-          onClick={() => setSection("usuarios")}
-          className={tabClass(section === "usuarios")}
-        >
-          Directorio de usuarios
-        </Link>
-        <Link
-          href="/administracion/maestros"
-          onClick={() => setSection("maestros")}
-          className={tabClass(section === "maestros")}
-        >
-          Maestros
-        </Link>
-      </nav>
+          )
+        }
+      />
 
       {!areaFormOpen && error && <DialogError message={error} />}
 
@@ -318,6 +288,10 @@ export default function AdminManager({
         </div>
       ) : section === "maestros" ? (
         <MastersBrowser />
+      ) : section === "directorio" ? (
+        <DirectoryAdmin />
+      ) : section === "sedes" ? (
+        <SitesAdmin />
       ) : (
         <UsersDirectory
           users={users ?? []}
@@ -331,16 +305,6 @@ export default function AdminManager({
         />
       )}
     </div>
-  );
-}
-
-function tabClass(active: boolean) {
-  return cn(
-    "inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-    active
-      ? "border-primary text-text-primary"
-      : "border-transparent text-text-secondary hover:text-text-primary"
   );
 }
 
@@ -594,7 +558,7 @@ function AreaDetails({
             <h3 className="font-semibold">Miembros</h3>
             <p className="text-sm text-text-secondary">Asigna usuarios habilitados a esta área.</p>
           </div>
-          <form onSubmit={addMember} className="grid gap-2 sm:grid-cols-[1fr_0.8fr_auto]">
+          <form onSubmit={addMember} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_auto]">
             <Dropdown
               value={memberEmail}
               onValueChange={setMemberEmail}

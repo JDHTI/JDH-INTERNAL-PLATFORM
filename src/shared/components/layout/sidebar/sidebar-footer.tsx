@@ -1,54 +1,30 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 
-import { ADMIN_LINK, UTILITY_LINKS } from "@/shared/config/areas.config";
-import { useSession } from "@/features/session/hooks/use-session";
+import { HOME_LINK } from "@/shared/config/general.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
 import SidebarUserCard from "./sidebar-user-card";
 
 export default function SidebarFooter() {
-  const pathname = usePathname();
   const { theme, setTheme, isSidebarCollapsed, setMobileMenuOpen } =
     useUiStore();
-  const { data: user } = useSession();
   const isDark = theme === "dark";
 
   return (
     <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
-      {/* Platform-wide destinations: they stay put as the user moves between
-          areas, so they sit outside the area module list. */}
-      <ul className="space-y-0.5">
-        {UTILITY_LINKS.map((link) => (
-          <li key={link.id}>
-            <SidebarRow
-              href={link.path}
-              label={link.name}
-              icon={link.icon}
-              isActive={pathname === link.path}
-              isCollapsed={isSidebarCollapsed}
-              onNavigate={() => setMobileMenuOpen(false)}
-              labelClassName="font-light"
-            />
-          </li>
-        ))}
-        {user?.role === "admin" && (
-          <li>
-            <SidebarRow
-              href={ADMIN_LINK.path}
-              label={ADMIN_LINK.name}
-              icon={ADMIN_LINK.icon}
-              isActive={pathname.startsWith(ADMIN_LINK.path)}
-              isCollapsed={isSidebarCollapsed}
-              onNavigate={() => setMobileMenuOpen(false)}
-              labelClassName="font-light"
-            />
-          </li>
-        )}
-      </ul>
+      {/* The way out of the workspace, back to the general view. */}
+      <SidebarRow
+        href={HOME_LINK.path}
+        label="Vista general"
+        icon={HOME_LINK.icon}
+        isActive={false}
+        isCollapsed={isSidebarCollapsed}
+        onNavigate={() => setMobileMenuOpen(false)}
+        labelClassName="font-light"
+      />
 
       {isSidebarCollapsed ? (
         <button

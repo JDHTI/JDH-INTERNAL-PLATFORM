@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { notFound } from "next/navigation";
 import { CloudOff, Lock } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
+import { LAST_AREA_STORAGE_KEY } from "@/shared/config/general.config";
 import { Button } from "@/shared/components/ui/button";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
@@ -77,5 +79,22 @@ export default function AreaGate({
     );
   }
 
-  return children;
+  return (
+    <>
+      <RememberArea slug={area.slug} />
+      {children}
+    </>
+  );
+}
+
+/** The general view's "Espacio de trabajo" returns here. */
+function RememberArea({ slug }: { slug: string }) {
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LAST_AREA_STORAGE_KEY, slug);
+    } catch {
+      // Blocked storage: the link falls back to the first area.
+    }
+  }, [slug]);
+  return null;
 }
