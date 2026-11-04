@@ -484,10 +484,13 @@ space-5: 20px   space-6: 24px   space-8: 32px   space-10: 40px   space-12: 48px
 | Padding de página | `16px` móvil, `24px` escritorio |
 | Ancho máximo de contenido | Sin límite en tablas; `640px` en formularios de columna única |
 
-### 5.3 Shell de la aplicación
+### 5.3 Shell del espacio de trabajo
 
-La intranet es el shell: un módulo aparece **dentro** de la navegación unificada, con sesión
-única. No se levanta como aplicación con su propio login y su propia URL suelta.
+La plataforma tiene dos frentes con una sola sesión: la **vista general** (§5.4), para toda
+persona autenticada, y el **espacio de trabajo**, un área a la vez con sus módulos. Nada vive
+fuera de esos dos: la administración de la plataforma es un módulo del área TI. Un módulo nuevo
+aparece **dentro** de la navegación del área; no se levanta con su propio login ni su propia
+URL suelta. Esta sección describe el espacio de trabajo.
 
 ```
 ┌──────────┬────────────────────────────────────┐
@@ -516,6 +519,37 @@ La intranet es el shell: un módulo aparece **dentro** de la navegación unifica
   de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
   exterior de la card. El borde inferior del header queda 12px debajo del de la card.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
+- **Salida a la vista general:** la fila «Vista general» en el pie del sidebar, encima del
+  selector de tema. La marca del breadcrumb también lleva a `/`.
+
+### 5.4 Shell de la vista general
+
+La portada, el directorio y las páginas de cada persona se leen de arriba abajo, no se trabajan
+junto a un sidebar fijo. Por eso tienen su propio marco:
+
+```
+┌──────────────────────────────────────────────┐
+│ Header 64px · enlaces · espacio · cuenta     │
+├──────────────────────────────────────────────┤
+│ Contenido · máx. 1200px · scroll de documento│
+├──────────────────────────────────────────────┤
+│ Footer · una línea                           │
+└──────────────────────────────────────────────┘
+```
+
+- **Header:** 64px, sticky, sobre `--sidebar` con borde `--sidebar-border`: la misma banda
+  oscura del espacio de trabajo, para que los dos frentes se lean como un producto. Por debajo de
+  `md` los enlaces pasan a un menú con la etiqueta «Menú», no a un ícono suelto.
+- **Espacio de trabajo:** botón a la derecha que vuelve a la última área abierta. Quien no
+  tiene áreas no lo ve.
+- **Cuenta:** foto, nombre y un menú con Configuración, Sugerencias, el panel administrador si
+  aplica, el tema y cerrar sesión.
+- **Contenido:** contenedor de 1200px, `px-4` en móvil y `px-6` desde `md`. El documento
+  hace scroll; el header queda pegado arriba.
+- **Movimiento:** el mismo MOTION 1 del espacio de trabajo. La vista general gana carácter por
+  tipografía, foto y espacio, no por animación: sin smooth scroll, sin transiciones de página.
+- Noticias, eventos y documentos corporativos entran al header cuando la API sirva su contenido
+  de Strapi. Antes no se enlazan.
 
 ---
 
