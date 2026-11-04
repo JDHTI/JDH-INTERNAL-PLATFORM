@@ -1,0 +1,31 @@
+# Development server with hot reload.
+#   docker compose -f compose.dev.yaml watch
+# `watch` copies edited files into the container instead of bind-mounting
+# the repo: on Docker Desktop a bind mount drops file events and Fast
+# Refresh stalls. A change to the dependencies rebuilds the image.
+services:
+  ui-dev:
+    build:
+      context: .
+      target: dev
+    image: internal-platform-ui:dev
+    container_name: internal-platform-ui-dev
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: rebuild
+          path: package.json
+        - action: rebuild
+          path: pnpm-lock.yaml
+        - action: sync+restart
+          path: next.config.ts
+          target: /app/next.config.ts

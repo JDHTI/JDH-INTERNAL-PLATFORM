@@ -1,0 +1,16 @@
+# Production image, the same one that gets deployed.
+#   docker compose up -d --build
+# NEXT_PUBLIC_API_URL is read from the shell or from .env (not .env.local)
+# and baked in at build time: changing it means rebuilding.
+services:
+  ui:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    image: internal-platform-ui:latest
+    container_name: internal-platform-ui
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    restart: unless-stopped
