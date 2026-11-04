@@ -1,11 +1,30 @@
 import { create } from "zustand";
 
 export type ThemeMode = "light" | "dark";
+/** "system" means no stored choice: the inline script follows the OS. */
+export type ThemePreference = ThemeMode | "system";
 
 const THEME_STORAGE_KEY = "jdh-theme";
 
+function systemMode(): ThemeMode {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function readPreference(): ThemePreference {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : "system";
+  } catch {
+    return "system";
+  }
+}
+
 interface UiState {
   theme: ThemeMode;
+  themePreference: ThemePreference;
+  /** "system" forgets the stored choice and follows the OS again. */
+  setThemePreference: (preference: ThemePreference) => void;
   isSidebarCollapsed: boolean;
   isMobileMenuOpen: boolean;
 
@@ -51,20 +70,34 @@ export const useUiStore = create<UiState>()((set, get) => ({
   // "dark". React then hydrates a tree that disagrees with the server HTML.
   // ThemeSync reconciles this after mount instead.
   theme: "light",
+  themePreference: "system",
   isSidebarCollapsed: false,
   isMobileMenuOpen: false,
 
   setTheme: (mode) => {
     applyThemeToDom(mode);
     persistTheme(mode);
-    set({ theme: mode });
+    set({ theme: mode, themePreference: mode });
+  },
+
+  setThemePreference: (preference) => {
+    if (preference !== "system") {
+      get().setTheme(preference);
+      return;
+    }
+    try {
+      window.localStorage.removeItem(THEME_STORAGE_KEY);
+    } catch {
+      // Blocked storage: the OS mode still applies for this session.
+    }
+    const mode = systemMode();
+    applyThemeToDom(mode);
+    set({ theme: mode, themePreference: "system" });
   },
 
   toggleTheme: () => {
     const next: ThemeMode = get().theme === "light" ? "dark" : "light";
-    applyThemeToDom(next);
-    persistTheme(next);
-    set({ theme: next });
+    get().setTheme(next);
   },
 
   hydrateTheme: () => {
@@ -72,7 +105,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
     const mode: ThemeMode = document.documentElement.classList.contains("dark")
       ? "dark"
       : "light";
-    if (mode !== get().theme) set({ theme: mode });
+    set({ theme: mode, themePreference: readPreference() });
   },
 
   toggleSidebar: () =>

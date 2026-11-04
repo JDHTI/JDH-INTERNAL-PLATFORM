@@ -1,0 +1,6 @@
+export { perfilModule } from "./perfil.module"
+export { PerfilShell } from "./components/perfil-shell"
+export { PerfilView } from "./components/perfil-view"
+export { ContactoDirectoView } from "./components/contacto-directo-view"
+export { HorariosView } from "./components/horarios-view"
+export type { ContactoDirecto, HorarioContacto, MiPerfil } from "./types"

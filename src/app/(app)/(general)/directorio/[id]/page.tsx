@@ -1,10 +1,38 @@
-import type { Metadata } from "next";
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 
-import EmployeeProfile from "@/features/directory/components/employee-profile";
+import { EmpleadoDetail } from "@/intranet/modules/directorio"
+import { getEmpleadoById, getEquipo } from "@/intranet/modules/directorio/server/queries"
+import { getHorarioContacto } from "@/intranet/modules/perfil/server/queries"
 
-export const metadata: Metadata = { title: "Perfil · Directorio · Plataforma Interna JDH" };
+interface PageProps {
+  params: Promise<{ id: string }>
+}
 
-export default async function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <EmployeeProfile employeeId={id} />;
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { id } = await params
+  const empleado = await getEmpleadoById(id)
+  if (!empleado) return {}
+
+  return {
+    title: empleado.nombre,
+    description: `${empleado.cargo} · ${empleado.sede}`,
+  }
+}
+
+export default async function Page({ params }: PageProps) {
+  const { id } = await params
+  const empleado = await getEmpleadoById(id)
+  if (!empleado) notFound()
+
+  const [equipo, horario] = await Promise.all([
+    getEquipo(id),
+    getHorarioContacto(id),
+  ])
+
+  return (
+    <EmpleadoDetail empleado={empleado} equipo={equipo} horario={horario} />
+  )
 }

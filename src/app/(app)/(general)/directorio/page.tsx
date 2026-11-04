@@ -1,23 +1,26 @@
-import { Suspense } from "react";
-import type { Metadata } from "next";
+import { DirectorioView } from "@/intranet/modules/directorio"
+import { empleadoFiltersSchema } from "@/intranet/modules/directorio/schemas/empleado.schema"
+import { getEmpleados, getSedes } from "@/intranet/modules/directorio/server/queries"
 
-import DirectoryBrowser from "@/features/directory/components/directory-browser";
-import PageHeader from "@/shared/components/page-header";
-import TableSkeleton from "@/shared/components/table-skeleton";
+export const metadata = { title: "Directorio" }
 
-export const metadata: Metadata = { title: "Directorio · Plataforma Interna JDH" };
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
 
-export default function DirectoryPage() {
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Directorio"
-        description="Las personas de la compañía, con su cargo, sede y correo. Se actualiza cada noche desde Microsoft Entra."
-      />
-      {/* The browser reads the search from the URL, which needs a Suspense boundary. */}
-      <Suspense fallback={<TableSkeleton rows={8} label="Cargando el directorio" />}>
-        <DirectoryBrowser />
-      </Suspense>
-    </div>
-  );
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+export default async function Page({ searchParams }: PageProps) {
+  const rawParams = await searchParams
+  const filters = empleadoFiltersSchema.parse({
+    q: firstValue(rawParams.q),
+    sede: firstValue(rawParams.sede),
+    page: firstValue(rawParams.page),
+  })
+
+  const [data, sedes] = await Promise.all([getEmpleados(filters), getSedes()])
+
+  return <DirectorioView filters={filters} data={data} sedes={sedes} />
 }

@@ -1,12 +1,52 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+
+import { siteConfig } from "@/intranet/config/site";
 
 import { centraleSans } from "./fonts";
 import "./globals.css";
 
+/**
+ * The intranet's metadata, now the platform's. `robots` is noindex: nothing
+ * behind the login should reach a search engine even if a URL leaks.
+ * `metadataBase` makes the Teams link preview resolve against the public host.
+ */
 export const metadata: Metadata = {
-  title: "Plataforma Interna JDH",
-  description:
-    "Plataforma interna de Juan D. Hoyos Distribuciones: módulos operativos sobre una intranet unificada.",
+  metadataBase: process.env.PUBLIC_ORIGIN ? new URL(process.env.PUBLIC_ORIGIN) : undefined,
+  title: {
+    default: siteConfig.name,
+    template: `%s · ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
+  authors: [{ name: siteConfig.companyLegal }],
+  creator: siteConfig.companyLegal,
+  publisher: siteConfig.companyLegal,
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
+  openGraph: {
+    type: "website",
+    locale: siteConfig.locale.replace("-", "_"),
+    siteName: siteConfig.name,
+    title: siteConfig.name,
+    description: siteConfig.description,
+  },
+  appleWebApp: {
+    capable: true,
+    title: siteConfig.shortName,
+    statusBarStyle: "black",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1D1D1B" },
+  ],
 };
 
 /**
