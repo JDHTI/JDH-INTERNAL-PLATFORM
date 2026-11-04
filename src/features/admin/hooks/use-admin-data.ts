@@ -23,8 +23,13 @@ const retryTransient = (count: number, error: Error) =>
   !(error instanceof ApiError && [401, 403, 404, 409, 422].includes(error.status)) &&
   count < 1;
 
-export function useAdminAreas() {
-  return useQuery({ queryKey: adminKeys.areas(), queryFn: listAdminAreas, retry: retryTransient });
+export function useAdminAreas(enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.areas(),
+    queryFn: listAdminAreas,
+    enabled,
+    retry: retryTransient,
+  });
 }
 
 export function useAreaRoles(slug: string | undefined) {
@@ -45,10 +50,11 @@ export function useAreaMembers(slug: string | undefined) {
   });
 }
 
-export function useActiveUsers(offset = 0) {
+export function useActiveUsers(offset = 0, enabled = true) {
   return useQuery({
     queryKey: [...adminKeys.users(), offset],
     queryFn: () => listActiveUsers(offset),
+    enabled,
     retry: retryTransient,
   });
 }

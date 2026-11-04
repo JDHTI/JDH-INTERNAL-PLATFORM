@@ -49,9 +49,9 @@ export default function ConfiguracionPage() {
       <section className="max-w-prose space-y-1 rounded-lg border border-border p-4">
         <h2 className="text-base font-semibold">Cuenta</h2>
         <p className="text-sm text-text-secondary">
-          Nombre, correo y foto vienen de Microsoft Entra y se cambian allí, no
-          aquí. La conexión con Entra todavía no está montada, así que la tarjeta
-          de la barra lateral muestra datos de prueba.
+          Nombre, correo, cargo y foto vienen de Microsoft Entra y se cambian
+          allí, no aquí. La plataforma los vuelve a leer cada noche y cada vez
+          que inicias sesión.
         </p>
       </section>
     </div>

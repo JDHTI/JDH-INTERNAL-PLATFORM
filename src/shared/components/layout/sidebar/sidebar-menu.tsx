@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
+import { useSession } from "@/features/session/hooks/use-session";
 import {
   MODULE_CATEGORIES,
   activeModuleId,
@@ -18,6 +19,8 @@ export default function SidebarMenu() {
   const pathname = usePathname();
   const { isSidebarCollapsed, setMobileMenuOpen } = useUiStore();
   const { area: activeArea, isPending } = useActiveArea();
+  const { data: user } = useSession();
+  const isAdmin = user?.role === "admin";
 
   if (!activeArea) {
     return (
@@ -33,7 +36,9 @@ export default function SidebarMenu() {
     );
   }
 
-  const areaModules = getModulesByArea(activeArea.slug);
+  const areaModules = getModulesByArea(activeArea.slug).filter(
+    (module) => !module.adminOnly || isAdmin
+  );
   // Any page under a module keeps its row selected, not only the module's own screen.
   const currentModuleId = activeModuleId(areaModules, pathname);
 
