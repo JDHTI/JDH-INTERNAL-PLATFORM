@@ -78,6 +78,7 @@ export function submitPqrsfRequest(
     if (input.pickup_order_requested === "yes" && input.pickup_order_number) {
       form.append("pickup_order_number", input.pickup_order_number);
     }
+    if (input.delivery_date) form.append("delivery_date", input.delivery_date);
   }
 
   if (input.document_request) {

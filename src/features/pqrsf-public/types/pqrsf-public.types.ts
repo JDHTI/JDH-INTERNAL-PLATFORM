@@ -129,6 +129,8 @@ export interface PqrsfFormValues {
   cause_id: string;
   pickup_order_requested: PickupOrderAnswer | "";
   pickup_order_number: string;
+  /** AAAA-MM-DD: when the order with the products was delivered; required with products. */
+  delivery_date: string;
 }
 
 export interface PqrsfSubmission extends PqrsfFormValues {
