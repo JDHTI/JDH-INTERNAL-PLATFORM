@@ -41,8 +41,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      # Builds the runner image to prove it still builds. Publishing and the
-      # deploy job wait until the platform has a production host.
+      # Proves the runner image builds; the deploy job builds its own copy on
+      # the server.
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -50,3 +50,21 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # The runner lives on intranet.jdh.local and connects out to GitHub, so the
+  # server opens no port for this. Setup: docs/deploy.md.
+  deploy:
+    name: Desplegar en intranet.jdh.local
+    needs: [check, image]
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, internal-platform-ui]
+    timeout-minutes: 30
+    environment: produccion
+    concurrency:
+      group: deploy-platform-ui
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/deploy.sh
+        env:
+          GIT_SHA: ${{ github.sha }}
