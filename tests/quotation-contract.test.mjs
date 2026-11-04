@@ -11,34 +11,44 @@ async function moduleUrl(path, replacements = {}) {
 }
 const sharedFormat = await moduleUrl("../src/shared/lib/format.ts");
 const client = await moduleUrl("../src/shared/lib/api-client.ts");
-const { parsePriceInput, priceInputText, samePrice, parseReferenceText } = await import(
+const { parsePriceInput, parseMarginInput, priceInputText, samePrice, parseReferenceText } = await import(
   await moduleUrl("../src/features/quotations/lib/format.ts", { "@/shared/lib/format": sharedFormat })
 );
 const service = await import(
   await moduleUrl("../src/features/quotations/services/quotations.service.ts", { "@/shared/lib/api-client": client })
 );
 
-test("typed prices become the decimal string the API takes", () => {
-  assert.deepEqual(parsePriceInput("3.323,36"), { value: "3323.36" });
-  assert.deepEqual(parsePriceInput("3323,36"), { value: "3323.36" });
-  assert.deepEqual(parsePriceInput("3323.36"), { value: "3323.36" });
+test("typed prices become the whole-peso string the API takes", () => {
   assert.deepEqual(parsePriceInput("3.323"), { value: "3323" });
+  assert.deepEqual(parsePriceInput("3,323"), { value: "3323" });
   assert.deepEqual(parsePriceInput("1.234.567"), { value: "1234567" });
-  assert.deepEqual(parsePriceInput("1,234.5"), { value: "1234.5" });
   assert.deepEqual(parsePriceInput("$ 12.000"), { value: "12000" });
-  assert.deepEqual(parsePriceInput("0,1234"), { value: "0.1234" });
+  assert.deepEqual(parsePriceInput("3323"), { value: "3323" });
+  // What Excel pastes for a whole number.
+  assert.deepEqual(parsePriceInput("3323,00"), { value: "3323" });
+  assert.deepEqual(parsePriceInput("3.323,0"), { value: "3323" });
+  assert.deepEqual(parsePriceInput("007"), { value: "7" });
+  assert.deepEqual(parsePriceInput("1.000"), { value: "1000" });
   assert.deepEqual(parsePriceInput("  "), { value: null });
 });
 
-test("unreadable prices are refused before they reach the API", () => {
-  assert.ok("error" in parsePriceInput("-100"));
-  assert.ok("error" in parsePriceInput("12a"));
-  assert.ok("error" in parsePriceInput("1,23456"));
-  assert.ok("error" in parsePriceInput("1,2,3"));
+test("decimals and unreadable prices are refused before they reach the API", () => {
+  for (const text of ["3.323,36", "3323,5", "3323.36", "-100", "12a", "1,2,3", "12.34"]) {
+    assert.ok("error" in parsePriceInput(text), text);
+  }
+  assert.match(parsePriceInput("3323,5").error, /pesos enteros/);
+});
+
+test("a typed margin becomes the fraction the API takes", () => {
+  assert.deepEqual(parseMarginInput("30"), { value: "0.3" });
+  assert.deepEqual(parseMarginInput("30 %"), { value: "0.3" });
+  assert.deepEqual(parseMarginInput("27,5"), { value: "0.275" });
+  assert.deepEqual(parseMarginInput("12.25"), { value: "0.1225" });
+  for (const text of ["", "0", "100", "abc", "-5", "30,123"]) assert.ok("error" in parseMarginInput(text), text);
 });
 
 test("what the cell prints reads back as the same price", () => {
-  for (const stored of ["3323.3600", "3323.0000", "149551.0000", "0.5000", "1234567.1234"]) {
+  for (const stored of ["3323.0000", "149551.0000", "1234567.0000", "7.0000"]) {
     const parsed = parsePriceInput(priceInputText(stored));
     assert.ok(samePrice(parsed.value, stored), `${stored} -> ${priceInputText(stored)} -> ${parsed.value}`);
   }
@@ -71,15 +81,51 @@ test("the list sends mine=false explicitly, since the API defaults to true", asy
   assert.equal(calls[0].url.searchParams.get("status"), null);
 });
 
-test("line updates go as one batch with the version", async (t) => {
+test("line updates go as one batch with the version, prices and margins alike", async (t) => {
   const calls = captureFetch(t);
-  await service.updateLines("q-1", 7, [{ sku: "123", new_price: "100.5" }, { sku: "456", new_price: null }]);
+  await service.updateLines("q-1", 7, [{ sku: "123", new_price: "3323" }, { sku: "456", new_price: null }]);
+  await service.updateLines("q-1", 8, [{ sku: "123", margin_pct: "0.3" }, { sku: "789", margin_pct: "0.3" }]);
   assert.equal(calls[0].init.method, "PUT");
   assert.ok(calls[0].url.pathname.endsWith("/quotations/q-1/lines"));
   assert.deepEqual(JSON.parse(calls[0].init.body), {
     version: 7,
-    lines: [{ sku: "123", new_price: "100.5" }, { sku: "456", new_price: null }],
+    lines: [{ sku: "123", new_price: "3323" }, { sku: "456", new_price: null }],
   });
+  assert.deepEqual(JSON.parse(calls[1].init.body), {
+    version: 8,
+    lines: [{ sku: "123", margin_pct: "0.3" }, { sku: "789", margin_pct: "0.3" }],
+  });
+});
+
+test("the review flow posts the contract's bodies to its own routes", async (t) => {
+  const calls = captureFetch(t);
+  await service.confirmQuotation("q-1", 3, { list_action: "creacion", price_list_id: "C97", new_list_name: "COTIZADOR X", activation_date: "2026-11-04" });
+  await service.returnQuotation("q-1", 4, "Revisar el margen de 1081");
+  await service.validateQuotation("q-1", 5);
+  assert.deepEqual(
+    calls.map((call) => [call.init.method, call.url.pathname.split("/").slice(-1)[0]]),
+    [["POST", "confirm"], ["POST", "return"], ["POST", "validate"]]
+  );
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    version: 3,
+    list_action: "creacion",
+    price_list_id: "C97",
+    new_list_name: "COTIZADOR X",
+    activation_date: "2026-11-04",
+  });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { version: 4, note: "Revisar el margen de 1081" });
+  assert.deepEqual(JSON.parse(calls[2].init.body), { version: 5 });
+});
+
+test("the template goes up as multipart with the file and the version", async (t) => {
+  const calls = captureFetch(t);
+  const file = new File(["x"], "cotizacion.xlsx");
+  await service.uploadQuotationTemplate("q-1", 9, file);
+  assert.equal(calls[0].init.method, "POST");
+  assert.ok(calls[0].url.pathname.endsWith("/quotations/q-1/template"));
+  assert.ok(calls[0].init.body instanceof FormData);
+  assert.equal(calls[0].init.body.get("version"), "9");
+  assert.equal(calls[0].init.body.get("file").name, "cotizacion.xlsx");
 });
 
 test("added references go in one POST, and removal carries the version in the query", async (t) => {
@@ -97,10 +143,8 @@ test("added references go in one POST, and removal carries the version in the qu
   assert.equal(calls[1].url.searchParams.get("version"), "5");
 });
 
-test("create and generate send the contract's fields", async (t) => {
+test("create sends the contract's fields", async (t) => {
   const calls = captureFetch(t);
   await service.createQuotation("80140929", 12);
-  await service.generateQuotation("q-1", 3, { activation_date: "2026-11-04", price_list_id: "1M" });
   assert.deepEqual(JSON.parse(calls[0].init.body), { customer_nit: "80140929", window_months: 12 });
-  assert.deepEqual(JSON.parse(calls[1].init.body), { version: 3, activation_date: "2026-11-04", price_list_id: "1M" });
 });

@@ -141,8 +141,15 @@ export interface MarginChange {
   sku: string;
   description: string | null;
   margins: Partial<Record<MarginField, { from: Decimal | null; to: Decimal | null }>>;
+  /**
+   * Liquor tax loaded from the same workbook, per regional: the national and
+   * the Coast amounts in pesos, and the tax group. Older API builds send none.
+   */
+  taxes?: Partial<Record<LiquorTaxField, { from: Decimal | string | null; to: Decimal | string | null }>>;
   notes: { from: string | null; to: string | null } | null;
 }
+
+export type LiquorTaxField = "liquor_tax" | "liquor_tax_coast" | "liquor_tax_group";
 
 export interface MarginIssue {
   row_number: number;

@@ -10,8 +10,9 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { useQuotationPermissions } from "../hooks/use-quotations";
 
 /**
- * Everything but the rules needs the commercial area or an administrator. The
- * API enforces it too; asking first avoids a screen of 403s.
+ * Everything but the rules needs the commercial area (quotes), the validating
+ * area (validates) or an administrator. The API enforces it too; asking first
+ * avoids a screen of 403s.
  */
 export default function QuotationsGate({ basePath, children }: { basePath: string; children: React.ReactNode }) {
   const permissions = useQuotationPermissions();
@@ -22,7 +23,7 @@ export default function QuotationsGate({ basePath, children }: { basePath: strin
   if (permissions.isError) {
     return <QuotationLoadError error={permissions.error} onRetry={() => void permissions.refetch()} subject="el cotizador" />;
   }
-  if (!permissions.data.can_manage) {
+  if (!permissions.data.can_manage && !permissions.data.can_validate) {
     return (
       <StatePanel
         icon={Lock}
@@ -36,8 +37,8 @@ export default function QuotationsGate({ basePath, children }: { basePath: strin
           </Link>
         }
       >
-        Solo los miembros del área Comercial y los administradores arman y generan cotizaciones. Si las necesitas,
-        pide a un administrador de la plataforma que te agregue al área.
+        Las cotizaciones las arman los miembros del área Comercial y las valida el área BI. Si las necesitas, pide a un
+        administrador de la plataforma que te agregue a una de esas áreas.
       </StatePanel>
     );
   }

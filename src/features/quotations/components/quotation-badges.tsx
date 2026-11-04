@@ -1,16 +1,26 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, PencilLine, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, Hourglass, PencilLine, TrendingDown } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
 import { COMPLIANCE_LABELS } from "../lib/format";
 import type { Compliance, QuotationStatus } from "../types/quotations.types";
 
-/** Draft is neutral: there is nothing wrong with it. Generated is green: its files can be downloaded. */
+const STATUS_LOOK: Record<QuotationStatus, { tone: BadgeTone; icon: typeof CheckCircle2 }> = {
+  // Nothing wrong with a draft: neutral.
+  borrador: { tone: "neutral", icon: PencilLine },
+  // Waiting on someone else: amber, like the validator's pending orders.
+  pendiente_validacion: { tone: "warning", icon: Hourglass },
+  // Validated, files out: green either way; the label says which.
+  creada: { tone: "success", icon: FileCheck2 },
+  actualizada: { tone: "success", icon: FileCheck2 },
+};
+
+/** The quotation's state with the API's own label; the icon carries it too, not only the color. */
 export function QuotationStatusBadge({ status, label }: { status: QuotationStatus; label: string }) {
-  const generated = status === "generado";
-  const Icon = generated ? FileCheck2 : PencilLine;
+  const look = STATUS_LOOK[status] ?? { tone: "neutral" as BadgeTone, icon: PencilLine };
+  const Icon = look.icon;
   return (
-    <Badge tone={generated ? "success" : "neutral"}>
+    <Badge tone={look.tone}>
       <Icon aria-hidden="true" /> {label}
     </Badge>
   );
@@ -38,7 +48,7 @@ export function ComplianceBadge({ compliance, label }: { compliance: Compliance;
   );
 }
 
-/** Row tint per compliance. Only text-primary, text-secondary and badges sit on it (§3.5). */
+/** Row tint per compliance of the new price. Only text-primary, text-secondary and badges sit on it (§3.5). */
 export const COMPLIANCE_ROW: Partial<Record<Compliance, string>> = {
   bajo_minimo: "bg-danger-surface",
   sin_objetivo: "bg-warning-surface",

@@ -1,6 +1,6 @@
 import { toNumber } from "@/shared/lib/format";
 
-import type { Compliance, MarginBasis } from "../types/quotations.types";
+import type { Compliance, MarginBasis, QuotationStatus } from "../types/quotations.types";
 
 const money = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 });
 const percent = new Intl.NumberFormat("es-CO", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 2 });
@@ -51,42 +51,43 @@ export function priceInputText(value: Value): string {
   return parsed === null ? "" : plainPrice.format(parsed);
 }
 
-export const MAX_PRICE_DECIMALS = 4;
-
 /**
- * A price typed in the cell, as the decimal string the API takes. Accepts the
- * Colombian form ("3.323,36") and the plain one ("3323.36"). A single dot
- * followed by exactly three digits is a thousands separator ("3.323" is 3323),
- * because that is how the cell itself prints whole prices. Empty is null
- * (remove the new price).
+ * A price typed in the cell, as the whole-peso string the API takes. Prices
+ * have no decimals, so a dot or comma followed by three digits is always a
+ * thousands separator ("3.323" and "3,323" are 3323), and a trailing ",00" or
+ * ".0" (what Excel pastes) is dropped. Anything else after a separator is a
+ * decimal and is refused before it reaches the API. Empty is null (remove the
+ * new price).
  */
 export function parsePriceInput(text: string): { value: string | null } | { error: string } {
   const clean = text.replace(/\s|\$/g, "");
   if (clean === "") return { value: null };
-  if (!/^[\d.,]+$/.test(clean)) return { error: "Escribe solo números, con coma para los decimales." };
+  if (!/^[\d.,]+$/.test(clean)) return { error: "Escribe solo números, en pesos enteros." };
 
-  const lastComma = clean.lastIndexOf(",");
-  const lastDot = clean.lastIndexOf(".");
-  let normalized: string;
-  if (lastComma >= 0 && lastDot >= 0) {
-    const decimal = lastComma > lastDot ? "," : ".";
-    const thousands = decimal === "," ? "." : ",";
-    normalized = clean.split(thousands).join("").replace(decimal, ".");
-  } else if (lastComma >= 0) {
-    normalized = clean.split(".").join("").replace(",", ".");
-    if ((clean.match(/,/g) ?? []).length > 1) return { error: "Usa una sola coma para los decimales." };
-  } else {
-    const dots = (clean.match(/\./g) ?? []).length;
-    const afterDot = clean.length - lastDot - 1;
-    normalized = dots > 1 || (dots === 1 && afterDot === 3) ? clean.split(".").join("") : clean;
-  }
+  // One or two zeros are empty cents ("3323,00"); three are thousands ("12.000").
+  const withoutZeroCents = clean.replace(/[.,]0{1,2}$/, "");
+  let digits: string;
+  if (/^\d+$/.test(withoutZeroCents)) digits = withoutZeroCents;
+  else if (/^\d{1,3}([.,]\d{3})+$/.test(withoutZeroCents)) digits = withoutZeroCents.replace(/[.,]/g, "");
+  else return { error: "El precio va en pesos enteros, sin decimales." };
 
-  if (!/^\d+(\.\d+)?$/.test(normalized)) return { error: "Revisa el número: sobran separadores." };
-  const decimals = normalized.split(".")[1]?.length ?? 0;
-  if (decimals > MAX_PRICE_DECIMALS) return { error: `El precio admite hasta ${MAX_PRICE_DECIMALS} decimales.` };
-  const [whole, fraction] = normalized.split(".");
-  const trimmedWhole = whole.replace(/^0+(?=\d)/, "");
-  return { value: fraction ? `${trimmedWhole}.${fraction}` : trimmedWhole };
+  return { value: digits.replace(/^0+(?=\d)/, "") };
+}
+
+/**
+ * A margin typed for a selection, "30", "30,5" or "30 %", as the fraction the
+ * API takes ("0.3", "0.305"). It must leave room for a price: above 0 and
+ * under 100.
+ */
+export function parseMarginInput(text: string): { value: string } | { error: string } {
+  const clean = text.replace(/\s|%/g, "").replace(",", ".");
+  if (clean === "") return { error: "Escribe el margen, por ejemplo 30." };
+  if (!/^\d+(\.\d{1,2})?$/.test(clean)) return { error: "Escribe el margen en puntos, por ejemplo 30 o 27,5." };
+  const points = Number(clean);
+  if (points <= 0 || points >= 100) return { error: "El margen va entre 0 y 100 %." };
+  // Integer arithmetic on hundredths of a point, so 27.5 is "0.275" and never "0.27499999".
+  const fraction = Math.round(points * 100) / 10000;
+  return { value: String(fraction) };
 }
 
 /** Two decimal strings that mean the same number ("100" and "100.0000"). */
@@ -95,6 +96,17 @@ export function samePrice(a: string | null | undefined, b: string | null | undef
   if (b === null || b === undefined || b === "") return false;
   return Number(a) === Number(b);
 }
+
+/** Labels for the status filter; the badge itself uses the API's `status_label`. */
+export const STATUS_LABELS: Record<QuotationStatus, string> = {
+  borrador: "Borrador",
+  pendiente_validacion: "Pendiente de validación",
+  creada: "Creada",
+  actualizada: "Actualizada",
+};
+
+/** Validated: the Excel and the flat file can be downloaded. */
+export const isValidated = (status: QuotationStatus) => status === "creada" || status === "actualizada";
 
 export const COMPLIANCE_LABELS: Record<Compliance, string> = {
   cumple: "Cumple",
