@@ -47,7 +47,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     backendFetch("/users/me"),
     backendFetch("/directory/employees/me").catch(() => null),
   ])
-  if (!meResponse.ok) return null
+  // Only a 401 means "no session". Anything else is the API failing, and
+  // sending the person to /login for it would loop; the error page retries.
+  if (meResponse.status === 401) return null
+  if (!meResponse.ok) throw new Error(`GET /users/me -> ${meResponse.status}`)
 
   const user = (await meResponse.json()) as UserDto
   const employee =

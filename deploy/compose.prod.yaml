@@ -1,4 +1,5 @@
 # Production UI on intranet.jdh.local. Run it through deploy/deploy.sh.
+# Values without a default come from ~/apps/platform/ui.env (docs/deploy.md).
 #
 # Caddy is not here: it lives in the edge stack (compose project
 # `intranet-jdh`, owned by INTRANET-JDH-API deploy/) together with Strapi and
@@ -26,6 +27,15 @@ services:
     image: internal-platform-ui:latest
     container_name: platform-ui
     restart: unless-stopped
+    environment:
+      PUBLIC_ORIGIN: https://${PUBLIC_HOST:-intranet.jdh.local}
+      # Server-side calls: by internal name, never out through Caddy.
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://platform-api:8000/api/v1}
+      STRAPI_URL: ${STRAPI_URL:-http://intranet-cms:1337}
+      # What the browser loads media from: Caddy forwards /cms/uploads/* to Strapi.
+      STRAPI_PUBLIC_URL: https://${PUBLIC_HOST:-intranet.jdh.local}/cms
+      # Same value as the edge stack's STRAPI_WEBHOOK_SECRET (CMS revalidation webhook).
+      STRAPI_WEBHOOK_SECRET: ${STRAPI_WEBHOOK_SECRET:?set STRAPI_WEBHOOK_SECRET in ~/apps/platform/ui.env}
     networks:
       edge:
         aliases:

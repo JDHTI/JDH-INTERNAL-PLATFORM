@@ -36,10 +36,13 @@ Lo que el stack de borde conserva y no se debe borrar: los volúmenes `intranet-
 `https://intranet.jdh.local/api/health` a través de Caddy. `NEXT_PUBLIC_API_URL` queda en
 `https://intranet.jdh.local/api/v1`, incrustada al compilar.
 
-Valores opcionales en `~/apps/platform/ui.env` (no versionado):
+Valores en `~/apps/platform/ui.env` (no versionado, permisos 600):
 
 | Variable | Por defecto |
 | --- | --- |
+| `STRAPI_WEBHOOK_SECRET` | Obligatoria: el mismo valor de `STRAPI_WEBHOOK_SECRET` en `~/apps/INTRANET-JDH-API/deploy/.env` |
+| `API_INTERNAL_URL` | `http://platform-api:8000/api/v1` |
+| `STRAPI_URL` | `http://intranet-cms:1337` |
 | `PUBLIC_HOST` | `intranet.jdh.local` |
 | `EDGE_NETWORK` | `intranet-jdh_default` |
 | `EDGE_CA` | `~/apps/INTRANET-JDH-API/deploy/caddy/ca/root.crt` |
@@ -82,8 +85,10 @@ de error. Para cerrarlo, desde JDH-INTERNAL-PLATFORM-API:
    `docs/intranet-centralization.md` §4.
 4. Su propio runner (`deploy/setup-runner.sh` de este repo sirve de molde, con otra etiqueta) y un
    job de despliegue que tome `~/apps/.deploy.lock`.
-5. Fase 4: `/content/*`, y entonces volver a poner `REVALIDATE_WEBHOOK_URL` y
-   `NOTIFICATIONS_API_URL` del CMS hacia el API (hoy están quitadas en el stack de borde).
+5. Los endpoints de perfil y notificaciones de `docs/intranet-port.md`. Cuando existan las
+   notificaciones, volver a poner `NOTIFICATIONS_API_URL` del CMS hacia el API (hoy está quitada
+   en el stack de borde). El webhook de revalidación del CMS apunta a la UI
+   (`http://platform-ui:3000/api/revalidate`), que es quien lee Strapi.
 
 ## Volver atrás
 
