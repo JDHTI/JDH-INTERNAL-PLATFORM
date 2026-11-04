@@ -1,0 +1,38 @@
+# Production UI on intranet.jdh.local. Run it through deploy/deploy.sh.
+#
+# Caddy is not here: it lives in the edge stack (compose project
+# `intranet-jdh`, owned by INTRANET-JDH-API deploy/) together with Strapi and
+# Postgres. The UI joins that stack's network so Caddy reaches it as
+# `platform-ui:3000`; the API will join the same network as `platform-api:8000`.
+name: internal-platform
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  ui:
+    build:
+      context: ..
+      target: runner
+      args:
+        # Same origin as the API behind Caddy: the session cookie reaches
+        # fetch and <img> without CORS.
+        NEXT_PUBLIC_API_URL: https://${PUBLIC_HOST:-intranet.jdh.local}/api/v1
+      labels:
+        org.opencontainers.image.revision: ${GIT_SHA:-unknown}
+    image: internal-platform-ui:latest
+    container_name: platform-ui
+    restart: unless-stopped
+    networks:
+      edge:
+        aliases:
+          - platform-ui
+    logging: *logging
+
+networks:
+  edge:
+    external: true
+    name: ${EDGE_NETWORK:-intranet-jdh_default}
