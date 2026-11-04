@@ -20,9 +20,11 @@ import {
   useUpdateCase,
 } from "../hooks/use-pqrsf";
 import { personName, todayIso } from "../lib/format";
+import { PICKUP_ORDER_LABELS } from "../lib/pickup-order";
 import type {
   DocumentType,
   Person,
+  PickupOrderAnswer,
   PqrsfCase,
   TrackingCatalog,
   UpdateCaseInput,
@@ -414,15 +416,18 @@ export function EditCaseDialog({
             />
           </Field>
           {text("requester_email", "Correo del solicitante", { type: "email", maxLength: 320 })}
-          <Field label="Proveedor" htmlFor={`${id}-supplier`} optional>
-            <SuggestionInput
-              id={`${id}-supplier`}
-              field="supplier"
-              value={form.supplier_name}
-              onValueChange={set("supplier_name")}
-              maxLength={200}
-            />
-          </Field>
+          {/* With products the supplier comes from them; the API refuses a typed one. */}
+          {(item.products ?? []).length === 0 && (
+            <Field label="Proveedor" htmlFor={`${id}-supplier`} optional>
+              <SuggestionInput
+                id={`${id}-supplier`}
+                field="supplier"
+                value={form.supplier_name}
+                onValueChange={set("supplier_name")}
+                maxLength={200}
+              />
+            </Field>
+          )}
           <div className="sm:col-span-2">
             {text("subject", "Asunto", { maxLength: 200 })}
           </div>
@@ -440,6 +445,119 @@ export function EditCaseDialog({
         <DialogError message={mutation.error ? errorMessage(mutation.error) : null} />
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={mutation.isPending || !hasChanges}>
+            {mutation.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Guardar cambios
+          </Button>
+        </DialogFooter>
+      </form>
+    </Dialog>
+  );
+}
+
+// ── Follow-up of the products ──
+
+/**
+ * The pickup order and the delivery date: they come with the request, and the
+ * order number is often known later, once the order is in the ERP.
+ */
+export function EditFollowUpDialog({
+  item,
+  onOpenChange,
+}: {
+  item: PqrsfCase;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const id = useId();
+  const mutation = useUpdateCase(item.id);
+  const original = {
+    answer: item.classification?.pickup_order_requested ?? "",
+    number: item.classification?.pickup_order_number ?? "",
+    delivery: item.classification?.delivery_date ?? "",
+  };
+  const [answer, setAnswer] = useState<string>(original.answer);
+  const [number, setNumber] = useState(original.number);
+  const [delivery, setDelivery] = useState(original.delivery);
+
+  const changes: UpdateCaseInput = {};
+  if (answer !== original.answer) {
+    changes.pickup_order_requested = (answer || null) as PickupOrderAnswer | null;
+  }
+  // The number only goes with «Sí»; another answer clears it on the server.
+  const sentNumber = answer === "yes" ? number.trim() : "";
+  if (answer === "yes" && sentNumber !== original.number) {
+    changes.pickup_order_number = sentNumber || null;
+  }
+  if (delivery !== original.delivery) changes.delivery_date = delivery || null;
+  const hasChanges = Object.keys(changes).length > 0;
+
+  const close = () => {
+    mutation.reset();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => !next && close()}
+      isForm
+      title={`Orden de recogida y entrega de ${item.code}`}
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!hasChanges) return close();
+          mutation.mutate(changes, {
+            onSuccess: () => {
+              toast.success("Orden de recogida y fecha de entrega guardadas.");
+              close();
+            },
+          });
+        }}
+      >
+        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+          <Field label="¿Se solicitó la orden de recogida?" htmlFor={`${id}-answer`} optional>
+            <Dropdown
+              id={`${id}-answer`}
+              value={answer}
+              onValueChange={setAnswer}
+              options={[
+                { value: "", label: "Sin respuesta" },
+                ...Object.entries(PICKUP_ORDER_LABELS).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+          </Field>
+          <Field
+            label="Número de la orden de recogida"
+            htmlFor={`${id}-number`}
+            optional
+            hint={answer === "yes" ? undefined : "Se indica cuando ya se solicitó."}
+          >
+            <Input
+              id={`${id}-number`}
+              value={answer === "yes" ? number : ""}
+              disabled={answer !== "yes"}
+              maxLength={40}
+              onChange={(event) => setNumber(event.target.value)}
+              aria-describedby={answer === "yes" ? undefined : `${id}-number-hint`}
+            />
+          </Field>
+          <Field label="Fecha de entrega del pedido" htmlFor={`${id}-delivery`} optional>
+            <Input
+              id={`${id}-delivery`}
+              type="date"
+              max={todayIso()}
+              value={delivery}
+              onChange={(event) => setDelivery(event.target.value)}
+            />
+          </Field>
+        </div>
+        <DialogError message={mutation.error ? errorMessage(mutation.error) : null} />
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>
             Cancelar
           </Button>
           <Button type="submit" disabled={mutation.isPending || !hasChanges}>

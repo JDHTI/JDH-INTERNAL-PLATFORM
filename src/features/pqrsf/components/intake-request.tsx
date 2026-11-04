@@ -8,6 +8,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { formatBytes } from "@/shared/lib/format";
 
 import { formatDate, formatDateTime } from "../lib/format";
+import { pickupOrderText } from "../lib/pickup-order";
 import { downloadAttachment, getAttachmentBlob } from "../services/pqrsf.service";
 import type { IntakeAttachment, IntakeRequest } from "../types/pqrsf.types";
 
@@ -40,8 +41,12 @@ export default function IntakeRequestSection({
   }
   if (request.document_request) rows.push(["Tipo de petición", "Solicitud de documentos"]);
   if (request.pickup_order_requested) {
-    rows.push(["Orden de recogida", pickupOrderText(request)]);
+    rows.push([
+      "Orden de recogida",
+      pickupOrderText(request.pickup_order_requested, request.pickup_order_number),
+    ]);
   }
+  if (request.delivery_date) rows.push(["Fecha de entrega", formatDate(request.delivery_date)]);
   const products = request.products ?? [];
 
   return (
@@ -123,17 +128,6 @@ function ProductFact({ label, value, mono = false }: { label: string; value: str
       <dd className={mono ? "break-words font-mono" : "tabular"}>{value}</dd>
     </div>
   );
-}
-
-const PICKUP_ORDER_LABELS = { yes: "Sí", no: "No", unknown: "No sabe" } as const;
-
-function pickupOrderText(request: IntakeRequest): string {
-  const answer = request.pickup_order_requested;
-  if (!answer) return "";
-  const label = PICKUP_ORDER_LABELS[answer];
-  return answer === "yes" && request.pickup_order_number
-    ? `${label}, número ${request.pickup_order_number}`
-    : label;
 }
 
 export function Thumbnail({ caseId, attachment }: { caseId: string; attachment: IntakeAttachment }) {

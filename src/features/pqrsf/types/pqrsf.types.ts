@@ -230,6 +230,30 @@ export interface PqrsfCase {
   sales_executive?: SalesExecutive | null;
   created_at: string;
   updated_at: string;
+  /** What the case is about, copied from the request when it opened. */
+  classification?: CaseClassification | null;
+  /** What the customer sent; never edited. With lines, the supplier comes from them. */
+  products?: CaseProduct[];
+}
+
+export type PickupOrderAnswer = "yes" | "no" | "unknown";
+
+export interface CaseClassification {
+  /** Area the customer picked on the form. */
+  requested_area: IntakeClassificationRef | null;
+  subject: IntakeClassificationRef | null;
+  cause: IntakeClassificationRef | null;
+  route: CauseRoute | null;
+  pickup_order_requested: PickupOrderAnswer | null;
+  pickup_order_number: string | null;
+  /** AAAA-MM-DD: when the order with the products was delivered. */
+  delivery_date: string | null;
+}
+
+export interface CaseProduct extends IntakeProduct {
+  id: string;
+  /** `request`: public form; `internal`: a collaborator; `email`: the mailbox. */
+  source: "request" | "internal" | "email";
 }
 
 export interface SalesExecutive {
@@ -382,8 +406,10 @@ export interface IntakeRequest {
   selected_subject?: IntakeClassificationRef | null;
   selected_cause?: IntakeClassificationRef | null;
   products?: IntakeProduct[];
-  pickup_order_requested?: "yes" | "no" | "unknown" | null;
+  pickup_order_requested?: PickupOrderAnswer | null;
   pickup_order_number?: string | null;
+  /** AAAA-MM-DD: when the order with the products was delivered. */
+  delivery_date?: string | null;
   attachments: IntakeAttachment[];
   created_at: string;
 }
@@ -510,7 +536,14 @@ export type UpdateCaseInput = Partial<
     | "sales_executive_name"
     | "requester_name"
     | "requester_email"
-  > & { received_on: string }
+  > & {
+    received_on: string;
+    pickup_order_requested: PickupOrderAnswer | null;
+    /** Only with `yes`; answering `no` or `unknown` clears it. */
+    pickup_order_number: string | null;
+    /** AAAA-MM-DD, not after today. */
+    delivery_date: string | null;
+  }
 >;
 
 export interface UpdateItemInput extends ItemInput {
