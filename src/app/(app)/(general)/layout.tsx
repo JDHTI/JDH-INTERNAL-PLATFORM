@@ -4,6 +4,7 @@ import { AppHeader } from "@/intranet/components/layout/app-header"
 import { MainNav } from "@/intranet/components/layout/main-nav"
 import { MobileBottomNav } from "@/intranet/components/layout/mobile-bottom-nav"
 import { IntranetProviders } from "@/intranet/components/providers/intranet-providers"
+import { requireUser } from "@/intranet/lib/auth"
 
 /**
  * The general view: the intranet, as it was. A sticky black header +
@@ -15,8 +16,13 @@ import { IntranetProviders } from "@/intranet/components/providers/intranet-prov
  * A page that renders an element with `data-fill-viewport` makes chrome +
  * <main> span exactly one viewport, so the footer starts right below the fold
  * instead of peeking in under short content.
+ *
+ * Every page here needs a session: without one, the person goes to /login
+ * (the intranet did this in its proxy).
  */
-export default function GeneralLayout({ children }: { children: React.ReactNode }) {
+export default async function GeneralLayout({ children }: { children: React.ReactNode }) {
+  await requireUser()
+
   return (
     <IntranetProviders>
       <div className="intranet-shell flex min-h-svh flex-col bg-background text-foreground antialiased">
