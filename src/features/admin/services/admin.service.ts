@@ -123,6 +123,14 @@ export async function setAreaModule(
   );
 }
 
+/** Drops the stored choice: the module goes back to the catalog default. Idempotent. */
+export async function resetAreaModule(slug: string, moduleKey: string): Promise<AreaModuleStateDto> {
+  return apiFetch<AreaModuleStateDto>(
+    `/areas/${encodeURIComponent(slug)}/modules/${encodeURIComponent(moduleKey)}`,
+    { method: "DELETE" }
+  );
+}
+
 export async function listAreaMembers(slug: string): Promise<AreaMemberDto[]> {
   return apiFetch<AreaMemberDto[]>(`/areas/${encodeURIComponent(slug)}/members`);
 }
