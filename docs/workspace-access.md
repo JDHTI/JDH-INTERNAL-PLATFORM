@@ -53,6 +53,19 @@ Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), 
 correspondiente recibe su clave aquí; sin ella el módulo quedaría abierto a todo miembro y sus
 datos fallarían con 403.
 
+## 3b. Alcance comercial
+
+Además del permiso de módulo, el cotizador filtra por cartera. El API decide el alcance de cada
+persona (`sales_scope` en `GET /quotations/permissions`, o `GET /salespeople/me`) y bloquea lecturas
+y escrituras fuera de él (403 «fuera de tu cartera»):
+
+| Alcance | Quién | Qué ve la UI |
+| --- | --- | --- |
+| `all` | admin, owner, moderador, BI, líder o responsable de Comercial | El selector «Mis clientes / Todos los clientes» |
+| `team` | supervisor vinculado | Los clientes de su equipo, sin selector; «De mi equipo» en el listado |
+| `mine` | vendedor vinculado | Su cartera, sin selector; «De mi cartera» en el listado |
+| `none` | cualquier otro, incluso miembros de Comercial sin vínculo | «Nueva cotización» explica que TI debe vincularlo |
+
 ## 4. Panel de administración (`/ti/administracion/areas`)
 
 - **Rol líder:** cada área tiene un rol líder fijo (`is_leader`; «Líder de área» en las áreas
@@ -73,6 +86,13 @@ datos fallarían con 403.
   El API resuelve el correo contra `users`, que la sincronización nocturna llena con toda cuenta
   de Entra, y responde con un mensaje claro si la persona aún no está sincronizada.
 - **Responsable del área:** el mismo campo.
+- **Vendedores (`/ti/administracion/vendedores`):** quién es cada vendedor y supervisor de SIESA
+  (`/salespeople`, `src/features/salespeople`). Pestañas Vendedores y Supervisores, búsqueda por
+  código o nombre y el filtro «Sin vincular» (por defecto). Por fila: «Vincular» o «Cambiar» a un
+  correo corporativo (mismo campo con sugerencias del directorio) y «Desvincular». El vínculo
+  manual gana sobre el del correo; desvincular deja el código `excluded` y «Vincular por correo»
+  (`POST /salespeople/sync`) no lo devuelve. Los supervisores siempre se vinculan a mano: en SIESA
+  no tienen correo. «Consultar una persona» muestra los códigos de un correo.
 - **Cuándo se nota un cambio:** el API aplica permisos y membresías en la siguiente petición. En la
   UI, `["areas"]` vive un minuto en caché y se refresca al volver a la pestaña; cada cambio hecho
   desde el panel la invalida en el acto para quien lo hizo. Quien recibe el cambio lo ve en su menú

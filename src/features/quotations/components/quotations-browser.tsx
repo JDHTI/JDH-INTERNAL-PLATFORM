@@ -65,13 +65,14 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-          {canManage && (
+          {canManage && permissions?.sales_scope !== "none" && (
             <div role="group" aria-label="De quién" className="flex gap-2">
               <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
                 Mis cotizaciones
               </ToggleChip>
+              {/* The API already limits "todas" to what the person's scope reaches. */}
               <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
-                Todas
+                {permissions?.sales_scope === "team" ? "De mi equipo" : permissions?.sales_scope === "mine" ? "De mi cartera" : "Todas"}
               </ToggleChip>
             </div>
           )}
