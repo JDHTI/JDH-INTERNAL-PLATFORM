@@ -4,7 +4,6 @@ import { JdhCard } from "@/intranet/components/cards/jdh-card"
 import { JdhAlert } from "@/intranet/components/common/jdh-alert"
 import { JdhButton } from "@/intranet/components/common/jdh-button"
 import { PageHeader } from "@/intranet/components/common/page-header"
-import { SectionHeader } from "@/intranet/components/common/section-header"
 import { Breadcrumbs } from "@/intranet/components/navigation/breadcrumbs"
 
 import { CATALOGO_URL, VENTAJAS } from "../catalogo.config"
@@ -13,16 +12,13 @@ import { CATALOGO_URL, VENTAJAS } from "../catalogo.config"
  * Antesala del catálogo digital de productos. No embebe ni replica el catálogo:
  * explica qué es, qué gana quien lo usa y redirige.
  *
- * Ocupa exactamente una pantalla (data-fill-viewport): los tres bloques se
- * reparten la altura con `justify-between`, así el espacio sobrante queda entre
- * ellos y no acumulado bajo las tarjetas.
+ * Ocupa exactamente una pantalla (data-fill-viewport) para que el pie no asome
+ * bajo el contenido, pero los bloques van apilados con un espacio fijo: el
+ * sobrante queda al final y no se reparte entre ellos.
  */
 export function CatalogoView() {
   return (
-    <div
-      data-fill-viewport
-      className="flex flex-1 flex-col justify-between gap-6"
-    >
+    <div data-fill-viewport className="flex flex-1 flex-col gap-8">
       <div className="space-y-6">
         <Breadcrumbs
           items={[{ label: "Intranet", href: "/" }, { label: "Catálogo" }]}
@@ -40,17 +36,22 @@ export function CatalogoView() {
         </PageHeader>
       </div>
 
-      <JdhAlert variant="info" title="Abierto para todos, sin usuario">
-        El catálogo está publicado en internet y no pide credenciales: ábrelo
-        desde cualquier equipo o celular, dentro o fuera de la empresa, y
-        compártelo con el cliente cuando lo necesites.
+      <JdhAlert variant="info" title="Sin usuario, desde la red corporativa">
+        El catálogo no pide credenciales, pero está publicado dentro de la red
+        interna de JDH. Ábrelo desde un equipo o celular conectado a la red de
+        la compañía; por fuera de ella el enlace no responde.
       </JdhAlert>
 
       <div className="space-y-4">
-        <SectionHeader
-          title="Qué encuentras en el catálogo"
-          description="Una vista del portafolio pensada para consultarlo rápido, no para descargarlo."
-        />
+        <div className="space-y-1">
+          <h2 className="text-lg font-bold tracking-tight">
+            Qué encuentras en el catálogo
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Una vista del portafolio pensada para consultarlo rápido, no para
+            descargarlo.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {VENTAJAS.map((ventaja) => {
             const Icon = ventaja.icon
