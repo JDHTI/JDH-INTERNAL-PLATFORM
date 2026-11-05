@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloudOff, Loader2, Settings2 } from "lucide-react";
+import { CloudOff, Loader2, RotateCcw, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { areaKeys } from "@/features/areas/hooks/use-areas";
@@ -20,7 +20,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { adminKeys, useModuleMatrix } from "../hooks/use-admin-data";
-import { setAreaModule } from "../services/admin.service";
+import { resetAreaModule, setAreaModule } from "../services/admin.service";
 import type { AreaModuleConfig, AreaModuleStateDto, ModuleMatrixDto, PlatformModuleDto } from "../types/admin.types";
 
 type MatrixArea = ModuleMatrixDto["areas"][number];
@@ -59,35 +59,49 @@ export default function AreaModulesAdmin() {
   const [busy, setBusy] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState<Toggle | null>(null);
   const [configuring, setConfiguring] = useState<Toggle | null>(null);
+  const [resetting, setResetting] = useState<Toggle | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
-  const save = async (toggle: Toggle, enabled: boolean, config: AreaModuleConfig | null) => {
-    const key = `${toggle.area.slug}:${toggle.module.key}`;
-    setBusy(key);
+  const apply = async (toggle: Toggle, call: () => Promise<AreaModuleStateDto>, done: (state: AreaModuleStateDto) => string) => {
+    setBusy(`${toggle.area.slug}:${toggle.module.key}`);
     setDialogError(null);
     try {
-      await setAreaModule(toggle.area.slug, toggle.module.key, enabled, config);
+      const state = await call();
       // The menu, the role editor's catalog and the masters list all follow the switch.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: adminKeys.all }),
         queryClient.invalidateQueries({ queryKey: areaKeys.all }),
         queryClient.invalidateQueries({ queryKey: masterKeys.all }),
       ]);
-      toast.success(
-        enabled === toggle.state.enabled
-          ? `Maestros de ${toggle.area.name} actualizados`
-          : `${toggle.module.label} ${enabled ? "encendido" : "apagado"} en ${toggle.area.name}`
-      );
+      toast.success(done(state));
       return true;
     } catch (failure) {
       const message = errorMessage(failure);
-      if (turningOff || configuring) setDialogError(message);
+      if (turningOff || configuring || resetting) setDialogError(message);
       else toast.error(message);
       return false;
     } finally {
       setBusy(null);
     }
   };
+
+  const save = (toggle: Toggle, enabled: boolean, config: AreaModuleConfig | null) =>
+    apply(
+      toggle,
+      () => setAreaModule(toggle.area.slug, toggle.module.key, enabled, config),
+      () =>
+        enabled === toggle.state.enabled
+          ? `Maestros de ${toggle.area.name} actualizados`
+          : `${toggle.module.label} ${enabled ? "encendido" : "apagado"} en ${toggle.area.name}`
+    );
+
+  const reset = (toggle: Toggle) =>
+    apply(
+      toggle,
+      () => resetAreaModule(toggle.area.slug, toggle.module.key),
+      (state) =>
+        `${toggle.module.label} en ${toggle.area.name} volvió al valor por defecto: ${state.enabled ? "encendido" : "apagado"}`
+    );
 
   const onSwitch = (toggle: Toggle, next: boolean) => {
     if (next) {
@@ -129,6 +143,10 @@ export default function AreaModulesAdmin() {
           setDialogError(null);
           setConfiguring(toggle);
         }}
+        onReset={() => {
+          setDialogError(null);
+          setResetting(toggle);
+        }}
       />
     );
   };
@@ -138,7 +156,8 @@ export default function AreaModulesAdmin() {
       <p className="max-w-prose text-sm text-text-secondary">
         Encender un módulo lo muestra en el menú del área y deja que sus roles lo concedan; el líder y el responsable lo
         tienen de una vez. Apagarlo lo quita a todos los miembros del área, también al líder. Los permisos de los roles se
-        conservan y vuelven a valer al encenderlo.
+        conservan y vuelven a valer al encenderlo. «Restablecer» aparece donde alguien cambió el valor por defecto
+        y lo devuelve.
         {!canEdit && " Solo un administrador puede cambiarlos."}
       </p>
 
@@ -225,6 +244,32 @@ export default function AreaModulesAdmin() {
         </DialogFooter>
       </Dialog>
 
+      <Dialog
+        open={resetting !== null}
+        onOpenChange={(open) => {
+          if (!open && busy === null) setResetting(null);
+        }}
+        title={resetting ? `¿Restablecer ${resetting.module.label} en ${resetting.area.name}?` : "Restablecer módulo"}
+        description="Vuelve al valor por defecto del área, que puede ser encendido o apagado, y se pierde la elección de maestros si la había. Los permisos de los roles no cambian."
+      >
+        <DialogError message={dialogError} />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setResetting(null)} disabled={busy !== null}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!resetting) return;
+              if (await reset(resetting)) setResetting(null);
+            }}
+            disabled={busy !== null}
+          >
+            {busy !== null && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Restablecer
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
       <MastersConfigDialog
         toggle={configuring}
         busy={busy !== null}
@@ -239,26 +284,32 @@ export default function AreaModulesAdmin() {
   );
 }
 
+const cellLink = cn(
+  "inline-flex min-h-6 items-center gap-1 rounded-sm text-[13px] text-text-secondary underline-offset-2 hover:text-text-primary hover:underline",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+);
+
 function ModuleCell({
   toggle,
   canEdit,
   pending,
   onSwitch,
   onConfigure,
+  onReset,
 }: {
   toggle: Toggle;
   canEdit: boolean;
   pending: boolean;
   onSwitch: (next: boolean) => void;
   onConfigure: () => void;
+  onReset: () => void;
 }) {
   const { area, module, state } = toggle;
   const masters = mastersOf(state.config);
   const scope = masters ? `${masters.length} ${masters.length === 1 ? "maestro" : "maestros"}` : "Todos los maestros";
-  const origin = state.is_default ? "Valor por defecto" : "Cambiado desde este panel";
 
   return (
-    <span className="flex flex-col items-end gap-1.5 md:items-center" title={origin}>
+    <span className="flex flex-col items-end gap-1.5 md:items-center">
       {canEdit ? (
         <Switch
           checked={state.enabled}
@@ -274,16 +325,27 @@ function ModuleCell({
           <button
             type="button"
             onClick={onConfigure}
-            className={cn(
-              "inline-flex min-h-6 items-center gap-1 rounded-sm text-[13px] text-text-secondary underline-offset-2 hover:text-text-primary hover:underline",
-              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            )}
+            className={cellLink}
             aria-label={`Elegir los maestros de ${area.name}: ${scope}`}
           >
             <Settings2 className="size-3.5" aria-hidden="true" /> {scope}
           </button>
         ) : (
           <span className="text-[13px] text-text-secondary">{scope}</span>
+        ))}
+      {!state.is_default &&
+        (canEdit ? (
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={pending}
+            className={cellLink}
+            aria-label={`Restablecer ${module.label} en ${area.name} al valor por defecto`}
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" /> Restablecer
+          </button>
+        ) : (
+          <span className="text-[13px] text-text-secondary">Cambiado</span>
         ))}
     </span>
   );
