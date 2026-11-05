@@ -137,6 +137,22 @@ export type ProductPatch = Partial<
   >
 >;
 
+/**
+ * PUT /commercial/products/{sku}/margins: every field is required. Margins are
+ * fractions above 0 and below 1; `notes` null or empty clears them; `liquor_tax`
+ * null means the product does not pay it, which a product that already pays
+ * it cannot send.
+ */
+export interface ProductMarginsInput {
+  margin_list: string;
+  margin_wholesale: string;
+  margin_mass_food: string;
+  margin_market: string;
+  margin_salsamentarias: string;
+  notes: string | null;
+  liquor_tax: { national: string; coast: string; group: string } | null;
+}
+
 export interface MarginChange {
   sku: string;
   description: string | null;

@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Eye, Loader2, RefreshCw, Search } from "lucide-react";
-import { toast } from "sonner";
+import { ChevronLeft, ChevronRight, Eye, RefreshCw, Search } from "lucide-react";
 
 import { useMaster, useMasterRecords, useMasters } from "@/features/masters/hooks/use-masters";
-import { downloadMaster } from "@/features/masters/services/masters.service";
 import type {
   MasterActiveFilter,
   MasterDetailDto,
@@ -16,6 +14,7 @@ import type {
   MasterSourceSystem,
   MasterSummaryDto,
 } from "@/features/masters/types/master.types";
+import { Alert } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
@@ -62,8 +61,9 @@ const dateTimeFormat = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", t
 const dateFormat = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
 
 /**
- * Read-only view of the shared masters. Records are synced from the DWH by
- * the API, so nothing here writes: an edit belongs in the source system.
+ * Read-only view of the shared masters. The API reads them live from the DWH,
+ * cached per published run, so nothing here writes: an edit belongs in the
+ * source system. A 503 (DWH down, no cached copy) shows its detail and a retry.
  * With `area`, only the masters TI switched on for that area; without it,
  * every master the person may read (all of them in administration).
  */
@@ -86,7 +86,7 @@ export default function MastersBrowser({ area }: { area?: string }) {
     ) : (
       <Notice
         title="Aún no hay maestros registrados"
-        description="Los maestros aparecen aquí cuando el equipo de datos los registra y ejecuta la primera sincronización con el DWH."
+        description="Los maestros aparecen aquí cuando el equipo de datos los declara en la plataforma."
       />
     );
   }
@@ -120,7 +120,7 @@ export default function MastersBrowser({ area }: { area?: string }) {
                   </span>
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-text-secondary">
-                  {numberFormat.format(master.record_count)}
+                  {master.record_count === null ? "—" : numberFormat.format(master.record_count)}
                 </span>
               </button>
             </li>
@@ -152,12 +152,14 @@ function MasterPanel({ summary }: { summary: MasterSummaryDto }) {
           <Meta label="Llave natural" mono>
             {summary.natural_key.length > 0 ? summary.natural_key.join(" + ") : "—"}
           </Meta>
-          <Meta label="Registros" tabular>{numberFormat.format(summary.record_count)}</Meta>
-          <Meta label="Última sincronización">
-            {summary.last_synced_at ? dateTimeFormat.format(new Date(summary.last_synced_at)) : "Sin sincronizar"}
+          <Meta label="Registros" tabular>
+            {summary.record_count === null ? "Sin respuesta del DWH" : numberFormat.format(summary.record_count)}
           </Meta>
-        </dl>
-      </div>
+          <Meta label="Publicado por el DWH">
+            {summary.last_synced_at ? dateTimeFormat.format(new Date(summary.last_synced_at)) : "Sin fecha"}
+          </Meta>
+          {summary.dwh_sequence && <Meta label="Secuencia del DWH" mono>{summary.dwh_sequence}</Meta>}
+        </dl>      </div>
 
       <div role="tablist" aria-label={`Vistas de ${summary.name}`} className="flex gap-1 border-b border-border">
         <ViewTab selected={view === "records"} onSelect={() => setView("records")} controls="master-records">
@@ -216,19 +218,6 @@ function RecordsView({
     setOffset(0);
   };
 
-  // The file follows the state filter, not the search: the API exports the whole master.
-  const [downloading, setDownloading] = useState(false);
-  const download = async () => {
-    setDownloading(true);
-    try {
-      await downloadMaster(slug, activeFilter);
-    } catch (failure) {
-      toast.error(errorMessage(failure));
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -259,11 +248,9 @@ function RecordsView({
           options={ACTIVE_OPTIONS}
           aria-label="Filtrar por estado"
         />
-        <Button variant="outline" onClick={download} disabled={downloading} className="shrink-0 max-sm:h-11">
-          {downloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
-          {downloading ? "Preparando Excel…" : "Descargar Excel"}
-        </Button>
       </div>
+
+      {page?.is_stale && <StaleNotice publishedAt={page.last_synced_at} />}
 
       {recordsQuery.isPending ? (
         <Skeleton label="Cargando registros" className="h-64" />
@@ -279,7 +266,7 @@ function RecordsView({
         ) : (
           <Notice
             title="Este maestro aún no tiene registros"
-            description="Los registros llegan con la próxima sincronización con el DWH."
+            description="El DWH no tiene filas para este maestro en su última publicación."
           />
         )
       ) : (
@@ -568,6 +555,16 @@ function formatValue(value: unknown, type: MasterFieldType | undefined): React.R
     }
   }
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** The DWH is reloading: what shows is the last published run, still usable. */
+function StaleNotice({ publishedAt }: { publishedAt: string | null }) {
+  return (
+    <Alert>
+      {publishedAt ? `Datos del ${dateTimeFormat.format(new Date(publishedAt))}` : "Datos de la última publicación"}; el DWH se
+      está actualizando.
+    </Alert>
+  );
 }
 
 function Skeleton({ label, className }: { label: string; className?: string }) {

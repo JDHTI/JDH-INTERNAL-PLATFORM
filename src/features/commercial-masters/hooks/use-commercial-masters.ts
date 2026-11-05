@@ -8,10 +8,11 @@ import {
   downloadMarginTemplate,
   getProduct,
   listCommercialMaster,
+  setProductMargins,
   updateProduct,
   uploadMargins,
 } from "../services/commercial-masters.service";
-import type { CommercialMasterParams, ProductPatch } from "../types/commercial-master.types";
+import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
 
 export const commercialMasterKeys = {
   all: ["commercial-masters"] as const,
@@ -48,6 +49,14 @@ export function useUpdateProduct() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ sku, patch }: { sku: string; patch: ProductPatch }) => updateProduct(sku, patch),
+    onSuccess: () => client.invalidateQueries({ queryKey: commercialMasterKeys.all }),
+  });
+}
+
+export function useSetProductMargins() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sku, margins }: { sku: string; margins: ProductMarginsInput }) => setProductMargins(sku, margins),
     onSuccess: () => client.invalidateQueries({ queryKey: commercialMasterKeys.all }),
   });
 }

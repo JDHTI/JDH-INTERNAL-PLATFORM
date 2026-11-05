@@ -1,4 +1,4 @@
-import { apiDownload, apiFetch } from "@/shared/lib/api-client";
+import { apiFetch } from "@/shared/lib/api-client";
 
 import type {
   MasterActiveFilter,
@@ -28,13 +28,5 @@ export async function listMasterRecords({
 }: MasterRecordParams): Promise<MasterRecordPageDto> {
   return apiFetch<MasterRecordPageDto>(`/masters/${encodeURIComponent(slug)}/records`, {
     query: { q, is_active: activeQuery(active), offset, limit },
-  });
-}
-
-/** Excel with the fields the person may see, up to 100.000 rows. */
-export async function downloadMaster(slug: string, active: MasterActiveFilter): Promise<void> {
-  return apiDownload(`/masters/${encodeURIComponent(slug)}/records.xlsx`, {
-    query: { is_active: activeQuery(active) },
-    fallbackName: `${slug}.xlsx`,
   });
 }

@@ -402,7 +402,7 @@ function MastersConfigForm({
                     />
                     <span className="min-w-0 flex-1 truncate">{master.name}</span>
                     <span className="shrink-0 text-xs tabular-nums text-text-secondary">
-                      {new Intl.NumberFormat("es-CO").format(master.record_count)}
+                      {master.record_count === null ? "—" : new Intl.NumberFormat("es-CO").format(master.record_count)}
                     </span>
                   </label>
                 </li>

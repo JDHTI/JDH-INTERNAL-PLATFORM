@@ -87,7 +87,7 @@ const SECTION_COPY: Record<AdminSection, string> = {
   vendedores:
     "Qué vendedor o supervisor de SIESA es cada persona. De esto depende qué clientes y cotizaciones ve en el cotizador.",
   maestros:
-    "Los maestros que la plataforma copia del DWH, cuándo se actualizan y todos sus registros. Qué maestros ve cada área se elige en Módulos por área.",
+    "Los maestros que la plataforma lee del DWH, cuándo se actualizan y todos sus registros. Qué maestros ve cada área se elige en Módulos por área.",
 };
 
 const EMPTY_AREA: AreaDraft = {

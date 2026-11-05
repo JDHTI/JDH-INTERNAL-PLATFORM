@@ -6,6 +6,7 @@ import type {
   CommercialPage,
   CommercialProduct,
   MarginReport,
+  ProductMarginsInput,
   ProductPatch,
 } from "../types/commercial-master.types";
 
@@ -33,6 +34,11 @@ export async function getProduct(sku: string): Promise<CommercialProduct> {
 /** Managers only (403 otherwise); 422 names the field that was rejected. */
 export async function updateProduct(sku: string, patch: ProductPatch): Promise<CommercialProduct> {
   return apiFetch<CommercialProduct>(productPath(sku), { method: "PATCH", body: patch });
+}
+
+/** Sets every margin of one product by hand. Managers only (403); 422 carries a readable `detail`. */
+export async function setProductMargins(sku: string, margins: ProductMarginsInput): Promise<CommercialProduct> {
+  return apiFetch<CommercialProduct>(`${productPath(sku)}/margins`, { method: "PUT", body: margins });
 }
 
 /** The margin sheet as an .xlsx: every product with its margins, or the headers alone. */
