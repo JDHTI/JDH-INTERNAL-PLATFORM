@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Banknote,
   BookOpen,
+  BriefcaseBusiness,
   Building2,
   Contact,
   MapPin,
@@ -61,6 +62,7 @@ export const ADMIN_SECTIONS = [
   { key: "usuarios", name: "Usuarios de la plataforma", icon: UserCog },
   { key: "directorio", name: "Directorio de empleados", icon: Contact },
   { key: "sedes", name: "Sedes", icon: MapPin },
+  { key: "vendedores", name: "Vendedores", icon: BriefcaseBusiness },
   { key: "maestros", name: "Maestros", icon: Database },
 ] as const;
 

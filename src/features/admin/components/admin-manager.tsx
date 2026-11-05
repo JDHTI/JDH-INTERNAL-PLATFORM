@@ -52,6 +52,7 @@ import { areaToDraft } from "@/features/admin/types/admin.types";
 import DirectoryAdmin from "@/features/directory/components/admin/directory-admin";
 import SitesAdmin from "@/features/directory/components/admin/sites-admin";
 import MastersBrowser from "@/features/masters/components/masters-browser";
+import SalespeopleAdmin from "@/features/salespeople/components/salespeople-admin";
 import PageHeader from "@/shared/components/page-header";
 import { ADMIN_SECTIONS, type AdminSection } from "@/shared/config/areas.config";
 import {
@@ -80,6 +81,8 @@ const SECTION_COPY: Record<AdminSection, string> = {
   directorio:
     "Las personas del directorio, qué se muestra de cada una y la sincronización nocturna con Microsoft Entra.",
   sedes: "Las sedes físicas de la compañía, para el directorio y el perfil de cada persona.",
+  vendedores:
+    "Qué vendedor o supervisor de SIESA es cada persona. De esto depende qué clientes y cotizaciones ve en el cotizador.",
   maestros: "Los maestros compartidos que usa toda la plataforma.",
 };
 
@@ -337,6 +340,8 @@ export default function AdminManager({ section }: { section: AdminSection }) {
         <DirectoryAdmin />
       ) : section === "sedes" ? (
         <SitesAdmin />
+      ) : section === "vendedores" ? (
+        <SalespeopleAdmin />
       ) : (
         <UsersDirectory
           users={users ?? []}

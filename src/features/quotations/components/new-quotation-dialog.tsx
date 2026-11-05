@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calculator, Loader2 } from "lucide-react";
+import { Calculator, Loader2, Lock } from "lucide-react";
 
 import BasePicker, { type BasePickerConfig } from "@/shared/components/pickers/base-picker";
+import StatePanel from "@/shared/components/state-panel";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
@@ -33,7 +34,7 @@ function customerPicker(scope: CustomerScope): BasePickerConfig {
     minChars: scope === "mine" ? 0 : 2,
     emptyText:
       scope === "mine"
-        ? "Ninguno de tus clientes coincide. Busca en todos los clientes."
+        ? "Ninguno de los clientes de tu cartera coincide. Prueba con el NIT."
         : "Sin coincidencias. Prueba con el NIT o menos palabras del nombre.",
     toOption: (row) => {
       const channel = text(row.channel);
@@ -97,13 +98,16 @@ function NewQuotationForm({
   const router = useRouter();
   const permissions = useQuotationPermissions();
   const sellerLinked = permissions.data?.seller_linked === true;
+  const salesScope = permissions.data?.sales_scope ?? "none";
   const [scopeChoice, setScopeChoice] = useState<CustomerScope | null>(null);
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
   const [error, setError] = useState<string | null>(null);
 
+  // Only whoever sees every customer chooses; for the rest the API answers with their portfolio.
+  const canChoose = salesScope === "all";
   // Without a linked seller "mis clientes" is always empty, so it starts on everyone.
-  const scope: CustomerScope = scopeChoice ?? (sellerLinked ? "mine" : "all");
+  const scope: CustomerScope = canChoose ? (scopeChoice ?? (sellerLinked ? "mine" : "all")) : "mine";
 
   const chooseScope = (next: CustomerScope) => {
     setScopeChoice(next);
@@ -126,23 +130,49 @@ function NewQuotationForm({
     );
   };
 
+  if (permissions.data && salesScope === "none") {
+    return (
+      <div className="space-y-5">
+        <StatePanel icon={Lock} title="Aún no tienes una cartera asignada">
+          Para cotizar, TI debe vincularte con tu código de vendedor o de supervisor de SIESA. Pídelo en Solicitudes de
+          soporte con tu correo corporativo.
+        </StatePanel>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} className="max-md:h-11">
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
       {/* min-w-0: a fieldset defaults to min-content width, which defeats the chip's truncation. */}
       <fieldset disabled={create.isPending} className="min-w-0 space-y-5">
         <div className="space-y-2">
-          <div role="group" aria-label="Clientes a buscar" className="flex flex-wrap gap-2">
-            <ToggleChip active={scope === "mine"} onClick={() => chooseScope("mine")}>
-              Mis clientes
-            </ToggleChip>
-            <ToggleChip active={scope === "all"} onClick={() => chooseScope("all")}>
-              Todos los clientes
-            </ToggleChip>
-          </div>
-          {permissions.data && !sellerLinked && (
+          {canChoose ? (
+            <>
+              <div role="group" aria-label="Clientes a buscar" className="flex flex-wrap gap-2">
+                <ToggleChip active={scope === "mine"} onClick={() => chooseScope("mine")}>
+                  Mis clientes
+                </ToggleChip>
+                <ToggleChip active={scope === "all"} onClick={() => chooseScope("all")}>
+                  Todos los clientes
+                </ToggleChip>
+              </div>
+              {permissions.data && !sellerLinked && (
+                <p className="text-[13px] text-text-secondary">
+                  No estás vinculado como vendedor, así que «Mis clientes» no tiene a quién listar. Puedes cotizar cualquier
+                  cliente desde «Todos los clientes».
+                </p>
+              )}
+            </>
+          ) : (
             <p className="text-[13px] text-text-secondary">
-              Tu correo no está registrado como vendedor en SIESA, así que «Mis clientes» no tiene a quién listar. Puedes
-              cotizar cualquier cliente desde «Todos los clientes».
+              {salesScope === "team"
+                ? "Puedes cotizar los clientes de los vendedores de tu equipo."
+                : "Puedes cotizar los clientes de tu cartera."}
             </p>
           )}
           {permissions.data?.seller && (

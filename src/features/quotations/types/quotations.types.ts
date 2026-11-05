@@ -27,6 +27,9 @@ export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "apoyo";
 
 export type CustomerScope = "mine" | "all";
 
+export type { SalesScope } from "@/features/salespeople/types/salespeople.types";
+import type { SalesScope } from "@/features/salespeople/types/salespeople.types";
+
 export interface Seller {
   code: string;
   name: string;
@@ -38,9 +41,14 @@ export interface QuotationPermissions {
   can_manage: boolean;
   /** The validating area (BI) or an administrator: validates or returns, reads every quotation. */
   can_validate: boolean;
-  /** The user's email matches a seller in the DWH, so "mis clientes" has something to list. */
+  /** The user works as a linked SIESA salesperson, so "mis clientes" has something to list. */
   seller_linked: boolean;
   seller: Seller | null;
+  /**
+   * What the API lets the person quote: every customer, their team's, their
+   * own portfolio, or nothing until TI links them (docs/workspace-access.md).
+   */
+  sales_scope: SalesScope;
 }
 
 export interface QuotationCustomer {
