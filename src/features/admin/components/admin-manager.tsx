@@ -52,6 +52,7 @@ import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { roleLabel } from "@/features/session/types/session.types";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
@@ -639,7 +640,7 @@ function UsersDirectory({
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="bg-canvas-subtle text-xs text-text-secondary"><tr><th className="px-3 py-2 font-medium">Usuario</th><th className="px-3 py-2 font-medium">Cargo</th><th className="px-3 py-2 font-medium">Rol global</th><th className="px-3 py-2 font-medium">Área principal</th><th className="px-3 py-2 font-medium">Estado</th></tr></thead>
           <tbody className="divide-y divide-border">
-            {users.map((user) => <tr key={user.id}><td className="px-3 py-2"><span className="block font-medium">{user.name}</span><span className="block text-xs text-text-secondary">{user.email ?? "Sin correo"}</span></td><td className="px-3 py-2 text-text-secondary">{user.job_title ?? "—"}</td><td className="px-3 py-2">{user.role === "admin" ? "Administrador" : "Usuario"}</td><td className="px-3 py-2 text-text-secondary">{user.area_name ?? "Sin área principal"}</td><td className="px-3 py-2"><span className="rounded-full bg-success-surface px-2 py-1 text-xs text-success">Activo</span></td></tr>)}
+            {users.map((user) => <tr key={user.id}><td className="px-3 py-2"><span className="block font-medium">{user.name}</span><span className="block text-xs text-text-secondary">{user.email ?? "Sin correo"}</span></td><td className="px-3 py-2 text-text-secondary">{user.job_title ?? "—"}</td><td className="px-3 py-2">{roleLabel(user.role)}</td><td className="px-3 py-2 text-text-secondary">{user.area_name ?? "Sin área principal"}</td><td className="px-3 py-2"><span className="rounded-full bg-success-surface px-2 py-1 text-xs text-success">Activo</span></td></tr>)}
           </tbody>
         </table>
       </div>

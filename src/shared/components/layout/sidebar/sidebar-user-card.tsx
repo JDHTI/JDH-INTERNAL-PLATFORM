@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import SessionAvatar from "@/features/directory/components/session-avatar";
 import { useSession } from "@/features/session/hooks/use-session";
-import type { SessionUser } from "@/features/session/types/session.types";
+import { roleLabel, type SessionUser } from "@/features/session/types/session.types";
 import { LOGIN_URL, logoutSession } from "@/shared/lib/api-client";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
@@ -53,7 +53,7 @@ export default function SidebarUserCard() {
       >
         <UserAvatar user={user} />
         <span className="sr-only">
-          {user.displayName}, {user.email}, {user.role === "admin" ? "Administrador" : "Usuario"}
+          {user.displayName}, {user.email}, {roleLabel(user.role)}
         </span>
       </div>
     );
@@ -66,8 +66,8 @@ export default function SidebarUserCard() {
         <p className="truncate text-sm font-medium text-sidebar-foreground">
           {user.displayName}
         </p>
-        {user.role === "admin" && (
-          <p className="truncate text-[10px] font-medium text-sidebar-muted">Administrador</p>
+        {user.role !== "user" && (
+          <p className="truncate text-[10px] font-medium text-sidebar-muted">{roleLabel(user.role)}</p>
         )}
         <p className="truncate text-[11px] text-sidebar-muted" title={user.email}>
           {user.email}

@@ -5,6 +5,7 @@ import { LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import { useSession } from "@/features/session/hooks/use-session";
+import { isPlatformAdmin } from "@/features/session/types/session.types";
 import {
   MODULE_CATEGORIES,
   activeModuleId,
@@ -20,7 +21,7 @@ export default function SidebarMenu() {
   const { isSidebarCollapsed, setMobileMenuOpen } = useUiStore();
   const { area: activeArea, isPending } = useActiveArea();
   const { data: user } = useSession();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isPlatformAdmin(user?.role);
 
   if (!activeArea) {
     return (
