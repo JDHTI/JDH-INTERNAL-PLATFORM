@@ -50,8 +50,14 @@ export interface MasterSummaryDto {
   /** One record is one of these, e.g. "cliente × sucursal". */
   grain: string | null;
   natural_key: string[];
-  record_count: number;
+  /** Null when the DWH did not answer and there is no cached count. */
+  record_count: number | null;
+  /** When the DWH published the data on screen. */
   last_synced_at: string | null;
+  /** DWH sequence that refreshes it, e.g. `identidad`. */
+  dwh_sequence: string | null;
+  /** True while the DWH reloads: the data shown is the last published run. */
+  is_stale: boolean;
 }
 
 export interface MasterDetailDto extends MasterSummaryDto {
@@ -75,6 +81,8 @@ export interface MasterRecordPageDto {
   total: number;
   offset: number;
   limit: number;
+  last_synced_at: string | null;
+  is_stale: boolean;
 }
 
 export type MasterActiveFilter = "all" | "active" | "inactive";

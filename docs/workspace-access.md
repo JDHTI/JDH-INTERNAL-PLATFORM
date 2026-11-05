@@ -65,8 +65,24 @@ Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), 
 a `MODULE_TEMPLATES` y sus páginas bajo `[area]/`, cada una con `requireModule`.
 
 **Maestros.** `/{área}/maestros` lista `GET /masters?area={slug}`: los maestros que TI eligió para el
-área (todos si no eligió). Cada maestro se busca, se ve registro por registro y se descarga en Excel
-(`/masters/{slug}/records.xlsx`). Los campos personales solo llegan a quien gestiona el módulo.
+área (todos si no eligió). Cada maestro se busca y se ve registro por registro; no hay descarga. El API
+los lee del DWH en vivo, con caché por corrida:
+- «Publicado por el DWH» es `last_synced_at`, la fecha en que el DWH publicó lo que se ve.
+- Con `is_stale` en la página de registros, un aviso dice «Datos del {fecha}; el DWH se está
+  actualizando».
+- `record_count` nulo se muestra como «—»: el DWH no respondió.
+- Un 503 (DWH caído y sin copia) muestra el `detail` del API con «Reintentar».
+- La primera página va con `limit=50`, la que el API deja precalentada.
+
+Los campos personales solo llegan a quien gestiona el módulo.
+
+**Márgenes a mano.** En `/bi/maestros/productos`, quien puede cargar el archivo de márgenes también
+tiene «Editar márgenes» por fila (`margin-edit-dialog.tsx`, `PUT /commercial/products/{sku}/margins`):
+- Pide los cinco márgenes en porcentaje y los envía como fracción.
+- Las notas son opcionales.
+- El interruptor «Paga impuesto licor» abre Nacional, Costa (pesos por unidad) y el grupo impositivo
+  (0503 vino, 0509 licores). Si el producto ya lo paga, arranca encendido y bloqueado.
+- Se envía todo en cada guardado, y un 422 se muestra tal cual.
 
 ## 3b. Alcance comercial
 
@@ -108,8 +124,9 @@ y escrituras fuera de él (403 «fuera de tu cartera»):
   lista (`config.masters`). Cada cambio invalida `["areas"]`, el catálogo de permisos y los maestros.
   En el teléfono se elige un área y se ven sus módulos en lista. Un moderador vería la matriz sin
   interruptores, pero hoy `AdminGate` solo deja entrar a owner y admin.
-- **Maestros (`/ti/administracion/maestros`):** el bloque «Sincronización con el DWH» (`GET /jobs`)
-  muestra cada tarea con su última ejecución, la próxima actualización del DWH (`next_expected_at`) y
+- **Maestros (`/ti/administracion/maestros`):** el bloque «Sincronización con el DWH» (`GET /jobs`;
+  las tareas de maestros ahora calientan la caché del API, no copian) muestra cada tarea con su
+  última ejecución, la próxima actualización del DWH (`next_expected_at`) y
   el historial (`GET /jobs/runs`). «Sincronizar ahora» (`POST /jobs/{clave}/run`) es solo de admin y
   no está disponible con `JOBS_ENABLED` apagado o con una corrida abierta; mientras una corre, el
   bloque se refresca cada 5 segundos. Debajo, todos los maestros con sus registros.

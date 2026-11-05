@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CloudOff, FileSpreadsheet, FileX2, RefreshCw, Search } from "lucide-react";
+import { CloudOff, FileSpreadsheet, FileX2, Percent, RefreshCw, Search } from "lucide-react";
 
 import { useCanManage } from "@/features/supports/hooks/use-supports";
 import Pager from "@/shared/components/pager";
@@ -18,6 +18,7 @@ import { cn } from "@/shared/lib/utils";
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
 import { useCommercialMaster } from "../hooks/use-commercial-masters";
 import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
+import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
 import ProductDialog from "./product-dialog";
 
@@ -42,6 +43,9 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
   const [page, setPage] = useState(1);
   const [openSku, setOpenSku] = useState<string | null>(null);
   const [updatingMargins, setUpdatingMargins] = useState(false);
+  const [marginSku, setMarginSku] = useState<string | null>(null);
+  // The same managers who load the margin file edit one product's margins by hand.
+  const editsMargins = master.key === "productos" && canManage;
   const q = useDebouncedValue(text.trim());
 
   const query = useCommercialMaster({ master: master.key, q, filters: filterValues, page, size: PAGE_SIZE });
@@ -130,6 +134,11 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
                       {column.label}
                     </th>
                   ))}
+                  {editsMargins && (
+                    <th scope="col" className="sticky right-0 w-14 bg-canvas-subtle px-3 py-2">
+                      <span className="sr-only">Acciones</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -144,6 +153,19 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
                         <Cell column={column} value={row[column.key]} onOpenSku={setOpenSku} />
                       </td>
                     ))}
+                    {editsMargins && (
+                      <td className="sticky right-0 bg-surface px-2 py-1 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setMarginSku(String(row.sku))}
+                          aria-label={`Editar márgenes de ${String(row.sku)}`}
+                          title="Editar márgenes"
+                        >
+                          <Percent aria-hidden="true" />
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -170,6 +192,7 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
         <>
           <ProductDialog sku={openSku} canManage={canManage} onClose={() => setOpenSku(null)} />
           <MarginUpdaterDialog open={updatingMargins} onClose={() => setUpdatingMargins(false)} />
+          <MarginEditDialog sku={marginSku} onClose={() => setMarginSku(null)} />
         </>
       )}
     </div>
