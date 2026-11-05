@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
-
 import ApplicationDetail from "@/features/app-monitoring/components/application-detail";
-import { APPS_SEGMENT, isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
+import { APPS_SEGMENT } from "@/shared/config/areas.config";
 
 export default async function ApplicationPage({
   params,
@@ -9,7 +8,7 @@ export default async function ApplicationPage({
   params: Promise<{ area: string; aplicativo: string }>;
 }) {
   const { area, aplicativo } = await params;
-  if (!isAvailableModule(area, APPS_SEGMENT)) notFound();
+  await requireModule(area, APPS_SEGMENT);
 
   return <ApplicationDetail area={area} id={decodeURIComponent(aplicativo)} />;
 }

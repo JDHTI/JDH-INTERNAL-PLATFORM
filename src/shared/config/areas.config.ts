@@ -3,6 +3,7 @@ import {
   AppWindow,
   ArrowLeftRight,
   Banknote,
+  Blocks,
   BookOpen,
   BriefcaseBusiness,
   Building2,
@@ -43,14 +44,27 @@ import {
   MASTERS_SEGMENT,
 } from "@/features/commercial-masters/config/masters.config";
 
-/** TI's data warehouse monitoring: its summary and the pages under it. */
+/** Data warehouse monitoring: its summary and the pages under it. */
 export const DWH_SEGMENT = "datawarehouse";
 
-/** TI's general board: the applications and the data warehouse on one screen. */
+/** The general board: the applications and the data warehouse on one screen. */
 export const BOARD_SEGMENT = "monitoreo";
 
-/** TI's monitored applications, and each one's page under it. */
+/** Monitored applications, and each one's page under it. */
 export const APPS_SEGMENT = "aplicativos";
+
+/** Supplier support requests: who asks for one and who decides. */
+export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
+
+/**
+ * The area that owns the supplier supports: it writes them and decides the
+ * requests. The API decides the same with SUPPLIER_SUPPORTS_MANAGER_AREA_SLUG;
+ * any other area where the modules are on reads and asks.
+ */
+export const SUPPORTS_MANAGER_AREA_SLUG = "bi";
+
+/** Where the typed commercial masters (margins, product edits) live, besides the generic ones. */
+export const COMMERCIAL_MASTERS_AREA_SLUG = "bi";
 
 /** Platform administration is a TI module, not a third place outside the workspace. */
 export const ADMIN_AREA_SLUG = "ti";
@@ -59,6 +73,7 @@ export const ADMIN_PATH = `/${ADMIN_AREA_SLUG}/${ADMIN_SEGMENT}`;
 
 export const ADMIN_SECTIONS = [
   { key: "areas", name: "Áreas y equipos", icon: Users },
+  { key: "modulos", name: "Módulos por área", icon: Blocks },
   { key: "usuarios", name: "Usuarios de la plataforma", icon: UserCog },
   { key: "directorio", name: "Directorio de empleados", icon: Contact },
   { key: "sedes", name: "Sedes", icon: MapPin },
@@ -69,9 +84,10 @@ export const ADMIN_SECTIONS = [
 export type AdminSection = (typeof ADMIN_SECTIONS)[number]["key"];
 
 /*
- * Areas themselves come from the API (features/areas). This file keeps what
- * the API does not know about: the module catalog of each area, indexed by
- * area slug, and the platform-wide utility links.
+ * Areas themselves come from the API (features/areas), and so does which
+ * modules each one has switched on (`my_modules`). This file keeps what the
+ * API does not know about: how each module looks in the navigation, the
+ * area-specific rows that are not API modules, and the utility links.
  */
 
 /**
@@ -127,15 +143,16 @@ export interface ModuleItem {
   adminOnly?: boolean;
   /**
    * API module key (`GET /permissions/catalog`). Shown and opened only when
-   * the person's area role grants it; absent means open to every member.
+   * the area has it switched on and the person's role grants it; absent
+   * means a row of this area alone, open to every member.
    */
   permission?: string;
 }
 
 /**
- * The modules of an area the person may see: the catalog minus what their
- * role does not grant, minus administration for non-admins. Unavailable
- * modules stay, as the "Próximamente" rows they already are.
+ * The modules of an area the person may see: the ones `my_modules` lists
+ * (switched on in the area and granted by the role), the area's own rows, and
+ * administration for admins. Unavailable rows stay as "Próximamente".
  */
 export function visibleModules(
   area: { slug: string; myModules: Record<string, string> },
@@ -183,13 +200,11 @@ export function moduleHref(module: ModuleItem): string {
 }
 
 /**
- * Module catalog. Only PQRSF is scoped for the MVP; the rest are declared so
- * the navigation shows the real shape of each area, and are marked
- * unavailable so they render as disabled rows rather than links to nowhere.
- * The document manager is not listed here: every area gets it, see
- * `getModulesByArea`.
+ * Rows that belong to one area and are not API modules: TI's support and
+ * administration, and the "Próximamente" placeholders that show the shape
+ * each area will take.
  */
-export const MODULES: ModuleItem[] = [
+const AREA_ROWS: ModuleItem[] = [
   // ── TI ──
   {
     id: "ti-soporte",
@@ -198,21 +213,8 @@ export const MODULES: ModuleItem[] = [
     areaSlug: "ti",
     category: "Operación",
     icon: LifeBuoy,
-    // Real page behind it, unlike the rest of TI's modules: it's also where
-    // the header's help icon links, so it can't be a 404 (R-24).
+    // Also where the header's help icon links, so it can't be a 404 (R-24).
     available: true,
-  },
-  {
-    id: "ti-proyectos",
-    name: "Proyectos",
-    path: "/ti/proyectos",
-    areaSlug: "ti",
-    category: "Operación",
-    icon: FolderKanban,
-    // The API enables it per area (PROJECTS_AREA_SLUGS) and today that is
-    // only TI; another area gets an entry here when the API turns it on.
-    available: true,
-    permission: "proyectos",
   },
   {
     id: "ti-equipos",
@@ -234,7 +236,7 @@ export const MODULES: ModuleItem[] = [
   },
   {
     id: "ti-administracion",
-    name: "Panel administrador",
+    name: "Administración",
     path: ADMIN_PATH,
     areaSlug: ADMIN_AREA_SLUG,
     category: "Administración",
@@ -250,78 +252,8 @@ export const MODULES: ModuleItem[] = [
       icon: section.icon,
     })),
   },
-  {
-    id: "ti-monitoreo",
-    name: "Tablero general",
-    path: `/ti/${BOARD_SEGMENT}`,
-    areaSlug: "ti",
-    category: "Monitoreo",
-    icon: Activity,
-    available: true,
-    permission: "monitoreo",
-  },
-  {
-    id: "ti-aplicativos",
-    name: "Aplicativos",
-    path: `/ti/${APPS_SEGMENT}`,
-    areaSlug: "ti",
-    category: "Monitoreo",
-    icon: AppWindow,
-    available: true,
-    permission: "monitoreo",
-  },
-  {
-    id: "ti-datawarehouse",
-    name: "Datawarehouse",
-    path: `/ti/${DWH_SEGMENT}`,
-    areaSlug: "ti",
-    category: "Monitoreo",
-    icon: Database,
-    available: true,
-    permission: "datawarehouse",
-    subItems: [
-      { id: "ti-datawarehouse-secuencias", name: "Secuencias", path: `/ti/${DWH_SEGMENT}/secuencias`, icon: Workflow },
-      { id: "ti-datawarehouse-frescura", name: "Frescura", path: `/ti/${DWH_SEGMENT}/frescura`, icon: Hourglass },
-      { id: "ti-datawarehouse-horario", name: "Horario del día", path: `/ti/${DWH_SEGMENT}/horario`, icon: CalendarClock },
-      { id: "ti-datawarehouse-extracciones", name: "Extracciones", path: `/ti/${DWH_SEGMENT}/extracciones`, icon: ListChecks },
-    ],
-  },
 
   // ── Calidad ──
-  {
-    id: "calidad-pqrsf",
-    name: "PQRSF",
-    path: "/calidad/pqrsf",
-    areaSlug: "calidad",
-    category: "Operación",
-    icon: MessageSquareWarning,
-    available: true,
-    permission: "pqrsf",
-    subItems: [
-      {
-        id: "calidad-pqrsf-sugerencias",
-        name: "Sugerencias y felicitaciones",
-        path: "/calidad/pqrsf/sugerencias",
-        icon: ThumbsUp,
-        managerOnly: true,
-        badge: "feedback-unread",
-      },
-      {
-        id: "calidad-pqrsf-historial",
-        name: "Historial",
-        path: "/calidad/pqrsf/historial",
-        icon: History,
-        managerOnly: true,
-      },
-      {
-        id: "calidad-pqrsf-configuracion",
-        name: "Configuración",
-        path: "/calidad/pqrsf/configuracion",
-        icon: Settings,
-        managerOnly: true,
-      },
-    ],
-  },
   {
     id: "calidad-auditorias",
     name: "Auditorías",
@@ -438,90 +370,155 @@ export const MODULES: ModuleItem[] = [
     icon: Building2,
     available: false,
   },
+];
 
-  { id: "comercial-apoyos", name: "Maestro de apoyos", path: "/comercial/apoyos", areaSlug: "comercial", category: "Maestros", icon: HandCoins, available: true, permission: "apoyos" },
-  { id: "comercial-cotizador", name: "Cotizador", path: "/comercial/cotizador", areaSlug: "comercial", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
-  { id: "comercial-solicitudes-apoyos", name: "Mis solicitudes JDH", path: "/comercial/apoyos/solicitudes", areaSlug: "comercial", category: "Operación", icon: ClipboardList, available: true, permission: "solicitudes-apoyos" },
-  // BI validates the quotations commercial confirms; the same screens, opened on the pending ones.
-  { id: "bi-cotizador", name: "Validar cotizaciones", path: "/bi/cotizador", areaSlug: "bi", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
-  { id: "bi-solicitudes-apoyos", name: "Solicitudes de apoyo JDH", path: "/bi/solicitudes-apoyos", areaSlug: "bi", category: "Operación", icon: ClipboardList, available: true, permission: "solicitudes-apoyos" },
-  // ── BI ──
+/** A module's name where one area uses it differently: BI validates what Comercial quotes. */
+const AREA_NAMES: Record<string, string> = {
+  "bi-cotizador": "Validar cotizaciones",
+  "comercial-solicitudes-apoyos": "Mis solicitudes JDH",
+};
+
+type ModuleTemplate = Omit<ModuleItem, "id" | "path" | "areaSlug" | "subItems"> & {
+  key: string;
+  /** Path under the area; the module key when absent. */
+  segment?: string;
+  subItems?: (base: string, areaSlug: string) => ModuleSubItem[];
+};
+
+/**
+ * Every API module, in sidebar order. An administrator switches each one on
+ * in any area (`/ti/administracion/modulos`), so they are generated for every
+ * slug and `my_modules` decides which ones show. `key` doubles as the row id
+ * suffix; `permission` is the API key, shared by the two monitoring rows.
+ */
+const MODULE_TEMPLATES: ModuleTemplate[] = [
+  { key: "proyectos", name: "Proyectos", category: "Operación", icon: FolderKanban, available: true, permission: "proyectos" },
+  { key: "cotizador", name: "Cotizador", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
   {
-    id: "bi-validador-pedidos",
+    key: "validador-pedidos",
     name: "Validador de pedidos",
-    path: "/bi/validador-pedidos",
-    areaSlug: "bi",
     category: "Operación",
     icon: ClipboardCheck,
     available: true,
     permission: "validador-pedidos",
   },
   {
-    id: "bi-apoyos",
-    name: "Maestro de apoyos",
-    path: "/bi/apoyos",
-    areaSlug: "bi",
-    category: "Maestros",
-    icon: HandCoins,
+    key: SUPPORT_REQUESTS_SEGMENT,
+    name: "Solicitudes de apoyo JDH",
+    category: "Operación",
+    icon: ClipboardList,
     available: true,
-    permission: "apoyos",
+    permission: "solicitudes-apoyos",
   },
   {
-    id: "bi-casos-especiales",
+    key: "pqrsf",
+    name: "PQRSF",
+    category: "Operación",
+    icon: MessageSquareWarning,
+    available: true,
+    permission: "pqrsf",
+    subItems: (base, slug) => [
+      {
+        id: `${slug}-pqrsf-sugerencias`,
+        name: "Sugerencias y felicitaciones",
+        path: `${base}/sugerencias`,
+        icon: ThumbsUp,
+        managerOnly: true,
+        badge: "feedback-unread",
+      },
+      { id: `${slug}-pqrsf-historial`, name: "Historial", path: `${base}/historial`, icon: History, managerOnly: true },
+      { id: `${slug}-pqrsf-configuracion`, name: "Configuración", path: `${base}/configuracion`, icon: Settings, managerOnly: true },
+    ],
+  },
+  {
+    key: "monitoreo",
+    segment: BOARD_SEGMENT,
+    name: "Tablero general",
+    category: "Monitoreo",
+    icon: Activity,
+    available: true,
+    permission: "monitoreo",
+  },
+  {
+    key: "aplicativos",
+    segment: APPS_SEGMENT,
+    name: "Aplicativos",
+    category: "Monitoreo",
+    icon: AppWindow,
+    available: true,
+    permission: "monitoreo",
+  },
+  {
+    key: "datawarehouse",
+    segment: DWH_SEGMENT,
+    name: "Datawarehouse",
+    category: "Monitoreo",
+    icon: Database,
+    available: true,
+    permission: "datawarehouse",
+    subItems: (base, slug) => [
+      { id: `${slug}-datawarehouse-secuencias`, name: "Secuencias", path: `${base}/secuencias`, icon: Workflow },
+      { id: `${slug}-datawarehouse-frescura`, name: "Frescura", path: `${base}/frescura`, icon: Hourglass },
+      { id: `${slug}-datawarehouse-horario`, name: "Horario del día", path: `${base}/horario`, icon: CalendarClock },
+      { id: `${slug}-datawarehouse-extracciones`, name: "Extracciones", path: `${base}/extracciones`, icon: ListChecks },
+    ],
+  },
+  { key: "apoyos", name: "Maestro de apoyos", category: "Maestros", icon: HandCoins, available: true, permission: "apoyos" },
+  {
+    key: "casos-especiales",
+    segment: "apoyos/casos-especiales",
     name: "Casos especiales",
-    path: "/bi/apoyos/casos-especiales",
-    areaSlug: "bi",
     category: "Maestros",
     icon: ClipboardList,
     available: true,
     permission: "casos-especiales",
   },
   {
-    id: "bi-maestros",
-    name: "Maestros generales",
-    path: `/bi/${MASTERS_SEGMENT}`,
-    areaSlug: "bi",
+    key: "maestros",
+    segment: MASTERS_SEGMENT,
+    name: "Maestros",
     category: "Maestros",
     icon: Database,
     available: true,
     permission: "maestros",
-    // No screen of its own: a click on the row only opens the dropdown, and the
-    // dropdown is the only way to a master. Set to true (and add a page at the
-    // module's path) to give it a landing page again.
-    hasPage: false,
-    subItems: COMMERCIAL_MASTERS.map((master) => ({
-      id: `bi-maestros-${master.key}`,
-      name: master.name,
-      path: `/bi/${MASTERS_SEGMENT}/${master.key}`,
-      icon: master.icon,
-    })),
+    // The landing lists the area's masters; BI also keeps the typed commercial
+    // tables, where it edits products and loads margins.
+    subItems: (base, slug) =>
+      slug === COMMERCIAL_MASTERS_AREA_SLUG
+        ? COMMERCIAL_MASTERS.map((master) => ({
+            id: `${slug}-maestros-${master.key}`,
+            name: master.name,
+            path: `${base}/${master.key}`,
+            icon: master.icon,
+          }))
+        : [],
   },
+  { key: "documentos", name: "Gestor documental", category: "Documentación", icon: FolderOpen, available: true, permission: "documentos" },
 ];
 
-export const DOCUMENTS_SEGMENT = "documentos";
-
-/**
- * The document manager exists in every area the API returns, including one
- * created in the database after this file was written, so it is generated
- * from the slug rather than declared area by area.
- */
-export function documentsModule(areaSlug: string): ModuleItem {
+function buildModule({ key, segment, subItems, ...template }: ModuleTemplate, areaSlug: string): ModuleItem {
+  const id = `${areaSlug}-${key}`;
+  const path = `/${areaSlug}/${segment ?? key}`;
+  const pages = subItems?.(path, areaSlug) ?? [];
   return {
-    id: `${areaSlug}-documentos`,
-    name: "Gestor documental",
-    path: `/${areaSlug}/${DOCUMENTS_SEGMENT}`,
+    ...template,
+    id,
+    name: AREA_NAMES[id] ?? template.name,
+    path,
     areaSlug,
-    category: "Documentación",
-    icon: FolderOpen,
-    available: true,
-    permission: "documentos",
+    ...(pages.length > 0 ? { subItems: pages } : {}),
   };
 }
 
+/**
+ * Every row an area can show: its own rows and every API module, whether or
+ * not the area has it on. `visibleModules` narrows it to what the person sees;
+ * the gates use the full list to know which module a route belongs to.
+ */
 export function getModulesByArea(areaSlug: string): ModuleItem[] {
   return [
-    ...MODULES.filter((module) => module.areaSlug === areaSlug),
-    documentsModule(areaSlug),
+    ...AREA_ROWS.filter((module) => module.areaSlug === areaSlug),
+    ...MODULE_TEMPLATES.map((template) => buildModule(template, areaSlug)),
   ];
 }
 
@@ -530,13 +527,3 @@ export function findModuleByPath(path: string): ModuleItem | undefined {
   if (!areaSlug) return undefined;
   return getModulesByArea(areaSlug).find((module) => module.path === path);
 }
-
-/**
- * Module pages live under the dynamic `[area]` segment, so `/[area]/pqrsf`
- * would also answer for /ti/pqrsf. A page calls this to exist only where the
- * catalog declares it.
- */
-export function isAvailableModule(areaSlug: string, segment: string): boolean {
-  return findModuleByPath(`/${areaSlug}/${segment}`)?.available === true;
-}
-

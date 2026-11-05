@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-
 import SpecialCasesBrowser from "@/features/supports/components/special-cases-browser";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function CasosEspecialesPage({
   params,
@@ -9,7 +7,7 @@ export default async function CasosEspecialesPage({
   params: Promise<{ area: string }>;
 }) {
   const { area } = await params;
-  if (!isAvailableModule(area, "apoyos/casos-especiales")) notFound();
+  await requireModule(area, "apoyos/casos-especiales");
 
   return (
     <div className="space-y-6">

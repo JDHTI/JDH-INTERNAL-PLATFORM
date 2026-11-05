@@ -1,9 +1,7 @@
-import { notFound } from "next/navigation";
-
 import ManagerGate from "@/features/supports/components/manager-gate";
 import ProfileEditor from "@/features/supports/components/profile-editor";
 import PageHeader from "@/shared/components/page-header";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function PerfilProveedorPage({
   params,
@@ -11,7 +9,7 @@ export default async function PerfilProveedorPage({
   params: Promise<{ area: string; proveedor: string }>;
 }) {
   const { area, proveedor } = await params;
-  if (!isAvailableModule(area, "apoyos")) notFound();
+  await requireModule(area, "apoyos");
 
   return (
     <div className="space-y-6">

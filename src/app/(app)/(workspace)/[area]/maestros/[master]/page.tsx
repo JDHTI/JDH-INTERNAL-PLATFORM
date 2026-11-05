@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 
+import { requireModule } from "@/features/areas/server/area-access";
 import CommercialMasterTable from "@/features/commercial-masters/components/commercial-master-table";
-import { findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
+import { COMMERCIAL_MASTERS_AREA_SLUG } from "@/shared/config/areas.config";
 
 export default async function MaestroPage({
   params,
@@ -11,7 +12,8 @@ export default async function MaestroPage({
 }) {
   const { area, master: key } = await params;
   const master = findCommercialMaster(key);
-  if (!master || !isAvailableModule(area, "maestros")) notFound();
+  if (!master || area !== COMMERCIAL_MASTERS_AREA_SLUG) notFound();
+  await requireModule(area, MASTERS_SEGMENT);
 
   return (
     <div className="space-y-6">

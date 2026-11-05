@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import AreaGate from "@/features/areas/components/area-gate";
-import { backendFetch } from "@/intranet/lib/api/backend-fetch";
+import { lookupArea } from "@/features/areas/server/area-access";
 import { ACCESS_DENIED_PARAM, WORKSPACE_PATH } from "@/shared/config/general.config";
 
 /**
@@ -21,10 +21,10 @@ export default async function AreaLayout({
   params: Promise<{ area: string }>;
 }) {
   const { area } = await params;
-  const response = await backendFetch(`/areas/${encodeURIComponent(area)}`).catch(() => null);
-  if (response?.status === 401) redirect("/login");
-  if (response?.status === 403) redirect(`${WORKSPACE_PATH}?${ACCESS_DENIED_PARAM}=area`);
-  if (response?.status === 404) notFound();
+  const { status } = await lookupArea(area);
+  if (status === 401) redirect("/login");
+  if (status === 403) redirect(`${WORKSPACE_PATH}?${ACCESS_DENIED_PARAM}=area`);
+  if (status === 404) notFound();
 
   return <AreaGate slug={area}>{children}</AreaGate>;
 }

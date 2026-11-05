@@ -1,14 +1,18 @@
-import { apiFetch } from "@/shared/lib/api-client";
+import { apiDownload, apiFetch } from "@/shared/lib/api-client";
 
 import type {
+  MasterActiveFilter,
   MasterDetailDto,
   MasterRecordPageDto,
   MasterRecordParams,
   MasterSummaryDto,
 } from "../types/master.types";
 
-export async function listMasters(): Promise<MasterSummaryDto[]> {
-  return apiFetch<MasterSummaryDto[]>("/masters");
+const activeQuery = (active: MasterActiveFilter) => (active === "all" ? undefined : String(active === "active"));
+
+/** The masters the person may read; `area` narrows them to the ones that area has on. */
+export async function listMasters(area?: string): Promise<MasterSummaryDto[]> {
+  return apiFetch<MasterSummaryDto[]>("/masters", { query: { area } });
 }
 
 export async function getMaster(slug: string): Promise<MasterDetailDto> {
@@ -23,11 +27,14 @@ export async function listMasterRecords({
   limit,
 }: MasterRecordParams): Promise<MasterRecordPageDto> {
   return apiFetch<MasterRecordPageDto>(`/masters/${encodeURIComponent(slug)}/records`, {
-    query: {
-      q,
-      is_active: active === "all" ? undefined : String(active === "active"),
-      offset,
-      limit,
-    },
+    query: { q, is_active: activeQuery(active), offset, limit },
+  });
+}
+
+/** Excel with the fields the person may see, up to 100.000 rows. */
+export async function downloadMaster(slug: string, active: MasterActiveFilter): Promise<void> {
+  return apiDownload(`/masters/${encodeURIComponent(slug)}/records.xlsx`, {
+    query: { is_active: activeQuery(active) },
+    fallbackName: `${slug}.xlsx`,
   });
 }

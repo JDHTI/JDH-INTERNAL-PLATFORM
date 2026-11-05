@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, RefreshCw, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, Loader2, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 
 import { useMaster, useMasterRecords, useMasters } from "@/features/masters/hooks/use-masters";
+import { downloadMaster } from "@/features/masters/services/masters.service";
 import type {
   MasterActiveFilter,
   MasterDetailDto,
@@ -62,9 +64,11 @@ const dateFormat = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
 /**
  * Read-only view of the shared masters. Records are synced from the DWH by
  * the API, so nothing here writes: an edit belongs in the source system.
+ * With `area`, only the masters TI switched on for that area; without it,
+ * every master the person may read (all of them in administration).
  */
-export default function MastersBrowser() {
-  const mastersQuery = useMasters();
+export default function MastersBrowser({ area }: { area?: string }) {
+  const mastersQuery = useMasters(area);
   const [selectedSlug, setSelectedSlug] = useState<string>();
   const masters = mastersQuery.data ?? [];
   const active = masters.find((master) => master.slug === selectedSlug) ?? masters[0];
@@ -74,7 +78,12 @@ export default function MastersBrowser() {
     return <LoadError error={mastersQuery.error} onRetry={() => mastersQuery.refetch()} />;
   }
   if (masters.length === 0) {
-    return (
+    return area ? (
+      <Notice
+        title="Esta área aún no tiene maestros"
+        description="TI elige qué maestros ve cada área. Pídelos en Solicitudes de soporte."
+      />
+    ) : (
       <Notice
         title="Aún no hay maestros registrados"
         description="Los maestros aparecen aquí cuando el equipo de datos los registra y ejecuta la primera sincronización con el DWH."
@@ -207,6 +216,19 @@ function RecordsView({
     setOffset(0);
   };
 
+  // The file follows the state filter, not the search: the API exports the whole master.
+  const [downloading, setDownloading] = useState(false);
+  const download = async () => {
+    setDownloading(true);
+    try {
+      await downloadMaster(slug, activeFilter);
+    } catch (failure) {
+      toast.error(errorMessage(failure));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -237,6 +259,10 @@ function RecordsView({
           options={ACTIVE_OPTIONS}
           aria-label="Filtrar por estado"
         />
+        <Button variant="outline" onClick={download} disabled={downloading} className="shrink-0 max-sm:h-11">
+          {downloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+          {downloading ? "Preparando Excel…" : "Descargar Excel"}
+        </Button>
       </div>
 
       {recordsQuery.isPending ? (
@@ -566,24 +592,15 @@ function Notice({
   );
 }
 
-/**
- * 404 on the list means the API has not shipped the masters module yet, which
- * is a different situation from a failed request and reads differently.
- */
+/** 403 is a missing grant, not a failure: retrying will not change it. */
 function LoadError({ error, onRetry }: { error: Error; onRetry: () => void }) {
   const status = error instanceof ApiError ? error.status : null;
   const title =
-    status === 404
-      ? "El servicio de maestros todavía no está disponible"
-      : status === 403
-        ? "No tienes acceso a los maestros"
-        : "No se pudieron cargar los maestros";
+    status === 403 ? "No tienes acceso a este maestro" : "No se pudieron cargar los maestros";
   const description =
-    status === 404
-      ? "El API aún no publica este módulo. Cuando el equipo de plataforma lo despliegue, los maestros aparecerán aquí sin cambios en esta pantalla."
-      : status === 403
-        ? "Los maestros solo están disponibles para administradores globales. Pide acceso al equipo de TI."
-        : errorMessage(error);
+    status === 403
+      ? "Tu rol no incluye los maestros o este maestro no está habilitado en tu área. Pide acceso al líder del área o a TI."
+      : errorMessage(error);
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-surface p-6" role="alert">
