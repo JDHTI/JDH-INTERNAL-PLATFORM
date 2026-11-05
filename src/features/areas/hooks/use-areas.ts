@@ -19,12 +19,20 @@ const retryTransient = (count: number, error: Error) =>
   !(error instanceof ApiError && [401, 403, 404].includes(error.status)) &&
   count < 1;
 
+/*
+ * The areas carry the person's permissions (`my_modules`), which an admin can
+ * change at any time. A minute of cache, refreshed when the tab regains focus,
+ * keeps the menu close to what the API enforces without asking on every page.
+ */
+const AREAS_STALE_MS = 60_000;
+
 /** Areas the signed-in user may enter. The API does the filtering. */
 export function useAreas() {
   return useQuery({
     queryKey: areaKeys.list(),
     queryFn: listAreas,
-    staleTime: 5 * 60_000,
+    staleTime: AREAS_STALE_MS,
+    refetchOnWindowFocus: true,
     retry: retryTransient,
   });
 }
@@ -33,7 +41,8 @@ export function useArea(slug: string) {
   return useQuery({
     queryKey: areaKeys.detail(slug),
     queryFn: () => getArea(slug),
-    staleTime: 5 * 60_000,
+    staleTime: AREAS_STALE_MS,
+    refetchOnWindowFocus: true,
     retry: retryTransient,
   });
 }

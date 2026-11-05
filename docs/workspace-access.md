@@ -55,7 +55,13 @@ datos fallarían con 403.
 
 ## 4. Panel de administración (`/ti/administracion/areas`)
 
-- **Roles:** cada rol tiene el botón «Permisos», que abre el editor
+- **Rol líder:** cada área tiene un rol líder fijo (`is_leader`; «Líder de área» en las áreas
+  nuevas, «Director BI» en BI) con todos los permisos del área. El API lo lista primero, responde
+  409 si se intenta eliminar o cambiar sus permisos, y deja renombrarlo. En el panel lleva la
+  etiqueta «Líder», no tiene botón de eliminar y su botón «Permisos» abre el detalle en solo
+  lectura. Al agregar un miembro, el rol preseleccionado es el primero que no es líder, para que
+  dar el área completa sea siempre una elección explícita.
+- **Roles:** los demás roles admiten cualquier permiso. Cada uno tiene el botón «Permisos», que abre el editor
   (`src/features/admin/components/role-permissions-dialog.tsx`): «Toda el área» (sin acceso,
   lectura o gestión) y una fila por módulo del catálogo (`GET /permissions/catalog`). Se guarda
   completo con `PUT /areas/{slug}/roles/{id}/permissions`. Un rol recién creado no concede nada,
@@ -67,3 +73,7 @@ datos fallarían con 403.
   El API resuelve el correo contra `users`, que la sincronización nocturna llena con toda cuenta
   de Entra, y responde con un mensaje claro si la persona aún no está sincronizada.
 - **Responsable del área:** el mismo campo.
+- **Cuándo se nota un cambio:** el API aplica permisos y membresías en la siguiente petición. En la
+  UI, `["areas"]` vive un minuto en caché y se refresca al volver a la pestaña; cada cambio hecho
+  desde el panel la invalida en el acto para quien lo hizo. Quien recibe el cambio lo ve en su menú
+  al volver a la pestaña o al minuto.

@@ -47,10 +47,14 @@ function toGrants(area: Level, modules: Record<string, Level>): RoleGrantDto[] {
  * wildcard the API has; a module row can only add to it, so under full
  * management the rows are moot and under read they can only raise to manage.
  */
+export const LEADER_ROLE_HELP =
+  "El rol líder del área tiene todos sus permisos. No se elimina y sus permisos no cambian; sí se puede renombrar.";
+
 export default function RolePermissionsDialog({
   open,
   onOpenChange,
   roleName,
+  isLeader,
   modules,
   grants,
   busy,
@@ -60,12 +64,38 @@ export default function RolePermissionsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   roleName: string;
+  /** The fixed leader role: shown read-only, the API refuses to change it. */
+  isLeader: boolean;
   modules: CatalogModuleDto[];
   grants: RoleGrantDto[];
   busy: boolean;
   error: string | null;
   onSave: (grants: RoleGrantDto[]) => void;
 }) {
+  if (isLeader) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange} title={`Permisos de ${roleName}`} description={LEADER_ROLE_HELP}>
+        <ul className="divide-y divide-border rounded-md border border-border">
+          <li className="flex items-center justify-between gap-3 bg-canvas-subtle px-3 py-2 text-sm">
+            <span className="font-medium">Toda el área</span>
+            <span>Gestión</span>
+          </li>
+          {modules.map((module) => (
+            <li key={module.key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0 truncate">{module.label}</span>
+              <span className="text-text-secondary">Gestión</span>
+            </li>
+          ))}
+        </ul>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog
       open={open}

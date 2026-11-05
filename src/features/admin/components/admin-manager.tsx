@@ -6,6 +6,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Crown,
   KeyRound,
   Pencil,
   Plus,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { areaKeys } from "@/features/areas/hooks/use-areas";
 import type { AreaDto } from "@/features/areas/types/area.types";
 import {
   useActiveUsers,
@@ -57,6 +59,7 @@ import {
   DEFAULT_AREA_ICON,
   resolveAreaIcon,
 } from "@/features/areas/area-icons";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
@@ -69,7 +72,7 @@ import { cn } from "@/shared/lib/utils";
 import { isReservedSlug, slugFromName } from "../lib/area-slug";
 import { normalizeCompanyEmail } from "../lib/company-email";
 import EmployeeEmailField from "./employee-email-field";
-import RolePermissionsDialog, { grantsSummary } from "./role-permissions-dialog";
+import RolePermissionsDialog, { LEADER_ROLE_HELP, grantsSummary } from "./role-permissions-dialog";
 
 const SECTION_COPY: Record<AdminSection, string> = {
   areas: "Las áreas de la organización, sus roles, qué permite cada rol y quién pertenece a cada una.",
@@ -117,8 +120,12 @@ export default function AdminManager({ section }: { section: AdminSection }) {
   const catalogModules =
     catalogQuery.data?.areas.find((area) => area.slug === activeArea?.slug)?.modules ?? [];
 
+  // The admin's own menu and hub read ["areas"]: a role or member change shows there too.
   const invalidateAdmin = async () => {
-    await queryClient.invalidateQueries({ queryKey: adminKeys.all });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminKeys.all }),
+      queryClient.invalidateQueries({ queryKey: areaKeys.all }),
+    ]);
   };
 
   async function runMutation<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
@@ -513,7 +520,14 @@ function AreaDetails({
   const [permissionsRole, setPermissionsRole] = useState<AreaRoleDto | null>(null);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRoleId, setMemberRoleId] = useState("");
-  const effectiveMemberRoleId = memberRoleId || roles[0]?.id || "";
+  // A new member starts on a regular role: the leader role gives the whole
+  // area, so it has to be chosen on purpose. Without other roles, the leader.
+  const defaultRoleId = (roles.find((role) => !role.is_leader) ?? roles[0])?.id ?? "";
+  const effectiveMemberRoleId = memberRoleId || defaultRoleId;
+  const roleOptions = roles.map((role) => ({
+    value: role.id,
+    label: role.is_leader ? `${role.name} (líder)` : role.name,
+  }));
   const permissions = useRolePermissions(area.slug, roles.map((role) => role.id));
   const memberEmails = useMemo(() => members.map((member) => member.user.email), [members]);
 
@@ -597,6 +611,7 @@ function AreaDetails({
           }
         }}
         roleName={permissionsRole?.name ?? ""}
+        isLeader={permissionsRole?.is_leader ?? false}
         modules={catalogModules}
         grants={permissionsRole ? (permissions[permissionsRole.id] ?? []) : []}
         busy={busy === "permissions"}
@@ -622,13 +637,25 @@ function AreaDetails({
               {roles.map((role) => (
                 <li key={role.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span className="min-w-0">
-                    <span className="block truncate font-medium">{role.name}</span>
-                    <span className="block truncate text-xs text-text-secondary">{grantsSummary(permissions[role.id])}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium">{role.name}</span>
+                      {role.is_leader && (
+                        <Badge tone="info" className="py-0" title={LEADER_ROLE_HELP}>
+                          <Crown aria-hidden="true" /> Líder
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-text-secondary">
+                      {role.is_leader ? "Todos los permisos del área" : grantsSummary(permissions[role.id])}
+                    </span>
                   </span>
                   <span className="flex shrink-0 gap-1">
                     <Button variant="outline" size="sm" onClick={() => setPermissionsRole(role)} aria-label={`Permisos de ${role.name}`}><KeyRound aria-hidden="true" /> Permisos</Button>
                     <Button variant="ghost" size="icon-sm" onClick={() => { setEditingRoleId(role.id); setRoleName(role.name); }} aria-label={`Renombrar ${role.name}`}><Pencil aria-hidden="true" /></Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => removeRole(role.id, role.name)} aria-label={`Eliminar ${role.name}`}><Trash2 aria-hidden="true" /></Button>
+                    {/* The leader role is the one every area keeps: the API answers 409 to deleting it. */}
+                    {!role.is_leader && (
+                      <Button variant="ghost" size="icon-sm" onClick={() => removeRole(role.id, role.name)} aria-label={`Eliminar ${role.name}`}><Trash2 aria-hidden="true" /></Button>
+                    )}
                   </span>
                 </li>
               ))}
@@ -653,7 +680,7 @@ function AreaDetails({
             <Dropdown
               value={effectiveMemberRoleId}
               onValueChange={setMemberRoleId}
-              options={roles.map((role) => ({ value: role.id, label: role.name }))}
+              options={roleOptions}
               placeholder="Selecciona un rol"
               aria-label="Rol"
               disabled={roles.length === 0}
@@ -674,7 +701,7 @@ function AreaDetails({
                       size="sm"
                       value={member.role.id}
                       onValueChange={(value) => onRun("member-role", () => updateAreaMember(area.slug, member.id, value))}
-                      options={roles.map((role) => ({ value: role.id, label: role.name }))}
+                      options={roleOptions}
                       aria-label={`Rol de ${member.user.display_name ?? "miembro"}`}
                     />
                     <Button variant="ghost" size="icon-sm" onClick={() => removeMember(member.id, member.user.display_name ?? member.user.email ?? "miembro")} aria-label={`Retirar ${member.user.display_name ?? "miembro"}`}><Trash2 aria-hidden="true" /></Button>

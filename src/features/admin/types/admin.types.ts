@@ -1,8 +1,14 @@
-import type { AreaDto, ModuleAction, UserRef } from "@/features/areas/types/area.types";
+import type { AreaDto, ModuleAction, RoleRefDto, UserRef } from "@/features/areas/types/area.types";
 
 export interface AreaRoleDto {
   id: string;
   name: string;
+  /**
+   * The area's fixed leader role (Líder, Director): every permission of the
+   * area, never deleted, its permissions never changed (409). It can be renamed.
+   * The API lists it first.
+   */
+  is_leader: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -10,7 +16,7 @@ export interface AreaRoleDto {
 export interface AreaMemberDto {
   id: string;
   user: UserRef;
-  role: { id: string; name: string };
+  role: RoleRefDto;
   created_at: string;
   updated_at: string;
 }
@@ -60,7 +66,7 @@ export interface RoleGrantDto {
 }
 
 export interface RolePermissionsDto {
-  role: { id: string; name: string };
+  role: RoleRefDto;
   grants: RoleGrantDto[];
 }
 
