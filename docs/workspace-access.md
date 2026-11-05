@@ -39,11 +39,13 @@ módulo del API una vez y `getModulesByArea(slug)` lo genera para cualquier slug
 un área fija vive en `AREA_ROWS`: «Solicitudes de soporte» y Administración en TI, y los
 `Próximamente`; esas filas no llevan clave y se muestran a todo miembro del área.
 
-Algunos módulos tienen un área dueña, igual que en el API: BI gestiona el maestro de apoyos y decide
-las solicitudes (`SUPPORTS_MANAGER_AREA_SLUG`); en otra área el maestro de apoyos es de lectura y las
-solicitudes son las propias. BI también conserva las tablas tipadas de maestros comerciales
-(márgenes, edición de productos) bajo `/bi/maestros/{maestro}`. El nombre cambia donde un área usa el
-módulo distinto (`AREA_NAMES`: «Validar cotizaciones» en BI, «Mis solicitudes JDH» en Comercial).
+Lo que cada persona hace dentro de un módulo no depende del área en la UI: lo responde el API por
+quien llama. Apoyos usa `GET /supplier-supports/permissions` (`can_manage` abre la escritura;
+`can_review` convierte `/{área}/solicitudes-apoyos` en la bandeja de revisión, y si no, son las
+solicitudes propias; `can_request` deja pedir desde el maestro). El cotizador usa
+`GET /quotations/permissions` y el validador `GET /order-validations/permissions`. BI conserva además
+las tablas tipadas de maestros comerciales (márgenes, edición de productos) bajo
+`/bi/maestros/{maestro}`. `AREA_NAMES` solo cambia una etiqueta del menú: «Validar cotizaciones» en BI.
 
 | Módulo de la UI | Clave del API |
 | --- | --- |

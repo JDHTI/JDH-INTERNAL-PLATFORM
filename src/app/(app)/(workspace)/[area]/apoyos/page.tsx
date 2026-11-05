@@ -2,8 +2,6 @@ import SupportsBrowser from "@/features/supports/components/supports-browser";
 import SupportsToolbar from "@/features/supports/components/supports-toolbar";
 import PageHeader from "@/shared/components/page-header";
 import { requireModule } from "@/features/areas/server/area-access";
-import { SUPPORTS_MANAGER_AREA_SLUG } from "@/shared/config/areas.config";
-
 export default async function ApoyosPage({
   params,
   searchParams,
@@ -24,8 +22,7 @@ export default async function ApoyosPage({
         description="Apoyos de proveedores por cliente y referencia, con su estado, sus novedades y los conflictos entre ellos."
         aside={<SupportsToolbar area={area} />}
       />
-      {/* Only the supports' owner writes; every other area with the module reads. */}
-      <SupportsBrowser readOnly={area !== SUPPORTS_MANAGER_AREA_SLUG} key={caso ?? "all"} specialCase={caso ? { id: caso, code: codigo ?? "del caso" } : undefined} />
+      <SupportsBrowser key={caso ?? "all"} specialCase={caso ? { id: caso, code: codigo ?? "del caso" } : undefined} />
     </div>
   );
 }

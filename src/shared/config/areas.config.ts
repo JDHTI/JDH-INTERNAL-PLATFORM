@@ -53,15 +53,11 @@ export const BOARD_SEGMENT = "monitoreo";
 /** Monitored applications, and each one's page under it. */
 export const APPS_SEGMENT = "aplicativos";
 
-/** Supplier support requests: who asks for one and who decides. */
-export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
-
 /**
- * The area that owns the supplier supports: it writes them and decides the
- * requests. The API decides the same with SUPPLIER_SUPPORTS_MANAGER_AREA_SLUG;
- * any other area where the modules are on reads and asks.
+ * Supplier support requests. Whether the page is the review tray or the
+ * person's own requests comes from GET /supplier-supports/permissions.
  */
-export const SUPPORTS_MANAGER_AREA_SLUG = "bi";
+export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
 
 /** Where the typed commercial masters (margins, product edits) live, besides the generic ones. */
 export const COMMERCIAL_MASTERS_AREA_SLUG = "bi";
@@ -375,7 +371,6 @@ const AREA_ROWS: ModuleItem[] = [
 /** A module's name where one area uses it differently: BI validates what Comercial quotes. */
 const AREA_NAMES: Record<string, string> = {
   "bi-cotizador": "Validar cotizaciones",
-  "comercial-solicitudes-apoyos": "Mis solicitudes JDH",
 };
 
 type ModuleTemplate = Omit<ModuleItem, "id" | "path" | "areaSlug" | "subItems"> & {

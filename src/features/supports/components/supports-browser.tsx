@@ -216,9 +216,7 @@ const alignClass = (column: Column) => (column.align === "right" ? "text-right" 
  */
 export default function SupportsBrowser({
   specialCase,
-  readOnly = false,
 }: {
-  readOnly?: boolean;
   /** A special case to scope the list to, from its "ver apoyos" link. */
   specialCase?: { id: string; code: string };
 }) {
@@ -243,6 +241,8 @@ export default function SupportsBrowser({
   const [requestSelected, setRequestSelected] = useState<SupplierSupport[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const permissions = useSupportPermissions();
+  // Whoever does not manage reads, and ticks rows to request a JDH support when allowed.
+  const readOnly = permissions.data?.can_manage !== true;
   const canRequest = readOnly && permissions.data?.can_request === true;
   const [composeId, setComposeId] = useState<string | null>(null);
   const [bulkAttach, setBulkAttach] = useState<{ document: ExistingDocument | null } | null>(null);

@@ -79,8 +79,11 @@ export default function JobsPanel() {
               const open = isOpenRun(job.last_run);
               const starting = run.isPending && run.variables === job.key;
               return (
-                <li key={job.key} className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
-                  <div className="min-w-0">
+                <li
+                  key={job.key}
+                  className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-center"
+                >
+                  <div className="min-w-0 sm:col-span-2 xl:col-span-1">
                     <p className="font-medium">{job.label}</p>
                     <p className="text-[13px] text-text-secondary">{job.description}</p>
                     {job.sequence && (
@@ -125,7 +128,7 @@ export default function JobsPanel() {
                       <dd className="tabular-nums">{when(job.last_success_at)}</dd>
                     </div>
                   </dl>
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-1 xl:justify-end">
                     <Button variant="outline" size="sm" onClick={() => setHistory(job)} className="max-md:h-11">
                       <History aria-hidden="true" /> Historial
                     </Button>
