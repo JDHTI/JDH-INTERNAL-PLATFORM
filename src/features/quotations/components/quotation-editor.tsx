@@ -29,6 +29,7 @@ import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
+import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -182,20 +183,26 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
 
+  // The columns of the outcome appear once there is an outcome to show.
+  const hasChanges = useMemo(() => quotation.lines.some((line) => line.new_price !== null), [quotation.lines]);
+  const filteredSkus = useMemo(() => visible.map((line) => line.sku), [visible]);
+
   const selection: LineSelection | undefined = editable
     ? {
         selected,
+        scope: filteredSkus,
         toggle: (sku) =>
           setSelected((current) => {
             const next = new Set(current);
             if (!next.delete(sku)) next.add(sku);
             return next;
           }),
-        togglePage: (skus) =>
+        // Every reference of the filter and search, on every page.
+        toggleAll: () =>
           setSelected((current) => {
             const next = new Set(current);
-            const all = skus.every((sku) => next.has(sku));
-            for (const sku of skus) {
+            const all = filteredSkus.every((sku) => next.has(sku));
+            for (const sku of filteredSkus) {
               if (all) next.delete(sku);
               else next.add(sku);
             }
@@ -444,7 +451,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           <MarginSelectionBar
             quotation={quotation}
             selected={selected}
-            filteredSkus={visible.map((line) => line.sku)}
+            filteredSkus={filteredSkus}
             onSelectionChange={setSelected}
             disabled={busy}
           />
@@ -495,6 +502,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             selection={selection}
             pending={pending}
             highlight={importer.highlight}
+            showOutcome={hasChanges}
           />
           <LinesTable
             lines={pageLines}
@@ -507,6 +515,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             selection={selection}
             pending={pending}
             highlight={importer.highlight}
+            showOutcome={hasChanges}
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">
@@ -595,15 +604,35 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
           </div>
         ))}
       </dl>
-      <p className="text-[13px] text-text-secondary">
-        Armada el {formatDateTime(quotation.built_at)}
-        {quotation.cost_cut_date && ` · costo al corte del ${formatDay(quotation.cost_cut_date)}`}
-        {quotation.confirmed_at &&
-          ` · confirmada el ${formatDateTime(quotation.confirmed_at)}${quotation.confirmed_by ? ` por ${quotation.confirmed_by}` : ""}`}
-        {quotation.validated_at &&
-          ` · validada el ${formatDateTime(quotation.validated_at)}${quotation.validated_by ? ` por ${quotation.validated_by}` : ""}`}
-      </p>
+      <QuotationHistory quotation={quotation} />
     </div>
+  );
+}
+
+/** When the quotation was built, confirmed and validated, and by whom: on demand, not on screen. */
+function QuotationHistory({ quotation }: { quotation: Quotation }) {
+  const by = (person: string | null) => (person ? ` por ${person}` : "");
+  const events: [string, string][] = [
+    ["Armada", formatDateTime(quotation.built_at)],
+    ...(quotation.cost_cut_date ? [["Costo al corte", formatDay(quotation.cost_cut_date)] as [string, string]] : []),
+    ...(quotation.confirmed_at
+      ? [["Confirmada", `${formatDateTime(quotation.confirmed_at)}${by(quotation.confirmed_by)}`] as [string, string]]
+      : []),
+    ...(quotation.validated_at
+      ? [["Validada", `${formatDateTime(quotation.validated_at)}${by(quotation.validated_by)}`] as [string, string]]
+      : []),
+  ];
+  return (
+    <InfoPopover label="Historial" title="Historial de la cotización">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {events.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-text-secondary">{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </InfoPopover>
   );
 }
 

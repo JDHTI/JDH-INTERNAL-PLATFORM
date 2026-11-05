@@ -1,10 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Loader2, Percent, X } from "lucide-react";
+import { Eraser, Loader2, Percent, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
@@ -13,11 +14,12 @@ import { formatCount, parseMarginInput } from "../lib/format";
 import type { Quotation, SkippedLine } from "../types/quotations.types";
 
 /**
- * Takes the selected references to one margin: the API turns the margin into
- * each one's price with the list's rounding, never under the minimum when the
- * margin passes the rule, and says which it could not price (no cost). Shown
- * while there is a selection; it also offers to extend it to every row of the
- * active filter.
+ * Bulk actions on the selected references. "Aplicar margen" takes them to one
+ * margin: the API turns it into each one's price with the list's rounding,
+ * never under the minimum when the margin passes the rule, and says which it
+ * could not price (no cost). "Quitar precios nuevos" empties the new price of
+ * the selected ones that have one. Shown while there is a selection; it also
+ * offers to extend it to every row of the active filter.
  */
 export default function MarginSelectionBar({
   quotation,
@@ -35,12 +37,34 @@ export default function MarginSelectionBar({
   disabled: boolean;
 }) {
   const update = useUpdateLines(quotation.id);
+  const clear = useUpdateLines(quotation.id);
   const inputId = useId();
   const [margin, setMargin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [skipped, setSkipped] = useState<SkippedLine[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
   const count = selected.size;
   const allFiltered = filteredSkus.length > 0 && filteredSkus.every((sku) => selected.has(sku));
+  // Only references that already have a new price have something to clear.
+  const withPrice = quotation.lines.filter((line) => selected.has(line.sku) && line.new_price !== null).map((line) => line.sku);
+
+  const runClear = () => {
+    setClearError(null);
+    clear.mutate(
+      { version: quotation.version, lines: withPrice.map((sku) => ({ sku, new_price: null })) },
+      {
+        onSuccess: () => {
+          setConfirmClear(false);
+          toast.success(
+            withPrice.length === 1 ? "Se quitó el precio nuevo de 1 referencia." : `Se quitaron los precios nuevos de ${formatCount(withPrice.length)} referencias.`
+          );
+          onSelectionChange(new Set());
+        },
+        onError: (failure) => setClearError(errorMessage(failure)),
+      }
+    );
+  };
 
   const apply = (event: React.FormEvent) => {
     event.preventDefault();
@@ -109,6 +133,20 @@ export default function MarginSelectionBar({
             Aplicar margen
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setClearError(null);
+              setConfirmClear(true);
+            }}
+            disabled={disabled || withPrice.length === 0 || clear.isPending}
+            title={withPrice.length === 0 ? "Ninguna referencia seleccionada tiene precio nuevo." : undefined}
+            className="max-md:h-11"
+          >
+            <Eraser aria-hidden="true" />
+            Quitar precios nuevos{withPrice.length > 0 && ` (${formatCount(withPrice.length)})`}
+          </Button>
+          <Button
             variant="ghost"
             size="icon-sm"
             onClick={() => {
@@ -133,6 +171,17 @@ export default function MarginSelectionBar({
           seleccionadas para revisarlas.
         </p>
       )}
+      <ConfirmDeleteDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title={withPrice.length === 1 ? "¿Quitar 1 precio nuevo?" : `¿Quitar ${formatCount(withPrice.length)} precios nuevos?`}
+        confirmLabel="Quitar precios"
+        onConfirm={runClear}
+        isPending={clear.isPending}
+        error={clearError}
+      >
+        Esas referencias vuelven a «Sin cambio» y salen del Excel y del plano. El resto de la cotización no cambia.
+      </ConfirmDeleteDialog>
     </div>
   );
 }
