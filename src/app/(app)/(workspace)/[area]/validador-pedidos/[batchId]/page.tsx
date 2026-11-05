@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-
 import BatchView from "@/features/order-validator/components/batch-view";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function ValidadorPedidosArchivoPage({
   params,
@@ -9,7 +7,7 @@ export default async function ValidadorPedidosArchivoPage({
   params: Promise<{ area: string; batchId: string }>;
 }) {
   const { area, batchId } = await params;
-  if (!isAvailableModule(area, "validador-pedidos")) notFound();
+  await requireModule(area, "validador-pedidos");
 
   return <BatchView batchId={batchId} basePath={`/${area}/validador-pedidos`} />;
 }

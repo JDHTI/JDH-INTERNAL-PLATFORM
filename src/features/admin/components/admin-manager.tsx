@@ -51,6 +51,7 @@ import type {
 import { areaToDraft } from "@/features/admin/types/admin.types";
 import DirectoryAdmin from "@/features/directory/components/admin/directory-admin";
 import SitesAdmin from "@/features/directory/components/admin/sites-admin";
+import JobsPanel from "@/features/jobs/components/jobs-panel";
 import MastersBrowser from "@/features/masters/components/masters-browser";
 import SalespeopleAdmin from "@/features/salespeople/components/salespeople-admin";
 import PageHeader from "@/shared/components/page-header";
@@ -72,18 +73,21 @@ import { cn } from "@/shared/lib/utils";
 
 import { isReservedSlug, slugFromName } from "../lib/area-slug";
 import { normalizeCompanyEmail } from "../lib/company-email";
+import AreaModulesAdmin from "./area-modules-admin";
 import EmployeeEmailField from "./employee-email-field";
 import RolePermissionsDialog, { LEADER_ROLE_HELP, grantsSummary } from "./role-permissions-dialog";
 
 const SECTION_COPY: Record<AdminSection, string> = {
   areas: "Las áreas de la organización, sus roles, qué permite cada rol y quién pertenece a cada una.",
+  modulos: "Qué módulos tiene encendidos cada área. Cualquier módulo se puede encender en cualquier área.",
   usuarios: "Las personas que ya entraron a la plataforma o que la sincronización creó.",
   directorio:
     "Las personas del directorio, qué se muestra de cada una y la sincronización nocturna con Microsoft Entra.",
   sedes: "Las sedes físicas de la compañía, para el directorio y el perfil de cada persona.",
   vendedores:
     "Qué vendedor o supervisor de SIESA es cada persona. De esto depende qué clientes y cotizaciones ve en el cotizador.",
-  maestros: "Los maestros compartidos que usa toda la plataforma.",
+  maestros:
+    "Los maestros que la plataforma copia del DWH, cuándo se actualizan y todos sus registros. Qué maestros ve cada área se elige en Módulos por área.",
 };
 
 const EMPTY_AREA: AreaDraft = {
@@ -334,8 +338,13 @@ export default function AdminManager({ section }: { section: AdminSection }) {
             </div>
           )}
         </div>
+      ) : section === "modulos" ? (
+        <AreaModulesAdmin />
       ) : section === "maestros" ? (
-        <MastersBrowser />
+        <div className="space-y-6">
+          <JobsPanel />
+          <MastersBrowser />
+        </div>
       ) : section === "directorio" ? (
         <DirectoryAdmin />
       ) : section === "sedes" ? (

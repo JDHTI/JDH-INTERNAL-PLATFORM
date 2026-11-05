@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
-
 import SequenceDetail from "@/features/dwh-monitoring/components/sequence-detail";
-import { DWH_SEGMENT, isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
+import { DWH_SEGMENT } from "@/shared/config/areas.config";
 
 export default async function DatawarehouseSequencePage({
   params,
@@ -9,7 +8,7 @@ export default async function DatawarehouseSequencePage({
   params: Promise<{ area: string; secuencia: string }>;
 }) {
   const { area, secuencia } = await params;
-  if (!isAvailableModule(area, DWH_SEGMENT)) notFound();
+  await requireModule(area, DWH_SEGMENT);
 
   return <SequenceDetail area={area} secuencia={decodeURIComponent(secuencia)} />;
 }

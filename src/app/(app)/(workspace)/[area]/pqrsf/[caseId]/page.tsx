@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-
 import CaseDetailScreen from "@/features/pqrsf/components/case-detail";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function PqrsfCasePage({
   params,
@@ -9,7 +7,7 @@ export default async function PqrsfCasePage({
   params: Promise<{ area: string; caseId: string }>;
 }) {
   const { area, caseId } = await params;
-  if (!isAvailableModule(area, "pqrsf")) notFound();
+  await requireModule(area, "pqrsf");
 
   return <CaseDetailScreen area={area} caseId={caseId} />;
 }

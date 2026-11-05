@@ -13,7 +13,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
 
   if (isPending) {
     return (
-      <div className="space-y-3" aria-busy="true" aria-label="Cargando panel administrador">
+      <div className="space-y-3" aria-busy="true" aria-label="Cargando administración">
         <div className="h-8 w-64 animate-pulse rounded-md bg-canvas-subtle" />
         <div className="h-20 animate-pulse rounded-lg bg-canvas-subtle" />
       </div>

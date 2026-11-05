@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-
 import ProjectsShell from "@/features/projects/components/projects-shell";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 /**
  * Shared by the folder list and every project page. Layouts do not re-render
@@ -15,7 +13,7 @@ export default async function ProyectosLayout({
   params: Promise<{ area: string }>;
 }) {
   const { area } = await params;
-  if (!isAvailableModule(area, "proyectos")) notFound();
+  await requireModule(area, "proyectos");
 
   return <ProjectsShell slug={area}>{children}</ProjectsShell>;
 }

@@ -1,11 +1,10 @@
-import { notFound } from "next/navigation";
-
 import ApplicationsManager from "@/features/app-monitoring/components/applications-manager";
-import { APPS_SEGMENT, isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
+import { APPS_SEGMENT } from "@/shared/config/areas.config";
 
 export default async function ApplicationsPage({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
-  if (!isAvailableModule(area, APPS_SEGMENT)) notFound();
+  await requireModule(area, APPS_SEGMENT);
 
   return <ApplicationsManager area={area} />;
 }
