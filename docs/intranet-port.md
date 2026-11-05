@@ -16,8 +16,8 @@ mismas pantallas, mismo diseño. El espacio de trabajo por áreas no cambia. Dec
 | `/admin` | **No**: la administración vive en el área TI (`/ti/administracion/*`) |
 
 El código vive en `src/intranet/` (componentes, módulos, configuración) con su propia estructura;
-las rutas en `src/app`. El menú del usuario suma **Mi espacio de trabajo**, que abre la última área
-visitada.
+las rutas en `src/app`. El menú del usuario suma **Mi espacio de trabajo**, que abre `/workspace`,
+el hub con las áreas de la persona (`docs/workspace-access.md`).
 
 ## Cómo conviven los dos diseños
 

@@ -9,8 +9,8 @@ import { isPlatformAdmin } from "@/features/session/types/session.types";
 import {
   MODULE_CATEGORIES,
   activeModuleId,
-  getModulesByArea,
   moduleHref,
+  visibleModules,
 } from "@/shared/config/areas.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarModuleGroup from "./sidebar-module-group";
@@ -23,6 +23,7 @@ export default function SidebarMenu() {
   const { data: user } = useSession();
   const isAdmin = isPlatformAdmin(user?.role);
 
+  // No area in the URL (the hub): the content lists the areas, the rail stays quiet.
   if (!activeArea) {
     return (
       <div className="flex-1 space-y-2 px-3 py-2" aria-busy={isPending}>
@@ -37,9 +38,8 @@ export default function SidebarMenu() {
     );
   }
 
-  const areaModules = getModulesByArea(activeArea.slug).filter(
-    (module) => !module.adminOnly || isAdmin
-  );
+  // Only what the person's role grants: a row they cannot open is not a row.
+  const areaModules = visibleModules(activeArea, isAdmin);
   // Any page under a module keeps its row selected, not only the module's own screen.
   const currentModuleId = activeModuleId(areaModules, pathname);
 

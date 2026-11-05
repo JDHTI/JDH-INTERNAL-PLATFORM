@@ -39,8 +39,9 @@ export function useArea(slug: string) {
 }
 
 /**
- * Area in context for the shell: the one named by the URL's first segment,
- * or the user's first area on platform-wide pages like /configuracion.
+ * Area in context for the shell: the one named by the URL's first segment.
+ * On the hub (/workspace) there is none, and the shell says so instead of
+ * picking one on the person's behalf.
  */
 export function useActiveArea(): {
   area: Area | undefined;
@@ -51,6 +52,6 @@ export function useActiveArea(): {
   const pathname = usePathname();
   const { data: areas = [], isPending, isError } = useAreas();
   const [, firstSegment] = pathname.split("/");
-  const area = areas.find((a) => a.slug === firstSegment) ?? areas[0];
+  const area = areas.find((a) => a.slug === firstSegment);
   return { area, areas, isPending, isError };
 }

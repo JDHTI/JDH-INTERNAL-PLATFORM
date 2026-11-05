@@ -4,6 +4,9 @@ import type {
   AdminUserDto,
   AreaMemberDto,
   AreaRoleDto,
+  PermissionCatalogDto,
+  RoleGrantDto,
+  RolePermissionsDto,
   UserPageDto,
 } from "../types/admin.types";
 import type { AreaDto } from "@/features/areas/types/area.types";
@@ -72,6 +75,31 @@ export async function deleteAreaRole(slug: string, roleId: string): Promise<void
   return apiFetch<void>(
     `/areas/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleId)}`,
     { method: "DELETE" }
+  );
+}
+
+export async function getPermissionCatalog(): Promise<PermissionCatalogDto> {
+  return apiFetch<PermissionCatalogDto>("/permissions/catalog");
+}
+
+export async function getRolePermissions(
+  slug: string,
+  roleId: string
+): Promise<RolePermissionsDto> {
+  return apiFetch<RolePermissionsDto>(
+    `/areas/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleId)}/permissions`
+  );
+}
+
+/** Replaces every grant of the role. 422 when a module does not exist in the area. */
+export async function setRolePermissions(
+  slug: string,
+  roleId: string,
+  grants: RoleGrantDto[]
+): Promise<RolePermissionsDto> {
+  return apiFetch<RolePermissionsDto>(
+    `/areas/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleId)}/permissions`,
+    { method: "PUT", body: { grants } }
   );
 }
 

@@ -6,6 +6,9 @@ export interface UserRef {
   display_name: string | null;
 }
 
+/** What a role may do on a module. `manage` includes `read`. */
+export type ModuleAction = "read" | "manage";
+
 /** GET /areas and GET /areas/{slug}, as the API returns them. */
 export interface AreaDto {
   id: string;
@@ -18,6 +21,8 @@ export interface AreaDto {
   responsible: UserRef | null;
   my_role: { id: string; name: string } | null;
   is_responsible: boolean;
+  /** Module key -> action the caller holds there. Admins get every module as `manage`. */
+  my_modules: Record<string, ModuleAction>;
   created_at: string;
   updated_at: string;
 }
@@ -38,4 +43,14 @@ export interface Area {
   /** One line describing the area's remit, shown on its overview page. */
   remit: string | null;
   responsible: UserRef | null;
+  /** The caller's role in the area; null for admins and moderators without a membership. */
+  myRole: { id: string; name: string } | null;
+  isResponsible: boolean;
+  /** Modules the caller may at least read here, by API module key. */
+  myModules: Record<string, ModuleAction>;
+}
+
+/** Whether the person may open a module of the area. A module with no key is open to every member. */
+export function canUseModule(area: Pick<Area, "myModules">, moduleKey: string | undefined): boolean {
+  return moduleKey === undefined || moduleKey in area.myModules;
 }

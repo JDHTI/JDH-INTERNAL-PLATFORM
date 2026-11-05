@@ -16,5 +16,14 @@ export interface GeneralLink {
 /** The workspace's way back to the general view (sidebar footer). */
 export const HOME_LINK: GeneralLink = { id: "inicio", name: "Inicio", path: "/", icon: House };
 
-/** Where "Mi espacio de trabajo" returns to: the area the person last opened. */
-export const LAST_AREA_STORAGE_KEY = "jdh-last-area";
+/** The way into the workspace: the hub that lists the person's areas. */
+export const WORKSPACE_PATH = "/workspace";
+
+/**
+ * Query flag a guard adds when it sends the person away from somewhere they
+ * cannot open: `area` lands on the hub, `modulo` on the area overview.
+ */
+export const ACCESS_DENIED_PARAM = "sin-acceso";
+
+/** Only accounts of the company tenant can be assigned to an area. */
+export const COMPANY_EMAIL_DOMAIN = "jdh.com.co";

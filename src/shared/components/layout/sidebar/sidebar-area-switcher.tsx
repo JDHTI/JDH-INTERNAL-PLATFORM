@@ -2,10 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
+import { WORKSPACE_PATH } from "@/shared/config/general.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -14,7 +15,8 @@ import { cn } from "@/shared/lib/utils";
  *
  * The active area comes from the URL, not from stored state: every route
  * belongs to an area, so a deep link or a refresh lands with the right area
- * already selected and there is nothing to keep in sync.
+ * already selected and there is nothing to keep in sync. On the hub there is
+ * no area, and the card says so and leads back to the hub.
  *
  * The card and the chevron are two sibling buttons with two different jobs:
  * pressing the card collapses the rail, pressing the chevron opens the area
@@ -23,25 +25,52 @@ import { cn } from "@/shared/lib/utils";
  */
 export default function SidebarAreaSwitcher() {
   const { area, areas, isPending } = useActiveArea();
+  const isSidebarCollapsed = useUiStore((state) => state.isSidebarCollapsed);
 
   if (!area) {
     // Same 48px footprint as the card, so the rail does not jump when the
-    // areas arrive. With no areas at all the root page explains why.
+    // areas arrive.
+    const hasAreas = !isPending && areas.length > 0;
     return (
       <div className="shrink-0 p-3">
-        <div
-          className={cn(
-            "flex h-12 items-center rounded-md border-[0.5px] border-sidebar-border bg-sidebar-subtle px-2",
-            isPending && "animate-pulse"
-          )}
-          aria-busy={isPending}
-        >
-          {!isPending && (
-            <span className="truncate px-2 text-sm text-sidebar-muted">
-              Sin áreas asignadas
+        {hasAreas ? (
+          <Link
+            href={WORKSPACE_PATH}
+            title={isSidebarCollapsed ? "Espacio de trabajo" : undefined}
+            className={cn(
+              "flex h-12 items-center gap-2 rounded-md border-[0.5px] border-sidebar-border bg-sidebar-subtle px-2",
+              "transition-colors duration-150 hover:bg-sidebar-hover",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
+              isSidebarCollapsed && "justify-center"
+            )}
+          >
+            <span
+              className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-sidebar-active"
+              aria-hidden="true"
+            >
+              <LayoutGrid className="size-4 text-sidebar-foreground" />
             </span>
-          )}
-        </div>
+            {!isSidebarCollapsed && (
+              <span className="truncate text-sm font-semibold text-sidebar-foreground">
+                Espacio de trabajo
+              </span>
+            )}
+          </Link>
+        ) : (
+          <div
+            className={cn(
+              "flex h-12 items-center rounded-md border-[0.5px] border-sidebar-border bg-sidebar-subtle px-2",
+              isPending && "animate-pulse"
+            )}
+            aria-busy={isPending}
+          >
+            {!isPending && !isSidebarCollapsed && (
+              <span className="truncate px-2 text-sm text-sidebar-muted">
+                Sin áreas asignadas
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -130,6 +159,14 @@ function AreaSwitcherCard({
     );
   }
 
+  const closePanel = () => {
+    // Closed here rather than by watching the pathname: the click is the
+    // event, and an effect that reacts to the route would just be a slower
+    // way to say the same thing.
+    setIsOpen(false);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <div className="shrink-0 p-3">
       <div ref={containerRef} className="relative">
@@ -211,17 +248,24 @@ function AreaSwitcherCard({
                   <AreaOption
                     area={area}
                     isActive={area.id === activeArea.id}
-                    onSelect={() => {
-                      // Closed here rather than by watching the pathname: the
-                      // click is the event, and an effect that reacts to the
-                      // route would just be a slower way to say the same thing.
-                      setIsOpen(false);
-                      setMobileMenuOpen(false);
-                    }}
+                    onSelect={closePanel}
                   />
                 </li>
               ))}
             </ul>
+            {/* The hub shows the same areas with their remit and role. */}
+            <Link
+              href={WORKSPACE_PATH}
+              onClick={closePanel}
+              className={cn(
+                "flex h-10 items-center gap-2 border-t border-sidebar-border px-2 text-sm text-sidebar-muted transition-colors duration-150",
+                "hover:bg-sidebar-hover hover:text-sidebar-foreground",
+                "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground"
+              )}
+            >
+              <LayoutGrid className="size-4 shrink-0" aria-hidden="true" />
+              Todas mis áreas
+            </Link>
           </div>
         )}
       </div>

@@ -123,7 +123,31 @@ export interface ModuleItem {
   hasPage?: boolean;
   /** Only platform administrators see the row; the pages enforce it too. */
   adminOnly?: boolean;
+  /**
+   * API module key (`GET /permissions/catalog`). Shown and opened only when
+   * the person's area role grants it; absent means open to every member.
+   */
+  permission?: string;
 }
+
+/**
+ * The modules of an area the person may see: the catalog minus what their
+ * role does not grant, minus administration for non-admins. Unavailable
+ * modules stay, as the "Próximamente" rows they already are.
+ */
+export function visibleModules(
+  area: { slug: string; myModules: Record<string, string> },
+  isAdmin: boolean
+): ModuleItem[] {
+  return getModulesByArea(area.slug).filter(
+    (module) =>
+      (!module.adminOnly || isAdmin) &&
+      (module.permission === undefined || module.permission in area.myModules)
+  );
+}
+
+/** Slugs the UI routes itself, so an area can never take them. */
+export const UI_RESERVED_SLUGS = ["workspace", "login", "api", "completar-perfil"] as const;
 
 /**
  * Whether the route is the module's own screen or a page under it. A module
@@ -186,6 +210,7 @@ export const MODULES: ModuleItem[] = [
     // The API enables it per area (PROJECTS_AREA_SLUGS) and today that is
     // only TI; another area gets an entry here when the API turns it on.
     available: true,
+    permission: "proyectos",
   },
   {
     id: "ti-equipos",
@@ -231,6 +256,7 @@ export const MODULES: ModuleItem[] = [
     category: "Monitoreo",
     icon: Activity,
     available: true,
+    permission: "monitoreo",
   },
   {
     id: "ti-aplicativos",
@@ -240,6 +266,7 @@ export const MODULES: ModuleItem[] = [
     category: "Monitoreo",
     icon: AppWindow,
     available: true,
+    permission: "monitoreo",
   },
   {
     id: "ti-datawarehouse",
@@ -249,6 +276,7 @@ export const MODULES: ModuleItem[] = [
     category: "Monitoreo",
     icon: Database,
     available: true,
+    permission: "datawarehouse",
     subItems: [
       { id: "ti-datawarehouse-secuencias", name: "Secuencias", path: `/ti/${DWH_SEGMENT}/secuencias`, icon: Workflow },
       { id: "ti-datawarehouse-frescura", name: "Frescura", path: `/ti/${DWH_SEGMENT}/frescura`, icon: Hourglass },
@@ -266,6 +294,7 @@ export const MODULES: ModuleItem[] = [
     category: "Operación",
     icon: MessageSquareWarning,
     available: true,
+    permission: "pqrsf",
     subItems: [
       {
         id: "calidad-pqrsf-sugerencias",
@@ -408,12 +437,12 @@ export const MODULES: ModuleItem[] = [
     available: false,
   },
 
-  { id: "comercial-apoyos", name: "Maestro de apoyos", path: "/comercial/apoyos", areaSlug: "comercial", category: "Maestros", icon: HandCoins, available: true },
-  { id: "comercial-cotizador", name: "Cotizador", path: "/comercial/cotizador", areaSlug: "comercial", category: "Operación", icon: Calculator, available: true },
-  { id: "comercial-solicitudes-apoyos", name: "Mis solicitudes JDH", path: "/comercial/apoyos/solicitudes", areaSlug: "comercial", category: "Operación", icon: ClipboardList, available: true },
+  { id: "comercial-apoyos", name: "Maestro de apoyos", path: "/comercial/apoyos", areaSlug: "comercial", category: "Maestros", icon: HandCoins, available: true, permission: "apoyos" },
+  { id: "comercial-cotizador", name: "Cotizador", path: "/comercial/cotizador", areaSlug: "comercial", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
+  { id: "comercial-solicitudes-apoyos", name: "Mis solicitudes JDH", path: "/comercial/apoyos/solicitudes", areaSlug: "comercial", category: "Operación", icon: ClipboardList, available: true, permission: "solicitudes-apoyos" },
   // BI validates the quotations commercial confirms; the same screens, opened on the pending ones.
-  { id: "bi-cotizador", name: "Validar cotizaciones", path: "/bi/cotizador", areaSlug: "bi", category: "Operación", icon: Calculator, available: true },
-  { id: "bi-solicitudes-apoyos", name: "Solicitudes de apoyo JDH", path: "/bi/solicitudes-apoyos", areaSlug: "bi", category: "Operación", icon: ClipboardList, available: true },
+  { id: "bi-cotizador", name: "Validar cotizaciones", path: "/bi/cotizador", areaSlug: "bi", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
+  { id: "bi-solicitudes-apoyos", name: "Solicitudes de apoyo JDH", path: "/bi/solicitudes-apoyos", areaSlug: "bi", category: "Operación", icon: ClipboardList, available: true, permission: "solicitudes-apoyos" },
   // ── BI ──
   {
     id: "bi-validador-pedidos",
@@ -423,6 +452,7 @@ export const MODULES: ModuleItem[] = [
     category: "Operación",
     icon: ClipboardCheck,
     available: true,
+    permission: "validador-pedidos",
   },
   {
     id: "bi-apoyos",
@@ -432,6 +462,7 @@ export const MODULES: ModuleItem[] = [
     category: "Maestros",
     icon: HandCoins,
     available: true,
+    permission: "apoyos",
   },
   {
     id: "bi-casos-especiales",
@@ -441,6 +472,7 @@ export const MODULES: ModuleItem[] = [
     category: "Maestros",
     icon: ClipboardList,
     available: true,
+    permission: "casos-especiales",
   },
   {
     id: "bi-maestros",
@@ -450,6 +482,7 @@ export const MODULES: ModuleItem[] = [
     category: "Maestros",
     icon: Database,
     available: true,
+    permission: "maestros",
     // No screen of its own: a click on the row only opens the dropdown, and the
     // dropdown is the only way to a master. Set to true (and add a page at the
     // module's path) to give it a landing page again.
@@ -479,6 +512,7 @@ export function documentsModule(areaSlug: string): ModuleItem {
     category: "Documentación",
     icon: FolderOpen,
     available: true,
+    permission: "documentos",
   };
 }
 

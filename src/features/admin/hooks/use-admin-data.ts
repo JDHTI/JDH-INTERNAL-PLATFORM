@@ -1,22 +1,28 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  getPermissionCatalog,
+  getRolePermissions,
   listActiveUsers,
   listAdminAreas,
   listAreaMembers,
   listAreaRoles,
 } from "../services/admin.service";
+import type { RoleGrantDto } from "../types/admin.types";
 
 export const adminKeys = {
   all: ["admin"] as const,
   areas: () => [...adminKeys.all, "areas"] as const,
   roles: (slug: string) => [...adminKeys.all, "roles", slug] as const,
+  permissions: (slug: string, roleId: string) =>
+    [...adminKeys.all, "permissions", slug, roleId] as const,
   members: (slug: string) => [...adminKeys.all, "members", slug] as const,
   users: () => [...adminKeys.all, "users"] as const,
+  catalog: () => [...adminKeys.all, "catalog"] as const,
 };
 
 const retryTransient = (count: number, error: Error) =>
@@ -41,6 +47,27 @@ export function useAreaRoles(slug: string | undefined) {
   });
 }
 
+/** The grants of every role of the area, by role id; a role still loading is absent. */
+export function useRolePermissions(
+  slug: string | undefined,
+  roleIds: string[]
+): Record<string, RoleGrantDto[]> {
+  return useQueries({
+    queries: roleIds.map((roleId) => ({
+      queryKey: adminKeys.permissions(slug ?? "", roleId),
+      queryFn: () => getRolePermissions(slug!, roleId),
+      enabled: Boolean(slug),
+      retry: retryTransient,
+    })),
+    combine: (results) =>
+      Object.fromEntries(
+        results.flatMap((result, index) =>
+          result.data ? [[roleIds[index]!, result.data.grants]] : []
+        )
+      ),
+  });
+}
+
 export function useAreaMembers(slug: string | undefined) {
   return useQuery({
     queryKey: adminKeys.members(slug ?? ""),
@@ -55,6 +82,17 @@ export function useActiveUsers(offset = 0, enabled = true) {
     queryKey: [...adminKeys.users(), offset],
     queryFn: () => listActiveUsers(offset),
     enabled,
+    retry: retryTransient,
+  });
+}
+
+/** The modules each area can grant. Code on the API side, so it rarely changes. */
+export function usePermissionCatalog(enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.catalog(),
+    queryFn: getPermissionCatalog,
+    enabled,
+    staleTime: 5 * 60_000,
     retry: retryTransient,
   });
 }
