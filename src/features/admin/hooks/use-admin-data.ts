@@ -5,6 +5,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  getModuleMatrix,
   getPermissionCatalog,
   getRolePermissions,
   listActiveUsers,
@@ -23,6 +24,7 @@ export const adminKeys = {
   members: (slug: string) => [...adminKeys.all, "members", slug] as const,
   users: () => [...adminKeys.all, "users"] as const,
   catalog: () => [...adminKeys.all, "catalog"] as const,
+  modules: () => [...adminKeys.all, "modules"] as const,
 };
 
 const retryTransient = (count: number, error: Error) =>
@@ -86,7 +88,17 @@ export function useActiveUsers(offset = 0, enabled = true) {
   });
 }
 
-/** The modules each area can grant. Code on the API side, so it rarely changes. */
+/** Every module and whether each area has it on. */
+export function useModuleMatrix(enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.modules(),
+    queryFn: getModuleMatrix,
+    enabled,
+    retry: retryTransient,
+  });
+}
+
+/** The modules each area can grant: the ones switched on there. A toggle invalidates it. */
 export function usePermissionCatalog(enabled = true) {
   return useQuery({
     queryKey: adminKeys.catalog(),

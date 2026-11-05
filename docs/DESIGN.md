@@ -550,8 +550,8 @@ junto a un sidebar fijo. Por eso tienen su propio marco:
   `md` los enlaces pasan a un menú con la etiqueta «Menú», no a un ícono suelto.
 - **Espacio de trabajo:** «Mi espacio de trabajo» en el menú de la cuenta abre `/workspace`, el
   hub de áreas (§5.3). Lo ve todo el mundo: quien no tiene áreas encuentra allí a quién pedirlas.
-- **Cuenta:** foto, nombre y un menú con Configuración, Sugerencias, el panel administrador si
-  aplica, el tema y cerrar sesión.
+- **Cuenta:** foto, nombre y un menú con Configuración, Sugerencias, Administración si aplica, el
+  tema y cerrar sesión.
 - **Contenido:** contenedor de 1200px, `px-4` en móvil y `px-6` desde `md`. El documento
   hace scroll; el header queda pegado arriba.
 - **Movimiento:** el mismo MOTION 1 del espacio de trabajo. La vista general gana carácter por

@@ -9,7 +9,7 @@ import type { MasterRecordParams } from "../types/master.types";
 
 export const masterKeys = {
   all: ["masters"] as const,
-  list: () => [...masterKeys.all, "list"] as const,
+  list: (area?: string) => [...masterKeys.all, "list", area ?? null] as const,
   detail: (slug: string) => [...masterKeys.all, "detail", slug] as const,
   records: (params: MasterRecordParams) => [...masterKeys.all, "records", params] as const,
 };
@@ -17,8 +17,14 @@ export const masterKeys = {
 const retryTransient = (count: number, error: Error) =>
   !(error instanceof ApiError && [401, 403, 404, 422].includes(error.status)) && count < 1;
 
-export function useMasters() {
-  return useQuery({ queryKey: masterKeys.list(), queryFn: listMasters, retry: retryTransient });
+/** Without `area`, every master the person may read (all of them for an admin). */
+export function useMasters(area?: string, enabled = true) {
+  return useQuery({
+    queryKey: masterKeys.list(area),
+    queryFn: () => listMasters(area),
+    enabled,
+    retry: retryTransient,
+  });
 }
 
 export function useMaster(slug: string | undefined) {

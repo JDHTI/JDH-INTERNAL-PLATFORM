@@ -79,11 +79,11 @@ Navegación entre los dos mundos:
 - **Header del portal:** marca a la izquierda; Inicio y Directorio (Noticias, Eventos y
   Documentos entran en la fase 4); a la derecha el botón **Espacio de trabajo** (visible solo si
   `GET /areas` trae algo; lleva a la última área visitada, guardada en `localStorage`, o a la
-  primera) y el menú de la persona (Configuración, Sugerencias, Panel administrador si aplica,
+  primera) y el menú de la persona (Configuración, Sugerencias, Administración si aplica,
   tema, Cerrar sesión). Sin mega menú ni barra de anuncio.
 - **Sidebar del workspace:** una fila fija **Vista general** en el pie. La marca del breadcrumb
-  también enlaza a `/`. El panel administrador es un módulo más de TI, con sus cinco secciones
-  como páginas, y solo aparece para administradores.
+  también enlaza a `/`. Administración es un módulo más de TI, con sus secciones como
+  páginas, y solo aparece para administradores.
 - **Header del workspace:** no cambia.
 - Una persona sin áreas vive en el portal y nunca ve el shell del workspace. El estado "Sin áreas
   asignadas" deja de ser la primera pantalla de nadie.

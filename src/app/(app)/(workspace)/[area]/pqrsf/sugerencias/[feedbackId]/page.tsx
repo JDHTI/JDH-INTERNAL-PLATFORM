@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-
 import FeedbackDetailScreen from "@/features/pqrsf/components/feedback-detail";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function PqrsfFeedbackDetailPage({
   params,
@@ -9,7 +7,7 @@ export default async function PqrsfFeedbackDetailPage({
   params: Promise<{ area: string; feedbackId: string }>;
 }) {
   const { area, feedbackId } = await params;
-  if (!isAvailableModule(area, "pqrsf")) notFound();
+  await requireModule(area, "pqrsf");
 
   return <FeedbackDetailScreen area={area} feedbackId={feedbackId} />;
 }

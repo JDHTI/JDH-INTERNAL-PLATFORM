@@ -1,13 +1,11 @@
-import { notFound } from "next/navigation";
-
 import BulkLoad from "@/features/supports/components/bulk-load";
 import ManagerGate from "@/features/supports/components/manager-gate";
 import PageHeader from "@/shared/components/page-header";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function CargaApoyosPage({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
-  if (!isAvailableModule(area, "apoyos")) notFound();
+  await requireModule(area, "apoyos");
 
   return (
     <div className="space-y-6">

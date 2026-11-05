@@ -1,15 +1,13 @@
-import { notFound } from "next/navigation";
-
 import BatchesBrowser from "@/features/order-validator/components/batches-browser";
 import RulesLink from "@/features/order-validator/components/rules-link";
 import PageHeader from "@/shared/components/page-header";
-import { isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
 
 const VALIDATOR_SEGMENT = "validador-pedidos";
 
 export default async function ValidadorPedidosPage({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
-  if (!isAvailableModule(area, VALIDATOR_SEGMENT)) notFound();
+  await requireModule(area, VALIDATOR_SEGMENT);
   const basePath = `/${area}/${VALIDATOR_SEGMENT}`;
 
   return (

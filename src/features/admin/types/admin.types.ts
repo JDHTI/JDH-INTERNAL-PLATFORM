@@ -70,6 +70,38 @@ export interface RolePermissionsDto {
   grants: RoleGrantDto[];
 }
 
+/** A module of the API catalog, switchable per area. */
+export interface PlatformModuleDto {
+  key: string;
+  label: string;
+  description: string;
+  /** Takes settings when switched on; only `maestros`, which picks the area's masters. */
+  configurable: boolean;
+}
+
+/** `maestros`: the masters the area sees; absent or empty means every master. */
+export interface AreaModuleConfig {
+  masters?: string[];
+}
+
+export interface AreaModuleStateDto {
+  enabled: boolean;
+  config: AreaModuleConfig;
+  /** No stored choice: the catalog default applies. */
+  is_default: boolean;
+}
+
+/** GET /permissions/modules: every module and, per area, whether it is on. */
+export interface ModuleMatrixDto {
+  modules: PlatformModuleDto[];
+  areas: {
+    area_id: string;
+    slug: string;
+    name: string;
+    modules: Record<string, AreaModuleStateDto>;
+  }[];
+}
+
 /** What the area form edits. The slug is derived from the name, never typed. */
 export interface AreaDraft {
   name: string;

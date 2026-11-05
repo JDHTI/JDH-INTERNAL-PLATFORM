@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
-
 import AdminGate from "@/features/admin/components/admin-gate";
-import { ADMIN_SEGMENT, isAvailableModule } from "@/shared/config/areas.config";
+import { requireModule } from "@/features/areas/server/area-access";
+import { ADMIN_SEGMENT } from "@/shared/config/areas.config";
 
 /** Platform administration lives in TI only, and only for platform administrators. */
 export default async function AdministrationLayout({
@@ -12,6 +11,6 @@ export default async function AdministrationLayout({
   params: Promise<{ area: string }>;
 }) {
   const { area } = await params;
-  if (!isAvailableModule(area, ADMIN_SEGMENT)) notFound();
+  await requireModule(area, ADMIN_SEGMENT);
   return <AdminGate>{children}</AdminGate>;
 }

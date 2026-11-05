@@ -3,7 +3,10 @@ import { apiFetch } from "@/shared/lib/api-client";
 import type {
   AdminUserDto,
   AreaMemberDto,
+  AreaModuleConfig,
+  AreaModuleStateDto,
   AreaRoleDto,
+  ModuleMatrixDto,
   PermissionCatalogDto,
   RoleGrantDto,
   RolePermissionsDto,
@@ -100,6 +103,23 @@ export async function setRolePermissions(
   return apiFetch<RolePermissionsDto>(
     `/areas/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleId)}/permissions`,
     { method: "PUT", body: { grants } }
+  );
+}
+
+export async function getModuleMatrix(): Promise<ModuleMatrixDto> {
+  return apiFetch<ModuleMatrixDto>("/permissions/modules");
+}
+
+/** 404 when the module does not exist; 422 when the settings do not fit it. */
+export async function setAreaModule(
+  slug: string,
+  moduleKey: string,
+  enabled: boolean,
+  config: AreaModuleConfig | null
+): Promise<AreaModuleStateDto> {
+  return apiFetch<AreaModuleStateDto>(
+    `/areas/${encodeURIComponent(slug)}/modules/${encodeURIComponent(moduleKey)}`,
+    { method: "PUT", body: { enabled, config } }
   );
 }
 

@@ -18,22 +18,34 @@ deriva el slug (`src/features/admin/lib/area-slug.ts`).
 | --- | --- | --- |
 | `src/app/(app)/(workspace)/layout.tsx` (servidor) | `requireUser()` | Sin sesión: `/login` |
 | `src/app/(app)/(workspace)/[area]/layout.tsx` (servidor) | `GET /areas/{slug}` con las cookies de la persona | 401: `/login`. 403: `/workspace?sin-acceso=area`. 404: página no encontrada. Otro error: lo muestra `AreaGate` con reintento |
+| Cada página de módulo (servidor) | `requireModule(área, segmento)` (`src/features/areas/server/area-access.ts`): la ruta debe ser de un módulo del catálogo y su clave estar en `my_modules` del área. Reusa la respuesta de `GET /areas/{slug}` del layout (`cache` por request) | Ruta sin módulo: 404. Módulo apagado o sin permiso: `/{area}?sin-acceso=modulo` |
 | `src/features/areas/components/area-gate.tsx` (cliente) | El módulo al que pertenece la ruta (`activeModuleId`) contra `my_modules` del área | Sin permiso: `/{area}?sin-acceso=modulo` |
 | `AdminGate` | Rol global `owner` o `admin` | Pantalla «sin permisos» |
 
 El layout de `[area]` no ve la ruta completa y no vuelve a correr al navegar entre módulos de la
 misma área, por eso el chequeo por módulo vive en `AreaGate`, que sí sigue el `pathname`.
 
-## 3. Módulos por rol
+## 3. Módulos por área y por rol
 
-`GET /areas` trae `my_modules` por área: `{ clave: "read" | "manage" }`. Los administradores reciben
-todo como `manage`; los moderadores todo como `read`; el responsable del área todo como `manage`
-en la suya; el resto, lo que concede su rol de área (`area_role_permissions`, comodín `*`).
+`GET /areas` trae `my_modules` por área: `{ clave: "read" | "manage" }`, solo con los módulos
+**encendidos en esa área**. Dentro de ellos, los administradores reciben todo como `manage`; los
+moderadores todo como `read`; el responsable y el líder del área todo como `manage` en la suya; el
+resto, lo que concede su rol de área (`area_role_permissions`, comodín `*`).
 
-Cada `ModuleItem` de `src/shared/config/areas.config.ts` lleva `permission`, la clave del API. El
-menú lateral, el resumen del área y el hub usan `visibleModules(area, isAdmin)`: un módulo cuya
-clave no está en `my_modules` no aparece. Un módulo sin clave (`Solicitudes de soporte`, los
-`Próximamente`) se muestra a todo miembro del área. La administración sigue por rol global.
+Cualquier módulo se puede encender en cualquier área (sección «Módulos por área» del panel). Por eso
+`src/shared/config/areas.config.ts` no declara módulos por área: `MODULE_TEMPLATES` describe cada
+módulo del API una vez y `getModulesByArea(slug)` lo genera para cualquier slug, con la ruta
+`/{área}/{segmento}`. `visibleModules(area, isAdmin)` deja los que están en `my_modules`. Lo que sí es de
+un área fija vive en `AREA_ROWS`: «Solicitudes de soporte» y Administración en TI, y los
+`Próximamente`; esas filas no llevan clave y se muestran a todo miembro del área.
+
+Lo que cada persona hace dentro de un módulo no depende del área en la UI: lo responde el API por
+quien llama. Apoyos usa `GET /supplier-supports/permissions` (`can_manage` abre la escritura;
+`can_review` convierte `/{área}/solicitudes-apoyos` en la bandeja de revisión, y si no, son las
+solicitudes propias; `can_request` deja pedir desde el maestro). El cotizador usa
+`GET /quotations/permissions` y el validador `GET /order-validations/permissions`. BI conserva además
+las tablas tipadas de maestros comerciales (márgenes, edición de productos) bajo
+`/bi/maestros/{maestro}`. `AREA_NAMES` solo cambia una etiqueta del menú: «Validar cotizaciones» en BI.
 
 | Módulo de la UI | Clave del API |
 | --- | --- |
@@ -47,11 +59,14 @@ clave no está en `my_modules` no aparece. Un módulo sin clave (`Solicitudes de
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
 | Casos especiales | `casos-especiales` |
-| Maestros generales | `maestros` |
+| Maestros (`/{área}/maestros`) | `maestros` |
 
-Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), el `ModuleItem`
-correspondiente recibe su clave aquí; sin ella el módulo quedaría abierto a todo miembro y sus
-datos fallarían con 403.
+Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), se agrega su plantilla
+a `MODULE_TEMPLATES` y sus páginas bajo `[area]/`, cada una con `requireModule`.
+
+**Maestros.** `/{área}/maestros` lista `GET /masters?area={slug}`: los maestros que TI eligió para el
+área (todos si no eligió). Cada maestro se busca, se ve registro por registro y se descarga en Excel
+(`/masters/{slug}/records.xlsx`). Los campos personales solo llegan a quien gestiona el módulo.
 
 ## 3b. Alcance comercial
 
@@ -86,6 +101,18 @@ y escrituras fuera de él (403 «fuera de tu cartera»):
   El API resuelve el correo contra `users`, que la sincronización nocturna llena con toda cuenta
   de Entra, y responde con un mensaje claro si la persona aún no está sincronizada.
 - **Responsable del área:** el mismo campo.
+- **Módulos por área (`/ti/administracion/modulos`):** matriz de `GET /permissions/modules`, un
+  interruptor por área y módulo (`PUT /areas/{slug}/modules/{clave}`). Encender es inmediato; apagar
+  pide confirmación porque saca el módulo a todos los miembros, también al líder (los permisos de los
+  roles se conservan). En Maestros, el enlace bajo el interruptor elige «Todos los maestros» o una
+  lista (`config.masters`). Cada cambio invalida `["areas"]`, el catálogo de permisos y los maestros.
+  En el teléfono se elige un área y se ven sus módulos en lista. Un moderador vería la matriz sin
+  interruptores, pero hoy `AdminGate` solo deja entrar a owner y admin.
+- **Maestros (`/ti/administracion/maestros`):** el bloque «Sincronización con el DWH» (`GET /jobs`)
+  muestra cada tarea con su última ejecución, la próxima actualización del DWH (`next_expected_at`) y
+  el historial (`GET /jobs/runs`). «Sincronizar ahora» (`POST /jobs/{clave}/run`) es solo de admin y
+  no está disponible con `JOBS_ENABLED` apagado o con una corrida abierta; mientras una corre, el
+  bloque se refresca cada 5 segundos. Debajo, todos los maestros con sus registros.
 - **Vendedores (`/ti/administracion/vendedores`):** quién es cada vendedor y supervisor de SIESA
   (`/salespeople`, `src/features/salespeople`). Pestañas Vendedores y Supervisores, búsqueda por
   código o nombre y el filtro «Sin vincular» (por defecto). Por fila: «Vincular» o «Cambiar» a un
