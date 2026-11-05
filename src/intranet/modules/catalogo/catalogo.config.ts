@@ -1,13 +1,14 @@
 import type { LucideIcon } from "lucide-react"
-import { Images, Search, Smartphone, Sparkles } from "lucide-react"
+import { Images, LayoutGrid, Search, Smartphone } from "lucide-react"
 
 /**
- * El catálogo digital es una aplicación EXTERNA publicada en internet (Vercel),
- * no una ruta de la intranet: por eso el módulo no lo embebe ni lo replica — su
- * vista es la antesala que explica qué es y redirige. Si el despliegue cambia de
- * dominio, esta constante es lo único que hay que tocar.
+ * El catálogo digital es una aplicación EXTERNA publicada en la red interna de
+ * JDH (`tienda.jdh.local`, IP privada), no una ruta de la intranet: por eso el
+ * módulo no lo embebe ni lo replica — su vista es la antesala que explica qué es
+ * y redirige. Si el despliegue cambia de dominio, esta constante es lo único que
+ * hay que tocar.
  */
-export const CATALOGO_URL = "https://catalogo-jdh.vercel.app/"
+export const CATALOGO_URL = "https://tienda.jdh.local/"
 
 export interface VentajaCatalogo {
   id: string
@@ -34,7 +35,7 @@ export const VENTAJAS: VentajaCatalogo[] = [
     label: "Navegación intuitiva",
     description:
       "Recorre el portafolio por categorías y marcas, con un orden pensado para encontrar, no para buscar.",
-    icon: Sparkles,
+    icon: LayoutGrid,
   },
   {
     id: "busqueda",
@@ -47,7 +48,7 @@ export const VENTAJAS: VentajaCatalogo[] = [
     id: "dispositivos",
     label: "Desde cualquier dispositivo",
     description:
-      "Funciona igual en el computador, la tableta o el celular: útil en oficina y frente al cliente.",
+      "Funciona igual en el computador, la tableta o el celular conectados a la red de la empresa.",
     icon: Smartphone,
   },
 ]
