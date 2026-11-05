@@ -13,12 +13,14 @@ import { MARGIN_BASIS_LABELS, formatDay, formatMargin, formatMoney, formatVariat
 import type { QuotationLine } from "../types/quotations.types";
 import { COMPLIANCE_ROW, ComplianceBadge } from "./quotation-badges";
 
-/** Row selection for the standard margin; absent when the quotation cannot be edited. */
+/** Row selection for the bulk actions; absent when the quotation cannot be edited. */
 export interface LineSelection {
   selected: Set<string>;
+  /** Every reference the active filter and search show, across pages. */
+  scope: string[];
   toggle: (sku: string) => void;
-  /** Ticks every row on screen, or unticks them when all already are. */
-  togglePage: (skus: string[]) => void;
+  /** Ticks every reference of `scope`, or unticks them when all already are. */
+  toggleAll: () => void;
 }
 
 interface LinesProps {
@@ -37,6 +39,8 @@ interface LinesProps {
   pending?: string[];
   /** Revalidated by the last paste: tinted for a moment so they can be found. */
   highlight?: Set<string>;
+  /** False until some reference has a new price: "Margen nuevo" and "Variación" would only show dashes. */
+  showOutcome: boolean;
 }
 
 export const OPTIMAL_PRICE_HELP = "Precio que da exactamente el margen objetivo: (costo − apoyo) / (1 − objetivo), en pesos enteros.";
@@ -55,20 +59,17 @@ const td = "h-10 px-3 whitespace-nowrap";
 const num = "text-right tabular-nums";
 
 /*
- * The reference stays pinned left and the five decision columns pinned right,
- * so the editable cell, the two prices that bound it and the outcome stay on
- * screen while the context in the middle scrolls. Each pinned column has a
- * fixed width; a right offset is the sum of the widths after it:
- * variación 6, margen nuevo 13, precio nuevo 10, mínimo 7 → 6, 19, 29, 36 rem.
+ * Only the reference and its description stay pinned left, so every row keeps
+ * saying what it is while the rest scrolls sideways. The description starts
+ * where the reference ends (14rem) and closes the pinned block with a border.
  */
 const PIN = {
   sku: "sticky left-0 w-56 min-w-56 max-w-56",
-  optimal: "sticky right-[36rem] w-28 min-w-28 border-l border-border",
-  min: "sticky right-[29rem] w-28 min-w-28",
-  price: "sticky right-[19rem] w-40 min-w-40",
-  margin: "sticky right-24 w-52 min-w-52",
-  variation: "sticky right-0 w-24 min-w-24",
+  description: "sticky left-56 w-64 min-w-64 max-w-64 border-r border-border",
 };
+
+/** Columns between the pinned block and the outcome, for the pending rows' span. */
+const MIDDLE_COLUMNS = 11;
 
 /*
  * "Bajo el objetivo" tints the row only while it is unanswered: once the
@@ -119,16 +120,17 @@ function HelpHeader({ label, help }: { label: string; help: string }) {
  * table, the rest the cards.
  */
 export function LinesTable(props: LinesProps) {
-  const { lines, editor, editable, selection } = props;
+  const { lines, editor, editable, selection, showOutcome } = props;
   const head = "bg-canvas-subtle";
-  const pageSkus = lines.map((line) => line.sku);
-  const allTicked = selection !== undefined && pageSkus.length > 0 && pageSkus.every((sku) => selection.selected.has(sku));
-  const someTicked = selection !== undefined && pageSkus.some((sku) => selection.selected.has(sku));
+  const scope = selection?.scope ?? [];
+  const allTicked = selection !== undefined && scope.length > 0 && scope.every((sku) => selection.selected.has(sku));
+  const someTicked = selection !== undefined && scope.some((sku) => selection.selected.has(sku));
   return (
-    <div className="hidden max-h-[70vh] overflow-auto rounded-lg border border-border bg-surface 2xl:block">
+    // Sideways only: the page scrolls the rows, so the table never slides under the filters above it.
+    <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface 2xl:block">
       <table className="w-full min-w-max text-left text-sm">
         <caption className="sr-only">Referencias de la cotización</caption>
-        <thead className="sticky top-0 z-20 bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
             <th scope="col" className={cn(th, PIN.sku, head, "z-10")}>
               <span className="flex items-center gap-2">
@@ -139,15 +141,16 @@ export function LinesTable(props: LinesProps) {
                     ref={(element) => {
                       if (element) element.indeterminate = someTicked && !allTicked;
                     }}
-                    onChange={() => selection.togglePage(pageSkus)}
-                    aria-label="Seleccionar las referencias de esta página"
+                    onChange={selection.toggleAll}
+                    aria-label={`Seleccionar las ${scope.length} referencias del filtro, en todas las páginas`}
+                    title="Selecciona todas las referencias del filtro, no solo las de esta página"
                     className="size-4 accent-[var(--primary)]"
                   />
                 )}
                 Referencia
               </span>
             </th>
-            <th scope="col" className={th}>Descripción</th>
+            <th scope="col" className={cn(th, PIN.description, head, "z-10")}>Descripción</th>
             <th scope="col" className={th}>UM</th>
             <th scope="col" className={cn(th, "text-right")}>Último precio</th>
             <th scope="col" className={cn(th, "text-right")}>Imp. licores</th>
@@ -156,16 +159,20 @@ export function LinesTable(props: LinesProps) {
             <th scope="col" className={cn(th, "text-right")}>Margen actual</th>
             <th scope="col" className={cn(th, "text-right")}>Margen objetivo</th>
             <th scope="col" className={th}>Proveedor</th>
-            <th scope="col" className={cn(th, PIN.optimal, head, "z-10 text-right")}>
-              {/* Short labels so the header fits its pinned width; the tooltip says they are prices. */}
+            <th scope="col" className={cn(th, "text-right")}>
+              {/* Short labels keep the columns narrow; the tooltip says they are prices. */}
               <HelpHeader label="Óptimo" help={`Precio óptimo. ${OPTIMAL_PRICE_HELP}`} />
             </th>
-            <th scope="col" className={cn(th, PIN.min, head, "z-10 text-right")}>
+            <th scope="col" className={cn(th, "text-right")}>
               <HelpHeader label="Mínimo" help={`Precio mínimo. ${MIN_PRICE_HELP}`} />
             </th>
-            <th scope="col" className={cn(th, PIN.price, head, "z-10 text-right")}>Precio nuevo</th>
-            <th scope="col" className={cn(th, PIN.margin, head, "z-10 text-right")}>Margen nuevo</th>
-            <th scope="col" className={cn(th, PIN.variation, head, "z-10 text-right")}>Variación</th>
+            <th scope="col" className={cn(th, "text-right")}>Precio nuevo</th>
+            {showOutcome && (
+              <>
+                <th scope="col" className={cn(th, "text-right")}>Margen nuevo</th>
+                <th scope="col" className={cn(th, "text-right")}>Variación</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -178,7 +185,7 @@ export function LinesTable(props: LinesProps) {
                 <td className={cn(td, PIN.sku, pinned)}>
                   <Reference line={line} {...props} />
                 </td>
-                <td className={cn(td, "max-w-64")}>
+                <td className={cn(td, PIN.description, pinned)}>
                   <span className={cn("block truncate", !line.is_active && "text-text-secondary")} title={line.description ?? undefined}>
                     {line.description ?? "—"}
                   </span>
@@ -193,13 +200,17 @@ export function LinesTable(props: LinesProps) {
                 <td className={cn(td, "max-w-44")}>
                   <span className="block truncate" title={line.supplier_name ?? undefined}>{line.supplier_name ?? line.supplier_code ?? "—"}</span>
                 </td>
-                <td className={cn(td, PIN.optimal, pinned, num)}><Money value={line.optimal_price} /></td>
-                <td className={cn(td, PIN.min, pinned, num)}><Money value={line.min_price} /></td>
-                <td className={cn(td, PIN.price, pinned, "text-right")}>
+                <td className={cn(td, num)}><Money value={line.optimal_price} /></td>
+                <td className={cn(td, num)}><Money value={line.min_price} /></td>
+                <td className={cn(td, "text-right")}>
                   <PriceInput line={line} editor={editor} editable={editable} />
                 </td>
-                <td className={cn(td, PIN.margin, pinned, num)}><NewMargin line={line} /></td>
-                <td className={cn(td, PIN.variation, pinned, num)}>{formatVariation(line.variation_pct)}</td>
+                {showOutcome && (
+                  <>
+                    <td className={cn(td, "w-52 min-w-52", num)}><NewMargin line={line} /></td>
+                    <td className={cn(td, num)}>{formatVariation(line.variation_pct)}</td>
+                  </>
+                )}
               </tr>
             );
           })}
@@ -208,14 +219,10 @@ export function LinesTable(props: LinesProps) {
               <td className={cn(td, PIN.sku, "bg-surface")}>
                 <span className="font-mono text-[13px]">{sku}</span>
               </td>
-              <td className={td} colSpan={9}>
+              <td className={cn(td, PIN.description, "bg-surface")}>
                 <PendingLabel />
               </td>
-              <td className={cn(td, PIN.optimal, "bg-surface")} />
-              <td className={cn(td, PIN.min, "bg-surface")} />
-              <td className={cn(td, PIN.price, "bg-surface")} />
-              <td className={cn(td, PIN.margin, "bg-surface")} />
-              <td className={cn(td, PIN.variation, "bg-surface")} />
+              <td className={td} colSpan={MIDDLE_COLUMNS + (showOutcome ? 2 : 0)} />
             </tr>
           ))}
         </tbody>
@@ -264,10 +271,12 @@ export function LinesList(props: LinesProps) {
               <span className="block text-xs text-text-secondary">Precio nuevo</span>
               <PriceInput line={line} editor={editor} editable={editable} wide />
             </div>
-            <div className="space-y-1 text-right text-sm tabular-nums">
-              <NewMargin line={line} />
-              <span className="block text-xs text-text-secondary">Variación {formatVariation(line.variation_pct)}</span>
-            </div>
+            {line.new_price !== null && (
+              <div className="space-y-1 text-right text-sm tabular-nums">
+                <NewMargin line={line} />
+                <span className="block text-xs text-text-secondary">Variación {formatVariation(line.variation_pct)}</span>
+              </div>
+            )}
           </div>
         </li>
       ))}
