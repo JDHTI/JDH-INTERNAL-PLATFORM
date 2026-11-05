@@ -6,6 +6,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Crown,
+  KeyRound,
   Pencil,
   Plus,
   RefreshCw,
@@ -16,12 +18,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { areaKeys } from "@/features/areas/hooks/use-areas";
 import type { AreaDto } from "@/features/areas/types/area.types";
 import {
   useActiveUsers,
   useAdminAreas,
   useAreaMembers,
   useAreaRoles,
+  usePermissionCatalog,
+  useRolePermissions,
   adminKeys,
 } from "@/features/admin/hooks/use-admin-data";
 import {
@@ -31,11 +36,18 @@ import {
   deleteAdminArea,
   deleteAreaMember,
   deleteAreaRole,
+  setRolePermissions,
   updateAdminArea,
   updateAreaMember,
   updateAreaRole,
 } from "@/features/admin/services/admin.service";
-import type { AreaDraft } from "@/features/admin/types/admin.types";
+import type {
+  AreaDraft,
+  AreaMemberDto,
+  AreaRoleDto,
+  CatalogModuleDto,
+  RoleGrantDto,
+} from "@/features/admin/types/admin.types";
 import { areaToDraft } from "@/features/admin/types/admin.types";
 import DirectoryAdmin from "@/features/directory/components/admin/directory-admin";
 import SitesAdmin from "@/features/directory/components/admin/sites-admin";
@@ -47,16 +59,23 @@ import {
   DEFAULT_AREA_ICON,
   resolveAreaIcon,
 } from "@/features/areas/area-icons";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { errorMessage } from "@/shared/lib/api-client";
+import { roleLabel } from "@/features/session/types/session.types";
+import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
+import { isReservedSlug, slugFromName } from "../lib/area-slug";
+import { normalizeCompanyEmail } from "../lib/company-email";
+import EmployeeEmailField from "./employee-email-field";
+import RolePermissionsDialog, { LEADER_ROLE_HELP, grantsSummary } from "./role-permissions-dialog";
+
 const SECTION_COPY: Record<AdminSection, string> = {
-  areas: "Las áreas de la organización, sus roles y quién tiene acceso a cada una.",
+  areas: "Las áreas de la organización, sus roles, qué permite cada rol y quién pertenece a cada una.",
   usuarios: "Las personas que ya entraron a la plataforma o que la sincronización creó.",
   directorio:
     "Las personas del directorio, qué se muestra de cada una y la sincronización nocturna con Microsoft Entra.",
@@ -65,7 +84,6 @@ const SECTION_COPY: Record<AdminSection, string> = {
 };
 
 const EMPTY_AREA: AreaDraft = {
-  slug: "",
   name: "",
   icon: DEFAULT_AREA_ICON,
   sort_order: "0",
@@ -89,7 +107,8 @@ export default function AdminManager({ section }: { section: AdminSection }) {
 
   // Each section loads only what it shows.
   const areasQuery = useAdminAreas(section === "areas");
-  const usersQuery = useActiveUsers(userOffset, section === "areas" || section === "usuarios");
+  const usersQuery = useActiveUsers(userOffset, section === "usuarios");
+  const catalogQuery = usePermissionCatalog(section === "areas");
   const areas = areasQuery.data ?? [];
   const activeArea = areas.find((area) => area.slug === selectedSlug) ?? areas[0];
   const rolesQuery = useAreaRoles(activeArea?.slug);
@@ -98,13 +117,15 @@ export default function AdminManager({ section }: { section: AdminSection }) {
   const roles = rolesQuery.data ?? [];
   const members = membersQuery.data;
   const users = usersQuery.data?.items;
-  const availableUsers = useMemo(() => {
-    const assigned = new Set((members ?? []).map((member) => member.user.email).filter(Boolean));
-    return (users ?? []).filter((user) => user.email && !assigned.has(user.email));
-  }, [members, users]);
+  const catalogModules =
+    catalogQuery.data?.areas.find((area) => area.slug === activeArea?.slug)?.modules ?? [];
 
+  // The admin's own menu and hub read ["areas"]: a role or member change shows there too.
   const invalidateAdmin = async () => {
-    await queryClient.invalidateQueries({ queryKey: adminKeys.all });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminKeys.all }),
+      queryClient.invalidateQueries({ queryKey: areaKeys.all }),
+    ]);
   };
 
   async function runMutation<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
@@ -140,16 +161,26 @@ export default function AdminManager({ section }: { section: AdminSection }) {
 
   const saveArea = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!areaDraft.name.trim() || (!editingAreaSlug && !areaDraft.slug.trim())) {
-      setError("El nombre y el identificador del área son obligatorios.");
+    const name = areaDraft.name.trim();
+    if (!name) {
+      setError("El nombre del área es obligatorio.");
       return;
+    }
+    let responsibleEmail: string | null = null;
+    if (areaDraft.responsible_email.trim()) {
+      const parsed = normalizeCompanyEmail(areaDraft.responsible_email);
+      if (!parsed.ok) {
+        setError(parsed.error);
+        return;
+      }
+      responsibleEmail = parsed.email;
     }
     const sortOrder = Number.parseInt(areaDraft.sort_order, 10);
     const payload = {
-      name: areaDraft.name.trim(),
+      name,
       icon: areaDraft.icon.trim() || DEFAULT_AREA_ICON,
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
-      responsible_email: areaDraft.responsible_email.trim() || null,
+      responsible_email: responsibleEmail,
     };
 
     if (editingAreaSlug) {
@@ -163,8 +194,20 @@ export default function AdminManager({ section }: { section: AdminSection }) {
       return;
     }
 
+    // The URL segment comes from the name; the person never sees it.
+    const slug = slugFromName(name);
+    if (!slug || isReservedSlug(slug)) {
+      setError("Ese nombre no se puede usar para un área. Elige otro.");
+      return;
+    }
     const created = await runMutation("area", () =>
-      createAdminArea({ ...payload, slug: areaDraft.slug.trim().toLowerCase() })
+      createAdminArea({ ...payload, slug }).catch((cause: unknown) => {
+        // The API talks about the slug; the panel does not.
+        if (cause instanceof ApiError && cause.status === 409 && cause.detail.includes("identificador")) {
+          throw new ApiError(409, "Ya existe un área con un nombre parecido. Elige otro nombre.");
+        }
+        throw cause;
+      })
     );
     if (created) {
       setSelectedSlug(created.slug);
@@ -204,14 +247,12 @@ export default function AdminManager({ section }: { section: AdminSection }) {
           if (!open) setError(null);
         }}
         title={editingAreaSlug ? "Editar área" : "Nueva área"}
-        description="Define el acceso, la identidad visual y el orden de esta área."
+        description="El nombre, quién responde por el área, su icono y su orden en la lista."
         isForm
       >
         {error && <DialogError message={error} />}
         <AreaForm
           draft={areaDraft}
-          users={users ?? []}
-          editing={Boolean(editingAreaSlug)}
           busy={busy === "area"}
           onChange={setAreaDraft}
           onSubmit={saveArea}
@@ -260,7 +301,9 @@ export default function AdminManager({ section }: { section: AdminSection }) {
                             </span>
                             <span className="min-w-0">
                               <span className="block truncate font-medium">{area.name}</span>
-                              <span className="block truncate text-xs text-text-secondary">/{area.slug}</span>
+                              <span className="block truncate text-xs text-text-secondary">
+                                {responsibleLine(area)}
+                              </span>
                             </span>
                           </span>
                         </button>
@@ -274,13 +317,15 @@ export default function AdminManager({ section }: { section: AdminSection }) {
                   area={activeArea}
                   roles={roles}
                   members={members ?? []}
-                  users={availableUsers}
+                  catalogModules={catalogModules}
                   busy={busy}
+                  error={error}
                   rolesPending={rolesQuery.isPending}
                   membersPending={membersQuery.isPending}
                   onEdit={() => openEditArea(activeArea)}
                   onDelete={() => removeArea(activeArea)}
                   onRun={runMutation}
+                  onError={setError}
                 />
               )}
             </div>
@@ -308,18 +353,19 @@ export default function AdminManager({ section }: { section: AdminSection }) {
   );
 }
 
+function responsibleLine(area: AreaDto): string {
+  if (!area.responsible) return "Sin responsable";
+  return `Responsable: ${area.responsible.display_name ?? area.responsible.email}`;
+}
+
 function AreaForm({
   draft,
-  users,
-  editing,
   busy,
   onChange,
   onSubmit,
   onCancel,
 }: {
   draft: AreaDraft;
-  users: { id: string; name: string; email: string | null }[];
-  editing: boolean;
   busy: boolean;
   onChange: (draft: AreaDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -340,29 +386,24 @@ function AreaForm({
         <Field label="Nombre" htmlFor="area-name">
           <Input id="area-name" value={draft.name} onChange={(event) => update("name", event.target.value)} required />
         </Field>
-        <Field label="Identificador" htmlFor="area-slug" hint={editing ? "No se puede modificar." : "Minúsculas, números y guiones."}>
-          <Input id="area-slug" value={draft.slug} onChange={(event) => update("slug", event.target.value)} disabled={editing} required />
-        </Field>
-        <Field label="Responsable" htmlFor="area-responsible" optional hint="Solo aparecen usuarios habilitados.">
-          <Dropdown
-            id="area-responsible"
-            value={draft.responsible_email}
-            onValueChange={(value) => update("responsible_email", value)}
-            options={[
-              { value: "", label: "Sin responsable" },
-              ...users
-                .filter((user) => Boolean(user.email))
-                .map((user) => ({
-                  value: user.email as string,
-                  label: `${user.name} · ${user.email}`,
-                })),
-            ]}
-            aria-label="Responsable"
-          />
-        </Field>
         <Field label="Orden" htmlFor="area-order" optional>
           <Input id="area-order" type="number" value={draft.sort_order} onChange={(event) => update("sort_order", event.target.value)} />
         </Field>
+        <div className="md:col-span-2">
+          <Field
+            label="Responsable"
+            htmlFor="area-responsible"
+            optional
+            hint="Correo corporativo. Escribe el nombre para buscarlo en el directorio. El responsable gestiona toda el área."
+          >
+            <EmployeeEmailField
+              id="area-responsible"
+              value={draft.responsible_email}
+              onChange={(value) => update("responsible_email", value)}
+              describedBy="area-responsible-hint"
+            />
+          </Field>
+        </div>
         <div className="md:col-span-2">
           <Field
             label="Icono del área"
@@ -440,7 +481,7 @@ function AreaForm({
       <DialogFooter>
         <Button variant="outline" type="button" onClick={onCancel}>Cancelar</Button>
         <Button type="submit" disabled={busy}>
-          <Save aria-hidden="true" /> {busy ? "Guardando…" : editing ? "Guardar cambios" : "Crear área"}
+          <Save aria-hidden="true" /> {busy ? "Guardando…" : "Guardar"}
         </Button>
       </DialogFooter>
     </form>
@@ -451,30 +492,44 @@ function AreaDetails({
   area,
   roles,
   members,
-  users,
+  catalogModules,
   busy,
+  error,
   rolesPending,
   membersPending,
   onEdit,
   onDelete,
   onRun,
+  onError,
 }: {
   area: AreaDto;
-  roles: Awaited<ReturnType<typeof import("../services/admin.service").listAreaRoles>>;
-  members: Awaited<ReturnType<typeof import("../services/admin.service").listAreaMembers>>;
-  users: { id: string; name: string; email: string | null }[];
+  roles: AreaRoleDto[];
+  members: AreaMemberDto[];
+  catalogModules: CatalogModuleDto[];
   busy: string | null;
+  error: string | null;
   rolesPending: boolean;
   membersPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onRun: <T>(label: string, action: () => Promise<T>) => Promise<T | undefined>;
+  onError: (message: string | null) => void;
 }) {
   const [roleName, setRoleName] = useState("");
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [permissionsRole, setPermissionsRole] = useState<AreaRoleDto | null>(null);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRoleId, setMemberRoleId] = useState("");
-  const effectiveMemberRoleId = memberRoleId || roles[0]?.id || "";
+  // A new member starts on a regular role: the leader role gives the whole
+  // area, so it has to be chosen on purpose. Without other roles, the leader.
+  const defaultRoleId = (roles.find((role) => !role.is_leader) ?? roles[0])?.id ?? "";
+  const effectiveMemberRoleId = memberRoleId || defaultRoleId;
+  const roleOptions = roles.map((role) => ({
+    value: role.id,
+    label: role.is_leader ? `${role.name} (líder)` : role.name,
+  }));
+  const permissions = useRolePermissions(area.slug, roles.map((role) => role.id));
+  const memberEmails = useMemo(() => members.map((member) => member.user.email), [members]);
 
   const saveRole = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -488,7 +543,11 @@ function AreaDetails({
       }
     } else {
       const result = await onRun("role", () => createAreaRole(area.slug, cleaned));
-      if (result) setRoleName("");
+      if (result) {
+        setRoleName("");
+        // A new role grants nothing until it gets permissions: ask for them now.
+        setPermissionsRole(result);
+      }
     }
   };
 
@@ -497,10 +556,28 @@ function AreaDetails({
     await onRun("role-delete", () => deleteAreaRole(area.slug, roleId));
   };
 
+  const savePermissions = async (grants: RoleGrantDto[]) => {
+    if (!permissionsRole) return;
+    const result = await onRun("permissions", () =>
+      setRolePermissions(area.slug, permissionsRole.id, grants)
+    );
+    if (result) {
+      setPermissionsRole(null);
+      toast.success(`Permisos de ${permissionsRole.name} guardados.`);
+    }
+  };
+
   const addMember = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!memberEmail || !effectiveMemberRoleId) return;
-    const result = await onRun("member", () => addAreaMember(area.slug, memberEmail, effectiveMemberRoleId));
+    const parsed = normalizeCompanyEmail(memberEmail);
+    if (!parsed.ok) {
+      onError(parsed.error);
+      return;
+    }
+    if (!effectiveMemberRoleId) return;
+    const result = await onRun("member", () =>
+      addAreaMember(area.slug, parsed.email, effectiveMemberRoleId)
+    );
     if (result) setMemberEmail("");
   };
 
@@ -516,7 +593,7 @@ function AreaDetails({
           <div className="min-w-0 space-y-1">
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-text-secondary">Área seleccionada</p>
             <h2 className="truncate text-xl font-semibold">{area.name}</h2>
-            <p className="text-sm text-text-secondary">/{area.slug}</p>
+            <p className="text-sm text-text-secondary">{responsibleLine(area)}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onEdit}><Pencil aria-hidden="true" /> Editar</Button>
@@ -525,11 +602,28 @@ function AreaDetails({
         </div>
       </div>
 
+      <RolePermissionsDialog
+        open={permissionsRole !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPermissionsRole(null);
+            onError(null);
+          }
+        }}
+        roleName={permissionsRole?.name ?? ""}
+        isLeader={permissionsRole?.is_leader ?? false}
+        modules={catalogModules}
+        grants={permissionsRole ? (permissions[permissionsRole.id] ?? []) : []}
+        busy={busy === "permissions"}
+        error={permissionsRole ? error : null}
+        onSave={savePermissions}
+      />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
           <div>
             <h3 className="font-semibold">Roles del área</h3>
-            <p className="text-sm text-text-secondary">Etiquetas organizativas para cada miembro.</p>
+            <p className="text-sm text-text-secondary">Cada rol decide qué módulos abren sus miembros y qué pueden hacer en ellos.</p>
           </div>
           <form onSubmit={saveRole} className="flex gap-2">
             <Input value={roleName} onChange={(event) => setRoleName(event.target.value)} placeholder="Ej. Líder de área" aria-label="Nombre del rol" />
@@ -542,10 +636,26 @@ function AreaDetails({
             <ul className="divide-y divide-border rounded-md border border-border">
               {roles.map((role) => (
                 <li key={role.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <span>{role.name}</span>
-                  <span className="flex gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => { setEditingRoleId(role.id); setRoleName(role.name); }} aria-label={`Editar ${role.name}`}><Pencil aria-hidden="true" /></Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => removeRole(role.id, role.name)} aria-label={`Eliminar ${role.name}`}><Trash2 aria-hidden="true" /></Button>
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium">{role.name}</span>
+                      {role.is_leader && (
+                        <Badge tone="info" className="py-0" title={LEADER_ROLE_HELP}>
+                          <Crown aria-hidden="true" /> Líder
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-text-secondary">
+                      {role.is_leader ? "Todos los permisos del área" : grantsSummary(permissions[role.id])}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPermissionsRole(role)} aria-label={`Permisos de ${role.name}`}><KeyRound aria-hidden="true" /> Permisos</Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => { setEditingRoleId(role.id); setRoleName(role.name); }} aria-label={`Renombrar ${role.name}`}><Pencil aria-hidden="true" /></Button>
+                    {/* The leader role is the one every area keeps: the API answers 409 to deleting it. */}
+                    {!role.is_leader && (
+                      <Button variant="ghost" size="icon-sm" onClick={() => removeRole(role.id, role.name)} aria-label={`Eliminar ${role.name}`}><Trash2 aria-hidden="true" /></Button>
+                    )}
                   </span>
                 </li>
               ))}
@@ -556,32 +666,30 @@ function AreaDetails({
         <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
           <div>
             <h3 className="font-semibold">Miembros</h3>
-            <p className="text-sm text-text-secondary">Asigna usuarios habilitados a esta área.</p>
+            <p className="text-sm text-text-secondary">Escribe el nombre o el correo corporativo de la persona y elige su rol.</p>
           </div>
           <form onSubmit={addMember} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_auto]">
-            <Dropdown
+            <EmployeeEmailField
+              id="member-email"
               value={memberEmail}
-              onValueChange={setMemberEmail}
-              options={users
-                .filter((user) => Boolean(user.email))
-                .map((user) => ({
-                  value: user.email as string,
-                  label: `${user.name} · ${user.email}`,
-                }))}
-              placeholder="Selecciona un usuario"
-              aria-label="Usuario"
-              disabled={users.length === 0}
+              onChange={setMemberEmail}
+              excludeEmails={memberEmails}
+              placeholder="Nombre o correo"
+              disabled={roles.length === 0}
             />
             <Dropdown
               value={effectiveMemberRoleId}
               onValueChange={setMemberRoleId}
-              options={roles.map((role) => ({ value: role.id, label: role.name }))}
+              options={roleOptions}
               placeholder="Selecciona un rol"
               aria-label="Rol"
               disabled={roles.length === 0}
             />
-            <Button type="submit" size="icon-sm" disabled={busy === "member" || !memberEmail || !effectiveMemberRoleId} aria-label="Agregar miembro"><Plus aria-hidden="true" /></Button>
+            <Button type="submit" size="icon-sm" disabled={busy === "member" || !memberEmail.trim() || !effectiveMemberRoleId} aria-label="Agregar miembro"><Plus aria-hidden="true" /></Button>
           </form>
+          {roles.length === 0 && !rolesPending && (
+            <p className="text-sm text-text-secondary">Crea un rol antes de agregar miembros.</p>
+          )}
           {membersPending ? <LoadingBlock label="Cargando miembros" compact /> : members.length === 0 ? <p className="text-sm text-text-secondary">Aún no hay miembros asignados.</p> : (
             <ul className="divide-y divide-border rounded-md border border-border">
               {members.map((member) => (
@@ -593,7 +701,7 @@ function AreaDetails({
                       size="sm"
                       value={member.role.id}
                       onValueChange={(value) => onRun("member-role", () => updateAreaMember(area.slug, member.id, value))}
-                      options={roles.map((role) => ({ value: role.id, label: role.name }))}
+                      options={roleOptions}
                       aria-label={`Rol de ${member.user.display_name ?? "miembro"}`}
                     />
                     <Button variant="ghost" size="icon-sm" onClick={() => removeMember(member.id, member.user.display_name ?? member.user.email ?? "miembro")} aria-label={`Retirar ${member.user.display_name ?? "miembro"}`}><Trash2 aria-hidden="true" /></Button>
@@ -639,7 +747,7 @@ function UsersDirectory({
         <table className="w-full min-w-[42rem] text-left text-sm">
           <thead className="bg-canvas-subtle text-xs text-text-secondary"><tr><th className="px-3 py-2 font-medium">Usuario</th><th className="px-3 py-2 font-medium">Cargo</th><th className="px-3 py-2 font-medium">Rol global</th><th className="px-3 py-2 font-medium">Área principal</th><th className="px-3 py-2 font-medium">Estado</th></tr></thead>
           <tbody className="divide-y divide-border">
-            {users.map((user) => <tr key={user.id}><td className="px-3 py-2"><span className="block font-medium">{user.name}</span><span className="block text-xs text-text-secondary">{user.email ?? "Sin correo"}</span></td><td className="px-3 py-2 text-text-secondary">{user.job_title ?? "—"}</td><td className="px-3 py-2">{user.role === "admin" ? "Administrador" : "Usuario"}</td><td className="px-3 py-2 text-text-secondary">{user.area_name ?? "Sin área principal"}</td><td className="px-3 py-2"><span className="rounded-full bg-success-surface px-2 py-1 text-xs text-success">Activo</span></td></tr>)}
+            {users.map((user) => <tr key={user.id}><td className="px-3 py-2"><span className="block font-medium">{user.name}</span><span className="block text-xs text-text-secondary">{user.email ?? "Sin correo"}</span></td><td className="px-3 py-2 text-text-secondary">{user.job_title ?? "—"}</td><td className="px-3 py-2">{roleLabel(user.role)}</td><td className="px-3 py-2 text-text-secondary">{user.area_name ?? "Sin área principal"}</td><td className="px-3 py-2"><span className="rounded-full bg-success-surface px-2 py-1 text-xs text-success">Activo</span></td></tr>)}
           </tbody>
         </table>
       </div>

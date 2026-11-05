@@ -15,7 +15,7 @@ export default function NotFound() {
         title="Esta dirección no existe en la plataforma"
         action={
           <Link href="/" className={buttonVariants({ variant: "outline" })}>
-            Ir a mi área
+            Ir al inicio
           </Link>
         }
       >

@@ -6,8 +6,7 @@ import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import { ChevronDown, LayoutGrid, LogOut, User } from "lucide-react"
 
-import { useAreas } from "@/features/areas/hooks/use-areas"
-import { LAST_AREA_STORAGE_KEY } from "@/shared/config/general.config"
+import { WORKSPACE_PATH } from "@/shared/config/general.config"
 import { logoutSession } from "@/shared/lib/api-client"
 
 import { InitialsAvatar } from "@/intranet/components/common/initials-avatar"
@@ -41,23 +40,14 @@ import { empleadoHref } from "@/intranet/modules/directorio"
  * Avatar en 32px (`sm`), no 36: más discreto en la barra de 68px y con aire
  * para el marco de globos el día del cumpleaños (`useMiCumpleanos`).
  *
- * "Mi espacio de trabajo" abre la última área visitada (la guarda `AreaGate`)
- * o la primera con acceso; quien no tiene áreas no ve el ítem.
+ * "Mi espacio de trabajo" abre el hub `/workspace`, que lista las áreas de la
+ * persona o explica a quién pedir acceso cuando no tiene ninguna.
  */
-function readLastArea(): string | null {
-  try {
-    return window.localStorage.getItem(LAST_AREA_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
 export function UserMenu() {
   const { user, isPending } = useCurrentUser()
   const router = useRouter()
   const queryClient = useQueryClient()
   const cumpleanosHoy = useMiCumpleanos(Boolean(user))
-  const { data: areas = [] } = useAreas()
 
   if (isPending || !user) {
     return (
@@ -71,11 +61,6 @@ export function UserMenu() {
   const profileHref = user.employeeId
     ? (empleadoHref(user.employeeId) as Route)
     : null
-
-  const workspaceHref = () => {
-    const last = readLastArea()
-    return (areas.find((area) => area.slug === last) ?? areas[0])?.path
-  }
 
   const avatar = (
     <InitialsAvatar
@@ -138,17 +123,12 @@ export function UserMenu() {
               Mi perfil
             </Link>
           </DropdownMenuItem>
-          {areas.length > 0 ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                const href = workspaceHref()
-                if (href) router.push(href as Route)
-              }}
-            >
+          <DropdownMenuItem asChild>
+            <Link href={WORKSPACE_PATH}>
               <LayoutGrid />
               Mi espacio de trabajo
-            </DropdownMenuItem>
-          ) : null}
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"

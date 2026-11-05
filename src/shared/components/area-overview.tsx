@@ -1,27 +1,35 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useArea } from "@/features/areas/hooks/use-areas";
+import { useSession } from "@/features/session/hooks/use-session";
+import { isPlatformAdmin } from "@/features/session/types/session.types";
+import { Alert } from "@/shared/components/ui/alert";
 import {
-  getModulesByArea,
   moduleHref,
+  visibleModules,
   type ModuleItem,
 } from "@/shared/config/areas.config";
+import { ACCESS_DENIED_PARAM } from "@/shared/config/general.config";
 import { cn } from "@/shared/lib/utils";
 
 /**
  * Landing screen for an area: what the area covers and the real status of
- * every module in it. The statuses are the catalog itself, not a summary of
- * data that does not exist yet, so there is nothing here to invent. Rendered
- * inside AreaGate, so the area is already cached when this mounts.
+ * every module the person's role lets them see. The statuses are the catalog
+ * itself, not a summary of data that does not exist yet, so there is nothing
+ * here to invent. Rendered inside AreaGate, so the area is already cached
+ * when this mounts.
  */
 export default function AreaOverview({ slug }: { slug: string }) {
   const { data: area } = useArea(slug);
+  const { data: user } = useSession();
   if (!area) return null;
 
   // Never empty: the document manager is generated for every area.
-  const modules = getModulesByArea(area.slug);
+  const modules = visibleModules(area, isPlatformAdmin(user?.role));
   const availableCount = modules.filter((module) => module.available).length;
 
   return (
@@ -38,6 +46,10 @@ export default function AreaOverview({ slug }: { slug: string }) {
         )}
       </div>
 
+      <Suspense>
+        <ModuleDeniedNotice path={area.path} />
+      </Suspense>
+
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-text-secondary">
           {availableCount} de {modules.length}{" "}
@@ -53,6 +65,19 @@ export default function AreaOverview({ slug }: { slug: string }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+/** Shown when AreaGate sent the person here from a module their role does not grant. */
+function ModuleDeniedNotice({ path }: { path: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  if (searchParams.get(ACCESS_DENIED_PARAM) !== "modulo") return null;
+  return (
+    <Alert severity="info" onDismiss={() => router.replace(path)}>
+      Tu rol en esta área no incluye ese módulo. Si lo necesitas, pídeselo al responsable del área
+      o a un administrador de la plataforma.
+    </Alert>
   );
 }
 

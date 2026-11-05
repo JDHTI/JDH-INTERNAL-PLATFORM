@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 
 import SessionRequired from "@/features/areas/components/session-required";
 import { useSession } from "@/features/session/hooks/use-session";
+import { isPlatformAdmin } from "@/features/session/types/session.types";
 import StatePanel from "@/shared/components/state-panel";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
@@ -31,7 +32,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || !isPlatformAdmin(user.role)) {
     return (
       <StatePanel icon={Lock} title="No tienes permisos de administrador">
         Este espacio está reservado para la administración global de la plataforma.

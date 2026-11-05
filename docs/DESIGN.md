@@ -519,6 +519,14 @@ URL suelta. Esta sección describe el espacio de trabajo.
   de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
   exterior de la card. El borde inferior del header queda 12px debajo del de la card.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
+- **Entrada:** `/workspace`, el hub con una tarjeta por área a la que la persona puede entrar
+  (icono, nombre, su rol y cuántos módulos tiene disponibles). Se muestra siempre, aunque haya una
+  sola área, para que la puerta sea la misma para todos. Sin área en la URL, la card del sidebar
+  dice «Espacio de trabajo» y el menú queda vacío: el contenido es la lista. Quien no tiene áreas
+  ve a quién pedir acceso, no una pantalla en blanco.
+- **Acceso:** el API decide. Entrar a un área ajena devuelve al hub con un aviso; abrir por URL
+  un módulo que el rol no concede devuelve al resumen del área con un aviso. El menú solo lista
+  los módulos concedidos; un módulo que no se puede abrir no es una fila deshabilitada, no existe.
 - **Salida a la vista general:** la fila «Vista general» en el pie del sidebar, encima del
   selector de tema. La marca del breadcrumb también lleva a `/`.
 
@@ -540,8 +548,8 @@ junto a un sidebar fijo. Por eso tienen su propio marco:
 - **Header:** 64px, sticky, sobre `--sidebar` con borde `--sidebar-border`: la misma banda
   oscura del espacio de trabajo, para que los dos frentes se lean como un producto. Por debajo de
   `md` los enlaces pasan a un menú con la etiqueta «Menú», no a un ícono suelto.
-- **Espacio de trabajo:** botón a la derecha que vuelve a la última área abierta. Quien no
-  tiene áreas no lo ve.
+- **Espacio de trabajo:** «Mi espacio de trabajo» en el menú de la cuenta abre `/workspace`, el
+  hub de áreas (§5.3). Lo ve todo el mundo: quien no tiene áreas encuentra allí a quién pedirlas.
 - **Cuenta:** foto, nombre y un menú con Configuración, Sugerencias, el panel administrador si
   aplica, el tema y cerrar sesión.
 - **Contenido:** contenedor de 1200px, `px-4` en móvil y `px-6` desde `md`. El documento

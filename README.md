@@ -59,8 +59,9 @@ viajan entre orígenes, la API necesita el origen del UI en `CORS_ORIGINS`
 - La **vista general** (`src/app/(app)/(general)/`) es para toda persona
   autenticada: inicio con cumpleaños y nuevos ingresos, directorio, perfil de
   cada persona, configuración y sugerencias. Lee el módulo `directory` de la API.
-- El **espacio de trabajo** (`src/app/(app)/(workspace)/[area]/`) es un área a la
-  vez con sus módulos. La administración de la plataforma es un módulo de TI,
+- El **espacio de trabajo** (`src/app/(app)/(workspace)/`) entra por `/workspace`, el
+  hub con las áreas de la persona, y luego es un área a la vez con sus módulos
+  (`[area]/`). La administración de la plataforma es un módulo de TI,
   `/ti/administracion/*`, que solo ven los administradores.
 
 ## Áreas y gestor documental
@@ -75,5 +76,7 @@ viajan entre orígenes, la API necesita el origen del UI en `CORS_ORIGINS`
   por slug. El módulo «Gestor documental» (`/{slug}/documentos`) se genera para
   cada área.
 
-Quién ve qué área lo decide la API: el rol `admin` ve todas; el resto, las áreas
-donde es miembro o responsable.
+Quién ve qué área lo decide la API: `owner` y `admin` ven todas, `moderator` las
+consulta todas sin editar; el resto, las áreas donde es miembro o responsable. Dentro
+del área, cada rol concede módulos (lectura o gestión) y el menú solo muestra los
+concedidos. El detalle está en `docs/workspace-access.md`.

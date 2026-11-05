@@ -1,8 +1,14 @@
-import type { AreaDto, UserRef } from "@/features/areas/types/area.types";
+import type { AreaDto, ModuleAction, RoleRefDto, UserRef } from "@/features/areas/types/area.types";
 
 export interface AreaRoleDto {
   id: string;
   name: string;
+  /**
+   * The area's fixed leader role (Líder, Director): every permission of the
+   * area, never deleted, its permissions never changed (409). It can be renamed.
+   * The API lists it first.
+   */
+  is_leader: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -10,7 +16,7 @@ export interface AreaRoleDto {
 export interface AreaMemberDto {
   id: string;
   user: UserRef;
-  role: { id: string; name: string };
+  role: RoleRefDto;
   created_at: string;
   updated_at: string;
 }
@@ -36,8 +42,36 @@ export interface UserPageDto {
   limit: number;
 }
 
+/** GET /permissions/catalog: what a role of each area can grant. */
+export interface PermissionCatalogDto {
+  actions: ModuleAction[];
+  /** The whole area, "*". */
+  wildcard: string;
+  areas: {
+    slug: string;
+    name: string;
+    modules: CatalogModuleDto[];
+  }[];
+}
+
+export interface CatalogModuleDto {
+  key: string;
+  label: string;
+}
+
+/** One grant of a role: a module key, or the wildcard, and the action. */
+export interface RoleGrantDto {
+  module: string;
+  action: ModuleAction;
+}
+
+export interface RolePermissionsDto {
+  role: RoleRefDto;
+  grants: RoleGrantDto[];
+}
+
+/** What the area form edits. The slug is derived from the name, never typed. */
 export interface AreaDraft {
-  slug: string;
   name: string;
   icon: string;
   sort_order: string;
@@ -46,7 +80,6 @@ export interface AreaDraft {
 
 export function areaToDraft(area?: AreaDto): AreaDraft {
   return {
-    slug: area?.slug ?? "",
     name: area?.name ?? "",
     icon: area?.icon ?? "",
     sort_order: String(area?.sort_order ?? 0),

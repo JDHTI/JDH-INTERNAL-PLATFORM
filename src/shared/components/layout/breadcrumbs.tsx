@@ -8,6 +8,7 @@ import { ChevronRight } from "lucide-react";
 import { useAreas } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
 import { findModuleByPath } from "@/shared/config/areas.config";
+import { WORKSPACE_PATH } from "@/shared/config/general.config";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbStore } from "@/shared/store/use-breadcrumb-store";
 
@@ -32,6 +33,7 @@ function labelForHref(
   areas: Area[],
   registered: Record<string, string>
 ): string {
+  if (href === WORKSPACE_PATH) return "Espacio de trabajo";
   const area = areas.find((candidate) => candidate.path === href);
   if (area) return area.name;
 

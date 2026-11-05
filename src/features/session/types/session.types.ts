@@ -24,6 +24,24 @@ export interface SessionUser {
   isActive: boolean;
 }
 
+/** Global roles from the API: the owner and admins administer the platform; moderators only read. */
+export const PLATFORM_ADMIN_ROLES: readonly string[] = ["owner", "admin"];
+
+export function isPlatformAdmin(role: string | null | undefined): boolean {
+  return role != null && PLATFORM_ADMIN_ROLES.includes(role);
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Propietario",
+  admin: "Administrador",
+  moderator: "Moderador",
+  user: "Usuario",
+};
+
+export function roleLabel(role: string | null | undefined): string {
+  return (role && ROLE_LABELS[role]) || "Usuario";
+}
+
 export function toSessionUser(dto: SessionUserDto): SessionUser {
   return {
     id: dto.id,

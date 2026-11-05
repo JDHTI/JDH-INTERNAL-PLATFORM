@@ -3,7 +3,7 @@ import { apiFetch } from "@/shared/lib/api-client";
 import { resolveAreaIcon } from "../area-icons";
 import type { Area, AreaDto } from "../types/area.types";
 
-function toArea(dto: AreaDto): Area {
+export function toArea(dto: AreaDto): Area {
   return {
     id: dto.id,
     slug: dto.slug,
@@ -12,6 +12,9 @@ function toArea(dto: AreaDto): Area {
     icon: resolveAreaIcon(dto.icon),
     remit: dto.remit,
     responsible: dto.responsible,
+    myRole: dto.my_role,
+    isResponsible: dto.is_responsible,
+    myModules: dto.my_modules ?? {},
   };
 }
 
