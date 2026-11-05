@@ -208,10 +208,15 @@
   --destructive: oklch(0.704 0.191 22.216);
 }
 
-/* Base, as the intranet had it */
-:root:has(.intranet-shell) * {
-  border-color: var(--border);
-  outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+/* Base, as the intranet had it. It must stay inside `@layer base`: unlayered,
+   it beats every Tailwind utility, so `border-transparent` and other explicit
+   border colors stop applying and every nav item, ghost button and the header
+   search show a visible border. */
+@layer base {
+  :root:has(.intranet-shell) * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
 }
 
 :root:has(.intranet-shell) body {

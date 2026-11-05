@@ -5,7 +5,8 @@ import {
 import { cn } from "@/intranet/lib/utils"
 
 const emphasisStyles: Record<ContentBadgeEmphasis, string> = {
-  solid: "border-transparent bg-primary text-primary-foreground",
+  solid:
+    "border-transparent bg-primary text-primary-foreground dark:border-[var(--color-ink-border)]",
   outline: "border-[var(--color-border-strong)] text-foreground",
   dashed:
     "border-dashed border-[var(--color-border-strong)] text-muted-foreground",
