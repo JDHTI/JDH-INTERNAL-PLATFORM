@@ -35,7 +35,7 @@ export function DateChip({
         tone === "on-ink"
           ? "border-transparent bg-[var(--overlay-on-dark-08)] text-[var(--color-on-ink)]"
           : selected
-            ? "border-transparent bg-primary text-primary-foreground"
+            ? "border-transparent bg-primary text-primary-foreground dark:border-[var(--color-ink-border)]"
             : "border-border bg-card text-foreground",
         className
       )}

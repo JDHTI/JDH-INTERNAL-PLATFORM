@@ -24,7 +24,7 @@ const jdhButtonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-primary text-primary-foreground hover:bg-[var(--color-ink-hover)]",
+          "bg-primary text-primary-foreground hover:bg-[var(--color-ink-hover)] dark:border-[var(--color-ink-border)]",
         secondary:
           "border-[var(--color-border-strong)] text-foreground hover:border-foreground hover:bg-accent",
         ghost: "text-foreground hover:bg-accent",

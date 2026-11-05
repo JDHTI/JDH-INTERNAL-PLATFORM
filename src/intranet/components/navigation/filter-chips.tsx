@@ -65,7 +65,7 @@ export function FilterChips<T extends string>(props: FilterChipsProps<T>) {
             className={cn(
               "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               active
-                ? "border-transparent bg-primary text-primary-foreground"
+                ? "border-transparent bg-primary text-primary-foreground dark:border-[var(--color-ink-border)]"
                 : "border-[var(--color-border-strong)] text-foreground hover:bg-accent"
             )}
           >

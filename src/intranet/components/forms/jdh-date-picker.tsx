@@ -323,7 +323,7 @@ export function JdhDatePicker({
                         "border-[var(--color-border-strong)] font-medium",
                       !dayDisabled && "cursor-pointer hover:bg-accent",
                       isSelected &&
-                        "border-transparent bg-primary text-primary-foreground hover:bg-primary"
+                        "border-transparent bg-primary text-primary-foreground hover:bg-primary dark:border-[var(--color-ink-border)]"
                     )}
                   >
                     {dia.day}
