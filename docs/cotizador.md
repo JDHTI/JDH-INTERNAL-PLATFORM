@@ -23,9 +23,10 @@ en la skill `lista-precios` del repo del API y centralizadas en
 
 Código en `src/features/quotations/` y páginas en `src/app/(app)/(workspace)/[area]/cotizador/`.
 «Cotizador» en Comercial y en BI: las mismas pantallas. Las dos áreas cotizan; BI además valida.
-Quien no valida ve y edita solo las cotizaciones que creó. Quien valida (BI, administradores) y los
-moderadores ven todas, con «Creada por»; editar sigue siendo solo de quien la creó (o de un
-administrador).
+Quien no valida ve y edita solo las cotizaciones que creó. Quien valida (BI, administradores) tiene
+el módulo completo: ve todas, con «Creada por», y las edita (agregar referencias, plantilla masiva,
+precios, confirmar) o borra. Los moderadores ven todas, sin editar. En el listado, toda la fila abre
+la cotización.
 
 | Ruta | Pantalla |
 | --- | --- |
