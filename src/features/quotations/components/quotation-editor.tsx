@@ -36,6 +36,8 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
+import { useSession } from "@/features/session/hooks/use-session";
+import { isPlatformAdmin } from "@/features/session/types/session.types";
 import SupportDetail from "@/features/supports/components/support-detail";
 
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
@@ -110,10 +112,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
-  const canManage = permissions?.can_manage === true;
+  const { data: user } = useSession();
+  const isCreator =
+    isPlatformAdmin(user?.role) || (!!user?.email && user.email.toLowerCase() === quotation.created_by.toLowerCase());
+  // Only whoever created it (or an admin) edits; BI reads the others to validate them.
+  const canManage = permissions?.can_manage === true && isCreator;
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
-  // Commercial edits anything but a quotation waiting for validation; whoever only validates never edits.
   const editable = canManage && !pendingReview;
 
   const editor = useLineEditor(quotation);
@@ -593,6 +598,7 @@ function CustomerFacts({ quotation }: { quotation: Quotation }) {
     ["Bodega", quotation.stock_source ?? "—"],
     ["Vendedor", quotation.salesperson_name ?? "—"],
     ["Ventana", `${quotation.window_months} meses`],
+    ["Creada por", quotation.created_by],
   ];
   return (
     <div className="space-y-1">

@@ -368,11 +368,6 @@ const AREA_ROWS: ModuleItem[] = [
   },
 ];
 
-/** A module's name where one area uses it differently: BI validates what Comercial quotes. */
-const AREA_NAMES: Record<string, string> = {
-  "bi-cotizador": "Validar cotizaciones",
-};
-
 type ModuleTemplate = Omit<ModuleItem, "id" | "path" | "areaSlug" | "subItems"> & {
   key: string;
   /** Path under the area; the module key when absent. */
@@ -498,7 +493,6 @@ function buildModule({ key, segment, subItems, ...template }: ModuleTemplate, ar
   return {
     ...template,
     id,
-    name: AREA_NAMES[id] ?? template.name,
     path,
     areaSlug,
     ...(pages.length > 0 ? { subItems: pages } : {}),
