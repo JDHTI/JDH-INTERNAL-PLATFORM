@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation"
 
 import { hasAll, permissionsForRoles, type Role } from "@/intranet/config/permissions"
 import { backendFetch } from "@/intranet/lib/api/backend-fetch"
+import { employeePhotoUrl } from "@/features/directory/types/directory.types"
 import { PROFILE_PHOTO_URL } from "@/shared/lib/api-client"
 
 /**
@@ -53,8 +54,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!meResponse.ok) throw new Error(`GET /users/me -> ${meResponse.status}`)
 
   const user = (await meResponse.json()) as UserDto
-  const employee =
-    employeeResponse?.ok ? ((await employeeResponse.json()) as { id: string }) : null
+  const employee = employeeResponse?.ok
+    ? ((await employeeResponse.json()) as { id: string; photo_version: string | null })
+    : null
   const roles = rolesFor(user.role)
 
   return {
@@ -65,7 +67,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     employeeId: employee?.id ?? null,
     roles,
     permissions: permissionsForRoles(roles),
-    photoUrl: user.photo_available ? PROFILE_PHOTO_URL : null,
+    photoUrl:
+      (employee && employeePhotoUrl(employee, 96)) ??
+      (user.photo_available ? PROFILE_PHOTO_URL : null),
     platformRole: user.role,
   }
 })

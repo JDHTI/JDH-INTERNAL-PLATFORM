@@ -16,12 +16,12 @@ export interface GeneralLink {
 /** The workspace's way back to the general view (sidebar footer). */
 export const HOME_LINK: GeneralLink = { id: "inicio", name: "Inicio", path: "/", icon: House };
 
-/** The way into the workspace: the hub that lists the person's areas. */
+/** The way into the workspace: the guide, with the area selector in the sidebar. */
 export const WORKSPACE_PATH = "/workspace";
 
 /**
  * Query flag a guard adds when it sends the person away from somewhere they
- * cannot open: `area` lands on the hub, `modulo` on the area overview.
+ * cannot open: `area` lands on the guide, `modulo` on the area overview.
  */
 export const ACCESS_DENIED_PARAM = "sin-acceso";
 

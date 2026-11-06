@@ -519,12 +519,15 @@ URL suelta. Esta sección describe el espacio de trabajo.
   de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
   exterior de la card. El borde inferior del header queda 12px debajo del de la card.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
-- **Entrada:** `/workspace`, el hub con una tarjeta por área a la que la persona puede entrar
-  (icono, nombre, su rol y cuántos módulos tiene disponibles). Se muestra siempre, aunque haya una
-  sola área, para que la puerta sea la misma para todos. Sin área en la URL, la card del sidebar
-  dice «Espacio de trabajo» y el menú queda vacío: el contenido es la lista. Quien no tiene áreas
-  ve a quién pedir acceso, no una pantalla en blanco.
-- **Acceso:** el API decide. Entrar a un área ajena devuelve al hub con un aviso; abrir por URL
+- **Entrada:** `/workspace`, la guía: qué es el espacio de trabajo (datos de SIESA, una sola
+  fuente, reportería, automatizaciones) y cómo se navega. No lista áreas: sin área en la URL, la
+  card del sidebar es el aviso «Selecciona tu área», con borde punteado `--sidebar-muted` (7.52:1)
+  para leerse como un hueco por llenar, y abre la misma lista de áreas que el chevron. El menú dice
+  que ahí aparecerán los módulos. Así la primera visita ya ocurre en la navegación de todos los
+  días. El botón «Elegir mi área» de la guía abre ese selector (y el cajón en el teléfono). Quien no
+  tiene áreas ve a quién pedir acceso, no una pantalla en blanco. «Guía del espacio de trabajo», en
+  el pie del sidebar sobre «Vista general», vuelve a esta página.
+- **Acceso:** el API decide. Entrar a un área ajena devuelve a la guía con un aviso; abrir por URL
   un módulo que el rol no concede devuelve al resumen del área con un aviso. El menú solo lista
   los módulos concedidos; un módulo que no se puede abrir no es una fila deshabilitada, no existe.
 - **Salida a la vista general:** la fila «Vista general» en el pie del sidebar, encima del
@@ -548,8 +551,9 @@ junto a un sidebar fijo. Por eso tienen su propio marco:
 - **Header:** 64px, sticky, sobre `--sidebar` con borde `--sidebar-border`: la misma banda
   oscura del espacio de trabajo, para que los dos frentes se lean como un producto. Por debajo de
   `md` los enlaces pasan a un menú con la etiqueta «Menú», no a un ícono suelto.
-- **Espacio de trabajo:** «Mi espacio de trabajo» en el menú de la cuenta abre `/workspace`, el
-  hub de áreas (§5.3). Lo ve todo el mundo: quien no tiene áreas encuentra allí a quién pedirlas.
+- **Espacio de trabajo:** «Mi espacio de trabajo» en el menú de la cuenta abre `/workspace`, la
+  guía del espacio de trabajo (§5.3). Lo ve todo el mundo: quien no tiene áreas encuentra allí a
+  quién pedirlas.
 - **Cuenta:** foto, nombre y un menú con Configuración, Sugerencias, Administración si aplica, el
   tema y cerrar sesión.
 - **Contenido:** contenedor de 1200px, `px-4` en móvil y `px-6` desde `md`. El documento

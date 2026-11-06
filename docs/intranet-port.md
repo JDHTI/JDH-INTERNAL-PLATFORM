@@ -17,7 +17,7 @@ mismas pantallas, mismo diseño. El espacio de trabajo por áreas no cambia. Dec
 
 El código vive en `src/intranet/` (componentes, módulos, configuración) con su propia estructura;
 las rutas en `src/app`. El menú del usuario suma **Mi espacio de trabajo**, que abre `/workspace`,
-el hub con las áreas de la persona (`docs/workspace-access.md`).
+la guía del espacio de trabajo; las áreas se eligen en la barra lateral (`docs/workspace-access.md`).
 
 ## Cómo conviven los dos diseños
 

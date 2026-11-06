@@ -10,7 +10,7 @@ import { ACCESS_DENIED_PARAM, WORKSPACE_PATH } from "@/shared/config/general.con
  *
  * The API decides who enters: it is asked here, on the server, before any
  * part of the area reaches the browser. No session goes to /login, no access
- * goes back to the hub, no such area is a 404. When the API itself fails the
+ * goes back to the guide, no such area is a 404. When the API itself fails the
  * gate below shows the error and offers a retry instead of a blank page.
  */
 export default async function AreaLayout({
