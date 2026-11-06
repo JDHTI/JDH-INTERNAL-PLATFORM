@@ -524,13 +524,13 @@ URL suelta. Esta sección describe el espacio de trabajo.
   card del sidebar es el aviso «Selecciona tu área», con borde punteado `--sidebar-muted` (7.52:1)
   para leerse como un hueco por llenar, y abre la misma lista de áreas que el chevron. El menú dice
   que ahí aparecerán los módulos. Así la primera visita ya ocurre en la navegación de todos los
-  días. El botón «Elegir mi área» de la guía abre ese selector (y el cajón en el teléfono). Quien no
-  tiene áreas ve a quién pedir acceso, no una pantalla en blanco. «Guía del espacio de trabajo», en
-  el pie del sidebar sobre «Vista general», vuelve a esta página.
+  días. El contenido ocupa todo el ancho del área de contenido: los cuatro pilares y los cuatro
+  pasos de navegación van en cuatro columnas desde `xl`, dos desde `sm`. Quien no tiene áreas ve a
+  quién pedir acceso, no una pantalla en blanco.
 - **Acceso:** el API decide. Entrar a un área ajena devuelve a la guía con un aviso; abrir por URL
   un módulo que el rol no concede devuelve al resumen del área con un aviso. El menú solo lista
   los módulos concedidos; un módulo que no se puede abrir no es una fila deshabilitada, no existe.
-- **Salida a la vista general:** la fila «Vista general» en el pie del sidebar, encima del
+- **Salida a la vista general:** la fila «Volver a la intranet» en el pie del sidebar, encima del
   selector de tema. La marca del breadcrumb también lleva a `/`.
 
 ### 5.4 Shell de la vista general
