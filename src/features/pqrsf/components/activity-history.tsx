@@ -17,7 +17,7 @@ import { formatDateTime, formatRelativeTime, PQRSF_TIME_ZONE, personName } from 
 import { inboxHref } from "../lib/inbox-state";
 import { ACCESS_EVENT_TYPES, accessSentence, groupAccess, type TimelineEntry } from "../lib/timeline";
 import type { ActivityEvent, ActivityFilters, Person } from "../types/pqrsf.types";
-import { EventSentence, RailIcon, eventIcon } from "./event-line";
+import { EventSentence, RailIcon, eventIcon, isMessageEvent } from "./event-line";
 import { AssigneeSelect } from "./pickers";
 
 type Scope = "all" | "changes" | "access";
@@ -255,7 +255,7 @@ function Entry({ entry, area }: { entry: TimelineEntry<ActivityEvent>; area: str
     entry.kind === "access"
       ? accessSentence(entry)
       : { actor: event.actor_name, title: event.title };
-  const isMessage = event.event_type === "comment" || event.event_type === "supplier_message";
+  const isMessage = isMessageEvent(event);
   return (
     <li className="flex gap-3 px-3 py-2.5">
       <time

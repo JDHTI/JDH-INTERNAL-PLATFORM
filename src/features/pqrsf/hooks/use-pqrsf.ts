@@ -143,12 +143,18 @@ export function useSummary(filters: CaseFilters, enabled = true) {
   });
 }
 
+/**
+ * The case and its timeline poll like the inbox: an answer by email shows up
+ * (the «Novedad» badge and the new entry) without reloading, while the tab is
+ * visible and when it comes back into focus.
+ */
 export function useCaseDetail(id: string) {
   return useQuery({
     queryKey: pqrsfKeys.detail(id),
     queryFn: () => getCase(id),
     // A 403 or 404 will not fix itself on a second try.
     retry: false,
+    ...INBOX_POLLING,
   });
 }
 
@@ -280,11 +286,14 @@ export function useMarkRead(id: string) {
     mutationFn: () => markRead(id),
     onSuccess: (updated) => {
       const current = queryClient.getQueryData<CaseDetail>(pqrsfKeys.detail(id));
-      // Only the assignee's first read changes the case; skip the refetch otherwise.
+      // Only the assignee's first read or clearing the «Novedad» mark changes
+      // the case; skip the refetch otherwise. A missing `news_at` (an API that
+      // does not send it) counts as none.
       if (
         current &&
         current.case.first_read_at === updated.first_read_at &&
-        current.case.status.id === updated.status.id
+        current.case.status.id === updated.status.id &&
+        (current.case.news_at ?? null) === (updated.news_at ?? null)
       )
         return;
       queryClient.setQueryData<CaseDetail>(pqrsfKeys.detail(id), (value) =>
@@ -512,6 +521,8 @@ export function useCaseFiles(caseId: string) {
     queryKey: [...pqrsfKeys.detail(caseId), "files"] as const,
     queryFn: () => listCaseFiles(caseId),
     staleTime: 30_000,
+    // The attachments of an email that just arrived come with its entry.
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
 }

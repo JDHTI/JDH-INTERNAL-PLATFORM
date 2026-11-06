@@ -20,7 +20,7 @@ import {
   useSupplierEmails,
 } from "../hooks/use-pqrsf";
 import { canPreview, Preview } from "./case-files";
-import { EventSentence, RailIcon, eventIcon } from "./event-line";
+import { EventSentence, RailIcon, eventIcon, isMessageEvent } from "./event-line";
 import { formatDateTime, formatRelativeTime, stripCid } from "../lib/format";
 import { accessSentence, groupAccess } from "../lib/timeline";
 import { downloadCaseFile } from "../services/pqrsf.service";
@@ -302,7 +302,7 @@ export default function CaseTimeline({
             }
             const { event } = entry;
             // Text people wrote reads as a message; a system note reads as a caption.
-            const isMessage = event.event_type === "comment" || event.event_type === "supplier_message";
+            const isMessage = isMessageEvent(event);
             return (
               <li key={event.id} className="relative pb-4 pl-6 last:pb-0">
                 <RailIcon icon={eventIcon(event)} className="absolute top-0 -left-3" />
@@ -331,6 +331,16 @@ export default function CaseTimeline({
                     pendingLabel={event.data.reply_to_client === true ? "Respuesta al cliente" : undefined}
                     onRetry={retry.mutate}
                     isRetrying={retry.isPending}
+                  />
+                )}
+                {/* What the client or a supplier sent brings its attachments, nothing to retry. */}
+                {event.event_type === "email_received" && (
+                  <EventExtras
+                    caseId={item.id}
+                    files={filesOf(event)}
+                    deliveries={[]}
+                    onRetry={retry.mutate}
+                    isRetrying={false}
                   />
                 )}
                 {event.event_type === "supplier_message" && (

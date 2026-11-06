@@ -9,6 +9,7 @@ import { formatRelativo } from "@/intranet/lib/date"
 import { cn } from "@/intranet/lib/utils"
 
 import { useMarcarLeida, useMarcarTodasLeidas, useNotificaciones } from "../hooks/use-notificaciones"
+import { FuenteIcono } from "./fuente-icono"
 
 /** Página "ver todas" — la campana del header sigue siendo la superficie principal. */
 export function NotificacionesView() {
@@ -59,7 +60,10 @@ export function NotificacionesView() {
                   )}
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm">{notificacion.titulo}</span>
+                  <span className="block text-sm">
+                    <FuenteIcono fuente={notificacion.fuente} />
+                    {notificacion.titulo}
+                  </span>
                   {notificacion.resumen ? (
                     <span className="block text-sm text-muted-foreground">{notificacion.resumen}</span>
                   ) : null}

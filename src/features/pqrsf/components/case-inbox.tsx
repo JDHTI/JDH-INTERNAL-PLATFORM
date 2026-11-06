@@ -345,7 +345,12 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
       </InboxHeading>
 
       <ViewBar
-        views={availableViews(isManager)}
+        // An API that does not send `with_news` has no such view to offer
+        // (unless the URL already points at it, so the bar still shows where you are).
+        views={availableViews(isManager).filter(
+          (item) =>
+            item !== "con-novedades" || item === view || typeof allSummary.data?.with_news === "number"
+        )}
         active={view}
         counts={(item) => viewCount(item, allSummary.data, mineSummary.data)}
         onSelect={(next) => update({ view: next })}
@@ -791,6 +796,10 @@ function Results({
     mios: {
       title: "No tienes casos abiertos asignados",
       body: "Cuando Calidad te asigne un caso aparece aquí. Los que registraste tú están en «Todos».",
+    },
+    "con-novedades": {
+      title: "No hay casos con novedades",
+      body: "Cuando un cliente o un proveedor responde por correo a un caso abierto, aparece aquí hasta que alguien lo abre.",
     },
     "sin-asignar": {
       title: "Todos los casos abiertos tienen responsable",

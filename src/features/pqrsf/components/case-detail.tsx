@@ -37,7 +37,7 @@ import type {
   SalesExecutive,
   TrackingCatalog,
 } from "../types/pqrsf.types";
-import { DueLabel } from "./case-badges";
+import { DueLabel, NewsBadge } from "./case-badges";
 import CaseClassification from "./case-classification";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
@@ -223,6 +223,7 @@ function CaseHeader({
                 setDialog("status");
               }}
             />
+            <NewsBadge newsAt={item.news_at} />
           </div>
           <p className="text-sm text-text-secondary">
             {item.request_type.name} · {originLabel(item.origin)} · Recibido el{" "}

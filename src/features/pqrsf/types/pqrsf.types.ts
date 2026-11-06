@@ -214,6 +214,12 @@ export interface PqrsfCase {
   requester_email: string | null;
   request_id: string | null;
   first_read_at: string | null;
+  /**
+   * When the client or a supplier last answered by email on an open case. A mark
+   * apart from the status and the due date; the API clears it when the assignee
+   * or a manager opens the case. Absent on an API that does not send it.
+   */
+  news_at?: string | null;
   closed_at: string | null;
   legacy: {
     responsable?: string;
@@ -320,6 +326,8 @@ export interface CaseEvent {
     | "status_changed"
     | "read"
     | "comment"
+    /** Text the client or a supplier wrote by email: read like a message. */
+    | "email_received"
     | "item_added"
     | "item_updated"
     | "item_removed"
@@ -464,6 +472,8 @@ export interface CaseSummary {
   overdue: number;
   due_today: number;
   unassigned: number;
+  /** Open cases with an unseen email answer. Absent on an API that does not send it. */
+  with_news?: number;
   by_status: CountBucket[];
   by_type: CountBucket[];
 }
@@ -489,6 +499,7 @@ export interface CaseFilters {
   open_only?: boolean;
   overdue?: boolean;
   due_today?: boolean;
+  with_news?: boolean;
   received_from?: string;
   received_to?: string;
   q?: string;
