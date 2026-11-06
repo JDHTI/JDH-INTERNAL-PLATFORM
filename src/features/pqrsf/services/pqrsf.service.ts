@@ -179,6 +179,11 @@ export function searchAssignees(q: string): Promise<Person[]> {
   return apiFetch<Person[]>("/pqrsf/assignees", { query: { q } });
 }
 
+/** Active people of the organization, to copy on an email. Anyone who sees PQRSF can ask. */
+export function searchPeople(q: string): Promise<Person[]> {
+  return apiFetch<Person[]>("/pqrsf/people", { query: { q, limit: 20 } });
+}
+
 // ── Inbox ──
 
 export function listCases(params: CaseListParams): Promise<CasePage> {
@@ -274,14 +279,21 @@ export function getLastSeen(): Promise<LastSeen[]> {
 
 /** Multipart only when files go along; a plain note stays JSON. */
 export function addComment(id: string, input: CommentInput): Promise<CommentResult> {
-  let body: FormData | { body: string; reply_to_client: boolean };
+  // The copies only travel with a reply to the client; a plain note emails nobody.
+  const cc = input.replyToClient ? (input.cc ?? []) : [];
+  let body: FormData | { body: string; reply_to_client: boolean; cc?: string[] };
   if (input.files.length > 0) {
     body = new FormData();
     body.append("body", input.body);
     body.append("reply_to_client", String(input.replyToClient));
+    for (const address of cc) body.append("cc", address);
     for (const file of input.files) body.append("files", file);
   } else {
-    body = { body: input.body, reply_to_client: input.replyToClient };
+    body = {
+      body: input.body,
+      reply_to_client: input.replyToClient,
+      ...(cc.length > 0 && { cc }),
+    };
   }
   return apiFetch<CommentResult>(`${casePath(id)}/comments`, { method: "POST", body });
 }
@@ -305,6 +317,7 @@ export function sendSupplierMessage(
   const body = new FormData();
   body.append("kind", input.kind);
   for (const address of input.to) body.append("to", address);
+  for (const address of input.cc ?? []) body.append("cc", address);
   body.append("body", input.body);
   if (input.supplierCode) body.append("supplier_code", input.supplierCode);
   if (input.supplierName) body.append("supplier_name", input.supplierName);

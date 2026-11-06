@@ -16,9 +16,11 @@ import { formatBytes } from "@/shared/lib/format";
 import { useSendSupplierMessage, useSupplierContacts } from "../hooks/use-pqrsf";
 import type {
   IntakeRequest,
+  Person,
   PqrsfCase,
   SupplierMessageKind,
 } from "../types/pqrsf.types";
+import CcPicker from "./cc-picker";
 
 const KINDS: { value: SupplierMessageKind; label: string }[] = [
   { value: "request", label: "Solicitud de información" },
@@ -83,6 +85,7 @@ export default function SupplierMessageDialog({
   const [otherName, setOtherName] = useState("");
   const [recipients, setRecipients] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
+  const [cc, setCc] = useState<Person[]>([]);
   const [body, setBody] = useState("");
   const [includeCaseData, setIncludeCaseData] = useState(true);
   const [includeEvidence, setIncludeEvidence] = useState(false);
@@ -134,6 +137,7 @@ export default function SupplierMessageDialog({
       {
         kind,
         to,
+        cc: cc.flatMap((person) => (person.email ? [person.email.toLowerCase()] : [])),
         body: body.trim(),
         supplierCode: supplier?.code ?? null,
         supplierName: supplier?.name ?? (otherName.trim() || null),
@@ -164,7 +168,7 @@ export default function SupplierMessageDialog({
       isForm
       onOpenChange={(open) => !open && !send.isPending && onClose()}
       title="Escribir al proveedor"
-      description="Sale desde pqrsf@jdh.com.co, un correo por destinatario, con el consecutivo en el asunto para que la respuesta vuelva a este caso. El cliente no lo ve."
+      description="Sale desde pqrsf@jdh.com.co, un correo por destinatario (con copia a quien elijas), con el consecutivo en el asunto para que la respuesta vuelva a este caso. El cliente no lo ve."
     >
       <form
         className="space-y-4"
@@ -286,6 +290,8 @@ export default function SupplierMessageDialog({
             </div>
           )}
         </div>
+
+        <CcPicker id={`${id}-cc`} value={cc} onChange={setCc} />
 
         <Field label="Mensaje" htmlFor={`${id}-body`}>
           <Textarea

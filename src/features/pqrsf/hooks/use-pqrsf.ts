@@ -45,6 +45,7 @@ import {
   getSupplierEmails,
   getSupplierContacts,
   searchAssignees,
+  searchPeople,
   updateCase,
   updateCause,
   updateDependency,
@@ -86,6 +87,7 @@ export const pqrsfKeys = {
   suggestions: (field: SuggestionField, q: string) =>
     [...pqrsfKeys.all, "suggestions", field, q] as const,
   assignees: (q: string) => [...pqrsfKeys.all, "assignees", q] as const,
+  people: (q: string) => [...pqrsfKeys.all, "people", q] as const,
   activities: () => [...pqrsfKeys.all, "activity"] as const,
   activity: (filters: ActivityFilters) => [...pqrsfKeys.activities(), filters] as const,
   lastSeen: () => [...pqrsfKeys.all, "last-seen"] as const,
@@ -199,6 +201,17 @@ export function useAssignees(q: string, enabled: boolean) {
   return useQuery({
     queryKey: pqrsfKeys.assignees(q),
     queryFn: () => searchAssignees(q),
+    enabled,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** People to copy on an email: open to whoever sees PQRSF, unlike the assignees. */
+export function usePeople(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: pqrsfKeys.people(q),
+    queryFn: () => searchPeople(q),
     enabled,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
