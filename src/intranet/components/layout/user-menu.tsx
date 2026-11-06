@@ -40,8 +40,8 @@ import { empleadoHref } from "@/intranet/modules/directorio"
  * Avatar en 32px (`sm`), no 36: más discreto en la barra de 68px y con aire
  * para el marco de globos el día del cumpleaños (`useMiCumpleanos`).
  *
- * "Mi espacio de trabajo" abre el hub `/workspace`, que lista las áreas de la
- * persona o explica a quién pedir acceso cuando no tiene ninguna.
+ * "Mi espacio de trabajo" abre la guía `/workspace`; las áreas se eligen en el
+ * selector de la barra lateral.
  */
 export function UserMenu() {
   const { user, isPending } = useCurrentUser()

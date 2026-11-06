@@ -6,9 +6,12 @@ respeta en tres capas y nunca inventa un permiso que el API no haya dado.
 ## 1. Entrada: `/workspace`
 
 «Mi espacio de trabajo», en el menú de la cuenta de la vista general, abre `/workspace`
-(`src/features/areas/components/workspace-hub.tsx`): una tarjeta por área que `GET /areas`
-devuelve, ya filtradas por el API. Se muestra siempre, aunque la persona tenga una sola área.
-Sin áreas, la pantalla dice a quién pedir acceso. El slug de cada área (`/bi`) sigue siendo el
+(`src/features/areas/components/workspace-guide.tsx`): una guía de qué es el espacio de trabajo y
+cómo se navega. Las áreas no se listan ahí: están en el selector de la barra lateral, que en esta
+página dice «Selecciona tu área» y abre las que `GET /areas` devuelve, ya filtradas por el API. El
+botón «Elegir mi área» de la guía abre ese mismo selector (`openAreaPicker` en `useUiStore`). Sin
+áreas, la guía dice a quién pedir acceso. «Guía del espacio de trabajo», en el pie de la barra, vuelve
+aquí desde cualquier área. El slug de cada área (`/bi`) sigue siendo el
 segmento de la URL, pero no se muestra en ningún panel: el admin escribe el nombre y la UI
 deriva el slug (`src/features/admin/lib/area-slug.ts`).
 

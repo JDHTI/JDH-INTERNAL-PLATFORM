@@ -27,6 +27,8 @@ interface UiState {
   setThemePreference: (preference: ThemePreference) => void;
   isSidebarCollapsed: boolean;
   isMobileMenuOpen: boolean;
+  /** The sidebar's area list; the workspace guide opens it too. */
+  isAreaPickerOpen: boolean;
 
   setTheme: (mode: ThemeMode) => void;
   toggleTheme: () => void;
@@ -40,6 +42,9 @@ interface UiState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setMobileMenuOpen: (open: boolean) => void;
+  setAreaPickerOpen: (open: boolean) => void;
+  /** Shows the area list from anywhere: expands the rail and, on a phone, opens the drawer. */
+  openAreaPicker: () => void;
 }
 
 /**
@@ -73,6 +78,7 @@ export const useUiStore = create<UiState>()((set, get) => ({
   themePreference: "system",
   isSidebarCollapsed: false,
   isMobileMenuOpen: false,
+  isAreaPickerOpen: false,
 
   setTheme: (mode) => {
     applyThemeToDom(mode);
@@ -114,4 +120,9 @@ export const useUiStore = create<UiState>()((set, get) => ({
   setSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
 
   setMobileMenuOpen: (open) => set({ isMobileMenuOpen: open }),
+
+  setAreaPickerOpen: (open) => set({ isAreaPickerOpen: open }),
+
+  openAreaPicker: () =>
+    set({ isAreaPickerOpen: true, isSidebarCollapsed: false, isMobileMenuOpen: true }),
 }));

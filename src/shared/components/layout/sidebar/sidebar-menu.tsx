@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LayoutGrid } from "lucide-react";
+import { ArrowUp, LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import { useSession } from "@/features/session/hooks/use-session";
@@ -19,21 +19,25 @@ import SidebarRow from "./sidebar-row";
 export default function SidebarMenu() {
   const pathname = usePathname();
   const { isSidebarCollapsed, setMobileMenuOpen } = useUiStore();
-  const { area: activeArea, isPending } = useActiveArea();
+  const { area: activeArea, areas, isPending } = useActiveArea();
   const { data: user } = useSession();
   const isAdmin = isPlatformAdmin(user?.role);
 
-  // No area in the URL (the hub): the content lists the areas, the rail stays quiet.
+  // No area in the URL (the guide): say where the modules will appear.
   if (!activeArea) {
     return (
       <div className="flex-1 space-y-2 px-3 py-2" aria-busy={isPending}>
-        {isPending &&
-          [0, 1, 2].map((row) => (
-            <div
-              key={row}
-              className="h-9 animate-pulse rounded-md bg-sidebar-subtle"
-            />
-          ))}
+        {isPending
+          ? [0, 1, 2].map((row) => (
+              <div key={row} className="h-9 animate-pulse rounded-md bg-sidebar-subtle" />
+            ))
+          : areas.length > 0 &&
+            !isSidebarCollapsed && (
+              <p className="flex gap-2 rounded-md border border-dashed border-sidebar-border px-2 py-3 text-[13px] leading-snug text-sidebar-muted">
+                <ArrowUp className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                Elige un área arriba y aquí aparecen sus módulos, agrupados por tipo de trabajo.
+              </p>
+            )}
       </div>
     );
   }

@@ -49,7 +49,7 @@ export function useArea(slug: string) {
 
 /**
  * Area in context for the shell: the one named by the URL's first segment.
- * On the hub (/workspace) there is none, and the shell says so instead of
+ * On the guide (/workspace) there is none, and the shell says so instead of
  * picking one on the person's behalf.
  */
 export function useActiveArea(): {

@@ -127,7 +127,7 @@ export default function AdminManager({ section }: { section: AdminSection }) {
   const catalogModules =
     catalogQuery.data?.areas.find((area) => area.slug === activeArea?.slug)?.modules ?? [];
 
-  // The admin's own menu and hub read ["areas"]: a role or member change shows there too.
+  // The admin's own menu and area selector read ["areas"]: a role or member change shows there too.
   const invalidateAdmin = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: adminKeys.all }),

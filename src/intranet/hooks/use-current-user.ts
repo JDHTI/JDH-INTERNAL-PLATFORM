@@ -2,6 +2,7 @@
 
 import { permissionsForRoles } from "@/intranet/config/permissions"
 import { useMyEmployee } from "@/features/directory/hooks/use-directory"
+import { employeePhotoUrl } from "@/features/directory/types/directory.types"
 import { useSession } from "@/features/session/hooks/use-session"
 
 function rolesFor(platformRole: string) {
@@ -26,7 +27,8 @@ export function useCurrentUser() {
         email: data.email,
         jobTitle: data.jobTitle,
         employeeId: employee.data?.id ?? null,
-        photoUrl: data.photoUrl,
+        // Same order as the workspace's SessionAvatar: directory photo, then the sign-in one.
+        photoUrl: (employee.data && employeePhotoUrl(employee.data, 96)) ?? data.photoUrl,
         platformRole: data.role,
       }
     : null
