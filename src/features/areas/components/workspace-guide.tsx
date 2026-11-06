@@ -21,7 +21,6 @@ import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { MODULE_CATEGORIES } from "@/shared/config/areas.config";
 import { ACCESS_DENIED_PARAM, WORKSPACE_PATH } from "@/shared/config/general.config";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
-import { useUiStore } from "@/shared/store/use-ui-store";
 
 import { useAreas } from "../hooks/use-areas";
 import SessionRequired from "./session-required";
@@ -64,7 +63,7 @@ const NAVIGATION: { title: string; body: string }[] = [
   },
   {
     title: "Pie de la barra",
-    body: "Vuelve a esta guía o a la vista general de la intranet, cambia entre tema claro y oscuro, y cierra la sesión.",
+    body: "Vuelve a la intranet, cambia entre tema claro y oscuro, y cierra la sesión.",
   },
 ];
 
@@ -84,7 +83,7 @@ export default function WorkspaceGuide() {
   }
 
   return (
-    <div className="max-w-4xl space-y-10">
+    <div className="space-y-10">
       <PageHeader
         title="Espacio de trabajo"
         description="La plataforma corporativa donde cada área de JDH trabaja con los datos de la empresa en un solo lugar."
@@ -104,13 +103,13 @@ export default function WorkspaceGuide() {
           <h2 id="guide-what" className="text-lg font-semibold">
             Qué es
           </h2>
-          <p className="max-w-prose text-sm text-text-secondary">
+          <p className="text-sm text-text-secondary">
             Reúne el trabajo diario de las áreas que hoy está repartido entre sistemas y archivos.
             Cada área tiene sus módulos, como proyectos, cotizaciones, apoyos, PQRSF o gestión
             documental, y cada persona ve lo que su rol le permite.
           </p>
         </div>
-        <ul className="grid gap-x-8 gap-y-6 border-t border-border pt-6 md:grid-cols-2">
+        <ul className="grid gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-2 xl:grid-cols-4">
           {PILLARS.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex gap-3">
               <Icon className="mt-0.5 size-5 shrink-0 text-text-secondary" aria-hidden="true" />
@@ -128,14 +127,14 @@ export default function WorkspaceGuide() {
           <h2 id="guide-nav" className="text-lg font-semibold">
             Cómo se navega
           </h2>
-          <p className="max-w-prose text-sm text-text-secondary">
+          <p className="text-sm text-text-secondary">
             La barra lateral es la misma en todas las áreas. En el teléfono se abre con el botón de
             menú, arriba a la izquierda.
           </p>
         </div>
-        <ol className="divide-y divide-border border-y border-border">
+        <ol className="grid gap-x-8 sm:grid-cols-2 xl:grid-cols-4">
           {NAVIGATION.map(({ title, body }, index) => (
-            <li key={title} className="flex gap-4 py-4">
+            <li key={title} className="flex gap-4 border-t border-border py-4">
               <span
                 className="tabular flex size-6 shrink-0 items-center justify-center rounded-full bg-canvas-subtle text-xs font-semibold"
                 aria-hidden="true"
@@ -144,7 +143,7 @@ export default function WorkspaceGuide() {
               </span>
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold">{title}</h3>
-                <p className="max-w-prose text-sm text-text-secondary">{body}</p>
+                <p className="text-sm text-text-secondary">{body}</p>
               </div>
             </li>
           ))}
@@ -154,11 +153,10 @@ export default function WorkspaceGuide() {
   );
 }
 
-/** The one action on the page: pick an area in the sidebar, or why there is none. */
+/** Where to start: the sidebar's selector, or why there is no area to pick. */
 function StartPanel() {
   const { data: areas, error, isPending, refetch, isRefetching } = useAreas();
   const { data: user } = useSession();
-  const openAreaPicker = useUiStore((state) => state.openAreaPicker);
 
   if (isPending) {
     return <div className="h-28 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando tus áreas" />;
@@ -188,12 +186,12 @@ function StartPanel() {
         title="Aún no participas en ninguna área"
         action={
           <Link href="/" className={buttonVariants({ variant: "outline" })}>
-            Volver a la vista general
+            Volver a la intranet
           </Link>
         }
       >
-        El responsable de un área o un administrador de la plataforma puede agregarte. La vista
-        general sigue disponible mientras tanto.
+        El responsable de un área o un administrador de la plataforma puede agregarte. La intranet
+        sigue disponible mientras tanto.
       </StatePanel>
     );
   }
@@ -207,16 +205,11 @@ function StartPanel() {
         : `Participas en ${areas.length} áreas.`;
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
-      <div className="space-y-1">
-        <h2 className="text-base font-semibold">Empieza por tu área</h2>
-        <p className="max-w-prose text-sm text-text-secondary">
-          {scope} Entra desde «Selecciona tu área», arriba en la barra lateral.
-        </p>
-      </div>
-      <Button className="shrink-0" onClick={openAreaPicker}>
-        Elegir mi área
-      </Button>
+    <div className="space-y-1 rounded-lg border border-border bg-surface p-4 md:p-5">
+      <h2 className="text-base font-semibold">Empieza por tu área</h2>
+      <p className="text-sm text-text-secondary">
+        {scope} Entra desde «Selecciona tu área», arriba en la barra lateral.
+      </p>
     </div>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { BookOpen, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
-import { HOME_LINK, WORKSPACE_PATH } from "@/shared/config/general.config";
+import { HOME_LINK } from "@/shared/config/general.config";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
@@ -13,23 +12,13 @@ export default function SidebarFooter() {
   const { theme, setTheme, isSidebarCollapsed, setMobileMenuOpen } =
     useUiStore();
   const isDark = theme === "dark";
-  const pathname = usePathname();
 
   return (
     <div className="mt-auto shrink-0 space-y-2 border-t border-sidebar-border p-3">
-      <SidebarRow
-        href={WORKSPACE_PATH}
-        label="Guía del espacio de trabajo"
-        icon={BookOpen}
-        isActive={pathname === WORKSPACE_PATH}
-        isCollapsed={isSidebarCollapsed}
-        onNavigate={() => setMobileMenuOpen(false)}
-        labelClassName="font-light"
-      />
-      {/* The way out of the workspace, back to the general view. */}
+      {/* The way out of the workspace, back to the intranet. */}
       <SidebarRow
         href={HOME_LINK.path}
-        label="Vista general"
+        label="Volver a la intranet"
         icon={HOME_LINK.icon}
         isActive={false}
         isCollapsed={isSidebarCollapsed}
