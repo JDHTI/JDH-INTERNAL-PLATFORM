@@ -180,6 +180,8 @@ export interface CommentInput {
   body: string;
   files: File[];
   replyToClient: boolean;
+  /** Colleagues copied on the reply; only sent with `replyToClient`. */
+  cc?: string[];
 }
 
 /** The comment event plus what the API did with its files and email. */
@@ -299,6 +301,8 @@ export interface SupplierMessageInput {
   includeCaseData: boolean;
   includeEvidence: boolean;
   files: File[];
+  /** Colleagues copied on every email of the message. */
+  cc?: string[];
 }
 
 export interface SupplierMessageResult extends CaseEvent {
