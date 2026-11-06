@@ -31,10 +31,13 @@ export function DatePicker({
   placeholder = "Sin fecha",
   clearable = false,
   disabled,
+  className,
   "aria-invalid": invalid,
   "aria-describedby": describedBy,
 }: {
   id?: string;
+  /** Extra classes for the trigger, e.g. a taller touch target on a public form. */
+  className?: string;
   value: string;
   onChange: (next: string) => void;
   /** First selectable day, "YYYY-MM-DD". */
@@ -81,7 +84,8 @@ export function DatePicker({
           "transition-colors duration-150 outline-none hover:bg-canvas-subtle data-[popup-open]:bg-canvas-subtle",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-          "aria-invalid:border-danger"
+          "aria-invalid:border-danger",
+          className
         )}
       >
         <CalendarDays className="size-4 shrink-0 text-text-secondary" aria-hidden="true" />

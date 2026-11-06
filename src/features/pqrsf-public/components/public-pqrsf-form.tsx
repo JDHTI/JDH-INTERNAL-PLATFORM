@@ -1230,6 +1230,9 @@ function SuccessState({
           <dt className="font-medium">Fecha de recepción</dt>
           <dd className="text-text-secondary">{formatCreatedAt(receipt.created_at)}</dd>
         </dl>
+        {receipt.tracking_code && (
+          <p className="max-w-prose text-sm text-text-secondary">Te enviamos el radicado a tu correo.</p>
+        )}
         <Button type="button" variant="outline" onClick={onNewRequest} className="min-h-11 sm:min-h-10">
           Presentar otra solicitud
         </Button>

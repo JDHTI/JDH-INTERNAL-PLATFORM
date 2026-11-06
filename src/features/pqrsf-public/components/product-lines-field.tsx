@@ -7,6 +7,7 @@ import { Check, Plus } from "lucide-react";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Input } from "@/shared/components/ui/input";
 
 import { searchPqrsfProducts } from "../services/pqrsf-public.service";
@@ -167,17 +168,15 @@ export default function ProductLinesField({
           error={deliveryDateError}
           className="sm:max-w-xs"
         >
-          <Input
+          <DatePicker
             id="pqrsf-delivery-date"
-            name="delivery_date"
-            type="date"
-            aria-required="true"
             max={maxDeliveryDate}
             value={deliveryDate}
+            placeholder="Elige la fecha"
             aria-invalid={Boolean(deliveryDateError)}
             aria-describedby={describedBy("pqrsf-delivery-date", true, Boolean(deliveryDateError))}
-            onChange={(event) => onDeliveryDateChange(event.target.value)}
-            className={cn("min-h-11 sm:min-h-9", deliveryDateError && "border-danger")}
+            onChange={onDeliveryDateChange}
+            className="h-11 sm:h-9"
           />
         </FormField>
       )}
@@ -329,14 +328,15 @@ function ProductLineRow({
         </FormField>
 
         <FormField id={`${prefix}-expiry`} label="Fecha de vencimiento" error={errors.expiry_date}>
-          <Input
+          <DatePicker
             id={`${prefix}-expiry`}
-            type="date"
             value={line.expiry_date}
+            placeholder="Elige la fecha"
+            clearable
             aria-invalid={Boolean(errors.expiry_date)}
             aria-describedby={describedBy(`${prefix}-expiry`, false, Boolean(errors.expiry_date))}
-            onChange={(event) => onChange({ expiry_date: event.target.value })}
-            className={cn("min-h-11 sm:min-h-9", errors.expiry_date && "border-danger")}
+            onChange={(expiry_date) => onChange({ expiry_date })}
+            className="h-11 sm:h-9"
           />
         </FormField>
 
