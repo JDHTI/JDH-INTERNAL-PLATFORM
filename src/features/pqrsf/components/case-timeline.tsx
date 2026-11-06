@@ -27,8 +27,10 @@ import { downloadCaseFile } from "../services/pqrsf.service";
 import type {
   CaseEvent,
   CaseFile,
+  Person,
   PqrsfCase,
 } from "../types/pqrsf.types";
+import CcPicker from "./cc-picker";
 
 const MAX_FILES = 10;
 const MB = 1024 * 1024;
@@ -37,6 +39,20 @@ const ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.png,.jpg,.jpeg,
 function commentFileIds(event: CaseEvent): string[] {
   const ids = event.data.file_ids;
   return Array.isArray(ids) ? ids.filter((value): value is string => typeof value === "string") : [];
+}
+
+/** The addresses copied on an email, from the list the API keeps in the entry. */
+function copiedTo(list: unknown): string[] {
+  return Array.isArray(list)
+    ? list.filter((value): value is string => typeof value === "string" && value !== "")
+    : [];
+}
+
+/** The reply to the client keeps its copies inside `client_reply`; a supplier message at the top. */
+function eventCc(event: CaseEvent): string[] {
+  if (event.event_type === "supplier_message") return copiedTo(event.data.cc);
+  const reply = event.data.client_reply;
+  return reply && typeof reply === "object" ? copiedTo((reply as { cc?: unknown }).cc) : [];
 }
 
 type DeliveryStatus = "pending" | "sent" | "failed";
@@ -63,6 +79,7 @@ function EventExtras({
   caseId,
   files,
   deliveries,
+  cc = [],
   pendingLabel,
   onRetry,
   isRetrying,
@@ -70,13 +87,15 @@ function EventExtras({
   caseId: string;
   files: CaseFile[];
   deliveries: Delivery[];
+  /** People copied on the email; shown under the recipients. */
+  cc?: string[];
   /** Shown while the email list has not loaded yet («Respuesta al cliente»). */
   pendingLabel?: string;
   onRetry: (notificationId: string) => void;
   isRetrying: boolean;
 }) {
   const [previewing, setPreviewing] = useState<CaseFile | null>(null);
-  if (files.length === 0 && deliveries.length === 0 && !pendingLabel) return null;
+  if (files.length === 0 && deliveries.length === 0 && cc.length === 0 && !pendingLabel) return null;
 
   const download = (file: CaseFile) =>
     downloadCaseFile(caseId, file.id, file.filename).catch((error) =>
@@ -115,6 +134,9 @@ function EventExtras({
       )}
       {deliveries.length === 0 && pendingLabel && (
         <p className="text-[13px] text-text-secondary">{pendingLabel}</p>
+      )}
+      {cc.length > 0 && (
+        <p className="text-[13px] break-words text-text-secondary">CC: {cc.join(", ")}</p>
       )}
       {deliveries.length > 0 && (
         <ul className="space-y-0.5">
@@ -185,6 +207,7 @@ export default function CaseTimeline({
   const [files, setFiles] = useState<File[]>([]);
   const [confirmingReply, setConfirmingReply] = useState(false);
   const [replyAck, setReplyAck] = useState(false);
+  const [cc, setCc] = useState<Person[]>([]);
 
   // The API enforces these; the form only avoids offering what it will refuse.
   const replyBlocked = !item.permissions.can_work
@@ -223,11 +246,17 @@ export default function CaseTimeline({
     if (!body.trim() || sizeProblem) return;
     if (replyToClient && (!canReply || replySizeProblem)) return;
     comment.mutate(
-      { body: body.trim(), files, replyToClient },
+      {
+        body: body.trim(),
+        files,
+        replyToClient,
+        cc: cc.flatMap((person) => (person.email ? [person.email.toLowerCase()] : [])),
+      },
       {
         onSuccess: (result) => {
           setBody("");
           setFiles([]);
+          setCc([]);
           closeReply();
           if (result.rejected_files?.length) {
             toast.warning(
@@ -298,6 +327,7 @@ export default function CaseTimeline({
                     caseId={item.id}
                     files={filesOf(event)}
                     deliveries={(replies.data ?? []).filter((reply) => reply.event_id === event.id)}
+                    cc={eventCc(event)}
                     pendingLabel={event.data.reply_to_client === true ? "Respuesta al cliente" : undefined}
                     onRetry={retry.mutate}
                     isRetrying={retry.isPending}
@@ -308,6 +338,7 @@ export default function CaseTimeline({
                     caseId={item.id}
                     files={filesOf(event)}
                     deliveries={(supplierEmails.data ?? []).filter((email) => email.event_id === event.id)}
+                    cc={eventCc(event)}
                     onRetry={retrySupplier.mutate}
                     isRetrying={retrySupplier.isPending}
                   />
@@ -462,11 +493,20 @@ export default function CaseTimeline({
             <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[6rem_minmax(0,1fr)]">
               <dt className="text-text-secondary">Para</dt>
               <dd className="min-w-0 font-medium break-words">{item.requester_email}</dd>
+              {cc.length > 0 && (
+                <>
+                  <dt className="text-text-secondary">CC</dt>
+                  <dd className="min-w-0 break-words">
+                    {cc.map((person) => person.email).join(", ")}
+                  </dd>
+                </>
+              )}
               <dt className="text-text-secondary">Desde</dt>
               <dd>pqrsf@jdh.com.co</dd>
               <dt className="text-text-secondary">Caso</dt>
               <dd className="font-mono">{item.code}</dd>
             </dl>
+            <CcPicker id={`${id}-cc`} value={cc} onChange={setCc} />
             <div className="space-y-1">
               <p className="text-[13px] font-medium">Mensaje</p>
               <p className="max-h-48 overflow-y-auto rounded-md bg-canvas-subtle px-3 py-2 whitespace-pre-wrap">
