@@ -52,11 +52,12 @@ export async function listOrders({
   status,
   thresholdPreview,
   q,
+  operationCenter,
   page,
   size,
 }: OrderParams): Promise<OrderPage> {
   return apiFetch<OrderPage>(`${BASE}/${encodeURIComponent(batchId)}/orders`, {
-    query: { status, margin_threshold_points: thresholdPreview, q, page, size },
+    query: { status, margin_threshold_points: thresholdPreview, q, operation_center: operationCenter, page, size },
   });
 }
 

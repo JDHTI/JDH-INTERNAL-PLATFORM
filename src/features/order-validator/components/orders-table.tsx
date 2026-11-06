@@ -164,7 +164,7 @@ function OrderMeta({ order }: { order: ValidationOrder }) {
     formatOrderDate(order.order_date),
     order.salesperson,
     order.channel,
-    order.operation_center ? `Centro ${order.operation_center}` : null,
+    order.operation_center ? `C.O. ${order.operation_center}` : null,
     order.status_text,
   ].filter(Boolean);
   return <p className="px-4 py-1.5 text-xs text-text-secondary">{parts.join(" · ")}</p>;
