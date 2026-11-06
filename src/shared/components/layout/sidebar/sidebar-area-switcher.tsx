@@ -69,8 +69,8 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
 
     // With more areas than fit, open scrolled to the current one.
     listRef.current?.querySelector("[aria-current]")?.scrollIntoView({ block: "nearest" });
-    // Opened from the guide's button: focus follows into the list. One frame
-    // later, because the phone drawer is still `invisible` on the first one.
+    // Opened from the collapsed rail, whose button is gone now: focus follows
+    // into the list. One frame later, because a drawer is `invisible` on the first one.
     const focusFrame = containerRef.current?.contains(document.activeElement)
       ? undefined
       : requestAnimationFrame(() =>

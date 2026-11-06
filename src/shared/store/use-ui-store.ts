@@ -27,7 +27,7 @@ interface UiState {
   setThemePreference: (preference: ThemePreference) => void;
   isSidebarCollapsed: boolean;
   isMobileMenuOpen: boolean;
-  /** The sidebar's area list; the workspace guide opens it too. */
+  /** The sidebar's area list. */
   isAreaPickerOpen: boolean;
 
   setTheme: (mode: ThemeMode) => void;
@@ -43,7 +43,7 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setMobileMenuOpen: (open: boolean) => void;
   setAreaPickerOpen: (open: boolean) => void;
-  /** Shows the area list from anywhere: expands the rail and, on a phone, opens the drawer. */
+  /** Shows the area list: expands the rail and, on a phone, opens the drawer. */
   openAreaPicker: () => void;
 }
 
