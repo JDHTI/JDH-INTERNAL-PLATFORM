@@ -57,7 +57,7 @@ export interface PqrsfProductLine {
   invoice_number: string;
   product: PqrsfProductOption | null;
   lot: string;
-  /** AAAA-MM-DD, as the date input gives it. */
+  /** AAAA-MM-DD, as the date picker gives it. */
   expiry_date: string;
   affected_quantity: string;
 }
