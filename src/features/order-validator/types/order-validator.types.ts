@@ -1,6 +1,7 @@
 import type { Decimal } from "@/shared/lib/format";
 
-export type ValidationStatus = "listo_para_liberar" | "pendiente_validacion";
+/** A line is ready or pending; an order can also be `liberado`, once a person marks it. */
+export type ValidationStatus = "listo_para_liberar" | "pendiente_validacion" | "liberado";
 
 export type CheckOutcome = "cumple" | "no_cumple" | "no_evaluable";
 
@@ -65,6 +66,8 @@ export interface ValidationBatch {
   pending_line_count: number;
   ready_order_count: number;
   pending_order_count: number;
+  /** Orders a person marked as released; counted in neither ready nor pending. Older API builds send none. */
+  released_order_count?: number;
   /**
    * Points added to each order's margin before it is compared with its target:
    * an order at 19.5% against 20% with a threshold of 0.50 is released. It acts
@@ -202,7 +205,7 @@ export interface OrderPage {
   page: number;
   size: number;
   /** Orders per status for the current search, before the status filter is applied. */
-  counts: Record<ValidationStatus, number>;
+  counts: Partial<Record<ValidationStatus, number>>;
   /** Every operation center (C.O. factura) of the file, by code, whatever the filters. Older API builds send none. */
   operation_centers?: OperationCenterCount[];
 }

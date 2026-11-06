@@ -37,7 +37,7 @@ const PAGE_SIZE = 25;
 const ALL = "";
 const numberFormat = new Intl.NumberFormat("es-CO");
 
-const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion"];
+const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion", "liberado"];
 
 /** One uploaded file: its totals, the filters, and every order with its lines. */
 export default function BatchView({ batchId, basePath }: { batchId: string; basePath: string }) {
@@ -85,12 +85,12 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     })),
   ];
 
-  // Only pending orders can be ticked, and not one with a 100 % margin product:
-  // the API refuses to approve it. The selection is read back from the rows on
-  // screen, so an order that stopped being pending drops out of it.
-  const pendingOrders = rows.filter((order) => order.status === "pendiente_validacion");
-  const selectedDocuments = pendingOrders.filter((order) => selected.has(order.document)).map((order) => order.document);
-  const allSelected = pendingOrders.length > 0 && selectedDocuments.length === pendingOrders.length;
+  // Every order not yet released can be ticked, pending or ready, and is marked
+  // as released. The selection is read back from the rows on screen, so an order
+  // released meanwhile drops out of it.
+  const selectableOrders = rows.filter((order) => order.status !== "liberado");
+  const selectedDocuments = selectableOrders.filter((order) => selected.has(order.document)).map((order) => order.document);
+  const allSelected = selectableOrders.length > 0 && selectedDocuments.length === selectableOrders.length;
 
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
@@ -118,7 +118,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     });
 
   const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(pendingOrders.map((order) => order.document)));
+    setSelected(allSelected ? new Set() : new Set(selectableOrders.map((order) => order.document)));
 
   const chooseStatus = (next: ValidationStatus | typeof ALL) => reset(() => setStatus(next));
 
@@ -161,7 +161,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   }
 
   const counts = result?.counts;
-  const total = counts ? counts.listo_para_liberar + counts.pendiente_validacion : null;
+  const total = counts ? Object.values(counts).reduce((sum, value) => sum + (value ?? 0), 0) : null;
 
   return (
     <div className="space-y-4">
@@ -189,6 +189,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
           title="Pedidos"
           ready={batch.data.ready_order_count}
           pending={batch.data.pending_order_count}
+          released={batch.data.released_order_count ?? 0}
           total={batch.data.order_count}
           statusLabel={statusLabel}
         />
@@ -217,8 +218,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             className="pl-9"
           />
         </div>
-        {/* One C.O. alone has nothing to choose between. */}
-        {(centers.length > 1 || operationCenter !== ALL) && (
+        {/* Shown whenever the file carries a C.O.: with a single one it still says which. */}
+        {(centers.length > 0 || operationCenter !== ALL) && (
           <Dropdown
             aria-label="Filtrar por C.O. factura"
             options={centerOptions}
@@ -241,7 +242,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         )}
       </div>
 
-      {/* Sticky so "Aprobar pedidos" stays in reach while the rows are ticked down the page. */}
+      {/* Sticky so "Marcar como liberados" stays in reach while the rows are ticked down the page. */}
       <div className="sticky top-0 z-20 flex min-h-12 flex-wrap items-center justify-between gap-2 bg-canvas py-2">
         <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
           <StatusChip active={status === ALL} onClick={() => chooseStatus(ALL)} count={total}>
@@ -262,7 +263,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
                 <span className="text-sm tabular-nums text-text-secondary">
                   {selectedDocuments.length === 1 ? "1 pedido seleccionado" : `${selectedDocuments.length} pedidos seleccionados`}
                 </span>
-                {/* Selecting every pending order of the page also offers to open or close all of them. */}
+                {/* Selecting every order of the page also offers to open or close all of them. */}
                 {allSelected && (
                   <>
                     <Button variant="outline" onClick={expandAll}>
@@ -274,7 +275,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
                   </>
                 )}
                 <Button onClick={() => setAction({ kind: "approve", documents: selectedDocuments })}>
-                  <UserCheck aria-hidden="true" /> Aprobar pedidos
+                  <UserCheck aria-hidden="true" /> Marcar como liberados
                 </Button>
               </>
             )}
@@ -319,7 +320,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             selected={selected}
             allSelected={allSelected}
             someSelected={selectedDocuments.length > 0}
-            hasPending={pendingOrders.length > 0}
+            hasSelectable={selectableOrders.length > 0}
             onToggle={toggle}
             onSelect={toggleSelected}
             onSelectAll={toggleAll}
@@ -395,12 +396,15 @@ function Totals({
   title,
   ready,
   pending,
+  released,
   total,
   statusLabel,
 }: {
   title: string;
   ready: number;
   pending: number;
+  /** Only orders are released by a person; lines are not. */
+  released?: number;
   total: number;
   statusLabel: (status: ValidationStatus) => string;
 }) {
@@ -409,9 +413,10 @@ function Totals({
       <dt className="text-sm font-semibold">
         {title} <span className="font-normal tabular-nums text-text-secondary">({numberFormat.format(total)} en el archivo)</span>
       </dt>
-      <dd className="mt-2 grid gap-3 sm:grid-cols-2 sm:gap-4">
+      <dd className={cn("mt-2 grid gap-3 sm:grid-cols-2 sm:gap-4", released !== undefined && "2xl:grid-cols-3")}>
         <Amount status="listo_para_liberar" value={ready} label={statusLabel("listo_para_liberar")} />
         <Amount status="pendiente_validacion" value={pending} label={statusLabel("pendiente_validacion")} />
+        {released !== undefined && <Amount status="liberado" value={released} label={statusLabel("liberado")} />}
       </dd>
     </div>
   );

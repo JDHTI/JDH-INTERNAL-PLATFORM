@@ -15,7 +15,6 @@ import OrderLinesTable from "./order-lines-table";
 import SelectBox from "./select-box";
 import {
   AlertBadge,
-  ManualApprovalBadge,
   MarginReleaseBadge,
   StatusBadge,
   ThresholdReleaseIcon,
@@ -33,7 +32,8 @@ interface OrdersViewProps {
   onOpenSupport: (supportId: string) => void;
 }
 
-const isPending = (order: ValidationOrder) => order.status === "pendiente_validacion";
+/** Pending and ready orders can be marked as released; a released one only from its detail. */
+const isSelectable = (order: ValidationOrder) => order.status !== "liberado";
 
 /**
  * The status of an order and how it was released, the same in the table and on
@@ -44,7 +44,6 @@ function OrderBadges({ order, compact = false }: { order: ValidationOrder; compa
   return (
     <>
       <StatusBadge status={order.status} label={order.status_label} />
-      {order.manual_approval && <ManualApprovalBadge compact={compact} />}
       {/* "Por margen" stays; an order the threshold tipped over gets a small icon after it. */}
       {order.release_basis === "margen" && <MarginReleaseBadge compact={compact} />}
       {order.release_basis === "tolerancia" && <ToleranceReleaseBadge compact={compact} />}
@@ -62,7 +61,7 @@ function SelectSlot({
   checked: boolean;
   onSelect: () => void;
 }) {
-  if (!isPending(order)) return null;
+  if (!isSelectable(order)) return null;
   return <SelectBox checked={checked} onChange={onSelect} label={`Seleccionar el pedido ${order.document}`} />;
 }
 
@@ -178,13 +177,13 @@ export function OrdersTable({
   selected,
   allSelected,
   someSelected,
-  hasPending,
+  hasSelectable,
   onToggle,
   onSelect,
   onSelectAll,
   onRevoke,
   onOpenSupport,
-}: OrdersViewProps & { allSelected: boolean; someSelected: boolean; hasPending: boolean; onSelectAll: () => void }) {
+}: OrdersViewProps & { allSelected: boolean; someSelected: boolean; hasSelectable: boolean; onSelectAll: () => void }) {
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
       <table className="w-full min-w-[56rem] text-left text-[13px]">
@@ -196,9 +195,9 @@ export function OrdersTable({
                 <SelectBox
                   checked={allSelected}
                   indeterminate={someSelected && !allSelected}
-                  disabled={!hasPending}
+                  disabled={!hasSelectable}
                   onChange={onSelectAll}
-                  label="Seleccionar todos los pedidos pendientes de esta página"
+                  label="Seleccionar todos los pedidos sin liberar de esta página"
                 />
               </th>
             )}
