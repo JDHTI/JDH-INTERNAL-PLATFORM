@@ -25,7 +25,7 @@ import { cn } from "@/shared/lib/utils";
 import { useAssignCase } from "../hooks/use-pqrsf";
 import { formatDate, legacyAssignee, originLabel, personName } from "../lib/format";
 import type { CaseSort, Person, PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
-import { DueLabel, StatusBadge } from "./case-badges";
+import { DueLabel, NewsBadge, StatusBadge } from "./case-badges";
 import { AssignDialog, AttachmentsDialog, StatusDialog } from "./case-dialogs";
 import { AssigneePicker } from "./pickers";
 import { StatusMenu } from "./status-menu";
@@ -202,12 +202,17 @@ export default function CasesTable({
                 <td className="px-3 py-1 text-right">
                   <DueLabel item={item} layout="row" />
                 </td>
-                <td className="px-1.5 py-1" onClick={(event) => event.stopPropagation()}>
-                  <StatusMenu
-                    item={item}
-                    catalog={catalog}
-                    onNeedsDialog={(statusId) => setDialog({ kind: "status", item, statusId })}
-                  />
+                <td className="px-1.5 py-1">
+                  <div className="flex items-center gap-1.5">
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <StatusMenu
+                        item={item}
+                        catalog={catalog}
+                        onNeedsDialog={(statusId) => setDialog({ kind: "status", item, statusId })}
+                      />
+                    </span>
+                    <NewsBadge newsAt={item.news_at} />
+                  </div>
                 </td>
                 <td className="px-2 py-1 text-right" onClick={(event) => event.stopPropagation()}>
                   <RowActions
@@ -236,6 +241,11 @@ export default function CasesTable({
               <span className="block truncate font-medium">
                 {item.customer_name ?? "Sin cliente"}
               </span>
+              {item.news_at && (
+                <span className="block">
+                  <NewsBadge newsAt={item.news_at} />
+                </span>
+              )}
               <span className="block text-[13px]">
                 <DueLabel item={item} layout="inline" />
               </span>

@@ -13,6 +13,7 @@ import {
 import { ScrollArea } from "@/intranet/components/ui/scroll-area"
 import { formatRelativo } from "@/intranet/lib/date"
 import { cn } from "@/intranet/lib/utils"
+import { FuenteIcono } from "@/intranet/modules/notificaciones/components/fuente-icono"
 import {
   useMarcarLeida,
   useMarcarTodasLeidas,
@@ -94,7 +95,16 @@ export function NotificationsPopover() {
                       )}
                     />
                     <span className="min-w-0">
-                      <span className="block text-sm">{notification.titulo}</span>
+                      <span className="block text-sm">
+                        <FuenteIcono fuente={notification.fuente} />
+                        {notification.titulo}
+                      </span>
+                      {/* Quién escribió: sin esto el aviso de un caso no dice nada más que el radicado. */}
+                      {notification.fuente === "PQRSF" && notification.resumen ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {notification.resumen}
+                        </span>
+                      ) : null}
                       <span className="block text-xs text-muted-foreground">
                         {formatRelativo(notification.creadaEn)}
                       </span>

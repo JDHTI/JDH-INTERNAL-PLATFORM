@@ -54,6 +54,16 @@ export function formatRelativeTime(iso: string, now = Date.now()): string {
   return formatDateTime(iso);
 }
 
+/** "hace 5 min", "hace 2 h", "hace 3 d": the short form a badge has room for. */
+export function formatRelativeShort(iso: string, now = Date.now()): string {
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return "ahora";
+  if (seconds < 3600) return `hace ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86_400) return `hace ${Math.floor(seconds / 3600)} h`;
+  if (seconds < 30 * 86_400) return `hace ${Math.floor(seconds / 86_400)} d`;
+  return formatDateTime(iso);
+}
+
 function calendarDaysBetween(from: string, to: string): number {
   return Math.round((parseIsoDate(to).getTime() - parseIsoDate(from).getTime()) / 86_400_000);
 }

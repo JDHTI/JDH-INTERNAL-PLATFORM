@@ -57,6 +57,7 @@ function filterQuery(filters: CaseFilters): Query {
     open_only: filters.open_only,
     overdue: filters.overdue,
     due_today: filters.due_today,
+    with_news: filters.with_news,
     received_from: filters.received_from,
     received_to: filters.received_to,
     q: filters.q,

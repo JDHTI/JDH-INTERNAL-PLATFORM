@@ -1,13 +1,47 @@
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle, Clock, MailPlus } from "lucide-react";
 
 import { Badge } from "@/shared/components/ui/badge";
 import { cn } from "@/shared/lib/utils";
 
-import { dueInfo, statusTone } from "../lib/format";
+import { useMinuteClock } from "../hooks/use-minute-clock";
+import { dueInfo, formatDateTime, formatRelativeShort, statusTone } from "../lib/format";
 import type { CaseStatus, PqrsfCase } from "../types/pqrsf.types";
 
 export function StatusBadge({ status }: { status: Pick<CaseStatus, "code" | "name"> }) {
   return <Badge tone={statusTone(status.code)}>{status.name}</Badge>;
+}
+
+/**
+ * The client or a supplier answered by email and nobody has opened the case
+ * since. It is outlined, not tinted: the status, the due date and the overdue
+ * mark already own the colors, and this one says «look here» without taking a
+ * hue from them. The word, the icon and the time carry it; there is no color
+ * to miss. Renders nothing when the API sends no `news_at`.
+ */
+export function NewsBadge({
+  newsAt,
+  className,
+}: {
+  newsAt: string | null | undefined;
+  className?: string;
+}) {
+  return newsAt ? <NewsBadgeLabel newsAt={newsAt} className={className} /> : null;
+}
+
+// Apart from NewsBadge so that only rows with news listen to the clock.
+function NewsBadgeLabel({ newsAt, className }: { newsAt: string; className?: string }) {
+  const now = useMinuteClock();
+  return (
+    <Badge
+      tone="neutral"
+      className={cn("border border-border-control bg-surface", className)}
+      title={`Respondieron por correo el ${formatDateTime(newsAt)}`}
+    >
+      <MailPlus aria-hidden="true" />
+      Novedad
+      <span className="tabular font-normal text-text-secondary">· {formatRelativeShort(newsAt, now)}</span>
+    </Badge>
+  );
 }
 
 /**

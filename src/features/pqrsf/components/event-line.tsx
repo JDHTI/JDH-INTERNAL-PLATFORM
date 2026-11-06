@@ -35,6 +35,19 @@ const CATEGORY_ICONS: Partial<Record<string, LucideIcon>> = {
   classification: Tags,
 };
 
+/**
+ * Entries whose note is text a person wrote: a comment, a message to a supplier
+ * and what the client or a supplier answered by email. They read as a message;
+ * a system note reads as a caption.
+ */
+export function isMessageEvent(event: Pick<CaseEvent, "event_type">): boolean {
+  return (
+    event.event_type === "comment" ||
+    event.event_type === "supplier_message" ||
+    event.event_type === "email_received"
+  );
+}
+
 export function eventIcon(event: Pick<CaseEvent, "actor_kind" | "category">): LucideIcon {
   return ACTOR_ICONS[event.actor_kind] ?? CATEGORY_ICONS[event.category] ?? Dot;
 }

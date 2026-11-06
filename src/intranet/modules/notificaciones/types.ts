@@ -1,6 +1,7 @@
 /** Dominio del módulo de notificaciones. */
 
-export type NotificacionFuente = "NOTICIA" | "EVENTO" | "CERTIFICADO"
+/** `PQRSF`: el aviso de una novedad en un caso (href relativo `/{area}/pqrsf/{id}`, dentro del workspace). */
+export type NotificacionFuente = "NOTICIA" | "EVENTO" | "CERTIFICADO" | "PQRSF"
 
 export interface Notificacion {
   id: string

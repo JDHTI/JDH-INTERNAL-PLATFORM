@@ -10,6 +10,7 @@ export const INBOX_VIEWS = [
   "todos",
   "abiertos",
   "mios",
+  "con-novedades",
   "sin-asignar",
   "vencidos",
   "vencen-hoy",
@@ -121,6 +122,7 @@ export function availableViews(isManager: boolean): InboxView[] {
 
 export const VIEW_LABELS: Record<InboxView, string> = {
   mios: "Mis casos",
+  "con-novedades": "Con novedades",
   "sin-asignar": "Sin asignar",
   vencidos: "Vencidos",
   "vencen-hoy": "Vencen hoy",
@@ -130,6 +132,7 @@ export const VIEW_LABELS: Record<InboxView, string> = {
 
 const VIEW_FILTERS: Record<InboxView, Partial<CaseFilters>> = {
   mios: { mine: true, open_only: true },
+  "con-novedades": { with_news: true },
   "sin-asignar": { unassigned: true, open_only: true },
   vencidos: { overdue: true },
   "vencen-hoy": { due_today: true },
@@ -162,6 +165,8 @@ export function viewCount(
   switch (view) {
     case "mios":
       return mine?.open;
+    case "con-novedades":
+      return all?.with_news;
     case "sin-asignar":
       return all?.unassigned;
     case "vencidos":
