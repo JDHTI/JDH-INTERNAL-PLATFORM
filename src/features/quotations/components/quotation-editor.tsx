@@ -36,8 +36,6 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
-import { useSession } from "@/features/session/hooks/use-session";
-import { isPlatformAdmin } from "@/features/session/types/session.types";
 import SupportDetail from "@/features/supports/components/support-detail";
 
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
@@ -112,11 +110,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
-  const { data: user } = useSession();
-  const isCreator =
-    isPlatformAdmin(user?.role) || (!!user?.email && user.email.toLowerCase() === quotation.created_by.toLowerCase());
-  // Only whoever created it (or an admin) edits; BI reads the others to validate them.
-  const canManage = permissions?.can_manage === true && isCreator;
+  // The API decides which quotations each person opens (Comercial: its own; BI and admins: all),
+  // so whoever opens one and quotes has the whole editor.
+  const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
   const editable = canManage && !pendingReview;

@@ -166,8 +166,6 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   );
 }
 
-const linkClass =
-  "rounded-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSummary[]; basePath: string; showAuthor: boolean }) {
   return (
@@ -193,9 +191,19 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
         </thead>
         <tbody className="divide-y divide-border">
           {items.map((item) => (
-            <tr key={item.id} className="h-10 hover:bg-primary-subtle">
+            // The customer's link stretches over the whole row (`after:inset-0`): a click anywhere
+            // opens the quotation, and keyboard and screen readers still meet one link per row.
+            <tr key={item.id} className="relative h-10 cursor-pointer hover:bg-primary-subtle">
               <td className="max-w-80 px-3 py-2">
-                <Link href={`${basePath}/${item.id}`} className={cn("block truncate", linkClass)}>
+                <Link
+                  href={`${basePath}/${item.id}`}
+                  aria-label={`Abrir la cotización de ${item.customer_name}`}
+                  className={cn(
+                    "block truncate font-medium outline-none",
+                    "after:absolute after:inset-0 after:content-['']",
+                    "focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
+                  )}
+                >
                   {item.customer_name}
                 </Link>
                 <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
