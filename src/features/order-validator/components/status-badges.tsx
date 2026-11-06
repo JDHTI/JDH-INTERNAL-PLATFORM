@@ -10,36 +10,24 @@ import type { AlertCode, CheckOutcome, OrderAlert, RuleEffect, ValidationStatus 
 const STATUS_TONE: Record<ValidationStatus, BadgeTone> = {
   listo_para_liberar: "success",
   pendiente_validacion: "warning",
+  liberado: "info",
+};
+
+const STATUS_ICON: Record<ValidationStatus, LucideIcon> = {
+  listo_para_liberar: CheckCircle2,
+  pendiente_validacion: Clock,
+  liberado: UserCheck,
 };
 
 /**
- * Green ready, amber pending. The icon and the label carry the state as well
- * as the color (DESIGN.md §3.6); `label` is the API's own wording.
+ * Green ready, amber pending, blue released by a person. The icon and the label
+ * carry the state as well as the color (DESIGN.md §3.6); `label` is the API's own wording.
  */
 export function StatusBadge({ status, label }: { status: ValidationStatus; label: string }) {
-  const Icon = status === "listo_para_liberar" ? CheckCircle2 : Clock;
+  const Icon = STATUS_ICON[status] ?? Clock;
   return (
     <Badge tone={STATUS_TONE[status] ?? "neutral"}>
       <Icon aria-hidden="true" /> {label}
-    </Badge>
-  );
-}
-
-/**
- * Marks an order a person moved to ready. It sits beside the green status, not
- * in place of it, so the order still reads as ready and also says who made it so.
- */
-export function ManualApprovalBadge({ compact = false }: { compact?: boolean }) {
-  return (
-    <Badge tone="info" title={compact ? "Aprobado manualmente" : undefined}>
-      <UserCheck aria-hidden="true" />
-      {compact ? (
-        <>
-          Manual<span className="sr-only">: aprobado manualmente</span>
-        </>
-      ) : (
-        "Aprobado manualmente"
-      )}
     </Badge>
   );
 }
