@@ -203,6 +203,13 @@ export interface OrderPage {
   size: number;
   /** Orders per status for the current search, before the status filter is applied. */
   counts: Record<ValidationStatus, number>;
+  /** Every operation center (C.O. factura) of the file, by code, whatever the filters. Older API builds send none. */
+  operation_centers?: OperationCenterCount[];
+}
+
+export interface OperationCenterCount {
+  code: string;
+  order_count: number;
 }
 
 export interface OrderParams {
@@ -211,6 +218,8 @@ export interface OrderParams {
   /** Points of a threshold to try without saving it; empty uses the saved one. */
   thresholdPreview: string;
   q: string;
+  /** One operation center's orders; empty for all. */
+  operationCenter: string;
   page: number;
   size: number;
 }

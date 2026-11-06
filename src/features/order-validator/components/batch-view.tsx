@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
+import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
@@ -47,6 +48,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
 
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
   const [text, setText] = useState("");
+  const [operationCenter, setOperationCenter] = useState(ALL);
   const [thresholdText, setThresholdText] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -70,9 +72,18 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       : "";
 
   // The rows come in the server's order (no support first, then by margin) and are never re-sorted here.
-  const orders = useBatchOrders({ batchId, status, thresholdPreview, q, page, size: PAGE_SIZE });
+  const orders = useBatchOrders({ batchId, status, thresholdPreview, q, operationCenter, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
+  // The API lists every C.O. of the file whatever the filters, so the options never shrink.
+  const centers = result?.operation_centers ?? [];
+  const centerOptions = [
+    { value: ALL, label: "Todos los C.O." },
+    ...centers.map((center) => ({
+      value: center.code,
+      label: `C.O. ${center.code} · ${numberFormat.format(center.order_count)} ${center.order_count === 1 ? "pedido" : "pedidos"}`,
+    })),
+  ];
 
   // Only pending orders can be ticked, and not one with a 100 % margin product:
   // the API refuses to approve it. The selection is read back from the rows on
@@ -84,7 +95,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
 
-  const filtered = status !== ALL || q !== "";
+  const filtered = status !== ALL || q !== "" || operationCenter !== ALL;
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -114,6 +125,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const clearFilters = () => {
     setStatus(ALL);
     setText("");
+    setOperationCenter(ALL);
     setPage(1);
     setSelected(new Set());
   };
@@ -190,8 +202,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       </dl>
 
       {/* The search bar holds the search and the margin threshold, on one row; narrow screens wrap the threshold below. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <div className="relative w-full lg:max-w-xl lg:flex-1">
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+        <div className="relative w-full lg:max-w-xl lg:min-w-72 lg:flex-1">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
@@ -205,6 +217,16 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             className="pl-9"
           />
         </div>
+        {/* One C.O. alone has nothing to choose between. */}
+        {(centers.length > 1 || operationCenter !== ALL) && (
+          <Dropdown
+            aria-label="Filtrar por C.O. factura"
+            options={centerOptions}
+            value={operationCenter}
+            onValueChange={(next) => reset(() => setOperationCenter(next))}
+            className="w-full lg:w-60"
+          />
+        )}
         <ThresholdControl
           batch={batch.data}
           canManage={canManage}
@@ -271,7 +293,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             title="Ningún pedido coincide con los filtros"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
-            Prueba con otro texto o quita el estado.
+            Prueba con otro texto, otro C.O. o quita el estado.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Este archivo no tiene pedidos">
