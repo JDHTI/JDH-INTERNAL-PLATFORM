@@ -47,7 +47,8 @@ quien llama. Apoyos usa `GET /supplier-supports/permissions` (`can_manage` abre 
 solicitudes propias; `can_request` deja pedir desde el maestro). El cotizador usa
 `GET /quotations/permissions` y el validador `GET /order-validations/permissions`. BI conserva además
 las tablas tipadas de maestros comerciales (márgenes, edición de productos) bajo
-`/bi/maestros/{maestro}`. `AREA_NAMES` solo cambia una etiqueta del menú: «Validar cotizaciones» en BI.
+`/bi/maestros/{maestro}`. En el cotizador, Comercial y BI crean cotizaciones; quien no valida ve solo
+las que creó (`docs/cotizador.md`).
 
 | Módulo de la UI | Clave del API |
 | --- | --- |
@@ -56,7 +57,7 @@ las tablas tipadas de maestros comerciales (márgenes, edición de productos) ba
 | Tablero general, Aplicativos | `monitoreo` |
 | Datawarehouse | `datawarehouse` |
 | PQRSF | `pqrsf` |
-| Cotizador, Validar cotizaciones | `cotizador` |
+| Cotizador | `cotizador` |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
@@ -88,15 +89,16 @@ tiene «Editar márgenes» por fila (`margin-edit-dialog.tsx`, `PUT /commercial/
 
 ## 3b. Alcance comercial
 
-Además del permiso de módulo, el cotizador filtra por cartera. El API decide el alcance de cada
-persona (`sales_scope` en `GET /quotations/permissions`, o `GET /salespeople/me`) y bloquea lecturas
-y escrituras fuera de él (403 «fuera de tu cartera»):
+Además del permiso de módulo, el cotizador filtra por cartera **los clientes que se pueden
+cotizar**. El API decide el alcance de cada persona (`sales_scope` en `GET /quotations/permissions`,
+o `GET /salespeople/me`) y rechaza cotizar fuera de él (403 «fuera de tu cartera»). Las cotizaciones
+guardadas no dependen del alcance: cada quien ve las que creó, y quien valida, todas.
 
 | Alcance | Quién | Qué ve la UI |
 | --- | --- | --- |
 | `all` | admin, owner, moderador, BI, líder o responsable de Comercial | El selector «Mis clientes / Todos los clientes» |
-| `team` | supervisor vinculado | Los clientes de su equipo, sin selector; «De mi equipo» en el listado |
-| `mine` | vendedor vinculado | Su cartera, sin selector; «De mi cartera» en el listado |
+| `team` | supervisor vinculado | Los clientes de su equipo, sin selector |
+| `mine` | vendedor vinculado | Su cartera, sin selector |
 | `none` | cualquier otro, incluso miembros de Comercial sin vínculo | «Nueva cotización» explica que TI debe vincularlo |
 
 ## 4. Panel de administración (`/ti/administracion/areas`)

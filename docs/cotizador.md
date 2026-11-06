@@ -21,14 +21,15 @@ en la skill `lista-precios` del repo del API y centralizadas en
 
 ## Interfaz
 
-Código en `src/features/quotations/` y páginas en `src/app/(app)/[area]/cotizador/`. El módulo
-está dos veces en `areas.config.ts`: `comercial-cotizador` («Cotizador», quien cotiza) y
-`bi-cotizador` («Validar cotizaciones», quien valida); son las mismas pantallas y cada una
-responde solo en su área (`isAvailableModule`).
+Código en `src/features/quotations/` y páginas en `src/app/(app)/(workspace)/[area]/cotizador/`.
+«Cotizador» en Comercial y en BI: las mismas pantallas. Las dos áreas cotizan; BI además valida.
+Quien no valida ve y edita solo las cotizaciones que creó. Quien valida (BI, administradores) y los
+moderadores ven todas, con «Creada por»; editar sigue siendo solo de quien la creó (o de un
+administrador).
 
 | Ruta | Pantalla |
 | --- | --- |
-| `/<área>/cotizador` | Cotizaciones. Quien cotiza arranca en las suyas, con «Nueva cotización» (modal: cliente y ventana). Quien solo valida ve todas, filtradas por «Pendiente de validación», sin crear |
+| `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: cliente y ventana). Comercial ve solo las suyas. Quien valida arranca en todas, filtradas por «Pendiente de validación», y elige entre «Mis cotizaciones» y «Todas» |
 | `/<área>/cotizador/<id>` | Editor: cabecera (NIT, canal, lista, CO, regional, familia, bodega, vendedor), aviso del estado, resumen, tabla y acciones |
 | `/<área>/cotizador/reglas` | `GET /quotations/rules`, abierta a todos |
 

@@ -14,6 +14,8 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
+import { useSession } from "@/features/session/hooks/use-session";
+
 import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
 import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
 import type { QuotationStatus, QuotationSummary } from "../types/quotations.types";
@@ -30,17 +32,20 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 ];
 
 /**
- * Saved quotations, newest first. An advisor starts on their own; whoever only
- * validates (BI) has none of their own, so they see everyone's, opened on the
- * ones waiting for them, and cannot start one.
+ * Saved quotations, newest first. The API lists only the ones each person
+ * created, except for whoever validates (BI, admins) and moderators: they see
+ * everyone's, open on the ones waiting for validation, and choose between
+ * theirs and all.
  */
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
+  const { data: user } = useSession();
   const canManage = permissions?.can_manage === true;
-  const validatorOnly = !canManage && permissions?.can_validate === true;
-  const [mine, setMine] = useState(!validatorOnly);
-  const [status, setStatus] = useState<QuotationStatus | "">(validatorOnly ? "pendiente_validacion" : "");
+  const canValidate = permissions?.can_validate === true;
+  const seesAll = canValidate || user?.role === "moderator";
+  const [mine, setMine] = useState(!seesAll);
+  const [status, setStatus] = useState<QuotationStatus | "">(canValidate ? "pendiente_validacion" : "");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -65,14 +70,13 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-          {canManage && permissions?.sales_scope !== "none" && (
+          {canManage && seesAll && (
             <div role="group" aria-label="De quién" className="flex gap-2">
               <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
                 Mis cotizaciones
               </ToggleChip>
-              {/* The API already limits "todas" to what the person's scope reaches. */}
               <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
-                {permissions?.sales_scope === "team" ? "De mi equipo" : permissions?.sales_scope === "mine" ? "De mi cartera" : "Todas"}
+                Todas
               </ToggleChip>
             </div>
           )}
@@ -107,7 +111,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       ) : quotations.isError && !result ? (
         <QuotationLoadError error={quotations.error} onRetry={() => void quotations.refetch()} subject="las cotizaciones" />
       ) : items.length === 0 ? (
-        validatorOnly && status === "pendiente_validacion" && q === "" ? (
+        canValidate && !mine && status === "pendiente_validacion" && q === "" ? (
           <StatePanel
             icon={CheckCircle2}
             title="No hay cotizaciones por validar"
@@ -143,7 +147,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
         )
       ) : (
         <div className={cn("space-y-3", quotations.isPlaceholderData && "opacity-60")}>
-          <QuotationCards items={items} basePath={basePath} />
+          <QuotationCards items={items} basePath={basePath} showAuthor={!mine} />
           <QuotationTable items={items} basePath={basePath} showAuthor={!mine} />
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -183,6 +187,7 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
             <th scope="col" className="px-3 py-2 text-right" title="Referencias cuyo último precio deja el margen bajo el objetivo, contando el apoyo">
               Bajo objetivo
             </th>
+            {showAuthor && <th scope="col" className="px-3 py-2">Creada por</th>}
             <th scope="col" className="px-3 py-2">Actualizada</th>
           </tr>
         </thead>
@@ -207,10 +212,8 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
                 {formatCount(item.below_rule_count)}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.below_target_count)}</td>
-              <td className="px-3 py-2">
-                <span className="block whitespace-nowrap tabular-nums">{formatDateTime(item.updated_at)}</span>
-                {showAuthor && <span className="block text-xs text-text-secondary">{item.created_by}</span>}
-              </td>
+              {showAuthor && <td className="px-3 py-2">{item.created_by}</td>}
+              <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatDateTime(item.updated_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -245,7 +248,7 @@ function ListTarget({ item }: { item: QuotationSummary }) {
 }
 
 /** Phones: customer, status and the one number that needs action (DESIGN.md §10). */
-function QuotationCards({ items, basePath }: { items: QuotationSummary[]; basePath: string }) {
+function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSummary[]; basePath: string; showAuthor: boolean }) {
   return (
     <ul className="space-y-2 md:hidden">
       {items.map((item) => (
@@ -257,6 +260,7 @@ function QuotationCards({ items, basePath }: { items: QuotationSummary[]; basePa
             <span className="block min-w-0">
               <span className="block truncate font-medium">{item.customer_name}</span>
               <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
+              {showAuthor && <span className="block truncate text-xs text-text-secondary">Creada por {item.created_by}</span>}
             </span>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               <QuotationStatusBadge status={item.status} label={item.status_label} />
