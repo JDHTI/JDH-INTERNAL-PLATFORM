@@ -11,10 +11,12 @@ import {
   FileSpreadsheet,
   FileText,
   FileX2,
+  FilterX,
   Hourglass,
   Loader2,
   MessageSquareWarning,
   MoreHorizontal,
+  PackageOpen,
   PackagePlus,
   RefreshCw,
   Search,
@@ -32,6 +34,7 @@ import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem } from "@/shared/components/ui/menu";
+import { MultiSelect } from "@/shared/components/ui/multi-select";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -48,13 +51,16 @@ import {
   useRemoveLine,
 } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
+import { INDICATORS, type Indicator, type Sort, distinctValues, isLocal, sortLines, supplierOf } from "../lib/line-status";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
+import BulkPricingPanel from "./bulk-pricing-panel";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection } from "./lines-table";
-import MarginSelectionBar from "./margin-selection-bar";
+import LocalProductDialog from "./local-product-dialog";
 import { QuotationStatusBadge } from "./quotation-badges";
+import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
 import { ConfirmDialog, ReturnDialog, ValidateDialog } from "./review-dialogs";
 import TemplateDialog from "./template-dialog";
@@ -62,19 +68,24 @@ import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
 
-/** "imported" is what the last paste added or revalidated; it exists only after one. */
-type LineFilter = "all" | "changed" | "failing" | "below" | "support" | "added" | "inactive" | "imported";
+/**
+ * The indicators are the main filters; "inactive" and "imported" (what the
+ * last paste added or revalidated) are chips that appear only when they apply.
+ */
+type LineFilter = Indicator | "inactive" | "imported";
 
-const failing = (line: QuotationLine) => line.is_active && line.compliance !== null && line.compliance !== "cumple";
+const inactive = (line: QuotationLine) => !line.is_active;
+/** What confirming counts: an active SIESA reference with a new price. Local products never reach SIESA. */
+const changed = (line: QuotationLine) => line.new_price !== null && line.is_active && !isLocal(line);
 
-const FILTERS: Record<Exclude<LineFilter, "imported">, (line: QuotationLine) => boolean> = {
-  all: () => true,
-  changed: (line) => line.new_price !== null && line.is_active,
-  failing,
-  below: (line) => line.below_target,
-  support: (line) => line.support !== null,
-  added: (line) => line.origin === "agregado",
-  inactive: (line) => !line.is_active,
+const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
+  objetivo: "Ninguna línea llega al margen objetivo todavía.",
+  rango: "Ninguna línea queda entre el mínimo y el objetivo.",
+  minimo: "Ninguna línea queda bajo el mínimo.",
+  sin_referencia: "Todas las referencias tienen último precio.",
+  local: "Aún no creaste productos para cotizar. Usa «Crear producto».",
+  sin_precio: "Todas las referencias activas tienen precio nuevo.",
+  apoyo: "Ninguna referencia tiene un apoyo aplicado.",
 };
 
 export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
@@ -127,8 +138,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [removingSku, setRemovingSku] = useState<string | null>(null);
+  const [creatingLocal, setCreatingLocal] = useState(false);
   const [filter, setFilter] = useState<LineFilter>("all");
   const [text, setText] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [sort, setSort] = useState<Sort | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "template" | "delete" | null>(null);
@@ -138,36 +153,29 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
 
-  const counts = useMemo(
-    () => ({
-      all: quotation.lines.length,
-      changed: quotation.lines.filter(FILTERS.changed).length,
-      failing: quotation.lines.filter(failing).length,
-      below: quotation.lines.filter(FILTERS.below).length,
-      support: quotation.lines.filter(FILTERS.support).length,
-      added: quotation.lines.filter(FILTERS.added).length,
-      inactive: quotation.lines.filter(FILTERS.inactive).length,
-    }),
-    [quotation.lines]
-  );
+  const changedCount = useMemo(() => quotation.lines.filter(changed).length, [quotation.lines]);
+  const inactiveCount = useMemo(() => quotation.lines.filter(inactive).length, [quotation.lines]);
+  // The options come from this quotation's own lines, so each one lists only what it has.
+  const categoryOptions = useMemo(() => distinctValues(quotation.lines, (line) => line.category), [quotation.lines]);
+  const supplierOptions = useMemo(() => distinctValues(quotation.lines, supplierOf), [quotation.lines]);
 
   const imported = useMemo(() => new Set(importer.lastImport ?? []), [importer.lastImport]);
-  const visible = useMemo(
-    () =>
-      quotation.lines.filter(
-        (line) =>
-          (filter === "imported" ? imported.has(line.sku) : FILTERS[filter](line)) &&
-          (q === "" ||
-            line.sku.toLowerCase().includes(q) ||
-            (line.description ?? "").toLowerCase().includes(q) ||
-            (line.supplier_name ?? "").toLowerCase().includes(q))
-      ),
-    [quotation.lines, filter, q, imported]
-  );
+  const visible = useMemo(() => {
+    const byCategory = new Set(categories);
+    const bySupplier = new Set(suppliers);
+    const matching = quotation.lines.filter(
+      (line) =>
+        (filter === "imported" ? imported.has(line.sku) : filter === "inactive" ? inactive(line) : INDICATORS[filter](line)) &&
+        (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
+        (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
+        (bySupplier.size === 0 || bySupplier.has(supplierOf(line)?.trim() ?? ""))
+    );
+    return sortLines(matching, sort);
+  }, [quotation.lines, filter, q, imported, categories, suppliers, sort]);
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const filtered = filter !== "all" || q !== "";
+  const filtered = filter !== "all" || text.trim() !== "" || categories.length > 0 || suppliers.length > 0;
 
   const chooseFilter = (next: LineFilter) => {
     setFilter(next);
@@ -176,6 +184,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const clearFilters = () => {
     setFilter("all");
     setText("");
+    setCategories([]);
+    setSuppliers([]);
     setPage(1);
   };
 
@@ -183,9 +193,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
-
-  // The columns of the outcome appear once there is an outcome to show.
-  const hasChanges = useMemo(() => quotation.lines.some((line) => line.new_price !== null), [quotation.lines]);
   const filteredSkus = useMemo(() => visible.map((line) => line.sku), [visible]);
 
   const selection: LineSelection | undefined = editable
@@ -273,7 +280,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             next.delete(line.sku);
             return next;
           });
-          toast.success(`Se quitó ${line.sku} de la cotización.`);
+          toast.success(`Se quitó ${line.description ?? line.sku} de la cotización.`);
         },
         onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
         onSettled: () => setRemovingSku(null),
@@ -309,6 +316,26 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
 
   const closeDialog = () => setDialog(null);
 
+  const linesProps = {
+    lines: pageLines,
+    editor,
+    editable,
+    onOpenDetail: setDetailLine,
+    onRemove: runRemoveLine,
+    removing: removingSku,
+    canRemove: !busy,
+    selection,
+    pending,
+    highlight: importer.highlight,
+    // The cost stays with the validating area (BI and admins); Comercial quotes from the prices.
+    showCost: canValidate,
+    sort,
+    onSort: (next: Sort | null) => {
+      setSort(next);
+      setPage(1);
+    },
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -322,12 +349,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       </div>
 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">{quotation.customer_name}</h1>
             <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />
           </div>
-          <CustomerFacts quotation={quotation} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
+            <span>Creada por {quotation.created_by}</span>
+            <QuotationHistory quotation={quotation} />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -372,8 +402,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           {canManage && quotation.status === "borrador" && (
             <Button
               onClick={() => setDialog("confirm")}
-              disabled={busy || counts.changed === 0}
-              title={counts.changed === 0 ? "Escribe al menos un precio nuevo para confirmar." : undefined}
+              disabled={busy || changedCount === 0}
+              title={changedCount === 0 ? "Escribe al menos un precio nuevo en una referencia de SIESA para confirmar." : undefined}
               className="max-md:h-11"
             >
               <Send aria-hidden="true" /> Confirmar
@@ -399,15 +429,33 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       </header>
 
+      <CustomerCards quotation={quotation} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       <Warnings quotation={quotation} />
-      <Summary quotation={quotation} />
+
+      {quotation.lines.length > 0 && (
+        <QuotationIndicators
+          lines={quotation.lines}
+          active={filter === "inactive" || filter === "imported" ? null : filter}
+          onSelect={chooseFilter}
+        />
+      )}
+
+      {editable && hasRows && (
+        <BulkPricingPanel
+          quotation={quotation}
+          selected={selected}
+          filteredSkus={filteredSkus}
+          onSelectionChange={setSelected}
+          disabled={busy}
+        />
+      )}
 
       {editable && <SaveStatus editor={editor} />}
 
-      <div className={cn("sticky top-0 z-20 space-y-2 bg-canvas py-2", !hasRows && "hidden")}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-sm">
+      <div className={cn("space-y-2", !hasRows && "hidden")}>
+        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
+          <div className="relative w-full lg:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -416,46 +464,69 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
                 setText(event.target.value);
                 setPage(1);
               }}
-              placeholder="Referencia, descripción o proveedor"
-              aria-label="Buscar referencias"
+              placeholder="Referencia o descripción"
+              aria-label="Buscar por referencia o descripción"
               className="pl-9 max-md:h-11"
             />
           </div>
+          {categoryOptions.length > 0 && (
+            <MultiSelect
+              label="Categorías"
+              allLabel="Todas las categorías"
+              options={categoryOptions}
+              value={categories}
+              onValueChange={(next) => {
+                setCategories(next);
+                setPage(1);
+              }}
+              className="w-full lg:w-56"
+            />
+          )}
+          {supplierOptions.length > 0 && (
+            <MultiSelect
+              label="Proveedores"
+              allLabel="Todos los proveedores"
+              options={supplierOptions}
+              value={suppliers}
+              onValueChange={(next) => {
+                setSuppliers(next);
+                setPage(1);
+              }}
+              className="w-full lg:w-56"
+            />
+          )}
+          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
+            <FilterX aria-hidden="true" /> Borrar filtros
+          </Button>
           {editable && (
-            // Next to the references it adds to, not among the quotation's own actions.
-            <Button variant="outline" onClick={openImport} disabled={busy} className="sm:ml-auto max-md:h-11">
-              <PackagePlus aria-hidden="true" /> Agregar productos
-            </Button>
+            // Next to the references they add to, not among the quotation's own actions.
+            <div className="flex flex-wrap gap-2 lg:ml-auto">
+              <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                <PackageOpen aria-hidden="true" /> Crear producto
+              </Button>
+              <Button variant="outline" onClick={openImport} disabled={busy} className="max-md:h-11">
+                <PackagePlus aria-hidden="true" /> Agregar productos
+              </Button>
+            </div>
           )}
         </div>
-        <div role="group" aria-label="Filtrar referencias" className="flex flex-wrap gap-2">
-          <ToggleChip active={filter === "all"} onClick={() => chooseFilter("all")} count={counts.all}>Todas</ToggleChip>
-          <ToggleChip active={filter === "changed"} onClick={() => chooseFilter("changed")} count={counts.changed}>Con precio nuevo</ToggleChip>
-          <ToggleChip active={filter === "failing"} onClick={() => chooseFilter("failing")} count={counts.failing}>No cumplen</ToggleChip>
-          <ToggleChip active={filter === "below"} onClick={() => chooseFilter("below")} count={counts.below}>Bajo el objetivo</ToggleChip>
-          <ToggleChip active={filter === "support"} onClick={() => chooseFilter("support")} count={counts.support}>Con apoyo</ToggleChip>
-          <ToggleChip active={filter === "added"} onClick={() => chooseFilter("added")} count={counts.added}>Agregados</ToggleChip>
-          {counts.inactive > 0 && (
-            <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter("inactive")} count={counts.inactive}>Inactivas</ToggleChip>
-          )}
-          {importer.lastImport && (
-            <ToggleChip
-              active={filter === "imported"}
-              onClick={() => chooseFilter("imported")}
-              count={importer.isPending ? null : importer.lastImport.length}
-            >
-              Última importación
-            </ToggleChip>
-          )}
-        </div>
-        {editable && (
-          <MarginSelectionBar
-            quotation={quotation}
-            selected={selected}
-            filteredSkus={filteredSkus}
-            onSelectionChange={setSelected}
-            disabled={busy}
-          />
+        {(inactiveCount > 0 || importer.lastImport) && (
+          <div role="group" aria-label="Más filtros" className="flex flex-wrap gap-2">
+            {inactiveCount > 0 && (
+              <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
+                Inactivas
+              </ToggleChip>
+            )}
+            {importer.lastImport && (
+              <ToggleChip
+                active={filter === "imported"}
+                onClick={() => chooseFilter(filter === "imported" ? "all" : "imported")}
+                count={importer.isPending ? null : importer.lastImport.length}
+              >
+                Última importación
+              </ToggleChip>
+            )}
+          </div>
         )}
       </div>
 
@@ -465,63 +536,38 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           title="El cliente no tiene ventas en la ventana"
           action={
             editable ? (
-              <Button onClick={openImport} disabled={busy} className="max-md:h-11">
-                <PackagePlus aria-hidden="true" /> Agregar productos
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={openImport} disabled={busy} className="max-md:h-11">
+                  <PackagePlus aria-hidden="true" /> Agregar productos
+                </Button>
+                <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                  <PackageOpen aria-hidden="true" /> Crear producto
+                </Button>
+              </div>
             ) : undefined
           }
         >
           No compró nada en los últimos {quotation.window_months} meses, así que no hay último precio de qué partir.
-          {editable && " Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de licores."}
+          {editable &&
+            " Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de licores. Si no existe en el portafolio, créala solo para cotizar."}
         </StatePanel>
       ) : visible.length === 0 && pending.length === 0 ? (
         <StatePanel
           icon={FileX2}
           title="Ninguna referencia coincide"
-          action={<Button variant="outline" onClick={clearFilters}>Ver todas las referencias</Button>}
+          action={<Button variant="outline" onClick={clearFilters}>Borrar filtros</Button>}
         >
-          {filter === "failing"
-            ? "Todos los precios nuevos cumplen la regla."
-            : filter === "below"
-              ? "Ningún último precio deja el margen bajo el objetivo."
-              : filter === "changed"
-                ? "Aún no hay precios nuevos: escríbelos en la columna «Precio nuevo»."
-                : filter === "added"
-                  ? "Aún no agregaste referencias fuera del histórico. Usa «Agregar productos»."
-                  : "Prueba con otra referencia o con menos palabras de la descripción."}
+          {(text.trim() === "" && categories.length === 0 && suppliers.length === 0 && EMPTY_FILTER_TEXT[filter]) ||
+            "Prueba con otra referencia, menos palabras de la descripción, u otras categorías o proveedores."}
         </StatePanel>
       ) : (
-        <div className="space-y-3">
-          <LinesList
-            lines={pageLines}
-            editor={editor}
-            editable={editable}
-            onOpenDetail={setDetailLine}
-            onRemove={runRemoveLine}
-            removing={removingSku}
-            canRemove={!busy}
-            selection={selection}
-            pending={pending}
-            highlight={importer.highlight}
-            showOutcome={hasChanges}
-          />
-          <LinesTable
-            lines={pageLines}
-            editor={editor}
-            editable={editable}
-            onOpenDetail={setDetailLine}
-            onRemove={runRemoveLine}
-            removing={removingSku}
-            canRemove={!busy}
-            selection={selection}
-            pending={pending}
-            highlight={importer.highlight}
-            showOutcome={hasChanges}
-          />
+        <div className="@container space-y-3">
+          <LinesList {...linesProps} />
+          <LinesTable {...linesProps} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">
               {formatCount(visible.length)} {visible.length === 1 ? "referencia" : "referencias"}
-              {filtered && ` de ${formatCount(counts.all)}`}
+              {filtered && ` de ${formatCount(quotation.lines.length)}`}
             </span>
             <Pager page={currentPage} size={PAGE_SIZE} total={visible.length} count={pageLines.length} onPageChange={setPage} />
           </div>
@@ -554,8 +600,22 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         error={importError}
         onSubmit={submitImport}
       />
+      <LocalProductDialog
+        quotation={quotation}
+        open={creatingLocal}
+        onOpenChange={setCreatingLocal}
+        onCreated={(sku) => {
+          // Shown where it can be seen: the local products, on the page where it landed.
+          setText("");
+          setCategories([]);
+          setSuppliers([]);
+          chooseFilter("local");
+          importer.flash([sku]);
+        }}
+      />
       <LineDetailDialog
         line={detailLine}
+        showCost={canValidate}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
           setDetailLine(null);
@@ -578,35 +638,65 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   );
 }
 
-function CustomerFacts({ quotation }: { quotation: Quotation }) {
-  const facts: [string, React.ReactNode][] = [
-    ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
-    ["Canal", quotation.channel ?? "Sin canal"],
-    [
-      "Lista SIESA",
-      <span key="list" className="font-mono" title={quotation.price_list_name ?? undefined}>
-        {quotation.price_list_id ?? "—"}
-      </span>,
-    ],
-    ["CO que factura", quotation.billing_center_code ?? "—"],
-    ["Regional", quotation.regional_label ?? "—"],
-    ["Familia", quotation.price_family_label ?? "—"],
-    ["Bodega", quotation.stock_source ?? "—"],
-    ["Vendedor", quotation.salesperson_name ?? "—"],
-    ["Ventana", `${quotation.window_months} meses`],
-    ["Creada por", quotation.created_by],
+type Fact = [label: string, value: React.ReactNode];
+
+/**
+ * The customer's facts in three groups, each answering one question: who the
+ * customer is, which list the prices go to, and where the cost comes from.
+ * Three cards side by side instead of one long line of label-value pairs.
+ */
+function CustomerCards({ quotation }: { quotation: Quotation }) {
+  const sharedList = quotation.price_list_customers;
+  const groups: { title: string; facts: Fact[] }[] = [
+    {
+      title: "Cliente",
+      facts: [
+        ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
+        ["Canal", quotation.channel ?? "Sin canal"],
+        ["Vendedor", quotation.salesperson_name ?? "—"],
+      ],
+    },
+    {
+      title: "Lista de precios",
+      facts: [
+        [
+          "Lista SIESA",
+          <span key="list" className="block truncate" title={quotation.price_list_name ?? undefined}>
+            <span className="font-mono">{quotation.price_list_id ?? "—"}</span>
+            {quotation.price_list_name && <span className="text-text-secondary"> · {quotation.price_list_name}</span>}
+          </span>,
+        ],
+        ["Familia", quotation.price_family_label ?? "—"],
+        [
+          "Ventana",
+          `${quotation.window_months} meses${sharedList && sharedList > 1 ? ` · lista de ${formatCount(sharedList)} clientes` : ""}`,
+        ],
+      ],
+    },
+    {
+      title: "Costo",
+      facts: [
+        ["C.O. que factura", quotation.billing_center_code ?? "—"],
+        ["Regional", quotation.regional_label ?? "—"],
+        ["Bodega", quotation.stock_source ?? "—"],
+      ],
+    },
   ];
   return (
-    <div className="space-y-1">
-      <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-        {facts.map(([label, value]) => (
-          <div key={label} className="flex gap-1.5">
-            <dt className="text-text-secondary">{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <QuotationHistory quotation={quotation} />
+    <div className="grid gap-3 md:grid-cols-3">
+      {groups.map((group) => (
+        <section key={group.title} aria-label={group.title} className="min-w-0 rounded-lg border border-border bg-surface px-4 py-3">
+          <h2 className="mb-2 text-sm font-semibold">{group.title}</h2>
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+            {group.facts.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-text-secondary">{label}</dt>
+                <dd className="min-w-0">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
     </div>
   );
 }
@@ -719,33 +809,6 @@ function Warnings({ quotation }: { quotation: Quotation }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-function Summary({ quotation }: { quotation: Quotation }) {
-  const items: { label: string; value: number; alert?: "danger" | "warning" }[] = [
-    { label: "Referencias", value: quotation.line_count },
-    { label: "Con precio nuevo", value: quotation.changed_count },
-    { label: "No cumplen la regla", value: quotation.below_rule_count, alert: quotation.below_rule_count > 0 ? "danger" : undefined },
-    { label: "Bajo el objetivo", value: quotation.below_target_count, alert: quotation.below_target_count > 0 ? "warning" : undefined },
-  ];
-  return (
-    <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {items.map((item) => (
-        <div key={item.label} className="min-w-0 rounded-lg border border-border bg-surface px-4 py-3">
-          <dt className="text-[13px] text-text-secondary">{item.label}</dt>
-          <dd
-            className={cn(
-              "text-2xl font-semibold tabular-nums",
-              item.alert === "danger" && "text-danger",
-              item.alert === "warning" && "text-warning"
-            )}
-          >
-            {formatCount(item.value)}
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 

@@ -6,6 +6,7 @@ import { ApiError } from "@/shared/lib/api-client";
 
 import {
   addLines,
+  addLocalLine,
   confirmQuotation,
   createQuotation,
   deleteQuotation,
@@ -24,6 +25,7 @@ import type {
   ConfirmOptions,
   LineChange,
   LineImport,
+  LocalLineInput,
   Quotation,
   QuotationListParams,
   WindowMonths,
@@ -110,6 +112,14 @@ export function useAddLines(id: string) {
   return useMutation({
     // The answer is the whole quotation: it goes to the cache as is, with no GET after it.
     mutationFn: ({ version, ...input }: { version: number } & LineImport) => addLines(id, version, input),
+    onSuccess: store,
+  });
+}
+
+export function useAddLocalLine(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, input }: { version: number; input: LocalLineInput }) => addLocalLine(id, version, input),
     onSuccess: store,
   });
 }

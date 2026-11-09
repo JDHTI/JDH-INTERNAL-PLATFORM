@@ -13,6 +13,7 @@ const signedPercent = new Intl.NumberFormat("es-CO", {
 const plainPrice = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4, useGrouping: true });
 const integer = new Intl.NumberFormat("es-CO");
 const day = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeZone: "UTC" });
+const shortDay = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", timeZone: "UTC" });
 const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
 
 type Value = string | number | null | undefined;
@@ -37,6 +38,13 @@ export function formatDay(value: string | null | undefined): string {
   if (!value) return "—";
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(parsed.getTime()) ? value : day.format(parsed);
+}
+
+/** "12 oct", for a dense cell where the year is the current one or close to it; the full date goes in a tooltip. */
+export function formatShortDay(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? value : shortDay.format(parsed).replace(".", "");
 }
 
 export function formatDateTime(value: string | null | undefined): string {

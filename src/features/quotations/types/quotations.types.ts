@@ -155,8 +155,10 @@ export interface QuotationLine {
   last_quantity: DecimalText | null;
   sales_in_window: number | null;
   list_price: DecimalText | null;
-  /** Still sent, never shown: the quotation works before VAT. */
-  vat_pct?: DecimalText | null;
+  /** The product's category in the DWH (`consumo.productos.categoria`); null when unknown or local. */
+  category: string | null;
+  /** Sales VAT in points (19 is 19 %). Prices stay before VAT; this only builds the price with VAT. */
+  vat_pct: DecimalText | null;
   /** Liquor consumption tax only (`0011` imported, `0024` national); null for every other product. */
   value_tax_key: string | null;
   value_tax_name: string | null;
@@ -194,12 +196,28 @@ export interface QuotationLine {
   price_with_taxes: DecimalText | null;
   problems: string[];
   problem_labels: string[];
-  /** `historico`: from the sales window. `agregado`: added by the advisor, with `last_*` null. */
+  /**
+   * `historico`: from the sales window. `agregado`: added by the advisor, with `last_*` null.
+   * `local`: a product that does not exist in SIESA, created to quote it (sku `LOC-n`); no
+   * cost, no rule, never exported.
+   */
   origin: LineOrigin;
   origin_label: string;
 }
 
-export type LineOrigin = "historico" | "agregado";
+export type LineOrigin = "historico" | "agregado" | "local";
+
+/** VAT rates a local product can carry, in points. */
+export type LocalVat = 19 | 5 | 0;
+
+/** `POST /local-lines`: a product outside the portfolio, quoted at an estimated price. */
+export interface LocalLineInput {
+  description: string;
+  supplier_name: string | null;
+  /** Whole pesos, before VAT. */
+  price: DecimalText;
+  vat_pct: LocalVat;
+}
 
 export interface Quotation extends QuotationSummary {
   channel_code: string | null;

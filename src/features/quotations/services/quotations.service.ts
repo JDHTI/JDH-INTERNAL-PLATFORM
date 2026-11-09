@@ -4,6 +4,7 @@ import type {
   ConfirmOptions,
   LineChange,
   LineImport,
+  LocalLineInput,
   Quotation,
   QuotationListParams,
   QuotationPage,
@@ -66,7 +67,15 @@ export function addLines(id: string, version: number, { text, skus }: LineImport
   return apiFetch<QuotationWithImport>(`${one(id)}/lines`, { method: "POST", body });
 }
 
-/** Removes an added or inactive reference; 422 for an active one from the sales history. */
+/**
+ * Adds a product that does not exist in SIESA, at an estimated price. The API
+ * gives it a `LOC-n` reference, keeps it out of the rule and of every export.
+ */
+export function addLocalLine(id: string, version: number, input: LocalLineInput): Promise<QuotationWithImport> {
+  return apiFetch<QuotationWithImport>(`${one(id)}/local-lines`, { method: "POST", body: { version, ...input } });
+}
+
+/** Removes an added, local or inactive reference; 422 for an active one from the sales history. */
 export function removeLine(id: string, sku: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}`, { method: "DELETE", query: { version } });
 }

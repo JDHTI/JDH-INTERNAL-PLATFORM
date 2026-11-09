@@ -47,10 +47,3 @@ export function ComplianceBadge({ compliance, label }: { compliance: Compliance;
     </Badge>
   );
 }
-
-/** Row tint per compliance of the new price. Only text-primary, text-secondary and badges sit on it (§3.5). */
-export const COMPLIANCE_ROW: Partial<Record<Compliance, string>> = {
-  bajo_minimo: "bg-danger-surface",
-  sin_objetivo: "bg-warning-surface",
-  sin_costo: "bg-warning-surface",
-};
