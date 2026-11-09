@@ -21,7 +21,7 @@ import {
 } from "../hooks/use-pqrsf";
 import { canPreview, Preview } from "./case-files";
 import { EventSentence, RailIcon, eventIcon, isMessageEvent } from "./event-line";
-import { formatDateTime, formatRelativeTime, stripCid } from "../lib/format";
+import { formatDateTime, formatRelativeTime, stripCid, stripReplyDivider } from "../lib/format";
 import { accessSentence, groupAccess } from "../lib/timeline";
 import { downloadCaseFile } from "../services/pqrsf.service";
 import type {
@@ -319,7 +319,9 @@ export default function CaseTimeline({
                         : "mt-0.5 text-[13px] whitespace-pre-wrap text-text-secondary"
                     }
                   >
-                    {stripCid(event.note)}
+                    {event.event_type === "email_received"
+                      ? stripReplyDivider(stripCid(event.note))
+                      : stripCid(event.note)}
                   </p>
                 )}
                 {event.event_type === "comment" && (

@@ -13,7 +13,13 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useActivity, useLastSeen } from "../hooks/use-pqrsf";
-import { formatDateTime, formatRelativeTime, PQRSF_TIME_ZONE, personName } from "../lib/format";
+import {
+  formatDateTime,
+  formatRelativeTime,
+  PQRSF_TIME_ZONE,
+  personName,
+  stripReplyDivider,
+} from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
 import { ACCESS_EVENT_TYPES, accessSentence, groupAccess, type TimelineEntry } from "../lib/timeline";
 import type { ActivityEvent, ActivityFilters, Person } from "../types/pqrsf.types";
@@ -284,7 +290,11 @@ function Entry({ entry, area }: { entry: TimelineEntry<ActivityEvent>; area: str
                 : "text-text-secondary"
             )}
           >
-            {event.event_type === "deleted" ? `Motivo: ${event.note}` : event.note}
+            {event.event_type === "deleted"
+              ? `Motivo: ${event.note}`
+              : event.event_type === "email_received"
+                ? stripReplyDivider(event.note)
+                : event.note}
           </p>
         )}
       </div>

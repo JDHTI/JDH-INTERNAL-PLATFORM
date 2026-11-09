@@ -152,6 +152,21 @@ export function stripCid(text: string): string {
     .trim();
 }
 
+/**
+ * A mail reply is cut where the quoted thread starts, but the rule the mail client
+ * draws right above it ("________", "- - - -", "-----") stays at the end of the text.
+ * Drops those trailing rule lines so the message ends where the answer ends.
+ */
+export function stripReplyDivider(text: string): string {
+  const lines = text.split("\n");
+  while (lines.length > 0) {
+    const last = lines[lines.length - 1].trim();
+    if (last === "" || /^[\s_\-=??*~.]{5,}$/.test(last)) lines.pop();
+    else break;
+  }
+  return lines.join("\n").trimEnd();
+}
+
 /** Name kept by the spreadsheet import when the person had no platform user. */
 export function legacyAssignee(item: Pick<PqrsfCase, "assignee" | "legacy">): string | null {
   if (item.assignee) return null;
