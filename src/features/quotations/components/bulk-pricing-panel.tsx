@@ -231,7 +231,7 @@ export default function BulkPricingPanel({
             </Button>
 
             {/* The selection's own actions, in the room the row left on the right. */}
-            <div role="group" aria-label="Selección" className="flex flex-wrap items-center gap-1 lg:ml-auto">
+            <div role="group" aria-label="Selección" className="flex flex-wrap items-center gap-1 @5xl:ml-auto">
               <Button
                 variant="outline"
                 onClick={() => onSelectionChange(new Set(filteredSkus))}

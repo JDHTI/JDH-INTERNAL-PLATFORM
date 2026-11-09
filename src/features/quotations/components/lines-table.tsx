@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -22,6 +23,7 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { choiceLabel } from "@/features/supports/lib/format";
 
+import { type ColumnKey, useColumnWidths } from "../hooks/use-column-widths";
 import type { LineEditor } from "../hooks/use-line-editor";
 import { formatDay, formatMargin, formatMoney, formatShortDay, formatVariation } from "../lib/format";
 import {
@@ -95,6 +97,49 @@ const removable = (line: QuotationLine) => line.origin !== "historico" || !line.
  */
 const th = "h-10 px-2.5 align-middle whitespace-nowrap";
 const td = "px-2.5 py-2 align-top";
+/** An explicit line between columns, from "Último" on; the header's divider can be moved. */
+const divided = "relative border-l border-border";
+
+/**
+ * The divider between two columns, on the left edge of a header cell: the
+ * WAI-ARIA window-splitter pattern. Drag it, or focus it and use the arrow
+ * keys (Shift for bigger steps); Enter or a double click puts every column
+ * back to its default width. The visible line darkens on hover and focus.
+ */
+function ColumnDivider({
+  label,
+  width,
+  min,
+  ...handlers
+}: {
+  label: string;
+  width: number;
+  min: number;
+  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
+  onPointerCancel: (event: React.PointerEvent<HTMLElement>) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+  onDoubleClick: () => void;
+}) {
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuenow={width}
+      aria-valuemin={min}
+      tabIndex={0}
+      title="Arrastra para ajustar el ancho. Doble clic restablece las columnas."
+      className={cn(
+        "absolute -left-2 top-0 z-10 h-full w-4 cursor-col-resize touch-none rounded-sm",
+        "before:absolute before:inset-y-1.5 before:left-1/2 before:w-0.5 before:-translate-x-1/2 before:rounded-full before:bg-transparent",
+        "hover:before:bg-text-secondary focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring focus-visible:before:bg-text-primary"
+      )}
+      {...handlers}
+    />
+  );
+}
 
 /**
  * The references and what decides each new price. "Precio nuevo" is the only
@@ -108,24 +153,39 @@ export function LinesTable(props: LinesProps) {
   const scope = selection?.scope ?? [];
   const allTicked = selection !== undefined && scope.length > 0 && scope.every((sku) => selection.selected.has(sku));
   const someTicked = selection !== undefined && scope.some((sku) => selection.selected.has(sku));
+  const columns = useMemo<ColumnKey[]>(
+    () => ["last", "bounds", "price", "margin", "support", "vat", "final", ...(withQuantities ? (["qty"] as const) : []), "variation"],
+    [withQuantities]
+  );
+  const { widths, min, tableRef, startDrag, onDrag, endDrag, onKey, reset } = useColumnWidths(columns, selection ? 40 : 0);
   const sortProps = { sort, onSort };
+  /** The divider on the left edge of the column at `index` in `columns`; boundary 0 sits after the product. */
+  const divider = (index: number, name: string) => (
+    <ColumnDivider
+      label={`Ancho de ${name}`}
+      width={widths[columns[index]]}
+      min={min[columns[index]]}
+      onPointerDown={(event) => startDrag(index, event)}
+      onPointerMove={onDrag}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onKeyDown={(event) => onKey(index, event)}
+      onDoubleClick={reset}
+    />
+  );
+  const at = (key: ColumnKey) => columns.indexOf(key);
 
   return (
     <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[75rem]:block" : "@min-[68rem]:block")}>
-      <table className="w-full table-fixed text-left text-sm">
+      <table ref={tableRef} className="w-full table-fixed text-left text-sm">
         <caption className="sr-only">Referencias de la cotización</caption>
         <colgroup>
-          {selection && <col className="w-10" />}
+          {selection && <col style={{ width: 40 }} />}
           <col />
-          <col className="w-32" />
-          <col className="w-36" />
-          <col className="w-28" />
-          <col className="w-28" />
-          <col className="w-28" />
-          <col className="w-14" />
-          <col className="w-28" />
-          {withQuantities && <col className="w-28" />}
-          <col className="w-24" />
+          {/* Widths are the person's own (dividers), so they come from state, not from classes. */}
+          {columns.map((key) => (
+            <col key={key} style={{ width: widths[key] }} />
+          ))}
         </colgroup>
         <thead className="sticky top-0 z-10 bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
@@ -146,22 +206,39 @@ export function LinesTable(props: LinesProps) {
             )}
             <th scope="col" className={cn(th, !selection && "rounded-tl-lg")}>Producto</th>
             {/* Short headers keep the columns narrow; each cell labels its own figures and the menu says it in full. */}
-            <SortHeader label="Último" name="Último precio" keys={[["last_price", "Precio"], ["current_margin", "Margen"]]} {...sortProps} />
+            <SortHeader label="Último" name="Último precio" keys={[["last_price", "Precio"], ["current_margin", "Margen"]]} divider={divider(at("last"), "Último precio")} {...sortProps} />
             <SortHeader
               label={showCost ? "Óptimo · costo" : "Óptimo · mín."}
               name={showCost ? "Precio óptimo, mínimo y costo" : "Precio óptimo y mínimo"}
               keys={showCost ? [["optimal", "Precio óptimo"], ["cost", "Costo"]] : [["optimal", "Precio óptimo"]]}
+              divider={divider(at("bounds"), "Óptimo y mínimo")}
               {...sortProps}
             />
-            <SortHeader label="Nuevo" name="Precio nuevo" keys={[["new_price", "Precio nuevo"]]} {...sortProps} />
-            <SortHeader label="Margen" name="Margen nuevo" keys={[["new_margin", "Margen nuevo"]]} {...sortProps} />
-            <th scope="col" className={th}>Apoyo</th>
-            <SortHeader label="IVA" name="IVA" keys={[["vat", "IVA"]]} {...sortProps} />
-            <SortHeader label="Con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} {...sortProps} />
+            <SortHeader label="Nuevo" name="Precio nuevo" keys={[["new_price", "Precio nuevo"]]} divider={divider(at("price"), "Precio nuevo")} {...sortProps} />
+            <SortHeader label="Margen" name="Margen nuevo" keys={[["new_margin", "Margen nuevo"]]} divider={divider(at("margin"), "Margen nuevo")} {...sortProps} />
+            <th scope="col" className={cn(th, divided)}>
+              {divider(at("support"), "Apoyo")}
+              Apoyo
+            </th>
+            <SortHeader label="IVA" name="IVA" keys={[["vat", "IVA"]]} divider={divider(at("vat"), "IVA")} {...sortProps} />
+            <SortHeader label="Con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} divider={divider(at("final"), "Precio con IVA")} {...sortProps} />
             {withQuantities && (
-              <SortHeader label="Cant." name="Cantidad y total" keys={[["quantity", "Cantidad"], ["line_total", "Total"]]} {...sortProps} />
+              <SortHeader
+                label="Cant."
+                name="Cantidad y total"
+                keys={[["quantity", "Cantidad"], ["line_total", "Total"]]}
+                divider={divider(at("qty"), "Cantidad")}
+                {...sortProps}
+              />
             )}
-            <SortHeader label="Var." name="Variación" keys={[["variation", "Variación"]]} className="rounded-tr-lg" {...sortProps} />
+            <SortHeader
+              label="Var."
+              name="Variación"
+              keys={[["variation", "Variación"]]}
+              divider={divider(at("variation"), "Variación")}
+              className="rounded-tr-lg"
+              {...sortProps}
+            />
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -175,19 +252,19 @@ export function LinesTable(props: LinesProps) {
                   </td>
                 )}
                 <td className={td}><Product line={line} {...props} /></td>
-                <td className={cn(td, "text-right")}><LastSale line={line} /></td>
-                <td className={td}><Bounds line={line} showCost={showCost} /></td>
-                <td className={td}><NewPrice line={line} editor={props.editor} editable={props.editable} /></td>
-                <td className={cn(td, "text-right")}><NewMargin line={line} /></td>
-                <td className={td}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
-                <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
-                <td className={cn(td, "text-right")}><FinalPrice line={line} /></td>
+                <td className={cn(td, divided, "text-right")}><LastSale line={line} /></td>
+                <td className={cn(td, divided)}><Bounds line={line} showCost={showCost} /></td>
+                <td className={cn(td, divided)}><NewPrice line={line} editor={props.editor} editable={props.editable} /></td>
+                <td className={cn(td, divided, "text-right")}><NewMargin line={line} /></td>
+                <td className={cn(td, divided)}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
+                <td className={cn(td, divided, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
+                <td className={cn(td, divided, "text-right")}><FinalPrice line={line} /></td>
                 {withQuantities && (
-                  <td className={td}>
+                  <td className={cn(td, divided)}>
                     <QuantityCell line={line} editor={props.editor} editable={props.quantitiesEditable} />
                   </td>
                 )}
-                <td className={cn(td, "text-right")}><Variation line={line} /></td>
+                <td className={cn(td, divided, "text-right")}><Variation line={line} /></td>
               </tr>
             );
           })}
@@ -198,7 +275,7 @@ export function LinesTable(props: LinesProps) {
                 <span className="block font-mono text-[13px]">{sku}</span>
                 <PendingLabel />
               </td>
-              <td className={td} colSpan={withQuantities ? 9 : 8} />
+              <td className={cn(td, divided)} colSpan={columns.length} />
             </tr>
           ))}
         </tbody>
@@ -284,6 +361,7 @@ function SortHeader({
   sort,
   onSort,
   className,
+  divider,
 }: {
   /** What the header shows, short. */
   label: string;
@@ -293,6 +371,8 @@ function SortHeader({
   sort: Sort | null;
   onSort: (sort: Sort | null) => void;
   className?: string;
+  /** The movable divider on the column's left edge. */
+  divider?: React.ReactNode;
 }) {
   const active = sort && keys.some(([key]) => key === sort.key) ? sort : null;
   const Icon = !active ? ArrowUpDown : active.direction === "desc" ? ArrowDown : ArrowUp;
@@ -302,8 +382,9 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={active ? (active.direction === "asc" ? "ascending" : "descending") : undefined}
-      className={cn(th, "text-right", className)}
+      className={cn(th, divider && divided, "text-right", className)}
     >
+      {divider}
       <Menu
         align="end"
         trigger={

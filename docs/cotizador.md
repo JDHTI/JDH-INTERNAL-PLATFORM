@@ -46,13 +46,22 @@ estado menos `pendiente_validacion`; quien solo valida ve todo en lectura.
 | Pendiente de validación | Lectura y «Retirar de validación» (nota opcional) | «Validar» y «Devolver» (nota obligatoria) |
 | Creada / Actualizada | Excel y plano; editar un precio la devuelve a borrador | Excel y plano |
 
-**Confirmar** abre un diálogo: «Actualización de lista» (la del cliente; avisa cuántos clientes
-la comparten) o «Creación de lista» (código de 1 a 3 letras o números y descripción de hasta 40,
-por defecto `COTIZADOR <cliente>` en ASCII y mayúsculas; asignarla al cliente es a mano en
-SIESA), y fecha de activación (mañana por defecto). Si el cliente está en la lista 1 (aviso
-`lista_general`), actualizar va deshabilitado con «La lista 1 no se actualiza por este medio».
-El botón se bloquea sin precios nuevos o con alguno que no cumple; el 422 del API (por ejemplo,
-«La lista 1M ya existe en SIESA») se muestra en el diálogo. **Validar** muestra acción, lista,
+**Confirmar** abre un asistente de tres pasos (`confirm-wizard.tsx`); nada se envía hasta el último:
+
+1. **Oferta**: vigencia en días, ítems en la oferta (solo con precio nuevo o todas con precio) e
+   incluir datos del vendedor.
+2. **Observaciones**: las condiciones de la oferta. «Envío gratuito», «Tiempo de entrega» y
+   «Modalidad de pago» están sugeridas para agregar con un clic y editar; ninguna es obligatoria.
+   La primera, «Precios válidos hasta el …», sale de la vigencia.
+3. **Lista en SIESA**: «Actualización de lista» (la del cliente; avisa cuántos clientes la
+   comparten) o «Creación de lista» (código de 1 a 3 letras o números y descripción de hasta 40,
+   por defecto `COTIZADOR <cliente>` en ASCII y mayúsculas; asignarla al cliente es a mano en
+   SIESA), y fecha de activación (mañana por defecto). Si el cliente está en la lista 1 (aviso
+   `lista_general`), actualizar va deshabilitado con «La lista 1 no se actualiza por este medio».
+
+Al enviar, primero `PATCH /offer` con lo que cambió en los pasos 1 y 2 y luego `POST /confirm` con
+la versión que devolvió. El asistente se bloquea sin precios nuevos o con alguno que no cumple; el
+422 del API (por ejemplo, «La lista 1M ya existe en SIESA») se muestra en el diálogo. **Validar** muestra acción, lista,
 activación y cuántos precios antes de liberar los archivos.
 
 **Indicadores.** Una barra (verde, ámbar, rojo) y ocho cifras que también son los filtros de la
@@ -75,6 +84,15 @@ con ícono y palabras: cumple, en rango o bajo el mínimo; el tooltip «Alertas 
 asignación masiva los explica. El precio con IVA es `precio × (1 + IVA) + licores`, con el
 `vat_pct` de la venta. Tabla cuando su contenedor deja unos 11rem al producto (68rem, 75rem con
 cantidades; container query, así el sidebar abierto o cerrado decide); por debajo, tarjetas.
+
+Entre columnas hay un divisor visible desde «Último». El del encabezado se mueve: se arrastra, o
+con foco se usan las flechas (Mayús para pasos de 32 px); Enter o doble clic restablecen los
+anchos (`use-column-widths.ts`). Mover el divisor entre dos columnas reparte el ancho entre ellas;
+el que sigue al producto cambia la primera columna y nunca deja el producto en menos de 176 px. Los
+anchos se recuerdan en el navegador (`localStorage`, `jdh-cotizador-columnas`).
+
+La barra de búsqueda, filtros y acciones también se acomoda al ancho del contenido (container
+queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
 
 - **Costo**: por área, no por permiso. Solo en el cotizador de BI (`/bi/cotizador`), en la tabla
   y en el detalle. En el de Comercial no lo ve nadie, tampoco quien valida (decisión del
@@ -113,18 +131,14 @@ Cuando BI lo marca creado en SIESA, la línea ofrece «Usar la referencia N»
 **Vigencia.** «Nueva cotización» pide la vigencia en días (30 por defecto, de 1 a 365) y muestra
 la fecha. Se puede cambiar en la oferta; cambiarla cuenta desde hoy (`valid_from`, `valid_until`).
 
-**Oferta para el cliente.** Arriba, bajo las tarjetas del cliente. La cabecera resume (válida
-hasta, ítems, condiciones) y lleva «Vista previa», «Excel» (`offer.xlsx`, de la API) y «PDF». Al
-abrirla se editan, cada cambio con `PATCH /offer` (en cualquier estado, sin volver a borrador):
-
-- vigencia en días;
-- ítems en la oferta: solo con precio nuevo (más los productos para cotizar) o todas con precio
-  (`offer_scope`; la API marca cada línea con `in_offer` y su `offer_price`);
-- incluir datos del vendedor: el asignado al cliente en SIESA (`seller_contact`, de
-  `consumo.vendedores`);
-- cotizar con cantidades;
-- condiciones de la oferta: lista editable (agregar, editar, subir, bajar, quitar; máximo 20). La
-  primera, «Precios válidos hasta el …», sale sola de la vigencia.
+**Oferta para el cliente.** Se arma al confirmar (pasos 1 y 2 del asistente). Una vez confirmada,
+el editor muestra la sección, siempre abierta, bajo el aviso del estado: válida hasta, ítems y
+asesor; los primeros seis ítems con su precio con IVA (y cantidad y total si aplica), el
+consolidado y las condiciones; y «Vista previa», «Excel» (`offer.xlsx`, de la API), «PDF» y
+«Editar oferta» (los mismos pasos 1 y 2, con `PATCH /offer`: en cualquier estado y sin volver a
+borrador). Los ítems siguen `offer_scope` (la API marca cada línea con `in_offer` y su
+`offer_price`); el vendedor es el asignado al cliente en SIESA (`seller_contact`, de
+`consumo.vendedores`).
 
 La vista previa es `/<área>/cotizador/<id>/oferta` y siempre abre en una pestaña nueva (antes
 guarda lo pendiente del editor). Va en hojas tamaño carta (8,5 × 11 in, márgenes de 0,6 in): el
@@ -135,7 +149,8 @@ se parten. Es papel: siempre en claro (`.paper` en `globals.css`). El PDF es esa
 impresas (`@page { size: letter; margin: 0 }`, shell oculto; `?imprimir=1` abre el diálogo al
 llegar). «Cerrar» cierra la pestaña. Nunca muestra costo, márgenes, apoyos ni regla.
 
-**Cotizar con cantidades.** La tabla suma la columna «Cant.» (unidad de inventario, hasta dos
+**Cotizar con cantidades.** Interruptor junto a «Crear producto» (`PATCH /offer` con
+`quote_quantities`; no toca precios). La tabla suma la columna «Cant.» (unidad de inventario, hasta dos
 decimales; se guarda en la misma cola que el precio, `PUT /lines` con `quantity`, en cualquier
 estado) con el total de cada línea, y debajo el **consolidado**: subtotal, IVA por tarifa sobre su
 base, impuesto de licores y total (`offer_summary`; la UI lo calcula igual si no llega). Por línea:

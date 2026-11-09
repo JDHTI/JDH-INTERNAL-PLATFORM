@@ -12,13 +12,15 @@ import {
   moduleHref,
   visibleModules,
 } from "@/shared/config/areas.config";
+import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarModuleGroup from "./sidebar-module-group";
 import SidebarRow from "./sidebar-row";
 
 export default function SidebarMenu() {
   const pathname = usePathname();
-  const { isSidebarCollapsed, setMobileMenuOpen } = useUiStore();
+  const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
+  const isSidebarCollapsed = useRailCollapsed();
   const { area: activeArea, areas, isPending } = useActiveArea();
   const { data: user } = useSession();
   const isAdmin = isPlatformAdmin(user?.role);

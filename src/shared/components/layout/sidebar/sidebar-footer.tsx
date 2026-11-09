@@ -3,14 +3,15 @@
 import { Moon, Sun } from "lucide-react";
 
 import { HOME_LINK } from "@/shared/config/general.config";
+import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import SidebarRow from "./sidebar-row";
 import SidebarUserCard from "./sidebar-user-card";
 
 export default function SidebarFooter() {
-  const { theme, setTheme, isSidebarCollapsed, setMobileMenuOpen } =
-    useUiStore();
+  const { theme, setTheme, setMobileMenuOpen } = useUiStore();
+  const isSidebarCollapsed = useRailCollapsed();
   const isDark = theme === "dark";
 
   return (

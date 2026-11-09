@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
+import { useIsDrawer, useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -24,7 +25,7 @@ import { cn } from "@/shared/lib/utils";
  */
 export default function SidebarAreaSwitcher() {
   const { area, areas, isPending } = useActiveArea();
-  const isSidebarCollapsed = useUiStore((state) => state.isSidebarCollapsed);
+  const isSidebarCollapsed = useRailCollapsed();
 
   if (!area && (isPending || areas.length === 0)) {
     // Same 48px footprint as the card, so the rail does not jump when the
@@ -56,13 +57,14 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
   const listRef = useRef<HTMLUListElement>(null);
 
   const {
-    isSidebarCollapsed,
     setSidebarCollapsed,
     setMobileMenuOpen,
     isAreaPickerOpen: isOpen,
     setAreaPickerOpen: setIsOpen,
     openAreaPicker,
   } = useUiStore();
+  const isSidebarCollapsed = useRailCollapsed();
+  const isDrawer = useIsDrawer();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -162,13 +164,16 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
               type="button"
               onClick={() => {
                 setIsOpen(false);
-                setSidebarCollapsed(true);
+                // The drawer has no narrow state: on a phone the card closes it.
+                // Collapsing there only shrank the contents of a 260px drawer.
+                if (isDrawer) setMobileMenuOpen(false);
+                else setSidebarCollapsed(true);
               }}
-              title="Colapsar barra lateral"
+              title={isDrawer ? "Cerrar navegación" : "Colapsar barra lateral"}
               // The visible area name is part of the accessible name so the
               // control still matches what a voice user would say out loud
               // (WCAG 2.5.3), with the action appended.
-              aria-label={`${activeArea.name}. Colapsar barra lateral`}
+              aria-label={`${activeArea.name}. ${isDrawer ? "Cerrar navegación" : "Colapsar barra lateral"}`}
               className={cn(
                 "flex min-w-0 flex-1 items-center gap-2 rounded-sm",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"

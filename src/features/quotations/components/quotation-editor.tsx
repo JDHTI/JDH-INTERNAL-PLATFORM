@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -36,6 +36,7 @@ import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { MultiSelect } from "@/shared/components/ui/multi-select";
+import { Switch } from "@/shared/components/ui/switch";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -48,6 +49,7 @@ import {
   useDeleteQuotation,
   usePromoteLocalLine,
   useQuotation,
+  useUpdateOffer,
   useQuotationPermissions,
   useRefreshQuotation,
   useRemoveLine,
@@ -63,11 +65,12 @@ import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
 import { TotalsTable } from "./offer-document";
-import OfferPanel from "./offer-panel";
+import OfferSection from "./offer-section";
 import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
-import { ConfirmDialog, ReturnDialog, ValidateDialog } from "./review-dialogs";
+import { ConfirmDialog } from "./confirm-wizard";
+import { ReturnDialog, ValidateDialog } from "./review-dialogs";
 import TemplateDialog from "./template-dialog";
 import { ToggleChip } from "./toggle-chip";
 
@@ -381,7 +384,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const totals = offerTotals(quotation);
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-4">
+    // A container: the cards, indicators and toolbar adapt to the room the sidebar leaves.
+    <div className="@container mx-auto w-full max-w-[1600px] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <Link
           href={basePath}
@@ -480,14 +484,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       </header>
 
       <CustomerCards quotation={quotation} />
-      <OfferPanel
-        quotation={quotation}
-        basePath={basePath}
-        editable={canManage}
-        disabled={busy}
-        onBeforeOpen={() => void editor.saveNow()}
-      />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
+      {/* The offer is put together while confirming; once confirmed it is here to preview and export. */}
+      {quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && (
@@ -511,9 +510,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       {/* Quantities save in every status, so the status shows whenever something can be typed. */}
       {(editable || (canManage && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
+      {/*
+        Laid out by the width the content really has, not the window's: with the sidebar
+        open a laptop leaves the content as narrow as a tablet. One column, then filters
+        two by two, then a single row.
+      */}
       <div className={cn("space-y-2", !hasRows && "hidden")}>
-        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
-          <div className="relative w-full lg:w-72">
+        <div className="grid grid-cols-1 gap-2 @xl:grid-cols-2 @6xl:flex @6xl:flex-wrap @6xl:items-center">
+          <div className="relative w-full @xl:col-span-2 @6xl:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -537,7 +541,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
                 setCategories(next);
                 setPage(1);
               }}
-              className="w-full lg:w-56"
+              className="w-full @6xl:w-56"
             />
           )}
           {supplierOptions.length > 0 && (
@@ -550,21 +554,26 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
                 setSuppliers(next);
                 setPage(1);
               }}
-              className="w-full lg:w-56"
+              className="w-full @6xl:w-56"
             />
           )}
-          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
+          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="justify-self-start max-md:h-11">
             <FilterX aria-hidden="true" /> Borrar filtros
           </Button>
-          {editable && (
-            // Next to the references they add to, not among the quotation's own actions.
-            <div className="flex flex-wrap gap-2 lg:ml-auto">
-              <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
-                <PackageOpen aria-hidden="true" /> Crear producto
-              </Button>
-              <Button variant="outline" onClick={openImport} disabled={busy} className="max-md:h-11">
-                <PackagePlus aria-hidden="true" /> Agregar productos
-              </Button>
+          {canManage && (
+            // Next to the references they work on, not among the quotation's own actions.
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
+              <QuantitiesToggle quotation={quotation} disabled={busy} />
+              {editable && (
+                <>
+                  <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                    <PackageOpen aria-hidden="true" /> Crear producto
+                  </Button>
+                  <Button variant="outline" onClick={openImport} disabled={busy} className="max-md:h-11">
+                    <PackagePlus aria-hidden="true" /> Agregar productos
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -710,6 +719,35 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   );
 }
 
+/**
+ * Quote with quantities, beside the actions that add lines: it changes the
+ * table (a quantity per line, the consolidation), so it lives with the table,
+ * not in the offer. Saved at once (`PATCH /offer`); it never touches prices.
+ */
+function QuantitiesToggle({ quotation, disabled }: { quotation: Quotation; disabled: boolean }) {
+  const update = useUpdateOffer(quotation.id);
+  const id = useId();
+  return (
+    <span className="inline-flex min-h-9 items-center gap-2 max-md:min-h-11">
+      <Switch
+        checked={quotation.quote_quantities}
+        disabled={disabled || update.isPending}
+        onCheckedChange={(next) =>
+          update.mutate(
+            { version: quotation.version, settings: { quote_quantities: next } },
+            { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
+          )
+        }
+        aria-labelledby={`${id}-label`}
+      />
+      <span id={`${id}-label`} className="text-sm font-medium">
+        Cotizar con cantidades
+      </span>
+      {update.isPending && <Loader2 className="size-3.5 animate-spin text-text-secondary" aria-hidden="true" />}
+    </span>
+  );
+}
+
 type Fact = [label: string, value: React.ReactNode];
 
 /**
@@ -755,7 +793,7 @@ function CustomerCards({ quotation }: { quotation: Quotation }) {
     },
   ];
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="grid gap-3 @3xl:grid-cols-3">
       {groups.map((group) => (
         <section key={group.title} aria-label={group.title} className="min-w-0 rounded-lg border border-border bg-surface px-4 py-3">
           <h2 className="mb-2 text-sm font-semibold">{group.title}</h2>
