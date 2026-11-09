@@ -1,11 +1,11 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 
+import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 import Breadcrumbs from "./breadcrumbs";
-import { headerIconButtonClass } from "./header/header-icon-button";
 import HelpLink from "./header/help-link";
 import NotificationsMenu from "./header/notifications-menu";
 import QuickNotesMenu from "./header/quick-notes-menu";
@@ -33,16 +33,27 @@ import TasksMenu from "./header/tasks-menu";
  */
 export default function AppHeader() {
   const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
+  const { area } = useActiveArea();
+  const AreaIcon = area?.icon ?? LayoutGrid;
 
   return (
     <header className="flex h-18 w-full shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-3 text-sidebar-foreground">
+      {/* The drawer trigger wears the collapsed rail's face (the area badge), so on a
+          phone the sidebar opens from what it looks like when it is closed. */}
       <button
         type="button"
         onClick={() => setMobileMenuOpen(true)}
-        className={cn(headerIconButtonClass, "md:hidden")}
-        aria-label="Abrir navegación"
+        title={area ? `${area.name}: abrir navegación` : "Abrir navegación"}
+        aria-label={area ? `${area.name}. Abrir navegación` : "Abrir navegación"}
+        className={cn(
+          "flex size-12 shrink-0 items-center justify-center rounded-md border-[0.5px] border-sidebar-border bg-sidebar-active md:hidden",
+          "transition-colors duration-150 hover:bg-sidebar-hover",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground"
+        )}
       >
-        <Menu className="size-4" />
+        <span className="flex size-8 items-center justify-center rounded-sm bg-sidebar-active" aria-hidden="true">
+          <AreaIcon className="size-4 text-sidebar-foreground" />
+        </span>
       </button>
 
       <Breadcrumbs />

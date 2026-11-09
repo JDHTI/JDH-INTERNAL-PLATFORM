@@ -60,14 +60,21 @@ export default function Breadcrumbs() {
   const registered = useBreadcrumbStore((state) => state.labels);
   const segments = pathname.split("/").filter(Boolean);
 
+  // On a phone an area's trail keeps only the module and the page ("Cotizador > Sodexo SAS"):
+  // the area is already the badge that opens the drawer, and the full trail does not fit.
+  const inArea = segments.length >= 2 && areas.some((area) => area.path === `/${segments[0]}`);
+
   const crumbs = segments.map((segment, index) => {
     const href = "/" + segments.slice(0, index + 1).join("/");
+    const isLast = index === segments.length - 1;
     return {
       href,
       label: labelForHref(href, segment, areas, registered),
-      isLast: index === segments.length - 1,
+      isLast,
       // A module without a screen of its own has nothing to link to.
       hasPage: findModuleByPath(href)?.hasPage !== false,
+      phone: !inArea || index === 1 || isLast,
+      leadsOnPhone: inArea && index === 1,
     };
   });
 
@@ -76,7 +83,7 @@ export default function Breadcrumbs() {
       <ol className="flex items-center gap-2 overflow-hidden">
         {/* The mark opens every trail and is a real link home, not an
             ornament parked in front of the crumbs. */}
-        <li className="flex shrink-0 items-center">
+        <li className={cn("flex shrink-0 items-center", inArea && "max-md:hidden")}>
           <Link
             href="/"
             aria-label="Inicio"
@@ -98,9 +105,9 @@ export default function Breadcrumbs() {
         </li>
 
         {crumbs.map((crumb) => (
-          <li key={crumb.href} className="flex min-w-0 items-center gap-2">
+          <li key={crumb.href} className={cn("flex min-w-0 items-center gap-2", !crumb.phone && "max-md:hidden")}>
             <ChevronRight
-              className="size-4 shrink-0 text-sidebar-muted"
+              className={cn("size-4 shrink-0 text-sidebar-muted", crumb.leadsOnPhone && "max-md:hidden")}
               aria-hidden="true"
             />
 

@@ -75,7 +75,7 @@ export default function QuotationIndicators({
         <p className="text-[13px] text-text-secondary">Según el precio nuevo de cada línea, o el último si aún no tiene. Toca una cifra para filtrar la tabla.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-1 @2xl:grid-cols-4">
         {ITEMS.map((item) => {
           const pressed = active === item.key;
           return (

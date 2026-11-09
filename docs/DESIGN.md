@@ -535,6 +535,12 @@ URL suelta. Esta sección describe el espacio de trabajo.
   comparte esa línea media, así el breadcrumb queda alineado verticalmente con el contenido
   de la card. En escritorio, su padding izquierdo de 12px también alinea el logo con el borde
   exterior de la card. El borde inferior del header queda 12px debajo del de la card.
+- **Móvil (< `md`):** el sidebar es un cajón de 260px. Lo abre, en el header, la misma insignia
+  del área que muestra el rail colapsado (no un ícono de hamburguesa); la tarjeta del área lo
+  cierra, porque el cajón no tiene estado angosto. Dentro del cajón el contenido siempre va
+  expandido, aunque en escritorio el rail esté colapsado (`useRailCollapsed`). Las migas de un
+  área quedan en «módulo > página» (por ejemplo «Cotizador > Sodexo SAS»): el área ya es la
+  insignia y la ruta completa no cabe.
 - **Contenido:** scroll independiente. El header y el sidebar nunca se van con el scroll.
 - **Entrada:** `/workspace`, la guía: qué es el espacio de trabajo (datos de SIESA, una sola
   fuente, reportería, automatizaciones) y cómo se navega. No lista áreas: sin área en la URL, la

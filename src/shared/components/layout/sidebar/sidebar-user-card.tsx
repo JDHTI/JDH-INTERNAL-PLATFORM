@@ -9,12 +9,12 @@ import SessionAvatar from "@/features/directory/components/session-avatar";
 import { useSession } from "@/features/session/hooks/use-session";
 import { roleLabel, type SessionUser } from "@/features/session/types/session.types";
 import { LOGIN_URL, logoutSession } from "@/shared/lib/api-client";
-import { useUiStore } from "@/shared/store/use-ui-store";
+import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
 import { cn } from "@/shared/lib/utils";
 
 /** The identity card is backed by the API session and owns the logout action. */
 export default function SidebarUserCard() {
-  const isSidebarCollapsed = useUiStore((state) => state.isSidebarCollapsed);
+  const isSidebarCollapsed = useRailCollapsed();
   const { data: user, isPending } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
