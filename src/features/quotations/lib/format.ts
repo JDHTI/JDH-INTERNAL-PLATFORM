@@ -187,6 +187,15 @@ export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
 
 export const WINDOW_OPTIONS = [6, 12] as const;
 
+/** The validating area (`QUOTATIONS_APPROVER_AREA_SLUG` in the API). */
+export const QUOTATIONS_APPROVER_AREA_SLUG = "bi";
+
+/**
+ * The cost shows only in BI's quoter: in Comercial's it is never on screen,
+ * whoever opens it (business decision, 2026-11-09). `basePath` is "/<area>/cotizador".
+ */
+export const showsCost = (basePath: string) => basePath.split("/")[1] === QUOTATIONS_APPROVER_AREA_SLUG;
+
 export const MAX_REFERENCES_PER_IMPORT = 500;
 
 /**

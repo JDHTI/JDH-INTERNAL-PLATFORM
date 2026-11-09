@@ -49,6 +49,8 @@ export function useLineEditor(quotation: Quotation) {
   const [failure, setFailure] = useState<string | null>(null);
   const pending = useRef(new Map<string, Change>());
   const inflight = useRef(false);
+  /** The save in flight, so "Guardar borrador" can wait for it instead of reporting too early. */
+  const running = useRef<Promise<boolean> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef<SaveState>("idle");
 
@@ -79,12 +81,21 @@ export function useLineEditor(quotation: Quotation) {
     else pending.current.set(sku, rest);
   };
 
-  const flush = async (): Promise<void> => {
+  /** Sends the queue. True when everything typed is saved (or nothing was pending), false when the API refused it. */
+  const flush = (): Promise<boolean> => {
     if (timer.current) {
       clearTimeout(timer.current);
       timer.current = null;
     }
-    if (inflight.current || pending.current.size === 0) return;
+    if (inflight.current) return running.current ?? Promise.resolve(false);
+    if (pending.current.size === 0) return Promise.resolve(true);
+    running.current = send().finally(() => {
+      running.current = null;
+    });
+    return running.current;
+  };
+
+  const send = async (): Promise<boolean> => {
     const batch = new Map(pending.current);
     pending.current.clear();
     inflight.current = true;
@@ -108,8 +119,10 @@ export function useLineEditor(quotation: Quotation) {
         }
         return next;
       });
-      if (pending.current.size > 0) await flush();
-      else setSaveState("idle");
+      // Typed while this batch was out: it goes now, and the caller waits for it too.
+      if (pending.current.size > 0) return await send();
+      setSaveState("idle");
+      return true;
     } catch (error) {
       inflight.current = false;
       for (const [sku, change] of batch) pending.current.set(sku, { ...change, ...pending.current.get(sku) });
@@ -120,6 +133,7 @@ export function useLineEditor(quotation: Quotation) {
       } else {
         setSaveState("error");
       }
+      return false;
     }
   };
 
@@ -199,8 +213,29 @@ export function useLineEditor(quotation: Quotation) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [unsaved]);
 
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
+  /*
+   * Protection for what is still queued: hiding the tab (opening the offer's
+   * preview, switching apps) sends it at once instead of waiting for the
+   * pause, and so does leaving the editor through an in-app link, which
+   * `beforeunload` never sees. The mutation outlives the unmount and writes
+   * the answer into the shared cache.
+   */
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  });
+  useEffect(() => {
+    // The same Map for the editor's whole life (it is cleared, never replaced).
+    const queue = pending.current;
+    const onHide = () => {
+      if (document.visibilityState === "hidden" && stateRef.current !== "conflict") void flushRef.current();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      if (timer.current) clearTimeout(timer.current);
+      if (queue.size > 0 && stateRef.current !== "conflict") void flushRef.current();
+    };
   }, []);
 
   return {
@@ -209,8 +244,10 @@ export function useLineEditor(quotation: Quotation) {
     errorFor: (sku: string, field: LineField = "price"): string | undefined => errors[draftKey(field, sku)],
     isDirty: (sku: string, field: LineField = "price") => drafts[draftKey(field, sku)] !== undefined,
     edit,
-    /** Saves now instead of waiting for the pause, e.g. on Enter. */
-    saveNow: () => void flush(),
+    /** Saves now instead of waiting for the pause (Enter, "Guardar borrador"); resolves true when all is saved. */
+    saveNow: flush,
+    /** Whether something typed has not reached the API yet. */
+    hasPending: () => pending.current.size > 0 || inflight.current,
     retry,
     discard,
     state,
