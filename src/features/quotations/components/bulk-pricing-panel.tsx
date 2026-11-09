@@ -1,11 +1,13 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, Eraser, Loader2, Percent } from "lucide-react";
+import { AlertTriangle, ChevronDown, CircleSlash, Eraser, ListChecks, Loader2, Percent, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
+import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
@@ -61,8 +63,7 @@ export default function BulkPricingPanel({
   const [open, setOpen] = useState(true);
   const [mode, setMode] = useState<Mode>("optimo");
   const [margin, setMargin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [skipped, setSkipped] = useState<SkippedLine[]>([]);
+  const [marginInvalid, setMarginInvalid] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
 
@@ -71,24 +72,30 @@ export default function BulkPricingPanel({
   const withPrice = selectedLines.filter((line) => line.new_price !== null).map((line) => line.sku);
   const allFiltered = filteredSkus.length > 0 && filteredSkus.every((sku) => selected.has(sku));
   const countLabel = count === 1 ? "1 línea seleccionada" : `${formatCount(count)} líneas seleccionadas`;
+  // Errors stay until dismissed (DESIGN.md §7.6); nothing is written under the panel.
+  const fail = (message: string) => toast.error(message, { duration: Infinity });
 
   const finish = (sent: number, left: SkippedLine[], what: string) => {
     const done = sent - left.length;
-    setSkipped(left);
     if (done > 0) toast.success(`${done === 1 ? "1 línea quedó" : `${formatCount(done)} líneas quedaron`} ${what}.`);
+    if (left.length > 0) {
+      toast.warning(
+        `Sin precio (${formatCount(left.length)}): ${left.map((line) => `${line.sku ?? "—"} (${line.reason})`).join(", ")}. Quedaron seleccionadas para revisarlas.`,
+        { duration: Infinity }
+      );
+    }
     // What could not be priced stays selected, to see or fix; the rest is done.
     onSelectionChange(new Set(left.map((line) => line.sku).filter((sku): sku is string => sku !== null)));
   };
 
   const apply = (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
-    setSkipped([]);
 
     if (mode === "personalizado") {
       const parsed = parseMarginInput(margin);
       if ("error" in parsed) {
-        setError(parsed.error);
+        setMarginInvalid(true);
+        fail(parsed.error);
         return;
       }
       const skus = [...selected];
@@ -99,7 +106,7 @@ export default function BulkPricingPanel({
             finish(skus.length, updated.skipped ?? [], `al ${margin.replace(/\s|%/g, "")} %`);
             if ((updated.skipped ?? []).length === 0) setMargin("");
           },
-          onError: (failure) => setError(errorMessage(failure)),
+          onError: (failure) => fail(errorMessage(failure)),
         }
       );
       return;
@@ -113,8 +120,7 @@ export default function BulkPricingPanel({
       else left.push({ sku: line.sku, reason: result.reason });
     }
     if (changes.length === 0) {
-      setSkipped(left);
-      setError("Ninguna línea seleccionada tiene ese precio: les falta costo o margen objetivo.");
+      fail("Ninguna línea seleccionada tiene ese precio: les falta costo o margen objetivo.");
       return;
     }
     update.mutate(
@@ -122,7 +128,7 @@ export default function BulkPricingPanel({
       {
         onSuccess: (updated) =>
           finish(selectedLines.length, [...left, ...(updated.skipped ?? [])], mode === "optimo" ? "en su precio óptimo" : "en su precio mínimo"),
-        onError: (failure) => setError(errorMessage(failure)),
+        onError: (failure) => fail(errorMessage(failure)),
       }
     );
   };
@@ -146,22 +152,27 @@ export default function BulkPricingPanel({
 
   return (
     <section aria-labelledby={`${id}-title`} className="rounded-lg border border-border bg-surface">
-      <h2 id={`${id}-title`} className="text-base font-semibold">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          aria-expanded={open}
-          aria-controls={`${id}-body`}
-          className="flex min-h-12 w-full items-center gap-2 rounded-lg px-3 text-left hover:bg-canvas-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <ChevronDown className={cn("size-4 shrink-0 text-text-secondary", !open && "-rotate-90")} aria-hidden="true" />
-          <span className="flex-1">Asignación masiva de precio</span>
-          <span className="text-[13px] font-normal tabular-nums text-text-secondary" aria-live="polite">{countLabel}</span>
-        </button>
-      </h2>
+      <div className="flex items-center gap-2 pr-3">
+        <h2 id={`${id}-title`} className="min-w-0 flex-1 text-base font-semibold">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-controls={`${id}-body`}
+            className="flex min-h-12 w-full items-center gap-2 rounded-lg px-3 text-left hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <ChevronDown className={cn("size-4 shrink-0 text-text-secondary", !open && "-rotate-90")} aria-hidden="true" />
+            <span>Asignación masiva de precio</span>
+          </button>
+        </h2>
+        <span className="text-[13px] tabular-nums text-text-secondary" aria-live="polite">{countLabel}</span>
+        <InfoPopover label="Alertas de margen" title="Cómo leer los márgenes">
+          <MarginLegend />
+        </InfoPopover>
+      </div>
 
       {open && (
-        <div id={`${id}-body`} className="space-y-3 border-t border-border px-3 pb-3 pt-3">
+        <div id={`${id}-body`} className="border-t border-border p-3">
           <form onSubmit={apply} noValidate className="flex flex-wrap items-end gap-x-4 gap-y-3">
             <fieldset className="space-y-1.5">
               <legend className="mb-1.5 text-[13px] font-medium">Asignar con</legend>
@@ -182,7 +193,7 @@ export default function BulkPricingPanel({
                       checked={mode === option.value}
                       onChange={() => {
                         setMode(option.value);
-                        setError(null);
+                        setMarginInvalid(false);
                       }}
                       className="size-4 accent-[var(--primary)]"
                     />
@@ -202,12 +213,12 @@ export default function BulkPricingPanel({
                   value={mode === "personalizado" ? margin : ""}
                   onChange={(event) => {
                     setMargin(event.target.value);
-                    setError(null);
+                    setMarginInvalid(false);
                   }}
                   disabled={mode !== "personalizado"}
                   placeholder={mode === "personalizado" ? "Ej.: 18" : "Por línea"}
-                  aria-invalid={error && mode === "personalizado" ? true : undefined}
-                  aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`}
+                  title={mode === "personalizado" ? "Margen con apoyo, en puntos" : "Óptimo y mínimo usan el precio de cada producto"}
+                  aria-invalid={marginInvalid && mode === "personalizado" ? true : undefined}
                   className="pr-7 text-right tabular-nums max-md:h-11"
                 />
                 <Percent className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
@@ -218,60 +229,44 @@ export default function BulkPricingPanel({
               {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
               Aplicar a las seleccionadas
             </Button>
+
+            {/* The selection's own actions, in the room the row left on the right. */}
+            <div role="group" aria-label="Selección" className="flex flex-wrap items-center gap-1 lg:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => onSelectionChange(new Set(filteredSkus))}
+                disabled={filteredSkus.length === 0 || allFiltered}
+                title={`Selecciona las ${formatCount(filteredSkus.length)} líneas que dejan ver los filtros, en todas las páginas`}
+                className="max-md:h-11"
+              >
+                <ListChecks aria-hidden="true" /> Filtradas ({formatCount(filteredSkus.length)})
+                <span className="sr-only">: seleccionar todas las líneas filtradas</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setClearError(null);
+                  setConfirmClear(true);
+                }}
+                disabled={disabled || withPrice.length === 0 || clear.isPending}
+                title={count > 0 && withPrice.length === 0 ? "Ninguna línea seleccionada tiene precio nuevo." : "Quita el precio nuevo de las líneas seleccionadas"}
+                className="max-md:h-11"
+              >
+                <Eraser aria-hidden="true" /> Limpiar precios{withPrice.length > 0 && ` (${formatCount(withPrice.length)})`}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onSelectionChange(new Set())}
+                disabled={count === 0}
+                aria-label="Quitar selección"
+                title="Quitar selección"
+                className="max-md:size-11"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </div>
           </form>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSelectionChange(new Set(filteredSkus))}
-              disabled={filteredSkus.length === 0 || allFiltered}
-              className="max-md:h-11"
-            >
-              Seleccionar todas las filtradas ({formatCount(filteredSkus.length)})
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSkipped([]);
-                setError(null);
-                onSelectionChange(new Set());
-              }}
-              disabled={count === 0}
-              className="max-md:h-11"
-            >
-              Quitar selección
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setClearError(null);
-                setConfirmClear(true);
-              }}
-              disabled={disabled || withPrice.length === 0 || clear.isPending}
-              title={count > 0 && withPrice.length === 0 ? "Ninguna línea seleccionada tiene precio nuevo." : undefined}
-              className="max-md:h-11"
-            >
-              <Eraser aria-hidden="true" />
-              Limpiar precios de las seleccionadas{withPrice.length > 0 && ` (${formatCount(withPrice.length)})`}
-            </Button>
-          </div>
-
-          <p id={`${id}-help`} className="text-[13px] text-text-secondary">
-            Óptimo y mínimo usan el precio de cada producto con su costo, apoyos vigentes y margen objetivo. El personalizado
-            fija el mismo margen con apoyo para todas. Revisa después las líneas en ámbar o rojo.
-          </p>
-          {error && (
-            <p id={`${id}-error`} role="alert" className="text-[13px] text-danger">{error}</p>
-          )}
-          {skipped.length > 0 && (
-            <p role="status" className="text-[13px] text-text-secondary">
-              Sin precio ({formatCount(skipped.length)}): {skipped.map((line) => `${line.sku ?? "—"} (${line.reason})`).join(", ")}.
-              Quedaron seleccionadas para revisarlas.
-            </p>
-          )}
         </div>
       )}
 
@@ -287,5 +282,40 @@ export default function BulkPricingPanel({
         Esas líneas vuelven a «Sin precio nuevo» y salen del Excel y del plano. El resto de la cotización no cambia.
       </ConfirmDeleteDialog>
     </section>
+  );
+}
+
+const LEGEND: { tone: BadgeTone; icon: typeof ThumbsUp; label: string; text: string }[] = [
+  { tone: "success", icon: ThumbsUp, label: "Cumple", text: "El margen con apoyo llega al objetivo del producto o lo supera." },
+  { tone: "warning", icon: AlertTriangle, label: "En rango", text: "Entre el mínimo y el objetivo: se puede confirmar, pero queda bajo el margen ideal." },
+  { tone: "danger", icon: ThumbsDown, label: "Bajo el mínimo", text: "Con un precio nuevo así la cotización no se puede confirmar." },
+  { tone: "warning", icon: CircleSlash, label: "Sin costo u objetivo", text: "La regla no lo puede evaluar: falta el costo o el margen del canal." },
+];
+
+/**
+ * What each margin mark means and how the three modes price, kept in a
+ * tooltip so the panel stays one row. The badges are the same ones the table uses.
+ */
+function MarginLegend() {
+  return (
+    <div className="max-w-xs space-y-3 text-sm">
+      <ul className="space-y-2">
+        {LEGEND.map((item) => {
+          const Icon = item.icon;
+          return (
+            <li key={item.label} className="space-y-0.5">
+              <Badge tone={item.tone} className="px-1.5 py-0">
+                <Icon aria-hidden="true" /> {item.label}
+              </Badge>
+              <p className="text-[13px] text-text-secondary">{item.text}</p>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="border-t border-border pt-2 text-[13px] text-text-secondary">
+        Óptimo y mínimo ponen a cada línea el precio de su producto (costo, apoyos vigentes y margen objetivo). El
+        personalizado fija el mismo margen con apoyo para todas. El último precio se marca igual, con su margen actual.
+      </p>
+    </div>
   );
 }

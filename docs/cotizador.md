@@ -68,15 +68,26 @@ múltiple; las opciones son los valores únicos de las líneas de esa cotizació
 menor a mayor desde un menú; los que tienen dos cifras (precio y margen) ofrecen las dos.
 
 **Tabla.** Bloques de dos o tres renglones, sin scroll lateral: producto (descripción, SKU,
-proveedor y unidad), último precio (margen con apoyo y fecha), óptimo y mínimo (más el costo
-solo para quien valida), precio nuevo con su margen, apoyo, IVA, precio con IVA (más el precio
-sin IVA y el impuesto de licores) y variación. Cada margen lleva un badge con ícono y palabras:
-cumple, en rango o bajo el mínimo. El precio con IVA es `precio × (1 + IVA) + licores`, con el
-`vat_pct` de la venta. Tabla cuando su contenedor mide 64rem (container query, así el sidebar
-abierto o cerrado decide); por debajo, tarjetas.
+proveedor y unidad), último precio (margen con apoyo y fecha), óptimo y mínimo (más el costo en
+BI), precio nuevo, margen nuevo (columna propia), apoyo, IVA, precio con IVA (más el impuesto de
+licores; el precio sin IVA es el digitado y no se repite) y variación. Cada margen lleva un badge
+con ícono y palabras: cumple, en rango o bajo el mínimo; el tooltip «Alertas de margen» de la
+asignación masiva los explica. El precio con IVA es `precio × (1 + IVA) + licores`, con el
+`vat_pct` de la venta. Tabla cuando su contenedor deja unos 11rem al producto (68rem, 75rem con
+cantidades; container query, así el sidebar abierto o cerrado decide); por debajo, tarjetas.
 
-- **Costo**: solo con `can_validate` (BI y administradores), en la tabla y en el detalle;
-  Comercial cotiza desde los precios.
+- **Costo**: por área, no por permiso. Solo en el cotizador de BI (`/bi/cotizador`), en la tabla
+  y en el detalle. En el de Comercial no lo ve nadie, tampoco quien valida (decisión del
+  2026-11-09). El API sigue enviándolo.
+- **Categorías**: el API completa las de cotizaciones guardadas antes de `0050` la primera vez
+  que se abren, así el filtro aparece sin «Refrescar».
+
+**Guardado.** Las celdas (precio y cantidad) se guardan solas tras una pausa al escribir, al
+ocultar la pestaña (por ejemplo, al abrir la vista previa) y al salir del editor por un enlace
+interno. «Guardar borrador», junto a «Confirmar», manda lo pendiente de inmediato y lo confirma.
+El indicador al lado dice «Guardado», «Cambios por guardar», «Guardando…» o «Sin guardar»; los
+problemas (conflicto de versión, rechazo del API, celdas ilegibles) salen como aviso bajo los
+indicadores.
 - **Inactiva** (`is_active: false`): badge «Inactiva» con su explicación, precio deshabilitado
   (no se exporta) y botón para quitarla.
 - **Precio nuevo** en pesos enteros: un separador seguido de tres cifras es de miles
@@ -85,9 +96,11 @@ abierto o cerrado decide); por debajo, tarjetas.
 
 **Asignación masiva de precio.** Sección propia, abierta por defecto. «Asignar con» margen
 óptimo (el `optimal_price` de cada línea), margen mínimo (`min_price`) o personalizado (un
-margen con apoyo en puntos, que va como `margin_pct`). Botones para aplicar a las
-seleccionadas, seleccionar todas las filtradas, quitar la selección y limpiar los precios de las
-seleccionadas (con confirmación). Lo que no se pudo calcular queda seleccionado con su motivo.
+margen con apoyo en puntos, que va como `margin_pct`) y «Aplicar a las seleccionadas»; en la
+misma fila, a la derecha, «Filtradas (N)», «Limpiar precios» (con confirmación) y una X para
+quitar la selección. La explicación vive en el tooltip «Alertas de margen». Resultados y errores
+salen como notificaciones, nunca como texto bajo el panel; lo que no se pudo calcular queda
+seleccionado y la notificación dice por qué.
 
 **Crear producto.** Junto a «Agregar productos»: descripción, proveedor (opcional), precio
 estimado sin IVA e IVA 19, 5 o 0 %. `POST /local-lines` lo crea como `LOC-n`, origen `local`
@@ -113,11 +126,14 @@ abrirla se editan, cada cambio con `PATCH /offer` (en cualquier estado, sin volv
 - condiciones de la oferta: lista editable (agregar, editar, subir, bajar, quitar; máximo 20). La
   primera, «Precios válidos hasta el …», sale sola de la vigencia.
 
-La vista previa es `/<área>/cotizador/<id>/oferta`: una hoja con el logo, cliente, asesor (si
-aplica), ítems con precio sin y con IVA, el consolidado y las condiciones. Es papel: siempre en
-claro (`.paper` en `globals.css` vuelve a los tokens del tema claro). El PDF sale de esa misma hoja
-con la impresión del navegador («Guardar como PDF»; `?imprimir=1` abre el diálogo al llegar), con
-el shell oculto al imprimir. Nunca muestra costo, márgenes, apoyos ni regla.
+La vista previa es `/<área>/cotizador/<id>/oferta` y siempre abre en una pestaña nueva (antes
+guarda lo pendiente del editor). Va en hojas tamaño carta (8,5 × 11 in, márgenes de 0,6 in): el
+logo, cliente, asesor (si aplica), ítems con precio sin y con IVA, el consolidado y las
+condiciones, con «Página n de m» al pie. Los bloques se miden una vez fuera de pantalla y se
+reparten en hojas; la tabla se corta entre filas y repite su encabezado; totales y condiciones no
+se parten. Es papel: siempre en claro (`.paper` en `globals.css`). El PDF es esas mismas hojas
+impresas (`@page { size: letter; margin: 0 }`, shell oculto; `?imprimir=1` abre el diálogo al
+llegar). «Cerrar» cierra la pestaña. Nunca muestra costo, márgenes, apoyos ni regla.
 
 **Cotizar con cantidades.** La tabla suma la columna «Cant.» (unidad de inventario, hasta dos
 decimales; se guarda en la misma cola que el precio, `PUT /lines` con `quantity`, en cualquier

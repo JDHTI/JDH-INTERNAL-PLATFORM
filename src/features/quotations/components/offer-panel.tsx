@@ -34,6 +34,7 @@ export default function OfferPanel({
   basePath,
   editable,
   disabled,
+  onBeforeOpen,
 }: {
   quotation: Quotation;
   basePath: string;
@@ -41,6 +42,8 @@ export default function OfferPanel({
   editable: boolean;
   /** Prices unsaved or another write running: a write needs the current version. */
   disabled: boolean;
+  /** Sends what is still queued before the preview opens in its tab, so it shows the latest prices. */
+  onBeforeOpen: () => void;
 }) {
   const id = useId();
   const update = useUpdateOffer(quotation.id);
@@ -95,18 +98,28 @@ export default function OfferPanel({
           </button>
         </h2>
         <div className="flex flex-wrap gap-2">
-          <Link href={previewHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-11")}>
-            <Eye aria-hidden="true" /> Vista previa
+          {/* Always a new tab: the editor keeps its place, filters and unsaved cells. */}
+          <Link
+            href={previewHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onBeforeOpen}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-11")}
+          >
+            <Eye aria-hidden="true" /> Vista previa<span className="sr-only"> (se abre en una pestaña nueva)</span>
           </Link>
           <Button variant="outline" size="sm" onClick={() => void download()} disabled={downloading || items === 0} className="max-md:h-11">
             {downloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileSpreadsheet aria-hidden="true" />} Excel
           </Button>
           <Link
             href={`${previewHref}?imprimir=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onBeforeOpen}
             aria-disabled={items === 0 || undefined}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-11", items === 0 && "pointer-events-none opacity-50")}
           >
-            <Printer aria-hidden="true" /> PDF
+            <Printer aria-hidden="true" /> PDF<span className="sr-only"> (se abre en una pestaña nueva)</span>
           </Link>
         </div>
       </div>
