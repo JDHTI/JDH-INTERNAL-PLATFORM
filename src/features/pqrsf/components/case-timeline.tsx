@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { Download, FileText, Loader2, Paperclip, RotateCw, Send, X } from "lucide-react";
+import { Download, FileText, Forward, Loader2, Paperclip, RotateCw, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -31,6 +31,7 @@ import type {
   PqrsfCase,
 } from "../types/pqrsf.types";
 import CcPicker from "./cc-picker";
+import ForwardToCustomerDialog from "./forward-to-customer-dialog";
 
 const MAX_FILES = 10;
 const MB = 1024 * 1024;
@@ -208,6 +209,7 @@ export default function CaseTimeline({
   const [confirmingReply, setConfirmingReply] = useState(false);
   const [replyAck, setReplyAck] = useState(false);
   const [cc, setCc] = useState<Person[]>([]);
+  const [forwarding, setForwarding] = useState<CaseEvent | null>(null);
 
   // The API enforces these; the form only avoids offering what it will refuse.
   const replyBlocked = !item.permissions.can_work
@@ -343,6 +345,26 @@ export default function CaseTimeline({
                     isRetrying={false}
                   />
                 )}
+                {/* A supplier's answer the client may see: the team passes it on by hand, once. */}
+                {event.event_type === "email_received" && event.forwarded_at && (
+                  <p className="mt-1 text-[13px] break-words text-text-secondary">
+                    Enviado al cliente el {formatDateTime(event.forwarded_at)}
+                    {event.forwarded_by ? ` por ${event.forwarded_by}` : ""}
+                    {event.forwarded_to ? ` · ${event.forwarded_to}` : ""}
+                  </p>
+                )}
+                {event.event_type === "email_received" && event.forwardable === true && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-1.5 max-md:h-11"
+                    onClick={() => setForwarding(event)}
+                  >
+                    <Forward aria-hidden="true" />
+                    Enviar al cliente
+                  </Button>
+                )}
                 {event.event_type === "supplier_message" && (
                   <EventExtras
                     caseId={item.id}
@@ -358,6 +380,14 @@ export default function CaseTimeline({
             );
           })}
         </ol>
+      )}
+
+      {forwarding && (
+        <ForwardToCustomerDialog
+          caseId={item.id}
+          event={forwarding}
+          onClose={() => setForwarding(null)}
+        />
       )}
 
       <form

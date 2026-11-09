@@ -24,6 +24,8 @@ import type {
   FeedbackListParams,
   FeedbackPage,
   FeedbackSummary,
+  ForwardPreview,
+  ForwardResult,
   ItemInput,
   LastSeen,
   NotificationSettings,
@@ -306,6 +308,26 @@ export function getClientReplies(id: string): Promise<ClientReply[]> {
 export function retryClientReply(id: string, notificationId: string): Promise<ClientReply> {
   return apiFetch<ClientReply>(`${casePath(id)}/client-replies/${notificationId}/retry`, {
     method: "POST",
+  });
+}
+
+// ── A supplier's answer, passed on to the client (API #54) ──
+
+const forwardPath = (id: string, eventId: string) =>
+  `${casePath(id)}/events/${encodeURIComponent(eventId)}/forward-to-customer`;
+
+/** The email as it would leave; nothing is sent. Validates like the send does. */
+export function previewForward(id: string, eventId: string, note: string): Promise<ForwardPreview> {
+  return apiFetch<ForwardPreview>(`${forwardPath(id, eventId)}/preview`, {
+    method: "POST",
+    body: { note: note || null },
+  });
+}
+
+export function forwardToCustomer(id: string, eventId: string, note: string): Promise<ForwardResult> {
+  return apiFetch<ForwardResult>(forwardPath(id, eventId), {
+    method: "POST",
+    body: { note: note || null },
   });
 }
 
