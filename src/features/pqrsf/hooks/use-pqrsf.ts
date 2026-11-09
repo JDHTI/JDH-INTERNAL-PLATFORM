@@ -23,6 +23,7 @@ import {
   deleteCase,
   forwardToCustomer,
   getCase,
+  getCaseOpenings,
   getCatalog,
   getClientReplies,
   getFeedback,
@@ -251,6 +252,18 @@ function useCaseMutation<TInput>(
   });
 }
 
+/**
+ * Working a case (a comment, an email to the client or a supplier) moves a
+ * Recibida or Leída case to En curso on the API (API #55). The response of those
+ * calls is the new timeline entry, not the case, so the case is read again for
+ * the status chip, and the inbox for its row and counters.
+ */
+function refreshCase(queryClient: ReturnType<typeof useQueryClient>, id: string) {
+  void queryClient.invalidateQueries({ queryKey: pqrsfKeys.detail(id), exact: true });
+  void queryClient.invalidateQueries({ queryKey: pqrsfKeys.lists() });
+  void queryClient.invalidateQueries({ queryKey: pqrsfKeys.summaries() });
+}
+
 export function useUpdateCase(id: string) {
   return useCaseMutation(id, (input: UpdateCaseInput) => updateCase(id, input));
 }
@@ -320,6 +333,7 @@ export function useAddComment(id: string) {
       );
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.detail(id), "files"] });
       queryClient.invalidateQueries({ queryKey: pqrsfKeys.clientReplies(id) });
+      refreshCase(queryClient, id);
     },
   });
 }
@@ -339,6 +353,17 @@ export function useRetryClientReply(id: string) {
   return useMutation({
     mutationFn: (notificationId: string) => retryClientReply(id, notificationId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pqrsfKeys.clientReplies(id) }),
+  });
+}
+
+/** Asked for only when the popover opens, never with the case. */
+export function useCaseOpenings(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...pqrsfKeys.detail(id), "openings"] as const,
+    queryFn: () => getCaseOpenings(id),
+    enabled,
+    // Someone may have opened the case since the last time: look again each time it opens.
+    staleTime: 0,
   });
 }
 
@@ -363,12 +388,11 @@ export function useForwardToCustomer(id: string) {
   return useMutation({
     mutationFn: ({ eventId, note }: { eventId: string; note: string }) =>
       forwardToCustomer(id, eventId, note),
-    onSuccess: () =>
+    onSuccess: () => {
       // The original email now carries who sent it and when, and the timeline a new entry.
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: pqrsfKeys.detail(id) }),
-        queryClient.invalidateQueries({ queryKey: pqrsfKeys.activities() }),
-      ]),
+      queryClient.invalidateQueries({ queryKey: pqrsfKeys.activities() });
+      refreshCase(queryClient, id);
+    },
   });
 }
 
@@ -384,6 +408,7 @@ export function useSendSupplierMessage(id: string) {
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.detail(id), "files"] });
       queryClient.invalidateQueries({ queryKey: pqrsfKeys.supplierEmails(id) });
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.all, "supplier-contacts"] });
+      refreshCase(queryClient, id);
     },
   });
 }

@@ -491,6 +491,24 @@ export interface CaseDetail {
   request: IntakeRequest | null;
 }
 
+/** One person who opened the case. `user` is null when that account no longer exists. */
+export interface CaseOpeningPerson {
+  user: Person | null;
+  user_id: string | null;
+  first_opened_at: string;
+  last_opened_at: string;
+  /** Openings within 30 minutes of each other count once. */
+  visits: number;
+}
+
+/** Who opened the case (API #55): kept off the timeline and fetched on demand. */
+export interface CaseOpenings {
+  /** Most recent opening first. */
+  people: CaseOpeningPerson[];
+  /** Every opening, newest first: «Abrió el caso por primera vez» and «Abrió el caso». */
+  entries: CaseEvent[];
+}
+
 export interface CasePage {
   items: PqrsfCase[];
   total: number;

@@ -7,6 +7,7 @@ import type {
   CaseFile,
   CaseFilters,
   CaseListParams,
+  CaseOpenings,
   CasePage,
   CaseStatus,
   CaseSummary,
@@ -309,6 +310,11 @@ export function retryClientReply(id: string, notificationId: string): Promise<Cl
   return apiFetch<ClientReply>(`${casePath(id)}/client-replies/${notificationId}/retry`, {
     method: "POST",
   });
+}
+
+/** Who opened the case and when; the timeline no longer carries it (API #55). */
+export function getCaseOpenings(id: string): Promise<CaseOpenings> {
+  return apiFetch<CaseOpenings>(`${casePath(id)}/openings`);
 }
 
 // ── A supplier's answer, passed on to the client (API #54) ──
