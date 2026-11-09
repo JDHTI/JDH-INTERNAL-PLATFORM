@@ -328,6 +328,8 @@ export interface CaseEvent {
     | "comment"
     /** Text the client or a supplier wrote by email: read like a message. */
     | "email_received"
+    /** The team passed a supplier's answer on to the client; `note` is what the manager added. */
+    | "forwarded_to_customer"
     | "item_added"
     | "item_updated"
     | "item_removed"
@@ -360,6 +362,44 @@ export interface CaseEvent {
     | string;
   /** Status names before and after, when the event moved the case. */
   status_change: { from: string | null; to: string | null } | null;
+  // Only `email_received` events carry these, and only from an API that sends them
+  // (API #54); without them the UI offers no forwarding.
+  /** Who wrote the email. */
+  sender_role?: "supplier" | "customer" | "external" | null;
+  /** True only when this supplier's answer can be sent to the client now, by this person. */
+  forwardable?: boolean;
+  forwarded_at?: string | null;
+  /** Name or email of whoever sent it to the client. */
+  forwarded_by?: string | null;
+  forwarded_to?: string | null;
+}
+
+/** Sending a supplier's answer to the client: the email as it would leave, without sending. */
+export interface ForwardPreview {
+  to: string;
+  sender: string;
+  subject: string;
+  /** A whole HTML document: show it in a sandboxed iframe. */
+  html: string;
+  text: string;
+  attachments: string[];
+}
+
+export interface ForwardDelivery {
+  id: string;
+  event_id: string;
+  to: string;
+  cc: string[];
+  status: "pending" | "sent" | "failed";
+  attempts: number;
+  error: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+/** The new `forwarded_to_customer` event, with the email that left. */
+export interface ForwardResult extends CaseEvent {
+  delivery: ForwardDelivery;
 }
 
 /** Entry of the module history; `case_id` is null once the case is deleted. */

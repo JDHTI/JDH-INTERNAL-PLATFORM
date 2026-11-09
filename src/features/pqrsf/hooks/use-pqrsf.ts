@@ -21,6 +21,7 @@ import {
   createStatus,
   createSubject,
   deleteCase,
+  forwardToCustomer,
   getCase,
   getCatalog,
   getClientReplies,
@@ -37,6 +38,7 @@ import {
   listRequestTypes,
   listSubjects,
   markRead,
+  previewForward,
   recordInboxVisit,
   removeItem,
   retryClientReply,
@@ -337,6 +339,36 @@ export function useRetryClientReply(id: string) {
   return useMutation({
     mutationFn: (notificationId: string) => retryClientReply(id, notificationId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pqrsfKeys.clientReplies(id) }),
+  });
+}
+
+/**
+ * The email as the client would get it. It is a POST on the API but changes
+ * nothing, so it reads as a query; the same checks as the send run on it, so a
+ * 409 or 422 shows up here before anyone confirms.
+ */
+export function useForwardPreview(id: string, eventId: string, note: string) {
+  return useQuery({
+    queryKey: [...pqrsfKeys.detail(id), "forward-preview", eventId, note] as const,
+    queryFn: () => previewForward(id, eventId, note),
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+export function useForwardToCustomer(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, note }: { eventId: string; note: string }) =>
+      forwardToCustomer(id, eventId, note),
+    onSuccess: () =>
+      // The original email now carries who sent it and when, and the timeline a new entry.
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: pqrsfKeys.activities() }),
+      ]),
   });
 }
 
