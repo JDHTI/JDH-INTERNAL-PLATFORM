@@ -18,7 +18,7 @@ const NOTE_LIMIT = 2000;
 /**
  * Passes a supplier's email answer on to the client, once and by hand. It shows
  * the email exactly as the API will send it (the API's own preview, so the
- * no-reply notice is there too) and sends only on confirmation. The preview runs
+ * notice that replies are not processed is there too) and sends only on confirmation. The preview runs
  * the same checks as the send: whatever would be refused shows here first.
  */
 export default function ForwardToCustomerDialog({
@@ -74,7 +74,7 @@ export default function ForwardToCustomerDialog({
       wide
       onOpenChange={(open) => !open && !send.isPending && onClose()}
       title="Enviar al cliente"
-      description="Revisa el correo como lo recibirá el cliente. Sale de una cuenta que no recibe respuestas: si el cliente contesta, nadie lo lee."
+      description="Revisa el correo como lo recibirá el cliente. Es un correo automático: si el cliente lo responde, esa respuesta no se procesa en la plataforma."
     >
       <form
         className="space-y-4"

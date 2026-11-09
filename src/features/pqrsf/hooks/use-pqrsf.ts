@@ -345,7 +345,7 @@ export function useRetryClientReply(id: string) {
 /**
  * The email as the client would get it. It is a POST on the API but changes
  * nothing, so it reads as a query; the same checks as the send run on it, so a
- * 409, 422 or 503 shows up here before anyone confirms.
+ * 409 or 422 shows up here before anyone confirms.
  */
 export function useForwardPreview(id: string, eventId: string, note: string) {
   return useQuery({
