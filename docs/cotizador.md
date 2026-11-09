@@ -32,6 +32,8 @@ la cotización.
 | --- | --- |
 | `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: cliente y ventana). Comercial ve solo las suyas. Quien valida arranca en todas y elige entre «Mis cotizaciones» y «Todas». Todos abren en «Todos los estados» (decisión del 2026-11-09) |
 | `/<área>/cotizador/<id>` | Editor: cabecera, tres tarjetas del cliente (Cliente; Lista de precios; Costo), aviso del estado, indicadores, asignación masiva, filtros, tabla y acciones |
+| `/<área>/cotizador/<id>/oferta` | Vista previa de la oferta para el cliente, Excel y PDF |
+| `/<área>/cotizador/solicitados` | Productos solicitados: los locales, para crearlos en SIESA |
 | `/<área>/cotizador/reglas` | `GET /quotations/rules`, abierta a todos |
 
 **Permisos y estados.** `GET /quotations/permissions` decide qué se ve: sin `can_manage` ni
@@ -89,8 +91,46 @@ seleccionadas (con confirmación). Lo que no se pudo calcular queda seleccionado
 
 **Crear producto.** Junto a «Agregar productos»: descripción, proveedor (opcional), precio
 estimado sin IVA e IVA 19, 5 o 0 %. `POST /local-lines` lo crea como `LOC-n`, origen `local`
-(«Solo cotización»): sin costo ni regla, no cuenta para confirmar y no sale en el Excel, el
-plano ni la plantilla.
+(«Solo cotización»): sin costo ni regla, no cuenta para confirmar y no sale en el Excel de SIESA,
+el plano ni la plantilla. Cada uno entra al registro de **Productos solicitados**; si al escribir
+la descripción ya hay uno solicitado parecido, el diálogo ofrece «Cotizar este» para no duplicarlo.
+Cuando BI lo marca creado en SIESA, la línea ofrece «Usar la referencia N»
+(`POST /lines/{LOC-n}/promote`), que la cambia por la referencia real con su costo y su regla.
+
+**Vigencia.** «Nueva cotización» pide la vigencia en días (30 por defecto, de 1 a 365) y muestra
+la fecha. Se puede cambiar en la oferta; cambiarla cuenta desde hoy (`valid_from`, `valid_until`).
+
+**Oferta para el cliente.** Arriba, bajo las tarjetas del cliente. La cabecera resume (válida
+hasta, ítems, condiciones) y lleva «Vista previa», «Excel» (`offer.xlsx`, de la API) y «PDF». Al
+abrirla se editan, cada cambio con `PATCH /offer` (en cualquier estado, sin volver a borrador):
+
+- vigencia en días;
+- ítems en la oferta: solo con precio nuevo (más los productos para cotizar) o todas con precio
+  (`offer_scope`; la API marca cada línea con `in_offer` y su `offer_price`);
+- incluir datos del vendedor: el asignado al cliente en SIESA (`seller_contact`, de
+  `consumo.vendedores`);
+- cotizar con cantidades;
+- condiciones de la oferta: lista editable (agregar, editar, subir, bajar, quitar; máximo 20). La
+  primera, «Precios válidos hasta el …», sale sola de la vigencia.
+
+La vista previa es `/<área>/cotizador/<id>/oferta`: una hoja con el logo, cliente, asesor (si
+aplica), ítems con precio sin y con IVA, el consolidado y las condiciones. Es papel: siempre en
+claro (`.paper` en `globals.css` vuelve a los tokens del tema claro). El PDF sale de esa misma hoja
+con la impresión del navegador («Guardar como PDF»; `?imprimir=1` abre el diálogo al llegar), con
+el shell oculto al imprimir. Nunca muestra costo, márgenes, apoyos ni regla.
+
+**Cotizar con cantidades.** La tabla suma la columna «Cant.» (unidad de inventario, hasta dos
+decimales; se guarda en la misma cola que el precio, `PUT /lines` con `quantity`, en cualquier
+estado) con el total de cada línea, y debajo el **consolidado**: subtotal, IVA por tarifa sobre su
+base, impuesto de licores y total (`offer_summary`; la UI lo calcula igual si no llega). Por línea:
+base = cantidad × precio, IVA = base × tarifa, licores = cantidad × impuesto por unidad.
+
+**Productos solicitados** (`/<área>/cotizador/solicitados`, en el menú bajo Cotizador). El
+registro aparte de los productos locales: no se pierde al borrar la cotización. Filtros por estado
+(solicitado, creado en SIESA, descartado) y búsqueda; cada uno muestra precio estimado, IVA, quién
+lo pidió y las cotizaciones donde está (las que quien mira puede abrir). BI (`can_validate`) lo
+marca creado en SIESA con la referencia (la API valida que exista y esté activa), lo descarta con
+nota o lo devuelve a solicitado.
 
 **Agregar productos.** El buscador del maestro (200 ms de espera, índice en el API) muestra los
 resultados con casillas: se marcan varios o «Marcar los N resultados»; las inactivas no se

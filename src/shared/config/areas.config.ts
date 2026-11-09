@@ -27,6 +27,7 @@ import {
   LifeBuoy,
   ListChecks,
   MessageSquareWarning,
+  PackageSearch,
   Palette,
   ReceiptText,
   Settings,
@@ -383,7 +384,18 @@ type ModuleTemplate = Omit<ModuleItem, "id" | "path" | "areaSlug" | "subItems"> 
  */
 const MODULE_TEMPLATES: ModuleTemplate[] = [
   { key: "proyectos", name: "Proyectos", category: "Operación", icon: FolderKanban, available: true, permission: "proyectos" },
-  { key: "cotizador", name: "Cotizador", category: "Operación", icon: Calculator, available: true, permission: "cotizador" },
+  {
+    key: "cotizador",
+    name: "Cotizador",
+    category: "Operación",
+    icon: Calculator,
+    available: true,
+    permission: "cotizador",
+    // Its own page under the same permission: Comercial follows the requests, BI resolves them.
+    subItems: (base, slug) => [
+      { id: `${slug}-cotizador-solicitados`, name: "Productos solicitados", path: `${base}/solicitados`, icon: PackageSearch },
+    ],
+  },
   {
     key: "validador-pedidos",
     name: "Validador de pedidos",

@@ -1,6 +1,7 @@
 import { toNumber } from "@/shared/lib/format";
 
 import type { QuotationLine } from "../types/quotations.types";
+import { offerAmounts } from "./offer";
 
 /**
  * Where a price leaves the margin (with support) against the product's rule:
@@ -66,7 +67,18 @@ export function priceWithVat(line: QuotationLine): number | null {
 }
 
 /** Numeric columns the table sorts by. */
-export type SortKey = "last_price" | "current_margin" | "optimal" | "new_price" | "new_margin" | "cost" | "vat" | "final_price" | "variation";
+export type SortKey =
+  | "last_price"
+  | "current_margin"
+  | "optimal"
+  | "new_price"
+  | "new_margin"
+  | "cost"
+  | "vat"
+  | "final_price"
+  | "variation"
+  | "quantity"
+  | "line_total";
 export type SortDirection = "desc" | "asc";
 export interface Sort {
   key: SortKey;
@@ -83,6 +95,8 @@ const SORT_VALUE: Record<SortKey, (line: QuotationLine) => number | null> = {
   vat: (line) => toNumber(line.vat_pct),
   final_price: priceWithVat,
   variation: (line) => toNumber(line.variation_pct),
+  quantity: (line) => toNumber(line.quantity),
+  line_total: (line) => offerAmounts(line)?.total ?? null,
 };
 
 /** A copy sorted by one column; lines without a value go last in either direction. */

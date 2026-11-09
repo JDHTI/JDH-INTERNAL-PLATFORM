@@ -11,9 +11,11 @@ import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useAddLocalLine } from "../hooks/use-quotations";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+
+import { useAddLocalLine, useRequestedProducts } from "../hooks/use-quotations";
 import { formatMoney, parsePriceInput } from "../lib/format";
-import type { LocalVat, Quotation } from "../types/quotations.types";
+import type { LocalLineInput, LocalVat, Quotation, RequestedProduct } from "../types/quotations.types";
 
 const VATS: LocalVat[] = [19, 5, 0];
 const MAX_TEXT = 120;
@@ -77,28 +79,41 @@ export default function LocalProductDialog({
   const parsedPrice = parsePriceInput(draft.price);
   const preview = "value" in parsedPrice && parsedPrice.value !== null ? Math.round(Number(parsedPrice.value) * (1 + draft.vat / 100)) : null;
 
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const { errors: found, price } = validate(draft);
-    setErrors(found);
-    if (price === null || Object.keys(found).length > 0) return;
+  // Already requested by someone: quoting that row keeps one entry per product in the registry.
+  const q = useDebouncedValue(draft.description.trim());
+  const matches = useRequestedProducts({ status: "solicitado", q, page: 1, size: 5 }, open && q.length >= 3);
+  const suggestions = q.length >= 3 ? (matches.data?.items ?? []) : [];
+
+  const send = (input: LocalLineInput, name: string) => {
     setFailure(null);
     const before = new Set(quotation.lines.map((line) => line.sku));
     add.mutate(
-      {
-        version: quotation.version,
-        input: { description: draft.description.trim(), supplier_name: draft.supplier.trim() || null, price, vat_pct: draft.vat },
-      },
+      { version: quotation.version, input },
       {
         onSuccess: (updated) => {
           const created = updated.lines.find((line) => line.origin === "local" && !before.has(line.sku));
-          toast.success(`${draft.description.trim()} quedó en la cotización como producto solo para cotizar.`);
+          toast.success(`${name} quedó en la cotización como producto solo para cotizar.`);
           close(false);
           if (created) onCreated(created.sku);
         },
         onError: (error) => setFailure(errorMessage(error)),
       }
     );
+  };
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const { errors: found, price } = validate(draft);
+    setErrors(found);
+    if (price === null || Object.keys(found).length > 0) return;
+    send({ description: draft.description.trim(), supplier_name: draft.supplier.trim() || null, price, vat_pct: draft.vat }, draft.description.trim());
+  };
+
+  /** Quotes a product already requested; the typed price wins over its estimate when there is one. */
+  const quoteExisting = (product: RequestedProduct) => {
+    const typed = parsePriceInput(draft.price);
+    const price = "value" in typed && typed.value !== null && Number(typed.value) > 0 ? typed.value : undefined;
+    send({ requested_product_id: product.id, ...(price ? { price } : {}) }, product.description);
   };
 
   return (
@@ -108,7 +123,7 @@ export default function LocalProductDialog({
       isForm
       wide={false}
       title="Crear producto para cotizar"
-      description="Para una referencia que no existe en el portafolio. Queda marcada como «Solo cotización»: no tiene costo ni margen objetivo y no sale en el Excel ni en el plano de SIESA."
+      description="Para una referencia que no existe en el portafolio. Queda marcada como «Solo cotización» y entra a Productos solicitados, donde BI la revisa para crearla en SIESA. No tiene costo ni margen objetivo y no sale en el plano de SIESA."
     >
       <form noValidate onSubmit={submit} className="space-y-4">
         <Field label="Descripción" htmlFor={`${id}-description`} error={errors.description}>
@@ -124,6 +139,29 @@ export default function LocalProductDialog({
             className="max-md:h-11"
           />
         </Field>
+
+        {suggestions.length > 0 && (
+          <section aria-label="Productos ya solicitados" className="space-y-1.5 rounded-md bg-canvas-subtle p-3">
+            <p className="text-[13px] font-medium">Ya solicitados con esa descripción</p>
+            <ul className="space-y-1">
+              {suggestions.map((product) => (
+                <li key={product.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    {product.description}
+                    <span className="text-text-secondary">
+                      {product.supplier_name ? ` · ${product.supplier_name}` : ""}
+                      {product.estimated_price ? ` · ${formatMoney(product.estimated_price)}` : ""}
+                    </span>
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => quoteExisting(product)} disabled={add.isPending} className="max-md:h-11">
+                    Cotizar este
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[13px] text-text-secondary">Usarlo evita un duplicado; si escribiste un precio, se cotiza a ese precio.</p>
+          </section>
+        )}
 
         <Field label="Proveedor" htmlFor={`${id}-supplier`} optional>
           <Input

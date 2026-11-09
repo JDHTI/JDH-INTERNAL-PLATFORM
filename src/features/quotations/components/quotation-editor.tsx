@@ -45,6 +45,7 @@ import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
 import { useLineImport } from "../hooks/use-line-import";
 import {
   useDeleteQuotation,
+  usePromoteLocalLine,
   useQuotation,
   useQuotationPermissions,
   useRefreshQuotation,
@@ -52,6 +53,7 @@ import {
 } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { INDICATORS, type Indicator, type Sort, distinctValues, isLocal, sortLines, supplierOf } from "../lib/line-status";
+import { offerTotals } from "../lib/offer";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
@@ -59,6 +61,8 @@ import BulkPricingPanel from "./bulk-pricing-panel";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
+import { TotalsTable } from "./offer-document";
+import OfferPanel from "./offer-panel";
 import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
@@ -131,6 +135,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
+  const promote = usePromoteLocalLine(quotation.id);
   const remove = useDeleteQuotation();
   const importer = useLineImport(quotation);
   const [adding, setAdding] = useState(false);
@@ -189,7 +194,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setPage(1);
   };
 
-  const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
+  const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending || promote.isPending;
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
@@ -288,6 +293,16 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     );
   };
 
+  const runPromote = (line: QuotationLine) =>
+    promote.mutate(
+      { version: quotation.version, sku: line.sku },
+      {
+        onSuccess: () =>
+          toast.success(`${line.description ?? line.sku} ahora es la referencia ${line.requested_product?.siesa_sku}, con su costo y su regla.`),
+        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+      }
+    );
+
   const runRefresh = () =>
     refresh.mutate(quotation.version, {
       onSuccess: () => toast.success("Cotización actualizada con las ventas, los costos y los apoyos de hoy. Tus precios nuevos se conservaron."),
@@ -334,7 +349,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       setSort(next);
       setPage(1);
     },
+    withQuantities: quotation.quote_quantities,
+    quantitiesEditable: canManage,
+    onPromote: runPromote,
+    promoting: promote.isPending ? (promote.variables?.sku ?? null) : null,
   };
+  const totals = offerTotals(quotation);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4">
@@ -430,6 +450,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       </header>
 
       <CustomerCards quotation={quotation} />
+      <OfferPanel quotation={quotation} basePath={basePath} editable={canManage} disabled={busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       <Warnings quotation={quotation} />
 
@@ -451,7 +472,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         />
       )}
 
-      {editable && <SaveStatus editor={editor} />}
+      {/* Quantities save in every status, so the status shows whenever something can be typed. */}
+      {(editable || (canManage && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       <div className={cn("space-y-2", !hasRows && "hidden")}>
         <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
@@ -564,6 +586,20 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         <div className="@container space-y-3">
           <LinesList {...linesProps} />
           <LinesTable {...linesProps} />
+          {totals && (
+            <section aria-labelledby="offer-totals-title" className="rounded-lg border border-border bg-surface p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <h2 id="offer-totals-title" className="text-base font-semibold">Consolidado de la oferta</h2>
+                  <p className="max-w-md text-[13px] text-text-secondary">
+                    Suma los ítems de la oferta que tienen cantidad, con el IVA de cada tarifa sobre su base. Es lo que sale en
+                    la vista previa, el Excel y el PDF.
+                  </p>
+                </div>
+                <TotalsTable totals={totals} className="md:ml-0" />
+              </div>
+            </section>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">
               {formatCount(visible.length)} {visible.length === 1 ? "referencia" : "referencias"}
@@ -823,13 +859,13 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
         <p className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <span>
-            La cotización cambió desde otra pestaña o por otra persona, así que tus últimos precios no se guardaron. Ya
-            cargamos la versión actual; tus precios siguen escritos en la tabla.
+            La cotización cambió desde otra pestaña o por otra persona, así que tus últimos cambios no se guardaron. Ya
+            cargamos la versión actual; lo que escribiste sigue en la tabla.
           </span>
         </p>
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={editor.discard} className="max-md:h-11">Descartar mis precios</Button>
-          <Button onClick={() => void editor.retry()} className="max-md:h-11">Guardar mis precios</Button>
+          <Button variant="outline" onClick={editor.discard} className="max-md:h-11">Descartar mis cambios</Button>
+          <Button onClick={() => void editor.retry()} className="max-md:h-11">Guardar mis cambios</Button>
         </div>
       </div>
     );
@@ -837,20 +873,20 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
   return (
     <p aria-live="polite" className="flex min-h-5 items-center gap-1.5 text-[13px] text-text-secondary">
       {editor.state === "saving" ? (
-        <><Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> Guardando precios…</>
+        <><Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> Guardando…</>
       ) : editor.state === "waiting" ? (
         "Cambios sin guardar; se guardan al dejar de escribir."
       ) : editor.state === "error" ? (
-        <span className="text-danger">No se guardaron los últimos precios: {editor.failure} Corrige el valor y se intentará de nuevo.</span>
+        <span className="text-danger">No se guardaron los últimos cambios: {editor.failure} Corrige el valor y se intentará de nuevo.</span>
       ) : editor.invalid.length > 0 ? (
         <span className="text-danger">
           {editor.invalid.length === 1
-            ? `El precio de ${editor.invalid[0].sku} no se puede leer: ${editor.invalid[0].message}`
-            : `${editor.invalid.length} precios no se pueden leer (${editor.invalid.map((item) => item.sku).join(", ")}); se marcan en rojo.`}{" "}
+            ? `La ${editor.invalid[0].word === "precio" ? "celda de precio" : "cantidad"} de ${editor.invalid[0].sku} no se puede leer: ${editor.invalid[0].message}`
+            : `${editor.invalid.length} celdas no se pueden leer (${editor.invalid.map((item) => item.sku).join(", ")}); se marcan en rojo.`}{" "}
           No se guarda hasta corregirlo.
         </span>
       ) : (
-        <><Check className="size-3.5" aria-hidden="true" /> Precios guardados</>
+        <><Check className="size-3.5" aria-hidden="true" /> Cambios guardados</>
       )}
     </p>
   );

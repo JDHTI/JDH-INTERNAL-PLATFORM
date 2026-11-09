@@ -34,6 +34,7 @@ import {
   priceWithVat,
   supplierOf,
 } from "../lib/line-status";
+import { offerAmounts } from "../lib/offer";
 import type { QuotationLine } from "../types/quotations.types";
 import { ComplianceBadge } from "./quotation-badges";
 
@@ -67,6 +68,14 @@ interface LinesProps {
   showCost: boolean;
   sort: Sort | null;
   onSort: (sort: Sort | null) => void;
+  /** The quotation quotes with quantities: a quantity per line and its total. */
+  withQuantities: boolean;
+  /** Quantities never touch prices, so they stay editable in every status for whoever manages it. */
+  quantitiesEditable: boolean;
+  /** Swaps a local line for the SIESA reference BI registered for it. */
+  onPromote: (line: QuotationLine) => void;
+  /** The local line being swapped, to show its spinner. */
+  promoting: string | null;
 }
 
 export const OPTIMAL_PRICE_HELP = "Precio que da exactamente el margen objetivo: (costo − apoyo) / (1 − objetivo), en pesos enteros.";
@@ -95,14 +104,15 @@ const td = "px-2.5 py-2 align-top";
  * block keeps room for its name; below that, cards.
  */
 export function LinesTable(props: LinesProps) {
-  const { lines, selection, showCost, sort, onSort } = props;
+  const { lines, selection, showCost, sort, onSort, withQuantities } = props;
   const scope = selection?.scope ?? [];
   const allTicked = selection !== undefined && scope.length > 0 && scope.every((sku) => selection.selected.has(sku));
   const someTicked = selection !== undefined && scope.some((sku) => selection.selected.has(sku));
   const sortProps = { sort, onSort };
 
   return (
-    <div className="hidden rounded-lg border border-border bg-surface @5xl:block">
+    // The quantity column takes 7rem more, so the table waits for a wider container.
+    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@6xl:block" : "@5xl:block")}>
       <table className="w-full table-fixed text-left text-sm">
         <caption className="sr-only">Referencias de la cotización</caption>
         <colgroup>
@@ -114,6 +124,7 @@ export function LinesTable(props: LinesProps) {
           <col className="w-32" />
           <col className="w-16" />
           <col className="w-32" />
+          {withQuantities && <col className="w-28" />}
           <col className="w-24" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
@@ -146,6 +157,9 @@ export function LinesTable(props: LinesProps) {
             <th scope="col" className={th}>Apoyo</th>
             <SortHeader label="IVA" name="IVA" keys={[["vat", "IVA"]]} {...sortProps} />
             <SortHeader label="Con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} {...sortProps} />
+            {withQuantities && (
+              <SortHeader label="Cant." name="Cantidad y total" keys={[["quantity", "Cantidad"], ["line_total", "Total"]]} {...sortProps} />
+            )}
             <SortHeader label="Var." name="Variación" keys={[["variation", "Variación"]]} className="rounded-tr-lg" {...sortProps} />
           </tr>
         </thead>
@@ -166,6 +180,11 @@ export function LinesTable(props: LinesProps) {
                 <td className={td}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
                 <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
                 <td className={cn(td, "text-right")}><FinalPrice line={line} /></td>
+                {withQuantities && (
+                  <td className={td}>
+                    <QuantityCell line={line} editor={props.editor} editable={props.quantitiesEditable} />
+                  </td>
+                )}
                 <td className={cn(td, "text-right")}><Variation line={line} /></td>
               </tr>
             );
@@ -177,7 +196,7 @@ export function LinesTable(props: LinesProps) {
                 <span className="block font-mono text-[13px]">{sku}</span>
                 <PendingLabel />
               </td>
-              <td className={td} colSpan={7} />
+              <td className={td} colSpan={withQuantities ? 8 : 7} />
             </tr>
           ))}
         </tbody>
@@ -192,9 +211,9 @@ export function LinesTable(props: LinesProps) {
  * the price (DESIGN.md §10).
  */
 export function LinesList(props: LinesProps) {
-  const { lines, editor, editable, selection, showCost } = props;
+  const { lines, editor, editable, selection, showCost, withQuantities } = props;
   return (
-    <ul className="grid grid-cols-1 gap-2 @2xl:grid-cols-2 @5xl:hidden">
+    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@6xl:hidden" : "@5xl:hidden")}>
       {lines.map((line) => (
         <li
           key={line.sku}
@@ -223,6 +242,12 @@ export function LinesList(props: LinesProps) {
               <span className="block text-xs text-text-secondary">Precio nuevo, sin IVA</span>
               <NewPrice line={line} editor={editor} editable={editable} wide />
             </div>
+            {withQuantities && (
+              <div className="space-y-1">
+                <span className="block text-xs text-text-secondary">Cantidad{line.unit ? ` (${line.unit})` : ""}</span>
+                <QuantityCell line={line} editor={editor} editable={props.quantitiesEditable} wide />
+              </div>
+            )}
             <div className="text-right text-sm">
               <span className="block text-xs text-text-secondary">Variación</span>
               <Variation line={line} />
@@ -357,8 +382,9 @@ const dash = <span className="text-text-secondary">—</span>;
  * supplier and unit. An added, local or inactive one says so, and can be taken
  * out; an active one from the sales history cannot (emptying its price is enough).
  */
-function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable }: { line: QuotationLine } & LinesProps) {
+function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, onPromote, promoting }: { line: QuotationLine } & LinesProps) {
   const isRemoving = removing === line.sku;
+  const request = line.requested_product;
   const local = isLocal(line);
   const meta = [local ? "Sin SKU en SIESA" : `SKU ${line.sku}`, supplierOf(line), line.unit].filter(Boolean).join(" · ");
   return (
@@ -397,6 +423,25 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable }
         >
           {meta}
         </p>
+        {local && request?.status === "creado" && request.siesa_sku && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+            <span className="text-text-secondary">Ya existe en SIESA: {request.siesa_sku}</span>
+            {editable && (
+              <button
+                type="button"
+                onClick={() => onPromote(line)}
+                disabled={!canRemove || promoting === line.sku}
+                className="inline-flex items-center gap-1 rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 max-xl:min-h-11"
+              >
+                {promoting === line.sku && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                Usar la referencia {request.siesa_sku}
+              </button>
+            )}
+          </div>
+        )}
+        {local && request?.status === "descartado" && (
+          <p className="text-[13px] text-text-secondary">BI descartó crearlo en SIESA.</p>
+        )}
       </div>
       {editable && removable(line) && (
         <button
@@ -552,6 +597,52 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
           )}
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * The quantity the customer would take, in inventory units, and what it adds
+ * up to with VAT. Saved with the prices, in the same queue. A line outside the
+ * offer has nothing to quote a quantity for.
+ */
+function QuantityCell({ line, editor, editable, wide = false }: { line: QuotationLine; editor: LineEditor; editable: boolean; wide?: boolean }) {
+  const error = editor.errorFor(line.sku, "quantity");
+  const errorId = `quantity-error-${line.sku}-${wide ? "card" : "row"}`;
+  const disabled = !editable || !line.is_active;
+  const amounts = offerAmounts(line);
+  return (
+    <div className={cn("space-y-1", !wide && "text-right")}>
+      <Input
+        inputMode="decimal"
+        autoComplete="off"
+        value={editor.textFor(line.sku, "quantity")}
+        onChange={(event) => editor.edit(line.sku, event.target.value, "quantity")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            editor.saveNow();
+          }
+        }}
+        disabled={disabled}
+        placeholder={disabled ? "" : "Cant."}
+        title={error ?? (line.unit ? `En ${line.unit}` : undefined)}
+        aria-label={`Cantidad de ${line.description ?? line.sku}${line.unit ? `, en ${line.unit}` : ""}`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={cn(
+          "bg-surface text-right tabular-nums",
+          wide ? "h-11 w-28" : "h-8 w-full",
+          editor.isDirty(line.sku, "quantity") && !error && "border-text-primary"
+        )}
+      />
+      {error && <span id={errorId} className="sr-only">{error}</span>}
+      {amounts?.total != null && line.in_offer && (
+        <span className="block text-xs tabular-nums text-text-secondary" title="Total de la línea con IVA">
+          {formatMoney(amounts.total)}
+        </span>
+      )}
+      {line.quantity !== null && !line.in_offer && <span className="block text-xs text-text-secondary">Fuera de la oferta</span>}
     </div>
   );
 }

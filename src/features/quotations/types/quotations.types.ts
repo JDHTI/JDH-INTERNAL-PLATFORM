@@ -93,6 +93,48 @@ export interface QuotationSummary {
   confirmed_at: string | null;
   validated_at: string | null;
   version: number;
+  /** How many days the prices hold for the customer, counted from `valid_from`. */
+  validity_days: number;
+  /** "YYYY-MM-DD", the day the validity was set (Bogotá). */
+  valid_from: string;
+  /** "YYYY-MM-DD", `valid_from` plus `validity_days`. */
+  valid_until: string;
+}
+
+/** `changed`: the lines with a new price (local ones included). `all`: every active line with a price to offer. */
+export type OfferScope = "changed" | "all";
+
+/** The customer's assigned salesperson as SIESA has them, snapshot at build and refresh. */
+export interface SellerContact {
+  code: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface OfferVatGroup {
+  /** Points: 19 is 19 %. */
+  vat_pct: DecimalText;
+  base: DecimalText;
+  vat: DecimalText;
+}
+
+/** The invoice-like consolidation of a quotation quoted with quantities; whole pesos. */
+export interface OfferSummary {
+  item_count: number;
+  subtotal: DecimalText;
+  vat_groups: OfferVatGroup[];
+  liquor_tax: DecimalText;
+  total: DecimalText;
+}
+
+/** What `PATCH /offer` changes; only the keys sent. */
+export interface OfferSettings {
+  validity_days?: number;
+  conditions?: string[];
+  include_seller?: boolean;
+  quote_quantities?: boolean;
+  offer_scope?: OfferScope;
 }
 
 export interface QuotationPage {
@@ -203,6 +245,14 @@ export interface QuotationLine {
    */
   origin: LineOrigin;
   origin_label: string;
+  /** Inventory units the customer would take; only used when the quotation quotes with quantities. */
+  quantity: DecimalText | null;
+  /** The price the customer sees: the new one, or the last one when there is none. */
+  offer_price: DecimalText | null;
+  /** Whether the line goes in the customer's offer, per `offer_scope`. */
+  in_offer: boolean;
+  /** For a local line: its row in the requested products registry. */
+  requested_product: { id: string; status: RequestedProductStatus; siesa_sku: string | null } | null;
 }
 
 export type LineOrigin = "historico" | "agregado" | "local";
@@ -210,13 +260,64 @@ export type LineOrigin = "historico" | "agregado" | "local";
 /** VAT rates a local product can carry, in points. */
 export type LocalVat = 19 | 5 | 0;
 
-/** `POST /local-lines`: a product outside the portfolio, quoted at an estimated price. */
-export interface LocalLineInput {
+/**
+ * `POST /local-lines`: a product outside the portfolio, quoted at an estimated
+ * price. Either new (description, supplier, VAT) or one already requested
+ * (`requested_product_id`), whose data the API copies.
+ */
+export type LocalLineInput =
+  | { description: string; supplier_name: string | null; price: DecimalText; vat_pct: LocalVat }
+  | { requested_product_id: string; price?: DecimalText };
+
+/** BI moves a request along: created in SIESA (with its reference) or discarded. */
+export type RequestedProductStatus = "solicitado" | "creado" | "descartado";
+
+export interface RequestedProductQuotation {
+  id: string;
+  customer_name: string;
+  customer_nit: string;
+  status: QuotationStatus;
+  status_label: string;
+  created_by: string;
+}
+
+/** A product someone quoted that SIESA does not have yet, kept apart from any quotation. */
+export interface RequestedProduct {
+  id: string;
   description: string;
   supplier_name: string | null;
-  /** Whole pesos, before VAT. */
-  price: DecimalText;
-  vat_pct: LocalVat;
+  estimated_price: DecimalText | null;
+  vat_pct: DecimalText | null;
+  status: RequestedProductStatus;
+  status_label: string;
+  siesa_sku: string | null;
+  note: string | null;
+  created_by: string;
+  created_at: string;
+  updated_by: string | null;
+  updated_at: string;
+  /** Only the quotations the viewer can open. */
+  quotations: RequestedProductQuotation[];
+}
+
+export interface RequestedProductPage {
+  items: RequestedProduct[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface RequestedProductParams {
+  status: RequestedProductStatus | "";
+  q: string;
+  page: number;
+  size: number;
+}
+
+export interface RequestedProductChange {
+  status: RequestedProductStatus;
+  siesa_sku?: string;
+  note?: string;
 }
 
 export interface Quotation extends QuotationSummary {
@@ -244,6 +345,14 @@ export interface Quotation extends QuotationSummary {
   /** Why the validating area (or the advisor) returned it to draft. */
   review_note: string | null;
   updated_by: string | null;
+  /** What the executive adds to the offer, in order; the validity line is added on top automatically. */
+  conditions: string[];
+  include_seller: boolean;
+  quote_quantities: boolean;
+  offer_scope: OfferScope;
+  seller_contact: SellerContact | null;
+  /** Null unless the quotation quotes with quantities. */
+  offer_summary: OfferSummary | null;
   lines: QuotationLine[];
 }
 
@@ -297,7 +406,9 @@ export interface LineImport {
  * One line of `PUT /lines`: a price in whole pesos (null removes it), or a
  * margin as a fraction that the API turns into the price of that margin.
  */
-export type LineChange = { sku: string; new_price: DecimalText | null } | { sku: string; margin_pct: DecimalText };
+export type LineChange =
+  | { sku: string; new_price?: DecimalText | null; quantity?: DecimalText | null }
+  | { sku: string; margin_pct: DecimalText };
 
 export interface ConfirmOptions {
   list_action?: ListAction;

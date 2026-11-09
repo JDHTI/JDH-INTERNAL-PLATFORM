@@ -11,9 +11,12 @@ const signedPercent = new Intl.NumberFormat("es-CO", {
   signDisplay: "exceptZero",
 });
 const plainPrice = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4, useGrouping: true });
+// No grouping: "1250,5" reads back as typed, where "1.250,5" would mix a thousands dot with a decimal comma.
+const plainQuantity = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2, useGrouping: false });
 const integer = new Intl.NumberFormat("es-CO");
 const day = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeZone: "UTC" });
 const shortDay = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", timeZone: "UTC" });
+const longDay = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
 
 type Value = string | number | null | undefined;
@@ -45,6 +48,33 @@ export function formatShortDay(value: string | null | undefined): string {
   if (!value) return "—";
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`);
   return Number.isNaN(parsed.getTime()) ? value : shortDay.format(parsed).replace(".", "");
+}
+
+/** "28 de febrero de 2026", how a validity date reads in a sentence for the customer. */
+export function formatLongDay(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const parsed = value instanceof Date ? value : new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? String(value) : longDay.format(parsed);
+}
+
+export const DEFAULT_VALIDITY_DAYS = 30;
+export const MAX_VALIDITY_DAYS = 365;
+
+/** Validity typed as days, 1 to 365. */
+export function parseValidityDays(text: string): { value: number } | { error: string } {
+  const clean = text.trim();
+  if (!/^\d+$/.test(clean)) return { error: "Escribe la vigencia en días, por ejemplo 30." };
+  const days = Number(clean);
+  if (days < 1 || days > MAX_VALIDITY_DAYS) return { error: `La vigencia va de 1 a ${MAX_VALIDITY_DAYS} días.` };
+  return { value: days };
+}
+
+/** Today in Bogotá plus `days`, as a UTC-midnight date for `formatLongDay`; what the API will store. */
+export function validityEnd(days: number, from: Date = new Date()): Date {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(from);
+  const end = new Date(`${today}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + days);
+  return end;
 }
 
 export function formatDateTime(value: string | null | undefined): string {
@@ -80,6 +110,30 @@ export function parsePriceInput(text: string): { value: string | null } | { erro
   else return { error: "El precio va en pesos enteros, sin decimales." };
 
   return { value: digits.replace(/^0+(?=\d)/, "") };
+}
+
+/** A stored quantity as its cell shows it: "1250,5". */
+export function quantityInputText(value: Value): string {
+  const parsed = toNumber(value);
+  return parsed === null ? "" : plainQuantity.format(parsed);
+}
+
+/**
+ * A quantity typed in its cell, in inventory units, as the decimal string the
+ * API takes. Up to two decimals with comma or dot ("12,5", "0.75"); a
+ * separator followed by exactly three digits is thousands ("1.200"), as in the
+ * price cell. Empty is null (no quantity).
+ */
+export function parseQuantityInput(text: string): { value: string | null } | { error: string } {
+  const clean = text.replace(/\s/g, "");
+  if (clean === "") return { value: null };
+  if (!/^[\d.,]+$/.test(clean)) return { error: "Escribe solo números, por ejemplo 12 o 2,5." };
+  let normalized: string;
+  if (/^\d{1,3}([.,]\d{3})+$/.test(clean)) normalized = clean.replace(/[.,]/g, "");
+  else if (/^\d+([.,]\d{1,2})?$/.test(clean)) normalized = clean.replace(",", ".");
+  else return { error: "La cantidad va con máximo dos decimales." };
+  if (Number(normalized) <= 0) return { error: "La cantidad debe ser mayor que cero; déjala vacía para quitarla." };
+  return { value: normalized.replace(/^0+(?=\d)/, "") };
 }
 
 /**

@@ -34,7 +34,10 @@
 
 /* ── Capa semántica: tema claro ────────────────────────────────────────────── */
 
-:root {
+/* `.paper` vuelve a este mapeo dentro del tema oscuro: un documento para el
+   cliente (la oferta del cotizador) es papel, se ve e imprime en claro. */
+:root,
+.paper {
   --canvas: var(--neutral-0);
   --canvas-subtle: var(--neutral-100);
   --surface: var(--neutral-0);
@@ -358,4 +361,21 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Imprimir (la oferta del cotizador como PDF): el shell fijo y su scroll
+     propio cortarían el documento en una pantalla; sidebar y header se ocultan
+     con `print:hidden` en AppLayoutFrame. */
+  @media print {
+    .app-shell {
+      position: static;
+      height: auto;
+      overflow: visible;
+      display: block;
+    }
+  }
+}
+
+@page {
+  size: A4;
+  margin: 14mm;
 }
