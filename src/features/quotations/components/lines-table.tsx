@@ -100,8 +100,8 @@ const td = "px-2.5 py-2 align-top";
  * The references and what decides each new price. "Precio nuevo" is the only
  * editable cell; the mark beside each margin (color, icon and words) says
  * where it stands against the rule. It is a table once its container (not the
- * window: the sidebar may be open or collapsed) is 64rem wide, so the product
- * block keeps room for its name; below that, cards.
+ * window: the sidebar may be open or collapsed) leaves the product block about
+ * 11rem for its name (68rem, 75rem with quantities); below that, cards.
  */
 export function LinesTable(props: LinesProps) {
   const { lines, selection, showCost, sort, onSort, withQuantities } = props;
@@ -111,8 +111,7 @@ export function LinesTable(props: LinesProps) {
   const sortProps = { sort, onSort };
 
   return (
-    // The quantity column takes 7rem more, so the table waits for a wider container.
-    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@6xl:block" : "@5xl:block")}>
+    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[75rem]:block" : "@min-[68rem]:block")}>
       <table className="w-full table-fixed text-left text-sm">
         <caption className="sr-only">Referencias de la cotización</caption>
         <colgroup>
@@ -120,10 +119,11 @@ export function LinesTable(props: LinesProps) {
           <col />
           <col className="w-32" />
           <col className="w-36" />
-          <col className="w-32" />
-          <col className="w-32" />
-          <col className="w-16" />
-          <col className="w-32" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-14" />
+          <col className="w-28" />
           {withQuantities && <col className="w-28" />}
           <col className="w-24" />
         </colgroup>
@@ -153,7 +153,8 @@ export function LinesTable(props: LinesProps) {
               keys={showCost ? [["optimal", "Precio óptimo"], ["cost", "Costo"]] : [["optimal", "Precio óptimo"]]}
               {...sortProps}
             />
-            <SortHeader label="Nuevo" name="Precio nuevo" keys={[["new_price", "Precio"], ["new_margin", "Margen"]]} {...sortProps} />
+            <SortHeader label="Nuevo" name="Precio nuevo" keys={[["new_price", "Precio nuevo"]]} {...sortProps} />
+            <SortHeader label="Margen" name="Margen nuevo" keys={[["new_margin", "Margen nuevo"]]} {...sortProps} />
             <th scope="col" className={th}>Apoyo</th>
             <SortHeader label="IVA" name="IVA" keys={[["vat", "IVA"]]} {...sortProps} />
             <SortHeader label="Con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} {...sortProps} />
@@ -177,6 +178,7 @@ export function LinesTable(props: LinesProps) {
                 <td className={cn(td, "text-right")}><LastSale line={line} /></td>
                 <td className={td}><Bounds line={line} showCost={showCost} /></td>
                 <td className={td}><NewPrice line={line} editor={props.editor} editable={props.editable} /></td>
+                <td className={cn(td, "text-right")}><NewMargin line={line} /></td>
                 <td className={td}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
                 <td className={cn(td, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
                 <td className={cn(td, "text-right")}><FinalPrice line={line} /></td>
@@ -196,7 +198,7 @@ export function LinesTable(props: LinesProps) {
                 <span className="block font-mono text-[13px]">{sku}</span>
                 <PendingLabel />
               </td>
-              <td className={td} colSpan={withQuantities ? 8 : 7} />
+              <td className={td} colSpan={withQuantities ? 9 : 8} />
             </tr>
           ))}
         </tbody>
@@ -206,14 +208,14 @@ export function LinesTable(props: LinesProps) {
 }
 
 /**
- * Under 64rem of container the blocks leave the product too little room, so
+ * In a narrower container the blocks leave the product too little room, so
  * each reference becomes a card with the same blocks and the field to write
  * the price (DESIGN.md §10).
  */
 export function LinesList(props: LinesProps) {
   const { lines, editor, editable, selection, showCost, withQuantities } = props;
   return (
-    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@6xl:hidden" : "@5xl:hidden")}>
+    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@min-[75rem]:hidden" : "@min-[68rem]:hidden")}>
       {lines.map((line) => (
         <li
           key={line.sku}
@@ -241,6 +243,11 @@ export function LinesList(props: LinesProps) {
             <div className="space-y-1">
               <span className="block text-xs text-text-secondary">Precio nuevo, sin IVA</span>
               <NewPrice line={line} editor={editor} editable={editable} wide />
+              {line.new_price !== null && !isLocal(line) && (
+                <span className="block">
+                  <NewMargin line={line} />
+                </span>
+              )}
             </div>
             {withQuantities && (
               <div className="space-y-1">
@@ -588,17 +595,21 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         )}
       />
       {error && <span id={errorId} className="sr-only">{error}</span>}
-      {line.new_price !== null && !isLocal(line) && (
-        <span className="block">
-          {line.compliance === "sin_costo" || line.compliance === "sin_objetivo" ? (
-            <ComplianceBadge compliance={line.compliance} label={line.compliance_label} />
-          ) : (
-            <MarginMark value={line.new_margin_with_support_pct ?? line.new_margin_pct} standing={newPriceStanding(line)} />
-          )}
-        </span>
-      )}
     </div>
   );
+}
+
+/**
+ * The margin the new price leaves, with where it stands; or why the rule
+ * cannot judge it (no cost, no target). Its own column, beside the price that
+ * makes it.
+ */
+function NewMargin({ line }: { line: QuotationLine }) {
+  if (line.new_price === null || isLocal(line)) return dash;
+  if (line.compliance === "sin_costo" || line.compliance === "sin_objetivo") {
+    return <ComplianceBadge compliance={line.compliance} label={line.compliance_label} className="whitespace-normal text-right" />;
+  }
+  return <MarginMark value={line.new_margin_with_support_pct ?? line.new_margin_pct} standing={newPriceStanding(line)} />;
 }
 
 /**
@@ -676,7 +687,10 @@ function Vat({ line }: { line: QuotationLine }) {
   return vat === null ? dash : <>{vatFormat.format(vat)} %</>;
 }
 
-/** What the customer pays (VAT and liquor tax included), and the same price before VAT under it. */
+/**
+ * What the customer pays, VAT and liquor tax included. The price before VAT
+ * is the one typed beside it, so it is not repeated here.
+ */
 function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignStart?: boolean }) {
   const withVat = priceWithVat(line);
   if (withVat === null) return dash;
@@ -684,7 +698,6 @@ function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignSt
   return (
     <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
       <span className="block font-semibold">{formatMoney(withVat)}</span>
-      <span className="block text-xs text-text-secondary">sin IVA {formatMoney(line.price_with_taxes ?? line.new_price)}</span>
       {liquor > 0 && (
         <span className="block text-xs text-text-secondary" title={line.value_tax_name ?? undefined}>incl. licores {formatMoney(liquor)}</span>
       )}

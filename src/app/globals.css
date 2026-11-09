@@ -375,7 +375,9 @@
   }
 }
 
+/* Carta, sin margen de impresora: cada hoja de la oferta trae su propio margen
+   de 0.6in, así la vista previa y el PDF coinciden página por página. */
 @page {
-  size: A4;
-  margin: 14mm;
+  size: letter;
+  margin: 0;
 }

@@ -19,6 +19,7 @@ import {
   PackageOpen,
   PackagePlus,
   RefreshCw,
+  Save,
   Search,
   Send,
   Sheet,
@@ -51,7 +52,7 @@ import {
   useRefreshQuotation,
   useRemoveLine,
 } from "../hooks/use-quotations";
-import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
+import { formatCount, formatDateTime, formatDay, isValidated, showsCost } from "../lib/format";
 import { INDICATORS, type Indicator, type Sort, distinctValues, isLocal, sortLines, supplierOf } from "../lib/line-status";
 import { offerTotals } from "../lib/offer";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
@@ -131,6 +132,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
   const editable = canManage && !pendingReview;
+  // By area, not by permission: in Comercial's quoter nobody sees the cost, BI analysts included.
+  const showCost = showsCost(basePath);
 
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
@@ -293,6 +296,28 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     );
   };
 
+  /**
+   * The explicit save, on top of the autosave: sends whatever is queued right
+   * away and says so. With nothing pending it confirms that all is saved.
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveDraft = async () => {
+    if (editor.invalid.length > 0) {
+      toast.error("Hay celdas que no se pueden leer, marcadas en rojo. Corrígelas para guardar el borrador.", { duration: Infinity });
+      return;
+    }
+    if (editor.state === "conflict") {
+      toast.error("La cotización cambió en otra pestaña. Usa «Guardar mis cambios» en el aviso de arriba.", { duration: Infinity });
+      return;
+    }
+    const hadChanges = editor.hasPending();
+    setSavingDraft(true);
+    const saved = await editor.saveNow();
+    setSavingDraft(false);
+    if (saved) toast.success(hadChanges ? "Borrador guardado." : "Todo está guardado. El borrador también se guarda solo mientras escribes.");
+    else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
+  };
+
   const runPromote = (line: QuotationLine) =>
     promote.mutate(
       { version: quotation.version, sku: line.sku },
@@ -342,8 +367,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     selection,
     pending,
     highlight: importer.highlight,
-    // The cost stays with the validating area (BI and admins); Comercial quotes from the prices.
-    showCost: canValidate,
+    showCost,
     sort,
     onSort: (next: Sort | null) => {
       setSort(next);
@@ -419,6 +443,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <Undo2 aria-hidden="true" /> Retirar de validación
             </Button>
           )}
+          {(editable || (canManage && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
+          {editable && (
+            <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
+              {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
+            </Button>
+          )}
           {canManage && quotation.status === "borrador" && (
             <Button
               onClick={() => setDialog("confirm")}
@@ -450,7 +480,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       </header>
 
       <CustomerCards quotation={quotation} />
-      <OfferPanel quotation={quotation} basePath={basePath} editable={canManage} disabled={busy} />
+      <OfferPanel
+        quotation={quotation}
+        basePath={basePath}
+        editable={canManage}
+        disabled={busy}
+        onBeforeOpen={() => void editor.saveNow()}
+      />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       <Warnings quotation={quotation} />
 
@@ -651,7 +687,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       />
       <LineDetailDialog
         line={detailLine}
-        showCost={canValidate}
+        showCost={showCost}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
           setDetailLine(null);
@@ -849,8 +885,37 @@ function Warnings({ quotation }: { quotation: Quotation }) {
 }
 
 /**
- * Where the typed prices stand. Polite live region: a save is not urgent news,
- * a conflict is shown as an alert with what to do.
+ * The autosave at a glance, beside "Guardar borrador": a polite live region,
+ * since a save is not urgent news. The problems (conflict, refusal, cells that
+ * cannot be read) are spelled out by SaveStatus under the indicators.
+ */
+function AutosaveIndicator({ editor }: { editor: LineEditor }) {
+  const look =
+    editor.state === "saving"
+      ? { icon: <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />, text: "Guardando…" }
+      : editor.state === "conflict" || editor.state === "error" || editor.invalid.length > 0
+        ? { icon: <AlertTriangle className="size-3.5 text-warning" aria-hidden="true" />, text: "Sin guardar" }
+        : editor.state === "waiting"
+          ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Cambios por guardar" }
+          : { icon: <Check className="size-3.5" aria-hidden="true" />, text: "Guardado" };
+  return (
+    <span
+      aria-live="polite"
+      title="Se guarda solo al dejar de escribir, al cambiar de pestaña y al salir del editor."
+      className="inline-flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-text-secondary"
+    >
+      {look.icon}
+      <span>
+        <span className="sr-only">Autoguardado: </span>
+        {look.text}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * What went wrong with the typed values, with what to do. Nothing when all is
+ * well: the indicator in the header already says it.
  */
 function SaveStatus({ editor }: { editor: LineEditor }) {
   if (editor.state === "conflict") {
@@ -870,23 +935,19 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
       </div>
     );
   }
+  if (editor.state !== "error" && editor.invalid.length === 0) return null;
   return (
-    <p aria-live="polite" className="flex min-h-5 items-center gap-1.5 text-[13px] text-text-secondary">
-      {editor.state === "saving" ? (
-        <><Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> Guardando…</>
-      ) : editor.state === "waiting" ? (
-        "Cambios sin guardar; se guardan al dejar de escribir."
-      ) : editor.state === "error" ? (
-        <span className="text-danger">No se guardaron los últimos cambios: {editor.failure} Corrige el valor y se intentará de nuevo.</span>
-      ) : editor.invalid.length > 0 ? (
-        <span className="text-danger">
+    <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
+      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      {editor.state === "error" ? (
+        <span>No se guardaron los últimos cambios: {editor.failure} Corrige el valor y se intentará de nuevo.</span>
+      ) : (
+        <span>
           {editor.invalid.length === 1
             ? `La ${editor.invalid[0].word === "precio" ? "celda de precio" : "cantidad"} de ${editor.invalid[0].sku} no se puede leer: ${editor.invalid[0].message}`
             : `${editor.invalid.length} celdas no se pueden leer (${editor.invalid.map((item) => item.sku).join(", ")}); se marcan en rojo.`}{" "}
           No se guarda hasta corregirlo.
         </span>
-      ) : (
-        <><Check className="size-3.5" aria-hidden="true" /> Cambios guardados</>
       )}
     </p>
   );
