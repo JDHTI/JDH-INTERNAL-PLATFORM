@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calculator, Loader2, Lock } from "lucide-react";
 
@@ -9,11 +9,13 @@ import StatePanel from "@/shared/components/state-panel";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useCreateQuotation, useQuotationPermissions } from "../hooks/use-quotations";
-import { WINDOW_OPTIONS } from "../lib/format";
+import { DEFAULT_VALIDITY_DAYS, WINDOW_OPTIONS, formatLongDay, parseValidityDays, validityEnd } from "../lib/format";
 import { QUOTATIONS_BASE } from "../services/quotations.service";
 import type { CustomerScope, WindowMonths } from "../types/quotations.types";
 import { ToggleChip } from "./toggle-chip";
@@ -102,7 +104,11 @@ function NewQuotationForm({
   const [scopeChoice, setScopeChoice] = useState<CustomerScope | null>(null);
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
+  const [validity, setValidity] = useState(String(DEFAULT_VALIDITY_DAYS));
+  const [validityError, setValidityError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const validityId = useId();
+  const parsedValidity = parseValidityDays(validity);
 
   // Only whoever sees every customer chooses; for the rest the API answers with their portfolio.
   const canChoose = salesScope === "all";
@@ -116,13 +122,17 @@ function NewQuotationForm({
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    if ("error" in parsedValidity) {
+      setValidityError(parsedValidity.error);
+      return;
+    }
     if (!customer) {
       setError("Elige el cliente que vas a cotizar.");
       return;
     }
     setError(null);
     create.mutate(
-      { customerNit: customer.value, windowMonths },
+      { customerNit: customer.value, windowMonths, validityDays: parsedValidity.value },
       {
         onSuccess: (quotation) => router.push(`${basePath}/${quotation.id}`),
         onError: (failure) => setError(errorMessage(failure)),
@@ -220,6 +230,32 @@ function NewQuotationForm({
             ))}
           </div>
         </fieldset>
+
+        <Field
+          label="Vigencia para el cliente, en días"
+          htmlFor={validityId}
+          error={validityError}
+          hint={
+            "value" in parsedValidity
+              ? `Los precios valen hasta el ${formatLongDay(validityEnd(parsedValidity.value))}. Se puede cambiar después.`
+              : undefined
+          }
+        >
+          <Input
+            id={validityId}
+            inputMode="numeric"
+            autoComplete="off"
+            value={validity}
+            onChange={(event) => {
+              setValidity(event.target.value);
+              setValidityError(null);
+            }}
+            onBlur={() => setValidityError("error" in parsedValidity ? parsedValidity.error : null)}
+            aria-invalid={validityError ? true : undefined}
+            aria-describedby={validityError ? `${validityId}-error` : `${validityId}-hint`}
+            className="w-28 text-right tabular-nums max-md:h-11"
+          />
+        </Field>
       </fieldset>
 
       {create.isPending && (

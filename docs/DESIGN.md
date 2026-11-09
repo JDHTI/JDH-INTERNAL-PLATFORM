@@ -278,6 +278,23 @@ badge, nunca en texto rojo directo.
 | `--success` sobre banda ámbar (ícono del resumen al pegar) | #067647 / #f9f0eb · **5.07** ✅ | #47cd89 / #42382a · **5.66** ✅ |
 | `--text-primary` sobre banda verde (cotización validada, sobre `--canvas`) | #1d1d1b / #ebf3ef · **14.95** ✅ | #ffffff / #22322a · **13.48** ✅ |
 
+**Estados como texto sobre fila en hover o resaltada (cotizador)**
+
+La fila en hover es `--primary-subtle` aplanado sobre `--surface` (claro #ededed, oscuro #373735);
+la fila revalidada, `--info-surface` aplanado (#ecf2fc / #333840). `--danger` como texto normal
+no pasa en oscuro sobre ninguna de las dos, así que las marcas de margen van en badge (fondo
+opaco `--*-badge`, ratios de la tabla de badges) y la variación lleva el color solo en el ícono
+(umbral 3:1). Las cifras de los indicadores son 20px/600, texto grande (3:1).
+
+| Primer plano | Claro | Oscuro |
+|---|---|---|
+| `--success` sobre hover | #067647 / #ededed · **4.86** ✅ | #47cd89 / #373735 · **5.89** ✅ |
+| `--warning` sobre hover | #b54708 / #ededed · **4.64** ✅ | #fdb022 / #373735 · **6.48** ✅ |
+| `--danger` sobre hover | #b42318 / #ededed · **5.62** ✅ | #f97066 / #373735 · **4.28** ❌ texto normal, ✅ ícono y texto grande |
+| `--success` sobre fila azul | #067647 / #ecf2fc · **5.06** ✅ | #47cd89 / #333840 · **5.82** ✅ |
+| `--warning` sobre fila azul | #b54708 / #ecf2fc · **4.83** ✅ | #fdb022 / #333840 · **6.41** ✅ |
+| `--danger` sobre fila azul | #b42318 / #ecf2fc · **5.85** ✅ | #f97066 / #333840 · **4.23** ❌ texto normal, ✅ ícono |
+
 **Opción elegida en una lista de opciones (formulario público de PQRSF)**
 
 La descripción de cada opción va en `--text-secondary`; la opción elegida se pinta con

@@ -8,7 +8,7 @@ import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
 
 import { MARGIN_BASIS_LABELS, formatCount, formatDay, formatMargin, formatMoney } from "../lib/format";
 import type { QuotationLine } from "../types/quotations.types";
-import { BELOW_TARGET_HELP, INACTIVE_HELP } from "./lines-table";
+import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP } from "./lines-table";
 
 /**
  * Everything about one reference that does not fit on its row: the sale the
@@ -18,33 +18,66 @@ import { BELOW_TARGET_HELP, INACTIVE_HELP } from "./lines-table";
  */
 export default function LineDetailDialog({
   line,
+  showCost,
   onClose,
   onOpenAgreement,
 }: {
   line: QuotationLine | null;
+  /** The cost and where it comes from are for the validating area (BI and admins). */
+  showCost: boolean;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
 }) {
+  const local = line?.origin === "local";
   return (
     <Dialog
       open={line !== null}
       onOpenChange={(open) => !open && onClose()}
       isForm={false}
       wide={false}
-      title={line ? `Referencia ${line.sku}` : "Referencia"}
+      title={line ? (local ? "Producto solo para cotización" : `Referencia ${line.sku}`) : "Referencia"}
       description={line?.description ?? undefined}
     >
-      {line && <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} />}
+      {line &&
+        (local ? (
+          <LocalDetail line={line} onClose={onClose} />
+        ) : (
+          <Detail line={line} showCost={showCost} onClose={onClose} onOpenAgreement={onOpenAgreement} />
+        ))}
     </Dialog>
+  );
+}
+
+/** A product created to quote: what was typed for it, and why it has no cost or rule. */
+function LocalDetail({ line, onClose }: { line: QuotationLine; onClose: () => void }) {
+  return (
+    <div className="space-y-5 text-sm">
+      <p>
+        <Badge tone="warning">{line.origin_label || "Solo cotización"}</Badge> <span className="text-text-secondary">{LOCAL_HELP}</span>
+      </p>
+      <Section title="Datos del producto">
+        <Row label="Proveedor">{line.supplier_name ?? "—"}</Row>
+        <Row label="Precio sin IVA">{formatMoney(line.new_price)}</Row>
+        <Row label="IVA">{toNumber(line.vat_pct) === null ? "—" : `${toNumber(line.vat_pct)} %`}</Row>
+        <Row label="Referencia interna">
+          <span className="font-mono">{line.sku}</span>
+        </Row>
+      </Section>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} className="max-md:h-11">Cerrar</Button>
+      </DialogFooter>
+    </div>
   );
 }
 
 function Detail({
   line,
+  showCost,
   onClose,
   onOpenAgreement,
 }: {
   line: QuotationLine;
+  showCost: boolean;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
 }) {
@@ -80,7 +113,7 @@ function Detail({
         </ul>
       )}
 
-      <Section title="Precio y costo">
+      <Section title={showCost ? "Precio y costo" : "Precio"}>
         {!added && (
           <>
             <Row label="Último precio">{formatMoney(line.last_price)}</Row>
@@ -95,13 +128,15 @@ function Detail({
           </>
         )}
         <Row label="Precio de lista">{formatMoney(line.list_price)}</Row>
-        <Row label="Costo">
-          {formatMoney(line.cost)}
-          {line.cost_source_label ? ` · ${line.cost_source_label}` : ""}
-        </Row>
-        {toNumber(line.quote_cost) !== null && <Row label="Cotización del proveedor">{formatMoney(line.quote_cost)}</Row>}
-        {toNumber(line.inventory_cost) !== null && <Row label="Inventario">{formatMoney(line.inventory_cost)}</Row>}
-        {toNumber(line.discarded_quote_cost) !== null && (
+        {showCost && (
+          <Row label="Costo">
+            {formatMoney(line.cost)}
+            {line.cost_source_label ? ` · ${line.cost_source_label}` : ""}
+          </Row>
+        )}
+        {showCost && toNumber(line.quote_cost) !== null && <Row label="Cotización del proveedor">{formatMoney(line.quote_cost)}</Row>}
+        {showCost && toNumber(line.inventory_cost) !== null && <Row label="Inventario">{formatMoney(line.inventory_cost)}</Row>}
+        {showCost && toNumber(line.discarded_quote_cost) !== null && (
           <Row label="Cotización descartada">
             {formatMoney(line.discarded_quote_cost)} <span className="text-text-secondary">· fuera de rango, revisar en SIESA</span>
           </Row>

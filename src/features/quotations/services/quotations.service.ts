@@ -4,12 +4,18 @@ import type {
   ConfirmOptions,
   LineChange,
   LineImport,
+  LocalLineInput,
+  OfferSettings,
   Quotation,
   QuotationListParams,
   QuotationPage,
   QuotationPermissions,
   QuotationRuleSection,
   QuotationWithImport,
+  RequestedProduct,
+  RequestedProductChange,
+  RequestedProductPage,
+  RequestedProductParams,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -41,8 +47,40 @@ export function getQuotation(id: string): Promise<Quotation> {
  * 503 DWH unavailable; each with a Spanish `detail`. A customer with no sales
  * comes back empty with the `sin_ventas` warning.
  */
-export function createQuotation(customerNit: string, windowMonths: WindowMonths): Promise<Quotation> {
-  return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths } });
+export function createQuotation(customerNit: string, windowMonths: WindowMonths, validityDays: number): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, {
+    method: "POST",
+    body: { customer_nit: customerNit, window_months: windowMonths, validity_days: validityDays },
+  });
+}
+
+/**
+ * What the customer's offer says and shows: validity, conditions, seller,
+ * quantities and which lines go in. Any status; never changes it.
+ */
+export function updateOffer(id: string, version: number, settings: OfferSettings): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/offer`, { method: "PATCH", body: { version, ...settings } });
+}
+
+/** The offer for the customer as a workbook: prices with and without VAT, conditions; never cost or margins. */
+export function downloadOfferExcel(id: string): Promise<void> {
+  return apiDownload(`${one(id)}/offer.xlsx`, { fallbackName: "cotizacion.xlsx" });
+}
+
+/** Swaps a local line for its SIESA reference once BI marked the request as created. */
+export function promoteLocalLine(id: string, sku: string, version: number): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}/promote`, { method: "POST", body: { version } });
+}
+
+const REQUESTED = `${BASE}/requested-products`;
+
+export function listRequestedProducts({ status, q, page, size }: RequestedProductParams): Promise<RequestedProductPage> {
+  return apiFetch<RequestedProductPage>(REQUESTED, { query: { status, q, page, size } });
+}
+
+/** Only the validating area (BI); `creado` needs a SIESA reference that exists and is active. */
+export function updateRequestedProduct(id: string, change: RequestedProductChange): Promise<RequestedProduct> {
+  return apiFetch<RequestedProduct>(`${REQUESTED}/${encodeURIComponent(id)}`, { method: "PATCH", body: change });
 }
 
 /**
@@ -66,7 +104,15 @@ export function addLines(id: string, version: number, { text, skus }: LineImport
   return apiFetch<QuotationWithImport>(`${one(id)}/lines`, { method: "POST", body });
 }
 
-/** Removes an added or inactive reference; 422 for an active one from the sales history. */
+/**
+ * Adds a product that does not exist in SIESA, at an estimated price. The API
+ * gives it a `LOC-n` reference, keeps it out of the rule and of every export.
+ */
+export function addLocalLine(id: string, version: number, input: LocalLineInput): Promise<QuotationWithImport> {
+  return apiFetch<QuotationWithImport>(`${one(id)}/local-lines`, { method: "POST", body: { version, ...input } });
+}
+
+/** Removes an added, local or inactive reference; 422 for an active one from the sales history. */
 export function removeLine(id: string, sku: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}`, { method: "DELETE", query: { version } });
 }

@@ -6,6 +6,7 @@ import { ApiError } from "@/shared/lib/api-client";
 
 import {
   addLines,
+  addLocalLine,
   confirmQuotation,
   createQuotation,
   deleteQuotation,
@@ -13,10 +14,14 @@ import {
   getQuotationPermissions,
   getQuotationRules,
   listQuotations,
+  listRequestedProducts,
+  promoteLocalLine,
   refreshQuotation,
   removeLine,
   returnQuotation,
   updateLines,
+  updateOffer,
+  updateRequestedProduct,
   uploadQuotationTemplate,
   validateQuotation,
 } from "../services/quotations.service";
@@ -24,8 +29,12 @@ import type {
   ConfirmOptions,
   LineChange,
   LineImport,
+  LocalLineInput,
+  OfferSettings,
   Quotation,
   QuotationListParams,
+  RequestedProductChange,
+  RequestedProductParams,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -36,6 +45,8 @@ export const quotationKeys = {
   lists: () => [...quotationKeys.all, "list"] as const,
   list: (params: QuotationListParams) => [...quotationKeys.lists(), params] as const,
   detail: (id: string) => [...quotationKeys.all, "detail", id] as const,
+  requested: () => [...quotationKeys.all, "requested"] as const,
+  requestedList: (params: RequestedProductParams) => [...quotationKeys.requested(), params] as const,
 };
 
 const retryTransient = (count: number, error: Error) =>
@@ -91,9 +102,51 @@ function useStoreQuotation() {
 export function useCreateQuotation() {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ customerNit, windowMonths }: { customerNit: string; windowMonths: WindowMonths }) =>
-      createQuotation(customerNit, windowMonths),
+    mutationFn: ({ customerNit, windowMonths, validityDays }: { customerNit: string; windowMonths: WindowMonths; validityDays: number }) =>
+      createQuotation(customerNit, windowMonths, validityDays),
     onSuccess: store,
+  });
+}
+
+export function useUpdateOffer(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, settings }: { version: number; settings: OfferSettings }) => updateOffer(id, version, settings),
+    onSuccess: store,
+  });
+}
+
+export function usePromoteLocalLine(id: string) {
+  const store = useStoreQuotation();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ version, sku }: { version: number; sku: string }) => promoteLocalLine(id, sku, version),
+    onSuccess: (quotation) => {
+      store(quotation);
+      void client.invalidateQueries({ queryKey: quotationKeys.requested() });
+    },
+  });
+}
+
+export function useRequestedProducts(params: RequestedProductParams, enabled = true) {
+  return useQuery({
+    queryKey: quotationKeys.requestedList(params),
+    queryFn: () => listRequestedProducts(params),
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+/** A change of status touches the local lines of every quotation that quotes it: their details refetch. */
+export function useUpdateRequestedProduct() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, change }: { id: string; change: RequestedProductChange }) => updateRequestedProduct(id, change),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: quotationKeys.requested() });
+      void client.invalidateQueries({ queryKey: [...quotationKeys.all, "detail"] });
+    },
   });
 }
 
@@ -110,6 +163,14 @@ export function useAddLines(id: string) {
   return useMutation({
     // The answer is the whole quotation: it goes to the cache as is, with no GET after it.
     mutationFn: ({ version, ...input }: { version: number } & LineImport) => addLines(id, version, input),
+    onSuccess: store,
+  });
+}
+
+export function useAddLocalLine(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, input }: { version: number; input: LocalLineInput }) => addLocalLine(id, version, input),
     onSuccess: store,
   });
 }

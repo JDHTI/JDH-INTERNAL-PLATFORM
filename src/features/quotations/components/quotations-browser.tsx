@@ -34,8 +34,7 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 /**
  * Saved quotations, newest first. The API lists only the ones each person
  * created, except for whoever validates (BI, admins) and moderators: they see
- * everyone's, open on the ones waiting for validation, and choose between
- * theirs and all.
+ * everyone's and choose between theirs and all.
  */
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
@@ -45,7 +44,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   const canValidate = permissions?.can_validate === true;
   const seesAll = canValidate || user?.role === "moderator";
   const [mine, setMine] = useState(!seesAll);
-  const [status, setStatus] = useState<QuotationStatus | "">(canValidate ? "pendiente_validacion" : "");
+  // Everyone opens on every status, Comercial and BI alike (decided 2026-11-09); the pending ones are one pick away.
+  const [status, setStatus] = useState<QuotationStatus | "">("");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);

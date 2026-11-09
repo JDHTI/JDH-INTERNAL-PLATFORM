@@ -30,8 +30,10 @@ la cotización.
 
 | Ruta | Pantalla |
 | --- | --- |
-| `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: cliente y ventana). Comercial ve solo las suyas. Quien valida arranca en todas, filtradas por «Pendiente de validación», y elige entre «Mis cotizaciones» y «Todas» |
-| `/<área>/cotizador/<id>` | Editor: cabecera (NIT, canal, lista, CO, regional, familia, bodega, vendedor), aviso del estado, resumen, tabla y acciones |
+| `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: cliente y ventana). Comercial ve solo las suyas. Quien valida arranca en todas y elige entre «Mis cotizaciones» y «Todas». Todos abren en «Todos los estados» (decisión del 2026-11-09) |
+| `/<área>/cotizador/<id>` | Editor: cabecera, tres tarjetas del cliente (Cliente; Lista de precios; Costo), aviso del estado, indicadores, asignación masiva, filtros, tabla y acciones |
+| `/<área>/cotizador/<id>/oferta` | Vista previa de la oferta para el cliente, Excel y PDF |
+| `/<área>/cotizador/solicitados` | Productos solicitados: los locales, para crearlos en SIESA |
 | `/<área>/cotizador/reglas` | `GET /quotations/rules`, abierta a todos |
 
 **Permisos y estados.** `GET /quotations/permissions` decide qué se ve: sin `can_manage` ni
@@ -40,7 +42,7 @@ estado menos `pendiente_validacion`; quien solo valida ve todo en lectura.
 
 | Estado | Comercial | Quien valida |
 | --- | --- | --- |
-| Borrador | Agregar, Refrescar, Plantilla, Confirmar, selección con margen; la nota de devolución aparece arriba | Lectura |
+| Borrador | Agregar, crear producto, Refrescar, Plantilla, Confirmar, asignación masiva; la nota de devolución aparece arriba | Lectura |
 | Pendiente de validación | Lectura y «Retirar de validación» (nota opcional) | «Validar» y «Devolver» (nota obligatoria) |
 | Creada / Actualizada | Excel y plano; editar un precio la devuelve a borrador | Excel y plano |
 
@@ -53,25 +55,82 @@ El botón se bloquea sin precios nuevos o con alguno que no cumple; el 422 del A
 «La lista 1M ya existe en SIESA») se muestra en el diálogo. **Validar** muestra acción, lista,
 activación y cuántos precios antes de liberar los archivos.
 
-**Tabla.** Una línea por referencia, todas de 40 px. Fijas a la izquierda la casilla y la
-referencia; a la derecha Óptimo, Mínimo, Precio nuevo, Margen nuevo y Variación (los dos
-precios de referencia junto a la celda que se escribe). Los encabezados Óptimo y Mínimo
-explican la fórmula en su tooltip. Tabla desde `2xl`; por debajo, tarjetas.
+**Indicadores.** Una barra (verde, ámbar, rojo) y ocho cifras que también son los filtros de la
+tabla: líneas totales, cumplen objetivo, en rango (autonomía: entre el mínimo y el objetivo),
+inferior al mínimo, sin precio de referencia, sin SKU en SIESA (productos locales), sin precio
+nuevo y con apoyo aplicado. Las tres primeras se calculan en la UI con el precio nuevo de cada
+línea, o con el último si aún no tiene (`lib/line-status.ts`). «Inactivas» y «Última
+importación» quedan como chips aparte cuando aplican.
 
-- **Bajo el objetivo** (`below_target`): ícono junto al margen actual siempre, y la fila en
-  ámbar mientras no tenga precio nuevo; filtro «Bajo el objetivo» y cifra en el resumen.
+**Filtros.** Búsqueda por referencia o descripción, «Categorías» y «Proveedores» (selección
+múltiple; las opciones son los valores únicos de las líneas de esa cotización, `category` y
+`supplier_name`) y «Borrar filtros». Los encabezados numéricos ordenan de mayor a menor o de
+menor a mayor desde un menú; los que tienen dos cifras (precio y margen) ofrecen las dos.
+
+**Tabla.** Bloques de dos o tres renglones, sin scroll lateral: producto (descripción, SKU,
+proveedor y unidad), último precio (margen con apoyo y fecha), óptimo y mínimo (más el costo
+solo para quien valida), precio nuevo con su margen, apoyo, IVA, precio con IVA (más el precio
+sin IVA y el impuesto de licores) y variación. Cada margen lleva un badge con ícono y palabras:
+cumple, en rango o bajo el mínimo. El precio con IVA es `precio × (1 + IVA) + licores`, con el
+`vat_pct` de la venta. Tabla cuando su contenedor mide 64rem (container query, así el sidebar
+abierto o cerrado decide); por debajo, tarjetas.
+
+- **Costo**: solo con `can_validate` (BI y administradores), en la tabla y en el detalle;
+  Comercial cotiza desde los precios.
 - **Inactiva** (`is_active: false`): badge «Inactiva» con su explicación, precio deshabilitado
-  (no se exporta) y botón para quitarla; filtro «Inactivas» cuando hay alguna.
-- **Costo**: el tooltip dice el origen (`cost_source_label`), la cotización y el inventario;
-  una cotización descartada pone un ícono de advertencia y queda en el detalle.
+  (no se exporta) y botón para quitarla.
 - **Precio nuevo** en pesos enteros: un separador seguido de tres cifras es de miles
   (`3.323`), `,00` o `.0` al final se descartan (lo que pega Excel) y cualquier decimal se
   rechaza en la celda con «El precio va en pesos enteros, sin decimales».
 
-**Margen para la selección.** Las casillas (o «Seleccionar las N del filtro») llevan las
-referencias marcadas a un margen escrito en puntos (`30`, `27,5`): un solo `PUT /lines` con
-`margin_pct` en fracción. Lo que el API no pudo calcular (`skipped`) queda seleccionado y
-listado con su motivo.
+**Asignación masiva de precio.** Sección propia, abierta por defecto. «Asignar con» margen
+óptimo (el `optimal_price` de cada línea), margen mínimo (`min_price`) o personalizado (un
+margen con apoyo en puntos, que va como `margin_pct`). Botones para aplicar a las
+seleccionadas, seleccionar todas las filtradas, quitar la selección y limpiar los precios de las
+seleccionadas (con confirmación). Lo que no se pudo calcular queda seleccionado con su motivo.
+
+**Crear producto.** Junto a «Agregar productos»: descripción, proveedor (opcional), precio
+estimado sin IVA e IVA 19, 5 o 0 %. `POST /local-lines` lo crea como `LOC-n`, origen `local`
+(«Solo cotización»): sin costo ni regla, no cuenta para confirmar y no sale en el Excel de SIESA,
+el plano ni la plantilla. Cada uno entra al registro de **Productos solicitados**; si al escribir
+la descripción ya hay uno solicitado parecido, el diálogo ofrece «Cotizar este» para no duplicarlo.
+Cuando BI lo marca creado en SIESA, la línea ofrece «Usar la referencia N»
+(`POST /lines/{LOC-n}/promote`), que la cambia por la referencia real con su costo y su regla.
+
+**Vigencia.** «Nueva cotización» pide la vigencia en días (30 por defecto, de 1 a 365) y muestra
+la fecha. Se puede cambiar en la oferta; cambiarla cuenta desde hoy (`valid_from`, `valid_until`).
+
+**Oferta para el cliente.** Arriba, bajo las tarjetas del cliente. La cabecera resume (válida
+hasta, ítems, condiciones) y lleva «Vista previa», «Excel» (`offer.xlsx`, de la API) y «PDF». Al
+abrirla se editan, cada cambio con `PATCH /offer` (en cualquier estado, sin volver a borrador):
+
+- vigencia en días;
+- ítems en la oferta: solo con precio nuevo (más los productos para cotizar) o todas con precio
+  (`offer_scope`; la API marca cada línea con `in_offer` y su `offer_price`);
+- incluir datos del vendedor: el asignado al cliente en SIESA (`seller_contact`, de
+  `consumo.vendedores`);
+- cotizar con cantidades;
+- condiciones de la oferta: lista editable (agregar, editar, subir, bajar, quitar; máximo 20). La
+  primera, «Precios válidos hasta el …», sale sola de la vigencia.
+
+La vista previa es `/<área>/cotizador/<id>/oferta`: una hoja con el logo, cliente, asesor (si
+aplica), ítems con precio sin y con IVA, el consolidado y las condiciones. Es papel: siempre en
+claro (`.paper` en `globals.css` vuelve a los tokens del tema claro). El PDF sale de esa misma hoja
+con la impresión del navegador («Guardar como PDF»; `?imprimir=1` abre el diálogo al llegar), con
+el shell oculto al imprimir. Nunca muestra costo, márgenes, apoyos ni regla.
+
+**Cotizar con cantidades.** La tabla suma la columna «Cant.» (unidad de inventario, hasta dos
+decimales; se guarda en la misma cola que el precio, `PUT /lines` con `quantity`, en cualquier
+estado) con el total de cada línea, y debajo el **consolidado**: subtotal, IVA por tarifa sobre su
+base, impuesto de licores y total (`offer_summary`; la UI lo calcula igual si no llega). Por línea:
+base = cantidad × precio, IVA = base × tarifa, licores = cantidad × impuesto por unidad.
+
+**Productos solicitados** (`/<área>/cotizador/solicitados`, en el menú bajo Cotizador). El
+registro aparte de los productos locales: no se pierde al borrar la cotización. Filtros por estado
+(solicitado, creado en SIESA, descartado) y búsqueda; cada uno muestra precio estimado, IVA, quién
+lo pidió y las cotizaciones donde está (las que quien mira puede abrir). BI (`can_validate`) lo
+marca creado en SIESA con la referencia (la API valida que exista y esté activa), lo descarta con
+nota o lo devuelve a solicitado.
 
 **Agregar productos.** El buscador del maestro (200 ms de espera, índice en el API) muestra los
 resultados con casillas: se marcan varios o «Marcar los N resultados»; las inactivas no se
