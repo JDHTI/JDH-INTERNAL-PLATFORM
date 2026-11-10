@@ -180,7 +180,9 @@ export function LinesTable(props: LinesProps) {
             <col key={key} style={{ width: widths[key] }} />
           ))}
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        {/* The scrolling <main> has p-4 / md:p-6, and sticky top-0 would stop at its content edge,
+            leaving a strip above the header where rows scroll by: the negative offset pins it to the edge. */}
+        <thead className="sticky -top-4 z-10 bg-canvas-subtle md:-top-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
             {selection && (
               <th scope="col" className={cn(th, "rounded-tl-lg pr-0")}>
