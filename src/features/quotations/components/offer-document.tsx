@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Logo } from "@/intranet/components/common/logo";
 import { cn } from "@/shared/lib/utils";
 
-import { formatCount, formatLongDay, formatMoney, quantityInputText } from "../lib/format";
+import { formatCount, formatLongDay, formatMoney, formatVariation, quantityInputText } from "../lib/format";
 import { type OfferTotals, offerAmounts, offerConditions, offerLines, offerTotals } from "../lib/offer";
 import type { Quotation, QuotationLine } from "../types/quotations.types";
 
@@ -207,11 +207,20 @@ function Parties({ quotation }: { quotation: Quotation }) {
     <div className={cn("grid gap-4", seller && "grid-cols-2")}>
       <Party
         title="Cliente"
-        rows={[
-          ["Nombre", quotation.customer_name],
-          ["NIT", quotation.customer_nit],
-          ["Canal", quotation.channel],
-        ]}
+        rows={
+          quotation.temporary_customer
+            ? [
+                ["Nombre", quotation.temporary_customer.name],
+                ["Razón social", quotation.temporary_customer.legal_name],
+                ["Nombre comercial", quotation.temporary_customer.trade_name],
+                ["NIT", quotation.temporary_customer.nit],
+              ]
+            : [
+                ["Nombre", quotation.customer_name],
+                ["NIT", quotation.customer_nit],
+                ["Canal", quotation.channel],
+              ]
+        }
       />
       {seller && (
         <Party
@@ -259,6 +268,8 @@ function EmptyItems() {
  */
 function ItemsTable({ quotation, lines, measuring = false }: { quotation: Quotation; lines: QuotationLine[]; measuring?: boolean }) {
   const withQuantities = quotation.quote_quantities;
+  // The variation goes to the customer only when the executive chose to send it.
+  const withVariation = quotation.include_variation;
   const th = "border-b border-border-control px-1.5 py-1.5 text-left text-xs font-semibold";
   const td = "border-b border-border px-1.5 py-1.5 align-top";
   return (
@@ -267,13 +278,15 @@ function ItemsTable({ quotation, lines, measuring = false }: { quotation: Quotat
       <colgroup>
         <col className="w-[4.5rem]" />
         <col />
-        <col className="w-12" />
-        <col className="w-[5.5rem]" />
-        <col className="w-12" />
-        <col className="w-[5.5rem]" />
+        <col className="w-10" />
+        <col className="w-[5rem]" />
+        <col className="w-10" />
+        <col className="w-[4.5rem]" />
+        <col className="w-[5rem]" />
+        {withVariation && <col className="w-14" />}
         {withQuantities && (
           <>
-            <col className="w-12" />
+            <col className="w-11" />
             <col className="w-[5.5rem]" />
           </>
         )}
@@ -285,7 +298,9 @@ function ItemsTable({ quotation, lines, measuring = false }: { quotation: Quotat
           <th scope="col" className={th}>Und.</th>
           <th scope="col" className={cn(th, "text-right")}>Sin IVA</th>
           <th scope="col" className={cn(th, "text-right")}>IVA</th>
+          <th scope="col" className={cn(th, "text-right")}>Imp. consumo</th>
           <th scope="col" className={cn(th, "text-right")}>Con IVA</th>
+          {withVariation && <th scope="col" className={cn(th, "text-right")}>Var.</th>}
           {withQuantities && (
             <>
               <th scope="col" className={cn(th, "text-right")}>Cant.</th>
@@ -297,18 +312,17 @@ function ItemsTable({ quotation, lines, measuring = false }: { quotation: Quotat
       <tbody>
         {lines.map((line) => {
           const amounts = offerAmounts(line);
-          const liquor = Number(line.value_tax_amount ?? 0);
+          const consumption = Number(line.value_tax_amount ?? 0);
           return (
             <tr key={line.sku} data-row={measuring ? "" : undefined}>
               <td className={cn(td, "font-mono text-xs")}>{line.origin === "local" ? "Por crear" : line.sku}</td>
-              <td className={cn(td, "break-words")}>
-                {line.description ?? line.sku}
-                {liquor > 0 && <span className="block text-xs text-text-secondary">Incluye imp. licores {formatMoney(liquor)}</span>}
-              </td>
+              <td className={cn(td, "break-words")}>{line.description ?? line.sku}</td>
               <td className={td}>{line.unit ?? "—"}</td>
               <td className={cn(td, "text-right")}>{amounts ? formatMoney(amounts.price) : "—"}</td>
               <td className={cn(td, "text-right")}>{amounts ? `${vatFormat.format(amounts.vatPct)} %` : "—"}</td>
+              <td className={cn(td, "text-right")}>{consumption > 0 ? formatMoney(consumption) : "—"}</td>
               <td className={cn(td, "text-right font-medium")}>{amounts ? formatMoney(amounts.priceWithVat) : "—"}</td>
+              {withVariation && <td className={cn(td, "text-right")}>{line.new_price !== null ? formatVariation(line.variation_pct) : "—"}</td>}
               {withQuantities && (
                 <>
                   <td className={cn(td, "text-right")}>{line.quantity ? quantityInputText(line.quantity) : "—"}</td>
@@ -359,7 +373,7 @@ export function TotalsTable({ totals, className }: { totals: OfferTotals; classN
       ))}
       {totals.liquorTax > 0 && (
         <div className={row}>
-          <span>Impuesto de licores</span>
+          <span>Impuesto al consumo</span>
           <span>{formatMoney(totals.liquorTax)}</span>
         </div>
       )}

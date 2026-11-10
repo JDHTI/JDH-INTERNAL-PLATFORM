@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, Hourglass, PencilLine, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, FileUp, Hourglass, PencilLine, TrendingDown } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -10,9 +10,10 @@ const STATUS_LOOK: Record<QuotationStatus, { tone: BadgeTone; icon: typeof Check
   borrador: { tone: "neutral", icon: PencilLine },
   // Waiting on someone else: amber, like the validator's pending orders.
   pendiente_validacion: { tone: "warning", icon: Hourglass },
-  // Validated, files out: green either way; the label says which.
-  creada: { tone: "success", icon: FileCheck2 },
-  actualizada: { tone: "success", icon: FileCheck2 },
+  // Validated, the files have to go into SIESA: still a step left, so not green yet.
+  pendiente_carga: { tone: "info", icon: FileUp },
+  // Loaded in SIESA: done.
+  cargada: { tone: "success", icon: FileCheck2 },
 };
 
 /** The quotation's state with the API's own label; the icon carries it too, not only the color. */

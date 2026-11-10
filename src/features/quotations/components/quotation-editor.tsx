@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   FileText,
+  FileCheck2,
+  FileUp,
   FileX2,
   FilterX,
   Hourglass,
@@ -22,7 +24,6 @@ import {
   Save,
   Search,
   Send,
-  Sheet,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { InfoPopover } from "@/shared/components/ui/info-popover";
@@ -49,17 +51,19 @@ import {
   useDeleteQuotation,
   usePromoteLocalLine,
   useQuotation,
+  useUpdateBillingCenter,
   useUpdateOffer,
   useQuotationPermissions,
   useRefreshQuotation,
   useRemoveLine,
 } from "../hooks/use-quotations";
-import { formatCount, formatDateTime, formatDay, isValidated, showsCost } from "../lib/format";
-import { INDICATORS, type Indicator, type Sort, distinctValues, isLocal, sortLines, supplierOf } from "../lib/line-status";
+import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
+import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
 import { offerTotals } from "../lib/offer";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
+import BillingCenterSelect from "./billing-center-select";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection } from "./lines-table";
@@ -70,8 +74,7 @@ import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
 import { ConfirmDialog } from "./confirm-wizard";
-import { ReturnDialog, ValidateDialog } from "./review-dialogs";
-import TemplateDialog from "./template-dialog";
+import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
 import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
@@ -83,8 +86,8 @@ const PAGE_SIZE = 50;
 type LineFilter = Indicator | "inactive" | "imported";
 
 const inactive = (line: QuotationLine) => !line.is_active;
-/** What confirming counts: an active SIESA reference with a new price. Local products never reach SIESA. */
-const changed = (line: QuotationLine) => line.new_price !== null && line.is_active && !isLocal(line);
+/** What confirming needs at least one of: an active line with a new price, from SIESA or local. */
+const priced = (line: QuotationLine) => line.new_price !== null && line.is_active;
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
@@ -135,8 +138,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
   const editable = canManage && !pendingReview;
-  // By area, not by permission: in Comercial's quoter nobody sees the cost, BI analysts included.
-  const showCost = showsCost(basePath);
 
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
@@ -157,14 +158,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [sort, setSort] = useState<Sort | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "template" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "uploaded" | "delete" | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
 
-  const changedCount = useMemo(() => quotation.lines.filter(changed).length, [quotation.lines]);
+  // Confirming needs one priced line, from SIESA or local: a temporary customer may have only local products.
+  const pricedCount = useMemo(() => quotation.lines.filter(priced).length, [quotation.lines]);
   const inactiveCount = useMemo(() => quotation.lines.filter(inactive).length, [quotation.lines]);
   // The options come from this quotation's own lines, so each one lists only what it has.
   const categoryOptions = useMemo(() => distinctValues(quotation.lines, (line) => line.category), [quotation.lines]);
@@ -370,7 +372,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     selection,
     pending,
     highlight: importer.highlight,
-    showCost,
     sort,
     onSort: (next: Sort | null) => {
       setSort(next);
@@ -415,22 +416,22 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               {refresh.isPending ? "Refrescando…" : "Refrescar"}
             </Button>
           )}
-          {editable && (
-            <Button variant="outline" onClick={() => setDialog("template")} disabled={busy} className="max-md:h-11">
-              <Sheet aria-hidden="true" /> Plantilla
-            </Button>
-          )}
           {isValidated(quotation.status) && (
             <>
               <Button variant="outline" onClick={() => void download("xlsx")} disabled={downloading !== null} className="max-md:h-11">
                 {downloading === "xlsx" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileSpreadsheet aria-hidden="true" />}
-                Excel
+                Excel SIESA
               </Button>
               <Button variant="outline" onClick={() => void download("txt")} disabled={downloading !== null} className="max-md:h-11">
                 {downloading === "txt" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileText aria-hidden="true" />}
                 Plano SIESA
               </Button>
             </>
+          )}
+          {quotation.status === "pendiente_carga" && canValidate && (
+            <Button onClick={() => setDialog("uploaded")} className="max-md:h-11">
+              <FileCheck2 aria-hidden="true" /> Marcar como cargada
+            </Button>
           )}
           {pendingReview && canValidate && (
             <>
@@ -456,8 +457,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           {canManage && quotation.status === "borrador" && (
             <Button
               onClick={() => setDialog("confirm")}
-              disabled={busy || changedCount === 0}
-              title={changedCount === 0 ? "Escribe al menos un precio nuevo en una referencia de SIESA para confirmar." : undefined}
+              disabled={busy || pricedCount === 0}
+              title={pricedCount === 0 ? "Escribe al menos un precio nuevo para confirmar." : undefined}
               className="max-md:h-11"
             >
               <Send aria-hidden="true" /> Confirmar
@@ -483,7 +484,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       </header>
 
-      <CustomerCards quotation={quotation} />
+      <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is put together while confirming; once confirmed it is here to preview and export. */}
       {quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
@@ -616,7 +617,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         >
           No compró nada en los últimos {quotation.window_months} meses, así que no hay último precio de qué partir.
           {editable &&
-            " Agrega las referencias que le vas a cotizar: cada una trae su costo, margen objetivo, apoyos e impuesto de licores. Si no existe en el portafolio, créala solo para cotizar."}
+            " Agrega las referencias que le vas a cotizar: cada una trae sus precios sugeridos, apoyos e impuesto al consumo. Si no existe en el portafolio, créala solo para cotizar."}
         </StatePanel>
       ) : visible.length === 0 && pending.length === 0 ? (
         <StatePanel
@@ -663,7 +664,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         asValidator={canValidate}
       />
       <ValidateDialog quotation={quotation} open={dialog === "validate"} onOpenChange={(open) => !open && closeDialog()} />
-      <TemplateDialog quotation={quotation} open={dialog === "template"} onOpenChange={(open) => !open && closeDialog()} />
+      <UploadedDialog quotation={quotation} open={dialog === "uploaded"} onOpenChange={(open) => !open && closeDialog()} />
       <AddProductsDialog
         quotation={quotation}
         open={adding}
@@ -696,7 +697,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       />
       <LineDetailDialog
         line={detailLine}
-        showCost={showCost}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
           setDetailLine(null);
@@ -755,38 +755,52 @@ type Fact = [label: string, value: React.ReactNode];
  * customer is, which list the prices go to, and where the cost comes from.
  * Three cards side by side instead of one long line of label-value pairs.
  */
-function CustomerCards({ quotation }: { quotation: Quotation }) {
+function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; canChangeCenter: boolean }) {
   const sharedList = quotation.price_list_customers;
-  const groups: { title: string; facts: Fact[] }[] = [
-    {
-      title: "Cliente",
-      facts: [
-        ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
-        ["Canal", quotation.channel ?? "Sin canal"],
-        ["Vendedor", quotation.salesperson_name ?? "—"],
-      ],
-    },
+  const temporary = quotation.is_temporary_customer ? quotation.temporary_customer : null;
+  const groups: { title: string; badge?: React.ReactNode; facts: Fact[] }[] = [
+    temporary
+      ? {
+          title: "Cliente",
+          // Not in SIESA yet: registered on this quotation only.
+          badge: <Badge tone="warning" className="px-1.5 py-0 text-xs">Temporal</Badge>,
+          facts: [
+            ["Razón social", temporary.legal_name],
+            ...(temporary.trade_name ? [["Nombre comercial", temporary.trade_name] as Fact] : []),
+            ["NIT", temporary.nit ? <span key="nit" className="font-mono">{temporary.nit}</span> : "Sin NIT"],
+          ],
+        }
+      : {
+          title: "Cliente",
+          facts: [
+            ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
+            ["Canal", quotation.channel ?? "Sin canal"],
+            ["Vendedor", quotation.salesperson_name ?? "—"],
+          ],
+        },
     {
       title: "Lista de precios",
-      facts: [
-        [
-          "Lista SIESA",
-          <span key="list" className="block truncate" title={quotation.price_list_name ?? undefined}>
-            <span className="font-mono">{quotation.price_list_id ?? "—"}</span>
-            {quotation.price_list_name && <span className="text-text-secondary"> · {quotation.price_list_name}</span>}
-          </span>,
-        ],
-        ["Familia", quotation.price_family_label ?? "—"],
-        [
-          "Ventana",
-          `${quotation.window_months} meses${sharedList && sharedList > 1 ? ` · lista de ${formatCount(sharedList)} clientes` : ""}`,
-        ],
-      ],
+      facts: temporary
+        ? [["Lista SIESA", "Sin lista: al validar se le crea una nueva"]]
+        : [
+            [
+              "Lista SIESA",
+              <span key="list" className="block truncate" title={quotation.price_list_name ?? undefined}>
+                <span className="font-mono">{quotation.price_list_id ?? "—"}</span>
+                {quotation.price_list_name && <span className="text-text-secondary"> · {quotation.price_list_name}</span>}
+              </span>,
+            ],
+            ["Familia", quotation.price_family_label ?? "—"],
+            [
+              "Ventana",
+              `${quotation.window_months} meses${sharedList && sharedList > 1 ? ` · lista de ${formatCount(sharedList)} clientes` : ""}`,
+            ],
+          ],
     },
     {
-      title: "Costo",
+      title: "C.O. y costo",
       facts: [
-        ["C.O. que factura", quotation.billing_center_code ?? "—"],
+        ["C.O.", <BillingCenterField key="co" quotation={quotation} editable={canChangeCenter} />],
         ["Regional", quotation.regional_label ?? "—"],
         ["Bodega", quotation.stock_source ?? "—"],
       ],
@@ -796,7 +810,10 @@ function CustomerCards({ quotation }: { quotation: Quotation }) {
     <div className="grid gap-3 @3xl:grid-cols-3">
       {groups.map((group) => (
         <section key={group.title} aria-label={group.title} className="min-w-0 rounded-lg border border-border bg-surface px-4 py-3">
-          <h2 className="mb-2 text-sm font-semibold">{group.title}</h2>
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            {group.title}
+            {group.badge}
+          </h2>
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
             {group.facts.map(([label, value]) => (
               <div key={label} className="contents">
@@ -807,6 +824,76 @@ function CustomerCards({ quotation }: { quotation: Quotation }) {
           </dl>
         </section>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The operation center the prices come from: cost, warehouses, regional and
+ * liquor tax depend on it. It starts as the one that bills the customer (the
+ * highest regional among its branches) and can be changed; changing it
+ * recalculates every line, keeps the new prices and sends the quotation back
+ * to draft, so it asks first.
+ */
+function BillingCenterField({ quotation, editable }: { quotation: Quotation; editable: boolean }) {
+  const id = useId();
+  const update = useUpdateBillingCenter(quotation.id);
+  const [choice, setChoice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const label = quotation.billing_center_code
+    ? `${quotation.billing_center_code}${quotation.billing_center_name ? ` · ${quotation.billing_center_name}` : ""}`
+    : "—";
+
+  if (!editable) {
+    return (
+      <span>
+        {label}
+        {quotation.billing_center_source === "manual" && <span className="text-text-secondary"> (elegido a mano)</span>}
+      </span>
+    );
+  }
+
+  const apply = () => {
+    if (!choice) return;
+    setError(null);
+    update.mutate(
+      { version: quotation.version, code: choice },
+      {
+        onSuccess: () => {
+          setChoice(null);
+          toast.success("Precios recalculados con el nuevo C.O. Tus precios nuevos se conservaron.");
+        },
+        onError: (failure) => setError(errorMessage(failure)),
+      }
+    );
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="sr-only">C.O. desde el que se cotiza</label>
+      <BillingCenterSelect
+        id={id}
+        value={choice ?? quotation.billing_center_code ?? ""}
+        onChange={(code) => setChoice(code && code !== quotation.billing_center_code ? code : null)}
+        disabled={update.isPending}
+      />
+      {quotation.billing_center_source === "manual" && !choice && (
+        <span className="block text-xs text-text-secondary">Elegido a mano; «Refrescar» lo conserva.</span>
+      )}
+      {choice && (
+        <div role="group" aria-label="Cambiar el C.O." className="space-y-1.5 rounded-md bg-canvas-subtle p-2 text-[13px]">
+          <p>Recalcula costo, precios sugeridos y márgenes de todas las líneas, y la cotización vuelve a borrador.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={apply} disabled={update.isPending} className="max-md:h-11">
+              {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Cambiar a {choice}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setChoice(null)} disabled={update.isPending} className="max-md:h-11">
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+      {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
     </div>
   );
 }
@@ -822,6 +909,9 @@ function QuotationHistory({ quotation }: { quotation: Quotation }) {
       : []),
     ...(quotation.validated_at
       ? [["Validada", `${formatDateTime(quotation.validated_at)}${by(quotation.validated_by)}`] as [string, string]]
+      : []),
+    ...(quotation.uploaded_at
+      ? [["Cargada en SIESA", `${formatDateTime(quotation.uploaded_at)}${by(quotation.uploaded_by)}`] as [string, string]]
       : []),
   ];
   return (
@@ -844,11 +934,15 @@ function QuotationHistory({ quotation }: { quotation: Quotation }) {
  */
 function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotation; canManage: boolean; canValidate: boolean }) {
   const target = quotation.export_price_list_id ?? quotation.price_list_id ?? "—";
+  // On a creation the validator names the list, so until validation there is no code to show.
   const plan =
     quotation.list_action === "creacion"
-      ? `Crear la lista ${target}${quotation.new_list_name ? ` (${quotation.new_list_name})` : ""}`
+      ? quotation.export_price_list_id
+        ? `Crear la lista ${target}${quotation.new_list_name ? ` (${quotation.new_list_name})` : ""}`
+        : "Crear una lista nueva"
       : `Actualizar la lista ${target}`;
   const activation = quotation.activation_date ? `, activa desde el ${formatDay(quotation.activation_date)}` : "";
+  const failing = quotation.below_rule_count;
 
   if (quotation.status === "borrador" && quotation.review_note) {
     return (
@@ -867,26 +961,49 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
         <p>
           <strong>{plan}{activation}.</strong>{" "}
           {canValidate
-            ? "Revisa los precios y valídala para liberar el Excel y el plano, o devuélvela al asesor con una nota."
+            ? `Revisa los precios y valídala para liberar el Excel y el plano${quotation.list_action === "creacion" ? " (al validar le pones el código a la lista)" : ""}, o devuélvela al asesor con una nota.`
             : canManage
               ? "Espera la validación del área BI; mientras tanto no se puede editar. Si necesitas cambiar algo, retírala de validación."
               : "Espera la validación del área BI."}
+          {failing > 0 && (
+            <span className="mt-1 block">
+              {failing === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(failing)} referencias con precio nuevo quedan`} bajo la
+              regla (bajo el mínimo, sin objetivo o sin costo); el indicador «Inferior al mínimo» las muestra.
+            </span>
+          )}
         </p>
       </div>
     );
   }
-  if (isValidated(quotation.status)) {
-    // Validated: what was decided is done, so it reads in the past.
+  if (quotation.status === "pendiente_carga") {
     const done =
       quotation.list_action === "creacion"
         ? `Validada para crear la lista ${target}${quotation.new_list_name ? ` (${quotation.new_list_name})` : ""}`
         : `Validada para actualizar la lista ${target}`;
     return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-info-surface px-4 py-3 text-sm">
+        <FileUp className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+        <p>
+          <strong>{done}{activation}.</strong>{" "}
+          {canValidate
+            ? "Descarga el Excel y el plano, cárgalos en SIESA y márcala como cargada."
+            : "Falta que el área BI la cargue en SIESA."}
+          {quotation.list_action === "creacion" && " Asignar la lista nueva al cliente se hace a mano en SIESA."}
+          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+        </p>
+      </div>
+    );
+  }
+  if (quotation.status === "cargada") {
+    return (
       <div role="status" className="flex items-start gap-2 rounded-lg bg-success-surface px-4 py-3 text-sm">
         <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
         <p>
-          <strong>{done}{activation}.</strong> Descarga el Excel y el plano para cargarlos en SIESA
-          {quotation.list_action === "creacion" ? "; asignar la lista nueva al cliente se hace a mano en SIESA." : "."}
+          <strong>
+            Cargada en SIESA{quotation.uploaded_at ? ` el ${formatDateTime(quotation.uploaded_at)}` : ""}
+            {quotation.uploaded_by ? ` por ${quotation.uploaded_by}` : ""}.
+          </strong>{" "}
+          {quotation.list_action === "creacion" ? `Lista ${target} creada${activation}.` : `Lista ${target} actualizada${activation}.`}
           {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
         </p>
       </div>

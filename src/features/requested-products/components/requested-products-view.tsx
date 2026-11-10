@@ -18,11 +18,14 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { useQuotationPermissions, useRequestedProducts, useUpdateRequestedProduct } from "../hooks/use-quotations";
-import { formatCount, formatDateTime, formatMoney } from "../lib/format";
-import type { RequestedProduct, RequestedProductStatus } from "../types/quotations.types";
-import { QuotationLoadError } from "./quotations-gate";
-import { ToggleChip } from "./toggle-chip";
+import { canUseModule } from "@/features/areas/types/area.types";
+import { useActiveArea } from "@/features/areas/hooks/use-areas";
+import { QuotationLoadError } from "@/features/quotations/components/quotations-gate";
+import { ToggleChip } from "@/features/quotations/components/toggle-chip";
+import { formatCount, formatDateTime, formatMoney } from "@/features/quotations/lib/format";
+
+import { useRequestedProductPermissions, useRequestedProducts, useUpdateRequestedProduct } from "../hooks/use-requested-products";
+import type { RequestedProduct, RequestedProductStatus } from "../types/requested-products.types";
 
 const PAGE_SIZE = 20;
 
@@ -49,10 +52,14 @@ type Action = { product: RequestedProduct; to: RequestedProductStatus };
  * quotation: deleting a quotation never loses one. Comercial follows them;
  * BI moves them along (created in SIESA with its reference, or discarded).
  * Once created, each quotation that has it offers to swap in the reference.
+ * Its own module: the quoter links here, never the other way round.
  */
-export default function RequestedProductsView({ basePath }: { basePath: string }) {
-  const permissions = useQuotationPermissions().data;
-  const canResolve = permissions?.can_validate === true;
+export default function RequestedProductsView() {
+  const permissions = useRequestedProductPermissions().data;
+  const canResolve = permissions?.can_resolve === true;
+  // The quotations link to this area's quoter only when the person has it here: never a link to a route they cannot open.
+  const { area } = useActiveArea();
+  const basePath = area && canUseModule(area, "cotizador") ? `/${area.slug}/cotizador` : null;
   const [status, setStatus] = useState<RequestedProductStatus | "">("solicitado");
   const [text, setText] = useState("");
   const [page, setPage] = useState(1);
@@ -218,7 +225,7 @@ function StatusBadge({ product }: { product: RequestedProduct }) {
 }
 
 /** The quotations that quote it and that the viewer can open; the rest are counted, not named. */
-function QuotationLinks({ product, basePath }: { product: RequestedProduct; basePath: string }) {
+function QuotationLinks({ product, basePath }: { product: RequestedProduct; basePath: string | null }) {
   if (product.quotations.length === 0) return <span className="text-[13px] text-text-secondary">Ninguna abierta para ti</span>;
   const shown = product.quotations.slice(0, 2);
   const rest = product.quotations.length - shown.length;
@@ -226,12 +233,16 @@ function QuotationLinks({ product, basePath }: { product: RequestedProduct; base
     <ul className="space-y-0.5 text-[13px]">
       {shown.map((quotation) => (
         <li key={quotation.id} className="truncate">
-          <Link
-            href={`${basePath}/${quotation.id}`}
-            className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            {quotation.customer_name}
-          </Link>
+          {basePath ? (
+            <Link
+              href={`${basePath}/${quotation.id}`}
+              className="rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              {quotation.customer_name}
+            </Link>
+          ) : (
+            <span>{quotation.customer_name}</span>
+          )}
           <span className="text-text-secondary"> · {quotation.status_label}</span>
         </li>
       ))}

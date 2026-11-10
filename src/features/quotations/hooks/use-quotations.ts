@@ -3,26 +3,28 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
+import { requestedProductKeys } from "@/features/requested-products/hooks/use-requested-products";
 
 import {
   addLines,
   addLocalLine,
   confirmQuotation,
   createQuotation,
+  createTemporaryQuotation,
   deleteQuotation,
   getQuotation,
   getQuotationPermissions,
   getQuotationRules,
+  listBillingCenters,
   listQuotations,
-  listRequestedProducts,
+  markUploaded,
   promoteLocalLine,
   refreshQuotation,
   removeLine,
   returnQuotation,
+  updateBillingCenter,
   updateLines,
   updateOffer,
-  updateRequestedProduct,
-  uploadQuotationTemplate,
   validateQuotation,
 } from "../services/quotations.service";
 import type {
@@ -33,8 +35,8 @@ import type {
   OfferSettings,
   Quotation,
   QuotationListParams,
-  RequestedProductChange,
-  RequestedProductParams,
+  TemporaryQuotationInput,
+  ValidateOptions,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -45,8 +47,6 @@ export const quotationKeys = {
   lists: () => [...quotationKeys.all, "list"] as const,
   list: (params: QuotationListParams) => [...quotationKeys.lists(), params] as const,
   detail: (id: string) => [...quotationKeys.all, "detail", id] as const,
-  requested: () => [...quotationKeys.all, "requested"] as const,
-  requestedList: (params: RequestedProductParams) => [...quotationKeys.requested(), params] as const,
 };
 
 const retryTransient = (count: number, error: Error) =>
@@ -99,11 +99,41 @@ function useStoreQuotation() {
   };
 }
 
+/** An existing customer (from SIESA) or a temporary one registered on the quotation. */
 export function useCreateQuotation() {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ customerNit, windowMonths, validityDays }: { customerNit: string; windowMonths: WindowMonths; validityDays: number }) =>
-      createQuotation(customerNit, windowMonths, validityDays),
+    mutationFn: (
+      input: { kind: "existing"; customerNit: string; windowMonths: WindowMonths } | ({ kind: "temporary" } & TemporaryQuotationInput)
+    ) =>
+      input.kind === "existing"
+        ? createQuotation(input.customerNit, input.windowMonths)
+        : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
+    onSuccess: store,
+  });
+}
+
+export function useBillingCenters() {
+  return useQuery({
+    queryKey: [...quotationKeys.all, "billing-centers"] as const,
+    queryFn: listBillingCenters,
+    staleTime: 30 * 60_000,
+    retry: retryTransient,
+  });
+}
+
+export function useUpdateBillingCenter(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ version, code }: { version: number; code: string }) => updateBillingCenter(id, version, code),
+    onSuccess: store,
+  });
+}
+
+export function useMarkUploaded(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: (version: number) => markUploaded(id, version),
     onSuccess: store,
   });
 }
@@ -123,29 +153,7 @@ export function usePromoteLocalLine(id: string) {
     mutationFn: ({ version, sku }: { version: number; sku: string }) => promoteLocalLine(id, sku, version),
     onSuccess: (quotation) => {
       store(quotation);
-      void client.invalidateQueries({ queryKey: quotationKeys.requested() });
-    },
-  });
-}
-
-export function useRequestedProducts(params: RequestedProductParams, enabled = true) {
-  return useQuery({
-    queryKey: quotationKeys.requestedList(params),
-    queryFn: () => listRequestedProducts(params),
-    retry: retryTransient,
-    placeholderData: keepPreviousData,
-    enabled,
-  });
-}
-
-/** A change of status touches the local lines of every quotation that quotes it: their details refetch. */
-export function useUpdateRequestedProduct() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, change }: { id: string; change: RequestedProductChange }) => updateRequestedProduct(id, change),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: quotationKeys.requested() });
-      void client.invalidateQueries({ queryKey: [...quotationKeys.all, "detail"] });
+      void client.invalidateQueries({ queryKey: requestedProductKeys.all });
     },
   });
 }
@@ -210,15 +218,7 @@ export function useReturnQuotation(id: string) {
 export function useValidateQuotation(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: (version: number) => validateQuotation(id, version),
-    onSuccess: store,
-  });
-}
-
-export function useUploadTemplate(id: string) {
-  const store = useStoreQuotation();
-  return useMutation({
-    mutationFn: ({ version, file }: { version: number; file: File }) => uploadQuotationTemplate(id, version, file),
+    mutationFn: ({ version, options }: { version: number; options: ValidateOptions }) => validateQuotation(id, version, options),
     onSuccess: store,
   });
 }

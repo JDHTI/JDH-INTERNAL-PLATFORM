@@ -7,6 +7,7 @@ import { Calculator, CheckCircle2, FileX2, Plus, Search } from "lucide-react";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import TableSkeleton from "@/shared/components/table-skeleton";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
@@ -206,7 +207,7 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
                 >
                   {item.customer_name}
                 </Link>
-                <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
+                <CustomerSubline item={item} />
               </td>
               <td className="hidden px-3 py-2 xl:table-cell">{item.channel ?? "—"}</td>
               <td className="px-3 py-2">
@@ -228,6 +229,19 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
       </table>
     </div>
   );
+}
+
+/** Under the customer's name: its NIT, or that it is a temporary customer not yet in SIESA. */
+function CustomerSubline({ item }: { item: QuotationSummary }) {
+  if (item.is_temporary_customer) {
+    return (
+      <span className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+        <Badge tone="warning" className="px-1.5 py-0 text-xs">Temporal</Badge>
+        {item.customer_nit ? <span className="font-mono">NIT {item.customer_nit}</span> : "Sin NIT"}
+      </span>
+    );
+  }
+  return <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>;
 }
 
 /**
@@ -267,7 +281,7 @@ function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSumma
           >
             <span className="block min-w-0">
               <span className="block truncate font-medium">{item.customer_name}</span>
-              <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>
+              <CustomerSubline item={item} />
               {showAuthor && <span className="block truncate text-xs text-text-secondary">Creada por {item.created_by}</span>}
             </span>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
