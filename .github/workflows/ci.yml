@@ -10,8 +10,11 @@ on:
 permissions:
   contents: read
 
+# A PR's run is grouped by its number, never by github.ref: a pull_request event
+# that arrives after the PR is merged carries refs/heads/master, and would cancel
+# the master run (and its deploy).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -49,7 +52,9 @@ jobs:
           target: runner
           push: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Saving the cache is a speed-up, not a check: a run without write
+          # access (a PR already merged) still passes.
+          cache-to: type=gha,mode=max,ignore-error=true
 
   # The runner lives on the intranet server and connects out to GitHub, so the
   # server opens no port for this. Setup: docs/deploy.md.
