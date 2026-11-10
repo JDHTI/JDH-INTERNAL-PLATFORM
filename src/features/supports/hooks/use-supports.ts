@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
 
+import { calcMethodLabel } from "../lib/format";
 import {
   attachToSelection,
   attachToSupport,
@@ -105,6 +107,15 @@ export function useFormSchema() {
     staleTime: 10 * 60_000,
     retry: retryTransient,
   });
+}
+
+/**
+ * Readable name of a calc method ("Tipo de apoyo"): the form schema's labels,
+ * with the built-in ones while it loads or on an older API.
+ */
+export function useCalcMethodLabel(): (code: string | null | undefined) => string {
+  const labels = useFormSchema().data?.calc_method_labels;
+  return useCallback((code: string | null | undefined) => calcMethodLabel(code, labels), [labels]);
 }
 
 export function useCreateSupport() {

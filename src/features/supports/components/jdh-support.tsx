@@ -7,8 +7,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { useJdhHistory, useRequestAction } from "../hooks/use-requests";
-import { useSupport, useSupportPermissions } from "../hooks/use-supports";
-import { calcMethodLabel, formatCop, formatSupplierValue } from "../lib/format";
+import { useCalcMethodLabel, useSupport, useSupportPermissions } from "../hooks/use-supports";
+import { formatCop, formatSupplierValue } from "../lib/format";
 import type { SupplierSupport } from "../types/support.types";
 import type { SupportEvent } from "../types/request.types";
 import { formatRequestValue, requestValue } from "../lib/request-values";
@@ -33,10 +33,11 @@ function eventSummary(event: SupportEvent) {
 
 export const dateTime = (date: string | null) => date ? new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota" }).format(new Date(date)) : "—";
 export function JdhValues({ support }: { support: Partial<SupplierSupport> }) {
+  const calcMethodLabel = useCalcMethodLabel();
   return <dl className="grid gap-1 text-sm">
     <div><dt className="inline text-text-secondary">Proveedor: </dt><dd className="inline">{formatSupplierValue(support.calc_method ?? null, support.supplier_value ?? null)}</dd></div>
     <div><dt className="inline text-text-secondary">JDH: </dt><dd className="inline">{formatRequestValue(support.calc_method === "costo_neto" ? support.jdh_net_cost : support.jdh_pct, support.calc_method === "costo_neto")} · {support.value_unit ?? "sin unidad"}</dd></div>
-    <div><dt className="inline text-text-secondary">Método / base: </dt><dd className="inline">{calcMethodLabel(support.calc_method ?? null)} · costo ref. {formatCop(support.reference_cost)} · lista ref. {formatCop(support.reference_list_price)}</dd></div>
+    <div><dt className="inline text-text-secondary">Tipo de apoyo / base: </dt><dd className="inline">{calcMethodLabel(support.calc_method ?? null)} · costo ref. {formatCop(support.reference_cost)} · lista ref. {formatCop(support.reference_list_price)}</dd></div>
     <div><dt className="inline text-text-secondary">Alcance: </dt><dd className="inline">{support.product_sku ?? "Todos los productos"} · {support.customer_name ?? support.customer_nit ?? "Todos los clientes"} · {support.program ?? "Sin programa"}</dd></div>
     <div><dt className="inline text-text-secondary">Vigencia: </dt><dd className="inline">{support.valid_from ?? "—"} a {support.valid_to ?? "indefinida"} · {support.state ?? "Ver acuerdo"} · {support.pack_factor ?? "—"} unidades/caja</dd></div>
     <div><dt className="inline text-text-secondary">Versión: </dt><dd className="inline">{support.version ?? "—"}</dd></div>

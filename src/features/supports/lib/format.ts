@@ -59,15 +59,20 @@ export const PRIORITY_LABELS: Record<string, string> = {
 /** Methods whose supplier value is a fraction, entered and shown as a percentage. */
 export const PERCENT_METHODS = ["pct_costo", "pct_precio_lista", "pct_ventas", "puntos_margen", "margen_minimo"];
 
+/**
+ * Names of the calc methods ("Tipo de apoyo"), the same the API publishes in
+ * `form-schema.calc_method_labels`. Screens prefer the API's (useCalcMethodLabel);
+ * these cover the time before it loads and the modules that do not read it.
+ */
 export const CALC_METHOD_LABELS: Record<string, string> = {
   pct_costo: "% sobre costo",
-  pct_precio_lista: "% sobre precio de lista",
-  valor_unidad: "Valor por unidad",
-  costo_neto: "Costo neto pactado",
-  precio_neto: "Precio neto pactado",
-  puntos_margen: "Puntos de margen",
-  pct_ventas: "% sobre ventas (rebate)",
+  pct_precio_lista: "% sobre precio lista",
+  costo_neto: "Costo apoyado",
+  precio_neto: "Precio apoyado sin IVA",
+  valor_unidad: "$ por unidad",
   margen_minimo: "Margen mínimo",
+  puntos_margen: "Puntos de margen",
+  pct_ventas: "% sobre ventas",
 };
 
 /** "no_vigente" -> "No vigente": a readable fallback for codes the UI does not know. */
@@ -77,8 +82,8 @@ export function humanize(code: string | null | undefined): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export const calcMethodLabel = (code: string | null | undefined) =>
-  code ? (CALC_METHOD_LABELS[code] ?? humanize(code)) : "—";
+export const calcMethodLabel = (code: string | null | undefined, labels?: Record<string, string>) =>
+  code ? (labels?.[code] ?? CALC_METHOD_LABELS[code] ?? humanize(code)) : "—";
 
 /** Readable names for the codes of the closed fields; unknown codes are humanized. */
 const CHOICE_LABELS: Record<string, Record<string, string>> = {
@@ -103,7 +108,47 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
   value_unit: { unidad: "Unidad", caja: "Caja", kg: "Kilo" },
 };
 
-export const choiceLabel = (field: string, code: string) => CHOICE_LABELS[field]?.[code] ?? humanize(code);
+/** `labels` are the API's own for that field, when it publishes them (calc_method_labels). */
+export const choiceLabel = (field: string, code: string, labels?: Record<string, string>) =>
+  labels?.[code] ?? CHOICE_LABELS[field]?.[code] ?? humanize(code);
+
+/** What wrote a support's current version (`last_origin`). */
+export const ORIGIN_LABELS: Record<string, string> = {
+  manual: "Creado a mano",
+  lote: "Lote desde el API",
+  carga: "Carga masiva",
+  edicion: "Edición",
+  anulacion: "Anulación",
+  vencimiento: "Vencido por una carga",
+  aprobacion_jdh: "Aporte JDH aprobado",
+  cancelacion_jdh: "Aporte JDH cancelado",
+  importacion: "Importación del libro",
+};
+
+export const originLabel = (code: string | null | undefined) =>
+  code ? (ORIGIN_LABELS[code] ?? humanize(code)) : "—";
+
+const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" });
+
+/** A moment of the API (ISO with zone), in the browser's zone. */
+export function formatWhen(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : dateTime.format(parsed);
+}
+
+const clock = new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const dayAndClock = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/** "las 18:00" today, "el 11 nov, 18:00" any other day. */
+export function formatPublishFrom(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const today = new Date();
+  return parsed.toDateString() === today.toDateString()
+    ? `las ${clock.format(parsed)}`
+    : `el ${dayAndClock.format(parsed)}`;
+}
 
 /**
  * What the supplier gives, in the unit the calc method implies: fractions are

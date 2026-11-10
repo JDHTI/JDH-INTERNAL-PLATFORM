@@ -12,8 +12,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
-import { useUpdateSupport } from "../hooks/use-supports";
-import { calcMethodLabel, PERCENT_METHODS } from "../lib/format";
+import { useCalcMethodLabel, useUpdateSupport } from "../hooks/use-supports";
+import { PERCENT_METHODS } from "../lib/format";
 import { toDecimal, toInput } from "../lib/form-values";
 import type { SupplierSupport, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
 
@@ -115,6 +115,7 @@ export default function SupportEditDialog({
   onClose: () => void;
   onForbidden: () => void;
 }) {
+  const calcMethodLabel = useCalcMethodLabel();
   return (
     <Dialog
       open={support !== null}

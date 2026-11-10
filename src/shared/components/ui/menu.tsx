@@ -110,6 +110,39 @@ export function MenuRadioItem({ value, children }: { value: string; children: Re
   );
 }
 
+/**
+ * An on/off choice that keeps the menu open (which columns a table shows, for
+ * instance): `menuitemcheckbox`, so assistive tech announces whether it is on.
+ */
+export function MenuCheckboxItem({
+  checked,
+  onCheckedChange,
+  disabled,
+  children,
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <BaseMenu.CheckboxItem
+      checked={checked}
+      onCheckedChange={(next) => onCheckedChange(next)}
+      disabled={disabled}
+      closeOnClick={false}
+      className={itemClass}
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <BaseMenu.CheckboxItemIndicator>
+          <Check aria-hidden="true" />
+        </BaseMenu.CheckboxItemIndicator>
+      </span>
+      {children}
+    </BaseMenu.CheckboxItem>
+  );
+}
+
 export function MenuLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-2 pt-1.5 pb-1 text-[11px] font-semibold tracking-[0.06em] text-text-secondary uppercase">
