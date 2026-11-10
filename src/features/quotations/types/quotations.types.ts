@@ -47,7 +47,6 @@ export type CustomerScope = "mine" | "all";
 
 export type { SalesScope } from "@/features/salespeople/types/salespeople.types";
 import type { SalesScope } from "@/features/salespeople/types/salespeople.types";
-import type { RequestedProductStatus } from "@/features/requested-products/types/requested-products.types";
 
 export interface Seller {
   code: string;
@@ -276,8 +275,6 @@ export interface QuotationLine {
   offer_price: DecimalText | null;
   /** Whether the line goes in the customer's offer, per `offer_scope`. */
   in_offer: boolean;
-  /** For a local line: its row in the requested products registry. */
-  requested_product: { id: string; status: RequestedProductStatus; siesa_sku: string | null } | null;
 }
 
 export type LineOrigin = "historico" | "agregado" | "local";
@@ -287,12 +284,14 @@ export type LocalVat = 19 | 5 | 0;
 
 /**
  * `POST /local-lines`: a product outside the portfolio, quoted at an estimated
- * price. Either new (description, supplier, VAT) or one already requested
- * (`requested_product_id`), whose data the API copies.
+ * price. It lives only in this quotation.
  */
-export type LocalLineInput =
-  | { description: string; supplier_name: string | null; price: DecimalText; vat_pct: LocalVat }
-  | { requested_product_id: string; price?: DecimalText };
+export interface LocalLineInput {
+  description: string;
+  supplier_name: string | null;
+  price: DecimalText;
+  vat_pct: LocalVat;
+}
 
 export interface Quotation extends QuotationSummary {
   channel_code: string | null;

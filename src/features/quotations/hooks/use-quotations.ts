@@ -3,7 +3,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
-import { requestedProductKeys } from "@/features/requested-products/hooks/use-requested-products";
 
 import {
   addLines,
@@ -18,7 +17,6 @@ import {
   listBillingCenters,
   listQuotations,
   markUploaded,
-  promoteLocalLine,
   refreshQuotation,
   removeLine,
   returnQuotation,
@@ -143,18 +141,6 @@ export function useUpdateOffer(id: string) {
   return useMutation({
     mutationFn: ({ version, settings }: { version: number; settings: OfferSettings }) => updateOffer(id, version, settings),
     onSuccess: store,
-  });
-}
-
-export function usePromoteLocalLine(id: string) {
-  const store = useStoreQuotation();
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ version, sku }: { version: number; sku: string }) => promoteLocalLine(id, sku, version),
-    onSuccess: (quotation) => {
-      store(quotation);
-      void client.invalidateQueries({ queryKey: requestedProductKeys.all });
-    },
   });
 }
 

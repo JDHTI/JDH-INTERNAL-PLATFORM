@@ -49,7 +49,6 @@ import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
 import { useLineImport } from "../hooks/use-line-import";
 import {
   useDeleteQuotation,
-  usePromoteLocalLine,
   useQuotation,
   useUpdateBillingCenter,
   useUpdateOffer,
@@ -142,7 +141,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
-  const promote = usePromoteLocalLine(quotation.id);
   const remove = useDeleteQuotation();
   const importer = useLineImport(quotation);
   const [adding, setAdding] = useState(false);
@@ -202,7 +200,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setPage(1);
   };
 
-  const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending || promote.isPending;
+  const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
@@ -323,16 +321,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
   };
 
-  const runPromote = (line: QuotationLine) =>
-    promote.mutate(
-      { version: quotation.version, sku: line.sku },
-      {
-        onSuccess: () =>
-          toast.success(`${line.description ?? line.sku} ahora es la referencia ${line.requested_product?.siesa_sku}, con su costo y su regla.`),
-        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
-      }
-    );
-
   const runRefresh = () =>
     refresh.mutate(quotation.version, {
       onSuccess: () => toast.success("Cotización actualizada con las ventas, los costos y los apoyos de hoy. Tus precios nuevos se conservaron."),
@@ -379,8 +367,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     },
     withQuantities: quotation.quote_quantities,
     quantitiesEditable: canManage,
-    onPromote: runPromote,
-    promoting: promote.isPending ? (promote.variables?.sku ?? null) : null,
   };
   const totals = offerTotals(quotation);
 
