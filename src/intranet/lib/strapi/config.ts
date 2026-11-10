@@ -19,7 +19,7 @@ import "server-only"
  *   - `publicUrl` (`STRAPI_PUBLIC_URL`, default = `url`): la base que se
  *     embebe en el HTML para lo que carga el NAVEGADOR (media y descargas).
  *     En producción es el propio origen de la intranet
- *     (`https://intranet.jdh.local/cms`, que Caddy reenvía al CMS): así ver
+ *     (`https://intranet.jdh.com.co/cms`, que Caddy reenvía al CMS): así ver
  *     una imagen no depende del certificado de un segundo dominio.
  */
 export const strapiConfig = {

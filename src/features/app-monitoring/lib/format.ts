@@ -55,7 +55,7 @@ export function formatLatency(value: number | null | undefined): string {
  */
 export function urlBaseProblem(value: string): string | null {
   const text = value.trim();
-  if (!text) return "Escribe la dirección del servidor, por ejemplo https://intranet.jdh.local.";
+  if (!text) return "Escribe la dirección del servidor, por ejemplo https://intranet.jdh.com.co.";
   let url: URL;
   try {
     url = new URL(text);
