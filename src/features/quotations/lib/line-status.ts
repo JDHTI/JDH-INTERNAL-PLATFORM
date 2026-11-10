@@ -79,7 +79,9 @@ export type SortKey =
   | "quantity"
   | "line_total"
   | "min_price"
-  | "consumption_tax";
+  | "consumption_tax"
+  /** Only offered to BI, who sees the cost. */
+  | "cost";
 export type SortDirection = "desc" | "asc";
 export interface Sort {
   key: SortKey;
@@ -99,6 +101,7 @@ const SORT_VALUE: Record<SortKey, (line: QuotationLine) => number | null> = {
   min_price: (line) => toNumber(line.min_price),
   consumption_tax: (line) => toNumber(line.value_tax_amount),
   line_total: (line) => offerAmounts(line)?.total ?? null,
+  cost: (line) => toNumber(line.cost),
 };
 
 /** A copy sorted by one column; lines without a value go last in either direction. */

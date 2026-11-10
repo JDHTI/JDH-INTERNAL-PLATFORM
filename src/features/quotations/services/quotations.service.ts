@@ -62,12 +62,14 @@ export function createTemporaryQuotation(input: TemporaryQuotationInput): Promis
 }
 
 /**
- * Prices the quotation from another operation center: cost, warehouses,
- * regional, liquor tax and suggested prices change for every line; the new
- * prices stay. Back to draft, like a refresh.
+ * Costs the quotation from Nacional (no codes: the highest cost of every
+ * warehouse, reference by reference) or from one or more operation centers
+ * (each line takes the costliest). Cost, regional, liquor tax and suggested
+ * prices change for every line; the new prices stay. Back to draft, like a refresh.
  */
-export function updateBillingCenter(id: string, version: number, billingCenterCode: string): Promise<Quotation> {
-  return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body: { version, billing_center_code: billingCenterCode } });
+export function updateCostCenters(id: string, version: number, codes: string[]): Promise<Quotation> {
+  const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes };
+  return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body });
 }
 
 /**
@@ -155,6 +157,15 @@ export function deleteQuotation(id: string): Promise<void> {
 /** Only once validated (`pendiente_carga` or `cargada`); 409 otherwise. The API names the file. */
 export function downloadQuotationExcel(id: string): Promise<void> {
   return apiDownload(`${one(id)}/export.xlsx`, { fallbackName: "ACTUALIZACION LISTAS PRECIOS.xlsx" });
+}
+
+/**
+ * BI's template: every line with the table's data and its costs (supplier's
+ * quote, inventory, the center that set each one), in any status. 403 for
+ * anyone who does not validate.
+ */
+export function downloadLinesTemplate(id: string): Promise<void> {
+  return apiDownload(`${one(id)}/lines.xlsx`, { fallbackName: "plantilla-cotizacion.xlsx" });
 }
 
 export function downloadQuotationFlatFile(id: string): Promise<void> {

@@ -3,6 +3,12 @@
 import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
 
 import { useBillingCenters } from "../hooks/use-quotations";
+import type { BillingCenter } from "../types/quotations.types";
+
+/** "001 · ANTIOQUIA": the code people know the center by, then its name. */
+export function centerLabel(center: Pick<BillingCenter, "code" | "name">): string {
+  return center.name ? `${center.code} · ${center.name}` : center.code;
+}
 
 /**
  * An operation center from the platform's master, searchable by code or
@@ -26,7 +32,7 @@ export default function BillingCenterSelect({
   const centers = useBillingCenters();
   const options = (centers.data ?? []).map((center) => ({
     value: center.code,
-    label: `${center.code} · ${center.name}${center.regional_label ? ` (${center.regional_label})` : ""}`,
+    label: centerLabel(center),
   }));
   return (
     <SearchableDropdown

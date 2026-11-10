@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Popover } from "@base-ui/react/popover";
 import {
   AlertTriangle,
   ArrowDown,
@@ -25,6 +26,7 @@ import { choiceLabel } from "@/features/supports/lib/format";
 
 import { type ColumnKey, useColumnWidths } from "../hooks/use-column-widths";
 import type { LineEditor } from "../hooks/use-line-editor";
+import { useBillingCenters } from "../hooks/use-quotations";
 import { formatDay, formatMargin, formatMoney, formatShortDay, formatVariation } from "../lib/format";
 import {
   type Sort,
@@ -38,6 +40,7 @@ import {
 } from "../lib/line-status";
 import { offerAmounts } from "../lib/offer";
 import type { QuotationLine } from "../types/quotations.types";
+import { costCentersLabel } from "./cost-centers-select";
 import { ComplianceBadge } from "./quotation-badges";
 
 /** Row selection for the bulk actions; absent when the quotation cannot be edited. */
@@ -72,6 +75,8 @@ interface LinesProps {
   withQuantities: boolean;
   /** Quantities never touch prices, so they stay editable in every status for whoever manages it. */
   quantitiesEditable: boolean;
+  /** BI (who validates) sees the highest cost under the suggested prices, with its breakdown. */
+  showCost: boolean;
 }
 
 export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
@@ -209,7 +214,11 @@ export function LinesTable(props: LinesProps) {
             <SortHeader
               label="Precios sugeridos"
               name="Precios sugeridos"
-              keys={[["min_price", "Precio sugerido margen mínimo"], ["optimal", "Precio sugerido margen óptimo"]]}
+              keys={[
+                ["optimal", "Óptimo"],
+                ["min_price", "Mínimo"],
+                ...(props.showCost ? ([["cost", "Costo más alto"]] as [SortKey, string][]) : []),
+              ]}
               divider={divider(at("bounds"), "Precios sugeridos")}
               {...sortProps}
             />
@@ -264,7 +273,7 @@ export function LinesTable(props: LinesProps) {
                 )}
                 <td className={td}><Product line={line} {...props} /></td>
                 <td className={cn(td, divided, "text-right")}><LastSale line={line} /></td>
-                <td className={cn(td, divided)}><Bounds line={line} /></td>
+                <td className={cn(td, divided)}><Bounds line={line} showCost={props.showCost} /></td>
                 <td className={cn(td, divided)}>
                   <NewPrice line={line} editor={props.editor} editable={props.editable} />
                 </td>
@@ -322,7 +331,7 @@ export function LinesList(props: LinesProps) {
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Pair label="Último precio sin IVA"><LastSale line={line} alignStart /></Pair>
-            <Pair label="Precios sugeridos"><Bounds line={line} /></Pair>
+            <Pair label="Precios sugeridos"><Bounds line={line} showCost={props.showCost} /></Pair>
             <Pair label="Apoyo"><SupportBadge line={line} onOpen={props.onOpenDetail} /></Pair>
             <Pair label="IVA · imp. consumo">
               <span className="block text-[13px] tabular-nums">
@@ -585,23 +594,109 @@ function LastSale({ line, alignStart = false }: { line: QuotationLine; alignStar
 }
 
 /**
- * The suggested prices that bound the new one, before VAT: the price at the
- * minimum margin and at the optimal margin. Nobody sees the cost behind them.
+ * The suggested prices that bound the new one, before VAT: óptimo, then
+ * mínimo. The advisors never see the cost behind them; BI (who validates)
+ * gets the highest cost right below, and its breakdown on hover or focus.
  */
-function Bounds({ line }: { line: QuotationLine }) {
+function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) {
   if (isLocal(line)) return <span className="text-[13px] text-text-secondary">Sin costo ni regla</span>;
   const row = "flex items-baseline justify-between gap-2";
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
-      <div className={row} title={`Precio sugerido margen mínimo. ${MIN_PRICE_HELP}`}>
-        <dt className="whitespace-nowrap text-xs text-text-secondary">margen mínimo</dt>
-        <dd className="whitespace-nowrap font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
-      </div>
-      <div className={row} title={`Precio sugerido margen óptimo. ${OPTIMAL_PRICE_HELP}`}>
-        <dt className="whitespace-nowrap text-xs text-text-secondary">margen óptimo</dt>
+      <div className={row} title={`Óptimo. ${OPTIMAL_PRICE_HELP}`}>
+        <dt className="whitespace-nowrap text-xs text-text-secondary">Óptimo</dt>
         <dd className="whitespace-nowrap font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
       </div>
+      <div className={row} title={`Mínimo. ${MIN_PRICE_HELP}`}>
+        <dt className="whitespace-nowrap text-xs text-text-secondary">Mínimo</dt>
+        <dd className="whitespace-nowrap font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
+      </div>
+      {showCost && (
+        // A rule above: the cost is what the two prices are built on, not a third price.
+        <div className={cn(row, "mt-1 border-t border-border pt-1")}>
+          <dt className="whitespace-nowrap text-xs text-text-secondary">Costo más alto</dt>
+          <dd><CostBreakdown line={line} /></dd>
+        </div>
+      )}
     </dl>
+  );
+}
+
+/**
+ * The highest cost, and on hover (or a click, a tap, a focus) what it is made
+ * of: the supplier's quote and the inventory cost the rule compares, which one
+ * won, a quote left out as a capture error, and the center whose warehouses
+ * gave it. Only BI renders it.
+ */
+function CostBreakdown({ line }: { line: QuotationLine }) {
+  if (toNumber(line.cost) === null) return <span className="text-text-secondary">Sin costo</span>;
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        openOnHover
+        delay={150}
+        aria-label={`Costo más alto ${formatMoney(line.cost)}. Ver el desglose`}
+        className={cn(
+          "whitespace-nowrap rounded-sm font-semibold underline decoration-dotted underline-offset-4",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-xl:min-h-11"
+        )}
+      >
+        {formatMoney(line.cost)}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
+          <Popover.Popup className="w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface-raised p-3 text-sm text-text-primary shadow-modal outline-none">
+            <Popover.Title className="mb-2 text-sm font-semibold">Desglose del costo</Popover.Title>
+            <CostParts line={line} />
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function CostParts({ line }: { line: QuotationLine }) {
+  const centers = useBillingCenters();
+  const parts: { label: string; value: string | null; empty: string; used: boolean }[] = [
+    { label: "Cotización del proveedor", value: line.quote_cost, empty: "Sin cotización vigente", used: line.cost_source === "cotizacion" },
+    { label: "Inventario", value: line.inventory_cost, empty: "Sin costo de inventario", used: line.cost_source === "inventario" },
+  ];
+  return (
+    <div className="space-y-2">
+      <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 tabular-nums">
+        {parts.map((part) => (
+          <div key={part.label} className="contents">
+            <dt className={cn(part.used ? "font-medium" : "text-text-secondary")}>
+              {part.label}
+              {part.used && <span className="text-text-secondary"> · el mayor</span>}
+            </dt>
+            <dd className={cn("text-right", part.used ? "font-semibold" : "text-text-secondary")}>
+              {toNumber(part.value) === null ? part.empty : formatMoney(part.value)}
+            </dd>
+          </div>
+        ))}
+        {toNumber(line.discarded_quote_cost) !== null && (
+          <div className="contents">
+            <dt className="text-text-secondary">Cotización descartada</dt>
+            <dd className="text-right text-text-secondary">{formatMoney(line.discarded_quote_cost)}</dd>
+          </div>
+        )}
+        {line.cost_center && (
+          <div className="contents">
+            <dt className="text-text-secondary">C.O. del costo</dt>
+            <dd className="text-right">{costCentersLabel([line.cost_center], centers.data)}</dd>
+          </div>
+        )}
+      </dl>
+      <p className="flex items-baseline justify-between gap-3 border-t border-border pt-1.5 tabular-nums">
+        <span className="font-medium">Costo más alto</span>
+        <span className="font-semibold">{formatMoney(line.cost)}</span>
+      </p>
+      <p className="text-[13px] text-text-secondary">
+        El mayor de los dos, redondeado al peso hacia arriba y con el factor de la lista.
+        {toNumber(line.discarded_quote_cost) !== null && " La cotización descartada pasa de 3 veces el último costo: no se usa."}
+      </p>
+    </div>
   );
 }
 

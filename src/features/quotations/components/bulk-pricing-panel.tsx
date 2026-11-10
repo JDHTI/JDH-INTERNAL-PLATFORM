@@ -20,8 +20,8 @@ import type { LineChange, Quotation, QuotationLine, SkippedLine } from "../types
 type Mode = "optimo" | "minimo" | "personalizado";
 
 const MODES: { value: Mode; label: string }[] = [
-  { value: "optimo", label: "Margen óptimo" },
-  { value: "minimo", label: "Margen mínimo" },
+  { value: "optimo", label: "Óptimo" },
+  { value: "minimo", label: "Mínimo" },
   { value: "personalizado", label: "Personalizado" },
 ];
 
