@@ -72,10 +72,6 @@ interface LinesProps {
   withQuantities: boolean;
   /** Quantities never touch prices, so they stay editable in every status for whoever manages it. */
   quantitiesEditable: boolean;
-  /** Swaps a local line for the SIESA reference BI registered for it. */
-  onPromote: (line: QuotationLine) => void;
-  /** The local line being swapped, to show its spinner. */
-  promoting: string | null;
 }
 
 export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
@@ -485,9 +481,8 @@ const dash = <span className="text-text-secondary">—</span>;
  * supplier and unit. An added, local or inactive one says so, and can be taken
  * out; an active one from the sales history cannot (emptying its price is enough).
  */
-function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, onPromote, promoting }: { line: QuotationLine } & LinesProps) {
+function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable }: { line: QuotationLine } & LinesProps) {
   const isRemoving = removing === line.sku;
-  const request = line.requested_product;
   const local = isLocal(line);
   const meta = [local ? "Sin SKU en SIESA" : `SKU ${line.sku}`, supplierOf(line), line.unit].filter(Boolean).join(" · ");
   return (
@@ -526,25 +521,6 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, 
         >
           {meta}
         </p>
-        {local && request?.status === "creado" && request.siesa_sku && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-            <span className="text-text-secondary">Ya existe en SIESA: {request.siesa_sku}</span>
-            {editable && (
-              <button
-                type="button"
-                onClick={() => onPromote(line)}
-                disabled={!canRemove || promoting === line.sku}
-                className="inline-flex items-center gap-1 rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 max-xl:min-h-11"
-              >
-                {promoting === line.sku && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
-                Usar la referencia {request.siesa_sku}
-              </button>
-            )}
-          </div>
-        )}
-        {local && request?.status === "descartado" && (
-          <p className="text-[13px] text-text-secondary">BI descartó crearlo en SIESA.</p>
-        )}
       </div>
       {editable && removable(line) && (
         <button

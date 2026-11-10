@@ -83,11 +83,6 @@ export function downloadOfferExcel(id: string): Promise<void> {
   return apiDownload(`${one(id)}/offer.xlsx`, { fallbackName: "cotizacion.xlsx" });
 }
 
-/** Swaps a local line for its SIESA reference once BI marked the request as created. */
-export function promoteLocalLine(id: string, sku: string, version: number): Promise<Quotation> {
-  return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}/promote`, { method: "POST", body: { version } });
-}
-
 /**
  * Prices in whole pesos, or margins (fractions) the API turns into prices.
  * Lines it cannot price come back in `skipped`; 422 only when none could.
