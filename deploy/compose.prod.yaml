@@ -1,4 +1,4 @@
-# Production UI on intranet.jdh.local. Run it through deploy/deploy.sh.
+# Production UI on intranet.jdh.com.co. Run it through deploy/deploy.sh.
 # Values without a default come from ~/apps/platform/ui.env (docs/deploy.md).
 #
 # Caddy is not here: it lives in the edge stack (compose project
@@ -21,19 +21,19 @@ services:
       args:
         # Same origin as the API behind Caddy: the session cookie reaches
         # fetch and <img> without CORS.
-        NEXT_PUBLIC_API_URL: https://${PUBLIC_HOST:-intranet.jdh.local}/api/v1
+        NEXT_PUBLIC_API_URL: https://${PUBLIC_HOST:-intranet.jdh.com.co}/api/v1
       labels:
         org.opencontainers.image.revision: ${GIT_SHA:-unknown}
     image: internal-platform-ui:latest
     container_name: platform-ui
     restart: unless-stopped
     environment:
-      PUBLIC_ORIGIN: https://${PUBLIC_HOST:-intranet.jdh.local}
+      PUBLIC_ORIGIN: https://${PUBLIC_HOST:-intranet.jdh.com.co}
       # Server-side calls: by internal name, never out through Caddy.
       API_INTERNAL_URL: ${API_INTERNAL_URL:-http://platform-api:8000/api/v1}
       STRAPI_URL: ${STRAPI_URL:-http://intranet-cms:1337}
       # What the browser loads media from: Caddy forwards /cms/uploads/* to Strapi.
-      STRAPI_PUBLIC_URL: https://${PUBLIC_HOST:-intranet.jdh.local}/cms
+      STRAPI_PUBLIC_URL: https://${PUBLIC_HOST:-intranet.jdh.com.co}/cms
       # Same value as the edge stack's STRAPI_WEBHOOK_SECRET (CMS revalidation webhook).
       STRAPI_WEBHOOK_SECRET: ${STRAPI_WEBHOOK_SECRET:?set STRAPI_WEBHOOK_SECRET in ~/apps/platform/ui.env}
     networks:

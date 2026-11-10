@@ -1,19 +1,26 @@
-# Despliegue en intranet.jdh.local
+# Despliegue en intranet.jdh.com.co
 
-La plataforma reemplaza a la intranet en el mismo servidor y el mismo dominio. La UI y el API de
-la intranet se retiraron el 2026-11-04; Strapi sigue y solo lo consume el frente gráfico, a través
-del API.
+La plataforma reemplaza a la intranet en el mismo servidor. La UI y el API de la intranet se
+retiraron el 2026-11-04; Strapi sigue y solo lo consume el frente gráfico, a través del API.
 
 ## Cómo está armado el servidor
 
-Servidor: `intranet.jdh.local` (Debian 13), usuario `intranet`, Docker con compose v5.
+Servidor de la intranet (Debian 13, `192.168.100.217`), usuario `intranet`, Docker con compose v5.
+
+Desde el 2026-11-10 el dominio es `*.jdh.com.co`; `*.jdh.local` y su CA interna ya no se usan.
+`intranet.jdh.com.co` y `cms-intranet.jdh.com.co` son CNAME de `host.jdh.com.co`, un proxy de
+infraestructura con el certificado `*.jdh.com.co` (SSL.com). Ese proxy termina el TLS y reenvía
+por **http** al Caddy del servidor:
 
 ```
-https://intranet.jdh.local      → intranet-caddy → /api/v1/*      → platform-api:8000  (pendiente)
-                                                   /cms/uploads/* → intranet-cms:1337
-                                                   /*             → platform-ui:3000
-https://cms-intranet.jdh.local  → intranet-caddy → intranet-cms:1337 (panel de Strapi)
+https://intranet.jdh.com.co      → proxy de infra (TLS) → http → intranet-caddy → /api/v1/*      → platform-api:8000
+                                                                                  /cms/uploads/* → intranet-cms:1337
+                                                                                  /*             → platform-ui:3000
+https://cms-intranet.jdh.com.co  → proxy de infra (TLS) → http → intranet-caddy → intranet-cms:1337 (panel de Strapi)
 ```
+
+El Caddyfile vive en el stack de borde (INTRANET-JDH-API `deploy/`); los sitios `http://` que
+reciben ese tráfico se agregaron en el clon del servidor.
 
 | Proyecto de compose | Dueño | Servicios |
 | --- | --- | --- |
@@ -26,15 +33,16 @@ en cada petición, así que un servicio nuevo no obliga a reiniciarlo: basta con
 su alias.
 
 Lo que el stack de borde conserva y no se debe borrar: los volúmenes `intranet-jdh_pg_data`,
-`intranet-jdh_cms_uploads`, `intranet-jdh_caddy_data` y la CA raíz en
-`~/apps/INTRANET-JDH-API/deploy/caddy/ca/` (la que los equipos confían por GPO). Los volúmenes
+`intranet-jdh_cms_uploads` e `intranet-jdh_caddy_data`. Los volúmenes
 `intranet-jdh_redis_data` e `intranet-jdh_storage_data` del API retirado se guardan hasta la fase 6.
 
 ## La UI
 
-`deploy/deploy.sh` construye la imagen en el servidor, la levanta y verifica
-`https://intranet.jdh.local/api/health` a través de Caddy. `NEXT_PUBLIC_API_URL` queda en
-`https://intranet.jdh.local/api/v1`, incrustada al compilar.
+`deploy/deploy.sh` construye la imagen en el servidor, la levanta y verifica `/api/health` por el
+mismo salto que usa el proxy de infraestructura: http al Caddy local (`EDGE_HTTP`) con el
+encabezado `Host: $PUBLIC_HOST`. `NEXT_PUBLIC_API_URL` queda en
+`https://intranet.jdh.com.co/api/v1`, incrustada al compilar: cambiar de dominio exige
+reconstruir la imagen.
 
 Valores en `~/apps/platform/ui.env` (no versionado, permisos 600):
 
@@ -43,9 +51,9 @@ Valores en `~/apps/platform/ui.env` (no versionado, permisos 600):
 | `STRAPI_WEBHOOK_SECRET` | Obligatoria: el mismo valor de `STRAPI_WEBHOOK_SECRET` en `~/apps/INTRANET-JDH-API/deploy/.env` |
 | `API_INTERNAL_URL` | `http://platform-api:8000/api/v1` |
 | `STRAPI_URL` | `http://intranet-cms:1337` |
-| `PUBLIC_HOST` | `intranet.jdh.local` |
+| `PUBLIC_HOST` | `intranet.jdh.com.co` |
 | `EDGE_NETWORK` | `intranet-jdh_default` |
-| `EDGE_CA` | `~/apps/INTRANET-JDH-API/deploy/caddy/ca/root.crt` |
+| `EDGE_HTTP` | `http://127.0.0.1` (el Caddy del servidor, donde verifica el despliegue) |
 
 ### CD
 
@@ -78,7 +86,7 @@ de error. Para cerrarlo, desde JDH-INTERNAL-PLATFORM-API:
    el alias `platform-api`, escuchando en el puerto 8000 y sirviendo bajo `/api/v1`. Sus
    dependencias (Postgres de la plataforma, Redis, almacenamiento, ClamAV) en su propio proyecto.
 2. Variables de producción: `ENTRA_REDIRECT_URI` y `AUTH_FRONTEND_REDIRECT_URI` sobre
-   `https://intranet.jdh.local`, `AUTH_COOKIE_SECURE=true`, CORS de `https://intranet.jdh.local`.
+   `https://intranet.jdh.com.co`, `AUTH_COOKIE_SECURE=true`, CORS de `https://intranet.jdh.com.co`.
    Registrar el redirect URI en la app de Entra.
 3. Migraciones (`alembic upgrade head`), primera sincronización del directorio e importación desde
    la base `intranet_jdh` (sigue en `intranet-postgres`), como dice

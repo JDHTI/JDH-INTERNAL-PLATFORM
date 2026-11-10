@@ -220,7 +220,7 @@ export default function ApplicationDialog({ app, onClose }: { app: Aplicativo | 
       <form noValidate onSubmit={submit} className="space-y-4">
         {text("nombre", "Nombre", { placeholder: "Intranet" })}
         {text("url_base", "Dirección del servidor", {
-          hint: "Solo el servidor, sin ruta. Por ejemplo https://intranet.jdh.local.",
+          hint: "Solo el servidor, sin ruta. Por ejemplo https://intranet.jdh.com.co.",
           placeholder: "https://",
           mono: true,
           inputMode: "url",

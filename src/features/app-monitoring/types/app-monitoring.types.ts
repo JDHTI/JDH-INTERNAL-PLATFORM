@@ -35,7 +35,7 @@ export interface Aplicativo {
   slug: string;
   nombre: string;
   descripcion: string | null;
-  /** The server only, e.g. https://intranet.jdh.local. */
+  /** The server only, e.g. https://intranet.jdh.com.co. */
   url_base: string;
   ruta_health: string;
   ruta_ui: string;

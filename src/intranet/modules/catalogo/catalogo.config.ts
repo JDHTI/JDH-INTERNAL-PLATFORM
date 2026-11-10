@@ -2,13 +2,12 @@ import type { LucideIcon } from "lucide-react"
 import { Images, LayoutGrid, Search, Smartphone } from "lucide-react"
 
 /**
- * El catálogo digital es una aplicación EXTERNA publicada en la red interna de
- * JDH (`tienda.jdh.local`, IP privada), no una ruta de la intranet: por eso el
- * módulo no lo embebe ni lo replica — su vista es la antesala que explica qué es
- * y redirige. Si el despliegue cambia de dominio, esta constante es lo único que
- * hay que tocar.
+ * El catálogo digital es una aplicación EXTERNA (`tienda.jdh.com.co`, su propio
+ * servidor), no una ruta de la intranet: por eso el módulo no lo embebe ni lo
+ * replica — su vista es la antesala que explica qué es y redirige. Si el
+ * despliegue cambia de dominio, esta constante es lo único que hay que tocar.
  */
-export const CATALOGO_URL = "https://tienda.jdh.local/"
+export const CATALOGO_URL = "https://tienda.jdh.com.co/"
 
 export interface VentajaCatalogo {
   id: string
