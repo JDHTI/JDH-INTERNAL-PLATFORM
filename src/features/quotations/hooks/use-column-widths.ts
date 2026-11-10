@@ -7,7 +7,8 @@ export type ColumnKey = "last" | "bounds" | "price" | "support" | "vat" | "consu
 
 export const COLUMN_DEFAULTS: Record<ColumnKey, number> = {
   last: 136,
-  bounds: 176,
+  // Fits "margen óptimo" beside a seven-digit price.
+  bounds: 200,
   price: 128,
   support: 112,
   vat: 56,
@@ -28,6 +29,12 @@ const COLUMN_MIN: Record<ColumnKey, number> = {
   qty: 80,
   variation: 64,
 };
+
+/**
+ * Columns of figures and fields, whose content must never spill: they stop where it starts to.
+ * "Apoyo" is left out because its badge truncates with an ellipsis, so its full text is not a limit.
+ */
+const CONTENT_BOUND: ReadonlySet<ColumnKey> = new Set(["last", "bounds", "price", "vat", "consumption", "final", "qty", "variation"]);
 
 /** The product column never gets narrower than this: its name has to stay readable. */
 const PRODUCT_MIN = 176;
@@ -87,12 +94,12 @@ function save(widths: Record<ColumnKey, number>) {
  * Column widths the person adjusts by moving the dividers, remembered in this
  * browser (a per-person convenience, not shared state).
  *
- * Moving the divider between two fixed columns is zero-sum: one grows what
- * the other loses, so the table never changes width. The divider after the
- * product column trades with the first fixed column, and never leaves the
- * product narrower than PRODUCT_MIN. No column gets narrower than what its
- * content needs (prices, margins, the input), measured when a divider starts
- * to move.
+ * Moving the divider between two fixed columns trades width between them; once
+ * the right one is as narrow as it gets, widening the left one takes from the
+ * product column, never below PRODUCT_MIN. The divider after the product
+ * column trades with the first fixed column. A column of figures or fields
+ * never gets narrower than its content (prices, margins, the input), measured
+ * when a divider starts to move.
  */
 export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   // The table only renders in the browser, once the quotation has loaded (the server sends the
@@ -109,21 +116,37 @@ export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   /** `boundary` 0 is the divider after the product column; n is between columns n-1 and n. */
   const move = useCallback(
     (boundary: number, dx: number, from: Record<ColumnKey, number>) => {
-      const floor = (key: ColumnKey) => Math.max(COLUMN_MIN[key], fit.current[key] ?? 0);
+      // Where a column stops: its content, for figures and fields. A saved width already under
+      // it is not pushed open, it just cannot shrink further.
+      const floor = (key: ColumnKey) => {
+        const content = CONTENT_BOUND.has(key) ? (fit.current[key] ?? 0) : 0;
+        return Math.max(COLUMN_MIN[key], Math.min(content, from[key]));
+      };
+      const room = (key: ColumnKey) => Math.max(0, from[key] - floor(key));
+      const table = tableRef.current?.clientWidth ?? 0;
+      const used = columns.reduce((sum, key) => sum + from[key], 0) + fixedExtra;
+      // What the product column can give before reaching its own minimum.
+      const slack = Math.max(0, table - used - PRODUCT_MIN);
       const next = { ...from };
       if (boundary === 0) {
         const first = columns[0];
-        const table = tableRef.current?.clientWidth ?? 0;
-        const used = columns.reduce((sum, key) => sum + from[key], 0) + fixedExtra;
-        const slack = Math.max(0, table - used - PRODUCT_MIN);
         // Moving it right narrows the first column and widens the product.
         next[first] = Math.min(from[first] + slack, Math.max(floor(first), from[first] - dx));
+      } else if (dx < 0) {
+        // Narrowing the left column: the right one takes what it gives.
+        const left = columns[boundary - 1];
+        const give = Math.min(-dx, room(left));
+        next[left] = from[left] - give;
+        next[columns[boundary]] = from[columns[boundary]] + give;
       } else {
+        // Widening the left column: first from the right one, down to its content, then from the
+        // product, so a divider still moves when its neighbor is already as narrow as it gets.
         const left = columns[boundary - 1];
         const right = columns[boundary];
-        const shift = Math.min(from[right] - floor(right), Math.max(floor(left) - from[left], dx));
-        next[left] = from[left] + shift;
-        next[right] = from[right] - shift;
+        const fromRight = Math.min(dx, room(right));
+        const fromProduct = Math.min(dx - fromRight, slack);
+        next[left] = from[left] + fromRight + fromProduct;
+        next[right] = from[right] - fromRight;
       }
       return next;
     },
