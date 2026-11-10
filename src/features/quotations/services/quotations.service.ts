@@ -1,6 +1,7 @@
 import { apiDownload, apiFetch } from "@/shared/lib/api-client";
 
 import type {
+  BillingCenter,
   ConfirmOptions,
   LineChange,
   LineImport,
@@ -12,10 +13,8 @@ import type {
   QuotationPermissions,
   QuotationRuleSection,
   QuotationWithImport,
-  RequestedProduct,
-  RequestedProductChange,
-  RequestedProductPage,
-  RequestedProductParams,
+  TemporaryQuotationInput,
+  ValidateOptions,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -33,6 +32,11 @@ export function getQuotationRules(): Promise<QuotationRuleSection[]> {
   return apiFetch<QuotationRuleSection[]>(`${BASE}/rules`);
 }
 
+/** The operation centers a quotation can be priced from, from the platform's master. */
+export function listBillingCenters(): Promise<BillingCenter[]> {
+  return apiFetch<BillingCenter[]>(`${BASE}/billing-centers`);
+}
+
 export function listQuotations({ mine, status, q, page, size }: QuotationListParams): Promise<QuotationPage> {
   // `mine` defaults to true on the API, so false has to be sent explicitly.
   return apiFetch<QuotationPage>(BASE, { query: { mine: String(mine), status, q, page, size } });
@@ -45,24 +49,36 @@ export function getQuotation(id: string): Promise<Quotation> {
 /**
  * Builds the quotation from the DWH and the masters. 404 unknown customer,
  * 503 DWH unavailable; each with a Spanish `detail`. A customer with no sales
- * comes back empty with the `sin_ventas` warning.
+ * comes back empty with the `sin_ventas` warning. The validity starts at the
+ * API's default and is set while confirming.
  */
-export function createQuotation(customerNit: string, windowMonths: WindowMonths, validityDays: number): Promise<Quotation> {
-  return apiFetch<Quotation>(BASE, {
-    method: "POST",
-    body: { customer_nit: customerNit, window_months: windowMonths, validity_days: validityDays },
-  });
+export function createQuotation(customerNit: string, windowMonths: WindowMonths): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths } });
+}
+
+/** A customer SIESA does not have: an empty quotation, priced from the chosen operation center. */
+export function createTemporaryQuotation(input: TemporaryQuotationInput): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, { method: "POST", body: input });
+}
+
+/**
+ * Prices the quotation from another operation center: cost, warehouses,
+ * regional, liquor tax and suggested prices change for every line; the new
+ * prices stay. Back to draft, like a refresh.
+ */
+export function updateBillingCenter(id: string, version: number, billingCenterCode: string): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body: { version, billing_center_code: billingCenterCode } });
 }
 
 /**
  * What the customer's offer says and shows: validity, conditions, seller,
- * quantities and which lines go in. Any status; never changes it.
+ * variation, quantities and which lines go in. Any status; never changes it.
  */
 export function updateOffer(id: string, version: number, settings: OfferSettings): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/offer`, { method: "PATCH", body: { version, ...settings } });
 }
 
-/** The offer for the customer as a workbook: prices with and without VAT, conditions; never cost or margins. */
+/** The offer for the customer as a workbook: prices with and without VAT, consumption tax, conditions; never cost or margins. */
 export function downloadOfferExcel(id: string): Promise<void> {
   return apiDownload(`${one(id)}/offer.xlsx`, { fallbackName: "cotizacion.xlsx" });
 }
@@ -70,17 +86,6 @@ export function downloadOfferExcel(id: string): Promise<void> {
 /** Swaps a local line for its SIESA reference once BI marked the request as created. */
 export function promoteLocalLine(id: string, sku: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}/promote`, { method: "POST", body: { version } });
-}
-
-const REQUESTED = `${BASE}/requested-products`;
-
-export function listRequestedProducts({ status, q, page, size }: RequestedProductParams): Promise<RequestedProductPage> {
-  return apiFetch<RequestedProductPage>(REQUESTED, { query: { status, q, page, size } });
-}
-
-/** Only the validating area (BI); `creado` needs a SIESA reference that exists and is active. */
-export function updateRequestedProduct(id: string, change: RequestedProductChange): Promise<RequestedProduct> {
-  return apiFetch<RequestedProduct>(`${REQUESTED}/${encodeURIComponent(id)}`, { method: "PATCH", body: change });
 }
 
 /**
@@ -106,7 +111,7 @@ export function addLines(id: string, version: number, { text, skus }: LineImport
 
 /**
  * Adds a product that does not exist in SIESA, at an estimated price. The API
- * gives it a `LOC-n` reference, keeps it out of the rule and of every export.
+ * gives it a `LOC-n` reference, keeps it out of the rule and of every SIESA file.
  */
 export function addLocalLine(id: string, version: number, input: LocalLineInput): Promise<QuotationWithImport> {
   return apiFetch<QuotationWithImport>(`${one(id)}/local-lines`, { method: "POST", body: { version, ...input } });
@@ -117,14 +122,14 @@ export function removeLine(id: string, sku: string, version: number): Promise<Qu
   return apiFetch<Quotation>(`${one(id)}/lines/${encodeURIComponent(sku)}`, { method: "DELETE", query: { version } });
 }
 
-/** Rebuilds from the DWH keeping the new prices by reference; back to draft. */
+/** Rebuilds from the DWH keeping the new prices by reference and a CO chosen by hand; back to draft. */
 export function refreshQuotation(id: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/refresh`, { method: "POST", body: { version } });
 }
 
 /**
- * Sends it to validation. 422 when a line breaks the rule, when list 1 is to
- * be updated, or when a creation has no code or the code exists in SIESA.
+ * Sends it to validation, with lines under the rule too: the validator sees
+ * them. 422 when nothing is priced or list 1 is to be updated.
  */
 export function confirmQuotation(id: string, version: number, options: ConfirmOptions): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/confirm`, { method: "POST", body: { version, ...options } });
@@ -135,29 +140,24 @@ export function returnQuotation(id: string, version: number, note: string): Prom
   return apiFetch<Quotation>(`${one(id)}/return`, { method: "POST", body: { version, note } });
 }
 
-/** Releases the files: `actualizada` or `creada`. Only the validating area. */
-export function validateQuotation(id: string, version: number): Promise<Quotation> {
-  return apiFetch<Quotation>(`${one(id)}/validate`, { method: "POST", body: { version } });
+/**
+ * Releases the files: `pendiente_carga`. Only the validating area, who names
+ * the new list on a creation (422 when the code is missing or taken in SIESA).
+ */
+export function validateQuotation(id: string, version: number, options: ValidateOptions): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/validate`, { method: "POST", body: { version, ...options } });
 }
 
-/** The quotation as a workbook to change many prices or margins at once. */
-export function downloadQuotationTemplate(id: string): Promise<void> {
-  return apiDownload(`${one(id)}/template.xlsx`, { fallbackName: "cotizacion.xlsx" });
-}
-
-/** The edited workbook back; `template_result` says what each row did. */
-export function uploadQuotationTemplate(id: string, version: number, file: File): Promise<QuotationWithImport> {
-  const body = new FormData();
-  body.append("file", file);
-  body.append("version", String(version));
-  return apiFetch<QuotationWithImport>(`${one(id)}/template`, { method: "POST", body });
+/** The validator confirms the files are loaded in SIESA: `cargada`. */
+export function markUploaded(id: string, version: number): Promise<Quotation> {
+  return apiFetch<Quotation>(`${one(id)}/uploaded`, { method: "POST", body: { version } });
 }
 
 export function deleteQuotation(id: string): Promise<void> {
   return apiFetch<void>(one(id), { method: "DELETE" });
 }
 
-/** Only for a validated quotation (`actualizada` or `creada`); 409 otherwise. The API names the file. */
+/** Only once validated (`pendiente_carga` or `cargada`); 409 otherwise. The API names the file. */
 export function downloadQuotationExcel(id: string): Promise<void> {
   return apiDownload(`${one(id)}/export.xlsx`, { fallbackName: "ACTUALIZACION LISTAS PRECIOS.xlsx" });
 }

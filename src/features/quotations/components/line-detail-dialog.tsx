@@ -18,13 +18,10 @@ import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP } from "./lines-table";
  */
 export default function LineDetailDialog({
   line,
-  showCost,
   onClose,
   onOpenAgreement,
 }: {
   line: QuotationLine | null;
-  /** The cost and where it comes from are for the validating area (BI and admins). */
-  showCost: boolean;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
 }) {
@@ -42,7 +39,7 @@ export default function LineDetailDialog({
         (local ? (
           <LocalDetail line={line} onClose={onClose} />
         ) : (
-          <Detail line={line} showCost={showCost} onClose={onClose} onOpenAgreement={onOpenAgreement} />
+          <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} />
         ))}
     </Dialog>
   );
@@ -72,12 +69,10 @@ function LocalDetail({ line, onClose }: { line: QuotationLine; onClose: () => vo
 
 function Detail({
   line,
-  showCost,
   onClose,
   onOpenAgreement,
 }: {
   line: QuotationLine;
-  showCost: boolean;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
 }) {
@@ -113,10 +108,10 @@ function Detail({
         </ul>
       )}
 
-      <Section title={showCost ? "Precio y costo" : "Precio"}>
+      <Section title="Precio">
         {!added && (
           <>
-            <Row label="Último precio">{formatMoney(line.last_price)}</Row>
+            <Row label="Último precio sin IVA">{formatMoney(line.last_price)}</Row>
             <Row label="Última venta">
               {formatDay(line.last_sale_date)}
               {line.last_document ? ` · ${line.last_document}` : ""}
@@ -128,27 +123,14 @@ function Detail({
           </>
         )}
         <Row label="Precio de lista">{formatMoney(line.list_price)}</Row>
-        {showCost && (
-          <Row label="Costo">
-            {formatMoney(line.cost)}
-            {line.cost_source_label ? ` · ${line.cost_source_label}` : ""}
-          </Row>
-        )}
-        {showCost && toNumber(line.quote_cost) !== null && <Row label="Cotización del proveedor">{formatMoney(line.quote_cost)}</Row>}
-        {showCost && toNumber(line.inventory_cost) !== null && <Row label="Inventario">{formatMoney(line.inventory_cost)}</Row>}
-        {showCost && toNumber(line.discarded_quote_cost) !== null && (
-          <Row label="Cotización descartada">
-            {formatMoney(line.discarded_quote_cost)} <span className="text-text-secondary">· fuera de rango, revisar en SIESA</span>
-          </Row>
-        )}
         {liquor !== null && liquor > 0 && (
-          <Row label="Imp. licores">
+          <Row label="Imp. consumo">
             {formatMoney(liquor)}
             {line.value_tax_name ? ` · ${line.value_tax_name}` : ""}
           </Row>
         )}
         {toNumber(line.price_with_taxes) !== null && liquor !== null && liquor > 0 && (
-          <Row label="Precio con licores">{formatMoney(line.price_with_taxes)}</Row>
+          <Row label="Precio con imp. consumo">{formatMoney(line.price_with_taxes)}</Row>
         )}
       </Section>
 

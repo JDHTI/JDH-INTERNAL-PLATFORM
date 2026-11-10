@@ -9,7 +9,6 @@ import { Button } from "@/shared/components/ui/button";
 import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
@@ -18,7 +17,7 @@ import { useConfirmQuotation, useUpdateOffer } from "../hooks/use-quotations";
 import { formatCount } from "../lib/format";
 import type { ListAction, Quotation } from "../types/quotations.types";
 import { ConditionsStep, OfferSettingsStep, type OfferDraft, draftFrom, draftToSettings, draftValidityText } from "./offer-steps";
-import { LIST_CODE, LIST_NAME_MAX, defaultListName, tomorrow } from "./review-dialogs";
+import { tomorrow } from "./review-dialogs";
 
 /** List 1 (GENERAL, some 28,000 customers) is never written over from here. */
 const isGeneralList = (quotation: Quotation) => quotation.warnings.some((warning) => warning.code === "lista_general");
@@ -50,21 +49,20 @@ export function ConfirmDialog({ quotation, open, onOpenChange }: { quotation: Qu
 function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: () => void }) {
   const confirm = useConfirmQuotation(quotation.id);
   const offer = useUpdateOffer(quotation.id);
-  const generalList = isGeneralList(quotation);
+  // List 1 is never written over, and a temporary customer has no list to update: both only create.
+  const onlyCreates = isGeneralList(quotation) || quotation.is_temporary_customer;
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<OfferDraft>(() => draftFrom(quotation));
   const [validityError, setValidityError] = useState<string | null>(null);
-  const [action, setAction] = useState<ListAction>(generalList ? "creacion" : (quotation.list_action ?? "actualizacion"));
-  const [code, setCode] = useState(quotation.list_action === "creacion" ? (quotation.export_price_list_id ?? "") : "");
-  const [name, setName] = useState(quotation.new_list_name || defaultListName(quotation.customer_name));
+  const [action, setAction] = useState<ListAction>(onlyCreates ? "creacion" : (quotation.list_action ?? "actualizacion"));
   const [activation, setActivation] = useState(quotation.activation_date ?? tomorrow());
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
+  // Lines under the rule no longer stop the advisor: they go to the validator as an alert.
   const failing = quotation.lines.filter((line) => line.is_active && line.compliance !== null && line.compliance !== "cumple").length;
-  const blocked = failing > 0 || quotation.changed_count === 0;
+  const priced = quotation.lines.filter((line) => line.is_active && line.new_price !== null).length;
+  const blocked = priced === 0;
   const last = step === STEPS.length - 1;
 
   const next = () => {
@@ -85,24 +83,12 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
       next();
       return;
     }
-    let valid = true;
-    if (action === "creacion") {
-      if (!LIST_CODE.test(code.trim().toUpperCase())) {
-        setCodeError("El código va de 1 a 3 letras o números, por ejemplo C97.");
-        valid = false;
-      } else setCodeError(null);
-      if (name.trim() === "") {
-        setNameError("Escribe la descripción de la lista.");
-        valid = false;
-      } else setNameError(null);
-    }
     const result = draftToSettings(draft, quotation);
     if ("error" in result) {
       setValidityError(result.error);
       setStep(0);
       return;
     }
-    if (!valid) return;
 
     setError(null);
     setSending(true);
@@ -113,11 +99,8 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
       }
       await confirm.mutateAsync({
         version,
-        options: {
-          list_action: action,
-          activation_date: activation,
-          ...(action === "creacion" ? { price_list_id: code.trim().toUpperCase(), new_list_name: name.trim() } : {}),
-        },
+        // On a creation the validator names the list when validating.
+        options: { list_action: action, activation_date: activation },
       });
       toast.success("Cotización enviada a validación. La oferta para el cliente quedó lista: vista previa, Excel y PDF.");
       onClose();
@@ -132,41 +115,18 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
     <form onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
       <Stepper current={step} />
 
-      {step === 0 && blocked && (
-        <div className="space-y-2">
-          {quotation.changed_count === 0 && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de confirmar.</Alert>}
-          {failing > 0 && (
-            <Alert severity="danger">
-              {failing === 1 ? "1 referencia con precio nuevo no cumple" : `${formatCount(failing)} referencias con precio nuevo no cumplen`} la regla
-              (bajo el mínimo, sin margen objetivo o sin costo). Corrígelas antes de confirmar; el indicador «Inferior al mínimo» las muestra.
-            </Alert>
-          )}
-        </div>
+      {step === 0 && blocked && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de confirmar.</Alert>}
+      {step === 0 && failing > 0 && (
+        <Alert severity="warning">
+          {failing === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(failing)} referencias con precio nuevo quedan`} bajo la regla
+          (bajo el mínimo, sin margen objetivo o sin costo). Puedes enviarla igual: el validador las verá marcadas.
+        </Alert>
       )}
 
       {step === 0 && <OfferSettingsStep quotation={quotation} draft={draft} onChange={setDraft} validityError={validityError} />}
       {step === 1 && <ConditionsStep draft={draft} onChange={setDraft} validityText={draftValidityText(draft, quotation)} />}
       {step === 2 && (
-        <SiesaStep
-          quotation={quotation}
-          generalList={generalList}
-          action={action}
-          onAction={setAction}
-          code={code}
-          onCode={(value) => {
-            setCode(value);
-            setCodeError(null);
-          }}
-          codeError={codeError}
-          name={name}
-          onName={(value) => {
-            setName(value);
-            setNameError(null);
-          }}
-          nameError={nameError}
-          activation={activation}
-          onActivation={setActivation}
-        />
+        <SiesaStep quotation={quotation} onlyCreates={onlyCreates} action={action} onAction={setAction} activation={activation} onActivation={setActivation} />
       )}
 
       <DialogError message={error} />
@@ -225,38 +185,32 @@ function Stepper({ current }: { current: number }) {
   );
 }
 
-/** Step 3: written over the customer's list, or a new list with its own code; and from when. */
+/**
+ * Step 3: written over the customer's list, or a new list; and from when. On
+ * a creation the validator gives the list its code, so nothing is asked here.
+ */
 function SiesaStep({
   quotation,
-  generalList,
+  onlyCreates,
   action,
   onAction,
-  code,
-  onCode,
-  codeError,
-  name,
-  onName,
-  nameError,
   activation,
   onActivation,
 }: {
   quotation: Quotation;
-  generalList: boolean;
+  onlyCreates: boolean;
   action: ListAction;
   onAction: (action: ListAction) => void;
-  code: string;
-  onCode: (code: string) => void;
-  codeError: string | null;
-  name: string;
-  onName: (name: string) => void;
-  nameError: string | null;
   activation: string;
   onActivation: (date: string) => void;
 }) {
-  const codeId = useId();
-  const nameId = useId();
   const dateId = useId();
   const shared = quotation.price_list_customers ?? 0;
+  const updateHint = quotation.is_temporary_customer
+    ? "Un cliente temporal no tiene lista en SIESA: se le crea una."
+    : onlyCreates
+      ? "La lista 1 no se actualiza por este medio."
+      : `Escribe los precios en la lista del cliente, ${quotation.price_list_id ?? "sin lista"}.`;
 
   return (
     <div className="space-y-5">
@@ -267,16 +221,16 @@ function SiesaStep({
             value="actualizacion"
             checked={action === "actualizacion"}
             onChange={onAction}
-            disabled={generalList}
+            disabled={onlyCreates}
             title="Actualización de lista"
-            hint={generalList ? "La lista 1 no se actualiza por este medio." : `Escribe los precios en la lista del cliente, ${quotation.price_list_id ?? "sin lista"}.`}
+            hint={updateHint}
           />
           <ActionOption
             value="creacion"
             checked={action === "creacion"}
             onChange={onAction}
             title="Creación de lista"
-            hint="Crea una lista nueva con su propio código. Asignarla al cliente se hace a mano en SIESA."
+            hint="Una lista nueva: el validador le pone el código y la descripción. Asignarla al cliente se hace a mano en SIESA."
           />
         </div>
       </fieldset>
@@ -293,32 +247,7 @@ function SiesaStep({
           )}
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
-          <Field label="Código de la lista" htmlFor={codeId} error={codeError} hint="1 a 3 letras o números">
-            <Input
-              id={codeId}
-              value={code}
-              maxLength={3}
-              onChange={(event) => onCode(event.target.value.toUpperCase())}
-              aria-invalid={codeError ? true : undefined}
-              aria-describedby={codeError ? `${codeId}-error` : `${codeId}-hint`}
-              className="font-mono uppercase max-md:h-11"
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="Descripción" htmlFor={nameId} error={nameError} hint={`${name.length} de ${LIST_NAME_MAX} caracteres`}>
-            <Input
-              id={nameId}
-              value={name}
-              maxLength={LIST_NAME_MAX}
-              onChange={(event) => onName(event.target.value)}
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={nameError ? `${nameId}-error` : `${nameId}-hint`}
-              className="max-md:h-11"
-              autoComplete="off"
-            />
-          </Field>
-        </div>
+        <p className="text-sm text-text-secondary">Al validar, el área BI le pone a la lista nueva su código y su descripción.</p>
       )}
 
       <div className="max-w-56">

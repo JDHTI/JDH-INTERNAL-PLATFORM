@@ -9,10 +9,28 @@ export type DecimalText = string;
 
 /**
  * borrador: the advisor edits. pendiente_validacion: confirmed, locked until
- * the validating area acts. actualizada / creada: validated; the files are out,
- * for the customer's own list or a new one. Any edit goes back to borrador.
+ * the validating area acts. pendiente_carga: validated, the files are out and
+ * the validator has to load them into SIESA. cargada: the validator confirmed
+ * it is loaded. Any edit goes back to borrador. `list_action` says whether the
+ * customer's list is written over or a new one created.
  */
-export type QuotationStatus = "borrador" | "pendiente_validacion" | "creada" | "actualizada";
+export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+
+/** A customer SIESA does not have yet, registered on the quotation itself to quote from scratch. */
+export interface TemporaryCustomer {
+  name: string;
+  legal_name: string;
+  trade_name: string | null;
+  nit: string | null;
+}
+
+/** An operation center from the platform's master, to quote from. */
+export interface BillingCenter {
+  code: string;
+  name: string;
+  regional: string | null;
+  regional_label: string | null;
+}
 
 /** Write into the customer's SIESA list, or create a new one. List 1 always creates. */
 export type ListAction = "actualizacion" | "creacion";
@@ -29,6 +47,7 @@ export type CustomerScope = "mine" | "all";
 
 export type { SalesScope } from "@/features/salespeople/types/salespeople.types";
 import type { SalesScope } from "@/features/salespeople/types/salespeople.types";
+import type { RequestedProductStatus } from "@/features/requested-products/types/requested-products.types";
 
 export interface Seller {
   code: string;
@@ -83,7 +102,7 @@ export interface QuotationSummary {
   export_price_list_id: string | null;
   line_count: number;
   changed_count: number;
-  /** Active lines with a new price that does not pass the rule: what blocks confirming. */
+  /** Active lines with a new price that does not pass the rule: an alert for the validator, it no longer blocks confirming. */
   below_rule_count: number;
   /** Lines whose last price leaves the margin (with support) under the minimum. */
   below_target_count: number;
@@ -99,6 +118,11 @@ export interface QuotationSummary {
   valid_from: string;
   /** "YYYY-MM-DD", `valid_from` plus `validity_days`. */
   valid_until: string;
+  /** When and by whom the validator confirmed it is loaded in SIESA (`cargada`). */
+  uploaded_at: string | null;
+  uploaded_by: string | null;
+  is_temporary_customer: boolean;
+  temporary_customer: TemporaryCustomer | null;
 }
 
 /** `changed`: the lines with a new price (local ones included). `all`: every active line with a price to offer. */
@@ -133,6 +157,7 @@ export interface OfferSettings {
   validity_days?: number;
   conditions?: string[];
   include_seller?: boolean;
+  include_variation?: boolean;
   quote_quantities?: boolean;
   offer_scope?: OfferScope;
 }
@@ -269,63 +294,15 @@ export type LocalLineInput =
   | { description: string; supplier_name: string | null; price: DecimalText; vat_pct: LocalVat }
   | { requested_product_id: string; price?: DecimalText };
 
-/** BI moves a request along: created in SIESA (with its reference) or discarded. */
-export type RequestedProductStatus = "solicitado" | "creado" | "descartado";
-
-export interface RequestedProductQuotation {
-  id: string;
-  customer_name: string;
-  customer_nit: string;
-  status: QuotationStatus;
-  status_label: string;
-  created_by: string;
-}
-
-/** A product someone quoted that SIESA does not have yet, kept apart from any quotation. */
-export interface RequestedProduct {
-  id: string;
-  description: string;
-  supplier_name: string | null;
-  estimated_price: DecimalText | null;
-  vat_pct: DecimalText | null;
-  status: RequestedProductStatus;
-  status_label: string;
-  siesa_sku: string | null;
-  note: string | null;
-  created_by: string;
-  created_at: string;
-  updated_by: string | null;
-  updated_at: string;
-  /** Only the quotations the viewer can open. */
-  quotations: RequestedProductQuotation[];
-}
-
-export interface RequestedProductPage {
-  items: RequestedProduct[];
-  total: number;
-  page: number;
-  size: number;
-}
-
-export interface RequestedProductParams {
-  status: RequestedProductStatus | "";
-  q: string;
-  page: number;
-  size: number;
-}
-
-export interface RequestedProductChange {
-  status: RequestedProductStatus;
-  siesa_sku?: string;
-  note?: string;
-}
-
 export interface Quotation extends QuotationSummary {
   channel_code: string | null;
   price_list_name: string | null;
   /** Active customers on the same SIESA list: a price written there reaches all of them. */
   price_list_customers: number | null;
   billing_center_code: string | null;
+  billing_center_name: string | null;
+  /** `auto`: the customer's branches decided it. `manual`: someone chose it; a refresh keeps it. */
+  billing_center_source: "auto" | "manual";
   regional: string | null;
   regional_label: string | null;
   price_family: string | null;
@@ -348,6 +325,8 @@ export interface Quotation extends QuotationSummary {
   /** What the executive adds to the offer, in order; the validity line is added on top automatically. */
   conditions: string[];
   include_seller: boolean;
+  /** Whether the customer's workbook and PDF show the variation against the last price. */
+  include_variation: boolean;
   quote_quantities: boolean;
   offer_scope: OfferScope;
   seller_contact: SellerContact | null;
@@ -370,30 +349,16 @@ export interface ImportResult {
   repeated: number;
 }
 
-/** A line the API could not price (no cost, unreadable row), with the template row when there is one. */
+/** A line the API could not price (no cost, a local product at a margin). */
 export interface SkippedLine {
   sku: string | null;
   reason: string;
-  row_number?: number | null;
-}
-
-/** What an uploaded template did, reference by reference. */
-export interface TemplateResult {
-  updated: string[];
-  cleared: string[];
-  added: string[];
-  /** A count, not a list: most rows of a template come back untouched. */
-  unchanged: number;
-  not_found: string[];
-  inactive: string[];
-  skipped: SkippedLine[];
 }
 
 /** Writes answer with the whole quotation plus what they did. */
 export interface QuotationWithImport extends Quotation {
   import_result?: ImportResult;
   skipped?: SkippedLine[];
-  template_result?: TemplateResult;
 }
 
 export interface LineImport {
@@ -410,13 +375,24 @@ export type LineChange =
   | { sku: string; new_price?: DecimalText | null; quantity?: DecimalText | null }
   | { sku: string; margin_pct: DecimalText };
 
+/** The advisor says what happens in SIESA; on a creation the validator names the list. */
 export interface ConfirmOptions {
   list_action?: ListAction;
-  /** Only on a creation: the new list's code, 1 to 3 letters or digits. */
-  price_list_id?: string;
-  /** Only on a creation: up to 40 characters; the API defaults to "COTIZADOR <cliente>". */
-  new_list_name?: string;
   activation_date?: string;
+}
+
+/** Only on a creation: the validator gives the new list its code and description. */
+export interface ValidateOptions {
+  /** 1 to 3 letters or digits, not taken in SIESA. */
+  price_list_id?: string;
+  /** Up to 40 characters; the API defaults to "COTIZADOR <cliente>". */
+  new_list_name?: string;
+}
+
+/** `POST /quotations` for a customer SIESA does not have: empty, priced from the chosen CO. */
+export interface TemporaryQuotationInput {
+  temporary_customer: { name: string; legal_name: string; trade_name: string | null; nit: string | null };
+  billing_center_code: string;
 }
 
 /** `/quotations/rules`, shaped like `/order-validations/rules`. */

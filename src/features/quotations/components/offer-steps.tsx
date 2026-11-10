@@ -17,6 +17,7 @@ export interface OfferDraft {
   validity: string;
   scope: OfferScope;
   includeSeller: boolean;
+  includeVariation: boolean;
   conditions: string[];
 }
 
@@ -24,6 +25,7 @@ export const draftFrom = (quotation: Quotation): OfferDraft => ({
   validity: String(quotation.validity_days),
   scope: quotation.offer_scope,
   includeSeller: quotation.include_seller,
+  includeVariation: quotation.include_variation,
   conditions: quotation.conditions,
 });
 
@@ -40,6 +42,7 @@ export function draftToSettings(draft: OfferDraft, quotation: Quotation): { sett
   if (validity.value !== quotation.validity_days) settings.validity_days = validity.value;
   if (draft.scope !== quotation.offer_scope) settings.offer_scope = draft.scope;
   if (draft.includeSeller !== quotation.include_seller) settings.include_seller = draft.includeSeller;
+  if (draft.includeVariation !== quotation.include_variation) settings.include_variation = draft.includeVariation;
   if (conditions.join("\n") !== quotation.conditions.join("\n")) settings.conditions = conditions;
   return { settings };
 }
@@ -134,6 +137,22 @@ export function OfferSettingsStep({
           onCheckedChange={(next) => onChange({ ...draft, includeSeller: next })}
           aria-label="Incluir datos del vendedor"
           aria-describedby={`${id}-seller-hint`}
+          className="mt-0.5"
+        />
+      </div>
+
+      <div className="flex items-start justify-between gap-4 rounded-md border border-border-control p-3">
+        <div className="min-w-0 space-y-0.5">
+          <span className="block text-sm font-medium">Incluir la variación</span>
+          <span id={`${id}-variation-hint`} className="block text-[13px] text-text-secondary">
+            Una columna en el Excel y el PDF con cuánto sube o baja cada precio frente al último que pagó.
+          </span>
+        </div>
+        <Switch
+          checked={draft.includeVariation}
+          onCheckedChange={(next) => onChange({ ...draft, includeVariation: next })}
+          aria-label="Incluir la variación"
+          aria-describedby={`${id}-variation-hint`}
           className="mt-0.5"
         />
       </div>

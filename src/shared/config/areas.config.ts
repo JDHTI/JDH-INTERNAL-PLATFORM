@@ -391,10 +391,15 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: Calculator,
     available: true,
     permission: "cotizador",
-    // Its own page under the same permission: Comercial follows the requests, BI resolves them.
-    subItems: (base, slug) => [
-      { id: `${slug}-cotizador-solicitados`, name: "Productos solicitados", path: `${base}/solicitados`, icon: PackageSearch },
-    ],
+  },
+  {
+    // Its own module (API key `productos-solicitados`), switched on per area like any other.
+    key: "productos-solicitados",
+    name: "Productos solicitados",
+    category: "Operación",
+    icon: PackageSearch,
+    available: true,
+    permission: "productos-solicitados",
   },
   {
     key: "validador-pedidos",

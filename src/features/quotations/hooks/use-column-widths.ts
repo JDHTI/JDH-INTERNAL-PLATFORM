@@ -3,28 +3,28 @@
 import { useCallback, useRef, useState } from "react";
 
 /** The table's fixed columns, left to right; the product column takes what they leave. */
-export type ColumnKey = "last" | "bounds" | "price" | "margin" | "support" | "vat" | "final" | "qty" | "variation";
+export type ColumnKey = "last" | "bounds" | "price" | "support" | "vat" | "consumption" | "final" | "qty" | "variation";
 
 export const COLUMN_DEFAULTS: Record<ColumnKey, number> = {
-  last: 128,
-  bounds: 144,
-  price: 112,
-  margin: 112,
+  last: 136,
+  bounds: 176,
+  price: 128,
   support: 112,
   vat: 56,
-  final: 112,
+  consumption: 104,
+  final: 120,
   qty: 112,
   variation: 96,
 };
 
 const COLUMN_MIN: Record<ColumnKey, number> = {
-  last: 96,
-  bounds: 112,
-  price: 88,
-  margin: 80,
+  last: 104,
+  bounds: 144,
+  price: 104,
   support: 72,
   vat: 48,
-  final: 88,
+  consumption: 80,
+  final: 96,
   qty: 80,
   variation: 64,
 };

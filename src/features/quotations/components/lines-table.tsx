@@ -66,8 +66,6 @@ interface LinesProps {
   pending?: string[];
   /** Revalidated by the last paste: tinted for a moment so they can be found. */
   highlight?: Set<string>;
-  /** The cost is for the validating area (BI and admins); Comercial works from the prices. */
-  showCost: boolean;
   sort: Sort | null;
   onSort: (sort: Sort | null) => void;
   /** The quotation quotes with quantities: a quantity per line and its total. */
@@ -80,12 +78,11 @@ interface LinesProps {
   promoting: string | null;
 }
 
-export const OPTIMAL_PRICE_HELP = "Precio que da exactamente el margen objetivo: (costo − apoyo) / (1 − objetivo), en pesos enteros.";
-export const MIN_PRICE_HELP = "Precio más bajo que cumple la regla: deja el margen 1 punto bajo el objetivo. Por debajo no se puede confirmar.";
+export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
+export const MIN_PRICE_HELP = "El más bajo que cumple la regla: deja el margen 1 punto bajo el objetivo. Por debajo, el validador lo ve como alerta.";
 export const BELOW_TARGET_HELP = "Margen actual bajo el objetivo: revisar y actualizar.";
 export const INACTIVE_HELP = "Inactiva en SIESA: reemplázala. No sale en el Excel ni en el plano.";
 export const LOCAL_HELP = "Producto creado solo para cotizar: no existe en SIESA, no tiene costo ni regla y no sale en el Excel ni en el plano.";
-const DISCARDED_QUOTE_HELP = "Cotización fuera de rango (revisar en SIESA).";
 
 const removable = (line: QuotationLine) => line.origin !== "historico" || !line.is_active;
 
@@ -95,7 +92,7 @@ const removable = (line: QuotationLine) => line.origin !== "historico" || !line.
  * one; the new one and its margin; the price with VAT) instead of a column per
  * number. Widths are fixed so the product block takes what is left.
  */
-const th = "h-10 px-2.5 align-middle whitespace-nowrap";
+const th = "h-12 px-2.5 py-1.5 align-middle leading-tight";
 const td = "px-2.5 py-2 align-top";
 /** An explicit line between columns, from "Último" on; the header's divider can be moved. */
 const divided = "relative border-l border-border";
@@ -149,12 +146,12 @@ function ColumnDivider({
  * 11rem for its name (68rem, 75rem with quantities); below that, cards.
  */
 export function LinesTable(props: LinesProps) {
-  const { lines, selection, showCost, sort, onSort, withQuantities } = props;
+  const { lines, selection, sort, onSort, withQuantities } = props;
   const scope = selection?.scope ?? [];
   const allTicked = selection !== undefined && scope.length > 0 && scope.every((sku) => selection.selected.has(sku));
   const someTicked = selection !== undefined && scope.some((sku) => selection.selected.has(sku));
   const columns = useMemo<ColumnKey[]>(
-    () => ["last", "bounds", "price", "margin", "support", "vat", "final", ...(withQuantities ? (["qty"] as const) : []), "variation"],
+    () => ["last", "bounds", "price", "support", "vat", "consumption", "final", ...(withQuantities ? (["qty"] as const) : []), "variation"],
     [withQuantities]
   );
   const { widths, min, tableRef, startDrag, onDrag, endDrag, onKey, reset } = useColumnWidths(columns, selection ? 40 : 0);
@@ -176,7 +173,7 @@ export function LinesTable(props: LinesProps) {
   const at = (key: ColumnKey) => columns.indexOf(key);
 
   return (
-    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[75rem]:block" : "@min-[68rem]:block")}>
+    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[77rem]:block" : "@min-[70rem]:block")}>
       <table ref={tableRef} className="w-full table-fixed text-left text-sm">
         <caption className="sr-only">Referencias de la cotización</caption>
         <colgroup>
@@ -205,23 +202,41 @@ export function LinesTable(props: LinesProps) {
               </th>
             )}
             <th scope="col" className={cn(th, !selection && "rounded-tl-lg")}>Producto</th>
-            {/* Short headers keep the columns narrow; each cell labels its own figures and the menu says it in full. */}
-            <SortHeader label="Último" name="Último precio" keys={[["last_price", "Precio"], ["current_margin", "Margen"]]} divider={divider(at("last"), "Último precio")} {...sortProps} />
+            {/* The headers say what each figure is, in full; they wrap to two lines rather than abbreviate. */}
             <SortHeader
-              label={showCost ? "Óptimo · costo" : "Óptimo · mín."}
-              name={showCost ? "Precio óptimo, mínimo y costo" : "Precio óptimo y mínimo"}
-              keys={showCost ? [["optimal", "Precio óptimo"], ["cost", "Costo"]] : [["optimal", "Precio óptimo"]]}
-              divider={divider(at("bounds"), "Óptimo y mínimo")}
+              label="Último precio sin IVA"
+              name="Último precio sin IVA"
+              keys={[["last_price", "Precio"], ["current_margin", "Margen"]]}
+              divider={divider(at("last"), "Último precio sin IVA")}
               {...sortProps}
             />
-            <SortHeader label="Nuevo" name="Precio nuevo" keys={[["new_price", "Precio nuevo"]]} divider={divider(at("price"), "Precio nuevo")} {...sortProps} />
-            <SortHeader label="Margen" name="Margen nuevo" keys={[["new_margin", "Margen nuevo"]]} divider={divider(at("margin"), "Margen nuevo")} {...sortProps} />
+            <SortHeader
+              label="Precios sugeridos"
+              name="Precios sugeridos"
+              keys={[["min_price", "Precio sugerido margen mínimo"], ["optimal", "Precio sugerido margen óptimo"]]}
+              divider={divider(at("bounds"), "Precios sugeridos")}
+              {...sortProps}
+            />
+            <SortHeader
+              label="Precio nuevo sin IVA"
+              name="Precio nuevo sin IVA"
+              keys={[["new_price", "Precio"], ["new_margin", "Margen nuevo"]]}
+              divider={divider(at("price"), "Precio nuevo sin IVA")}
+              {...sortProps}
+            />
             <th scope="col" className={cn(th, divided)}>
               {divider(at("support"), "Apoyo")}
               Apoyo
             </th>
             <SortHeader label="IVA" name="IVA" keys={[["vat", "IVA"]]} divider={divider(at("vat"), "IVA")} {...sortProps} />
-            <SortHeader label="Con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} divider={divider(at("final"), "Precio con IVA")} {...sortProps} />
+            <SortHeader
+              label="Imp. consumo"
+              name="Impuesto al consumo"
+              keys={[["consumption_tax", "Impuesto al consumo"]]}
+              divider={divider(at("consumption"), "Impuesto al consumo")}
+              {...sortProps}
+            />
+            <SortHeader label="Precio con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} divider={divider(at("final"), "Precio con IVA")} {...sortProps} />
             {withQuantities && (
               <SortHeader
                 label="Cant."
@@ -253,11 +268,13 @@ export function LinesTable(props: LinesProps) {
                 )}
                 <td className={td}><Product line={line} {...props} /></td>
                 <td className={cn(td, divided, "text-right")}><LastSale line={line} /></td>
-                <td className={cn(td, divided)}><Bounds line={line} showCost={showCost} /></td>
-                <td className={cn(td, divided)}><NewPrice line={line} editor={props.editor} editable={props.editable} /></td>
-                <td className={cn(td, divided, "text-right")}><NewMargin line={line} /></td>
+                <td className={cn(td, divided)}><Bounds line={line} /></td>
+                <td className={cn(td, divided)}>
+                  <NewPrice line={line} editor={props.editor} editable={props.editable} />
+                </td>
                 <td className={cn(td, divided)}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
                 <td className={cn(td, divided, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
+                <td className={cn(td, divided, "text-right tabular-nums")}><ConsumptionTax line={line} /></td>
                 <td className={cn(td, divided, "text-right")}><FinalPrice line={line} /></td>
                 {withQuantities && (
                   <td className={cn(td, divided)}>
@@ -290,9 +307,9 @@ export function LinesTable(props: LinesProps) {
  * the price (DESIGN.md §10).
  */
 export function LinesList(props: LinesProps) {
-  const { lines, editor, editable, selection, showCost, withQuantities } = props;
+  const { lines, editor, editable, selection, withQuantities } = props;
   return (
-    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@min-[75rem]:hidden" : "@min-[68rem]:hidden")}>
+    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@min-[77rem]:hidden" : "@min-[70rem]:hidden")}>
       {lines.map((line) => (
         <li
           key={line.sku}
@@ -308,23 +325,20 @@ export function LinesList(props: LinesProps) {
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-            <Pair label="Último precio"><LastSale line={line} alignStart /></Pair>
-            <Pair label={showCost ? "Óptimo · costo" : "Óptimo · mínimo"}><Bounds line={line} showCost={showCost} /></Pair>
+            <Pair label="Último precio sin IVA"><LastSale line={line} alignStart /></Pair>
+            <Pair label="Precios sugeridos"><Bounds line={line} /></Pair>
             <Pair label="Apoyo"><SupportBadge line={line} onOpen={props.onOpenDetail} /></Pair>
-            <Pair label="IVA · con IVA">
-              <span className="block text-[13px] tabular-nums"><Vat line={line} /></span>
-              <FinalPrice line={line} alignStart />
+            <Pair label="IVA · imp. consumo">
+              <span className="block text-[13px] tabular-nums">
+                <Vat line={line} /> · <ConsumptionTax line={line} />
+              </span>
             </Pair>
+            <Pair label="Precio con IVA"><FinalPrice line={line} alignStart /></Pair>
           </dl>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">
-              <span className="block text-xs text-text-secondary">Precio nuevo, sin IVA</span>
+              <span className="block text-xs text-text-secondary">Precio nuevo sin IVA</span>
               <NewPrice line={line} editor={editor} editable={editable} wide />
-              {line.new_price !== null && !isLocal(line) && (
-                <span className="block">
-                  <NewMargin line={line} />
-                </span>
-              )}
             </div>
             {withQuantities && (
               <div className="space-y-1">
@@ -389,14 +403,15 @@ function SortHeader({
         align="end"
         trigger={
           <>
-            <span className="truncate">{label}</span>
+            <span className="text-right">{label}</span>
             <Icon className={cn("size-3 shrink-0", active ? "text-text-primary" : "text-text-secondary")} aria-hidden="true" />
           </>
         }
         triggerLabel={`Ordenar por ${name}${words ? `. Ahora: ${words}` : ""}`}
         triggerTitle={words ? `${name}, ordenado: ${words}` : `Ordenar por ${name}`}
         triggerClassName={cn(
-          "ml-auto inline-flex min-h-8 max-w-full items-center gap-1 rounded-sm font-semibold uppercase tracking-[0.06em] hover:text-text-primary",
+          // The full header can take two lines; the arrow stays beside its last word.
+          "ml-auto inline-flex min-h-8 max-w-full items-center gap-1 rounded-sm text-right font-semibold uppercase tracking-[0.06em] hover:text-text-primary",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           active && "text-text-primary"
         )}
@@ -594,47 +609,22 @@ function LastSale({ line, alignStart = false }: { line: QuotationLine; alignStar
 }
 
 /**
- * The cost and where it came from: the higher of the supplier's quote and the
- * inventory. A quote thrown out as out of range is flagged so it gets fixed in SIESA.
+ * The suggested prices that bound the new one, before VAT: the price at the
+ * minimum margin and at the optimal margin. Nobody sees the cost behind them.
  */
-function costExplanation(line: QuotationLine): string {
-  return [
-    line.cost_source_label ? `Origen: ${line.cost_source_label}` : null,
-    toNumber(line.quote_cost) !== null ? `Cotización del proveedor: ${formatMoney(line.quote_cost)}` : null,
-    toNumber(line.inventory_cost) !== null ? `Inventario: ${formatMoney(line.inventory_cost)}` : null,
-    toNumber(line.discarded_quote_cost) !== null ? `${DISCARDED_QUOTE_HELP} Cotización descartada: ${formatMoney(line.discarded_quote_cost)}` : null,
-  ]
-    .filter(Boolean)
-    .join(". ");
-}
-
-/** The two prices that bound the new one, and for BI the cost under them. */
-function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) {
+function Bounds({ line }: { line: QuotationLine }) {
   if (isLocal(line)) return <span className="text-[13px] text-text-secondary">Sin costo ni regla</span>;
   const row = "flex items-baseline justify-between gap-2";
-  const cost = toNumber(line.cost);
-  const explanation = costExplanation(line);
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
-      <div className={row} title={OPTIMAL_PRICE_HELP}>
-        <dt className="text-text-secondary">óptimo</dt>
-        <dd className="font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
-      </div>
-      <div className={row} title={MIN_PRICE_HELP}>
-        <dt className="text-text-secondary">mínimo</dt>
+      <div className={row} title={`Precio sugerido margen mínimo. ${MIN_PRICE_HELP}`}>
+        <dt className="whitespace-nowrap text-xs text-text-secondary">margen mínimo</dt>
         <dd className="font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
       </div>
-      {showCost && (
-        <div className={row} title={explanation || undefined}>
-          <dt className="text-text-secondary">costo</dt>
-          <dd className="inline-flex items-center gap-1">
-            {toNumber(line.discarded_quote_cost) !== null && (
-              <AlertTriangle className="size-3.5 shrink-0 text-warning" role="img" aria-label={DISCARDED_QUOTE_HELP} />
-            )}
-            {cost === null ? dash : formatMoney(cost)}
-          </dd>
-        </div>
-      )}
+      <div className={row} title={`Precio sugerido margen óptimo. ${OPTIMAL_PRICE_HELP}`}>
+        <dt className="whitespace-nowrap text-xs text-text-secondary">margen óptimo</dt>
+        <dd className="font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
+      </div>
     </dl>
   );
 }
@@ -676,14 +666,18 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         )}
       />
       {error && <span id={errorId} className="sr-only">{error}</span>}
+      {line.new_price !== null && !isLocal(line) && (
+        <span className="block">
+          <NewMargin line={line} />
+        </span>
+      )}
     </div>
   );
 }
 
 /**
  * The margin the new price leaves, with where it stands; or why the rule
- * cannot judge it (no cost, no target). Its own column, beside the price that
- * makes it.
+ * cannot judge it (no cost, no target). Right under the price that makes it.
  */
 function NewMargin({ line }: { line: QuotationLine }) {
   if (line.new_price === null || isLocal(line)) return dash;
@@ -768,22 +762,21 @@ function Vat({ line }: { line: QuotationLine }) {
   return vat === null ? dash : <>{vatFormat.format(vat)} %</>;
 }
 
+/** The consumption tax per unit (liquor), in its own column; a dash for every other product. */
+function ConsumptionTax({ line }: { line: QuotationLine }) {
+  const amount = toNumber(line.value_tax_amount);
+  if (amount === null || amount === 0) return dash;
+  return <span title={line.value_tax_name ?? undefined}>{formatMoney(amount)}</span>;
+}
+
 /**
- * What the customer pays, VAT and liquor tax included. The price before VAT
- * is the one typed beside it, so it is not repeated here.
+ * What the customer pays: VAT on the new price plus the consumption tax. The
+ * price before VAT is the one typed beside it, so it is not repeated here.
  */
 function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignStart?: boolean }) {
   const withVat = priceWithVat(line);
   if (withVat === null) return dash;
-  const liquor = toNumber(line.value_tax_amount) ?? 0;
-  return (
-    <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
-      <span className="block font-semibold">{formatMoney(withVat)}</span>
-      {liquor > 0 && (
-        <span className="block text-xs text-text-secondary" title={line.value_tax_name ?? undefined}>incl. licores {formatMoney(liquor)}</span>
-      )}
-    </div>
-  );
+  return <span className={cn("block font-semibold tabular-nums", alignStart ? "text-left" : "text-right")}>{formatMoney(withVat)}</span>;
 }
 
 /**

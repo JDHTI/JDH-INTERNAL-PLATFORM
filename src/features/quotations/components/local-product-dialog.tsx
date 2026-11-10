@@ -13,9 +13,12 @@ import { cn } from "@/shared/lib/utils";
 
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
-import { useAddLocalLine, useRequestedProducts } from "../hooks/use-quotations";
+import { useRequestedProducts } from "@/features/requested-products/hooks/use-requested-products";
+import type { RequestedProduct } from "@/features/requested-products/types/requested-products.types";
+
+import { useAddLocalLine } from "../hooks/use-quotations";
 import { formatMoney, parsePriceInput } from "../lib/format";
-import type { LocalLineInput, LocalVat, Quotation, RequestedProduct } from "../types/quotations.types";
+import type { LocalLineInput, LocalVat, Quotation } from "../types/quotations.types";
 
 const VATS: LocalVat[] = [19, 5, 0];
 const MAX_TEXT = 120;

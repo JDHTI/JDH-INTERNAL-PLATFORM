@@ -73,12 +73,13 @@ export type SortKey =
   | "optimal"
   | "new_price"
   | "new_margin"
-  | "cost"
   | "vat"
   | "final_price"
   | "variation"
   | "quantity"
-  | "line_total";
+  | "line_total"
+  | "min_price"
+  | "consumption_tax";
 export type SortDirection = "desc" | "asc";
 export interface Sort {
   key: SortKey;
@@ -91,11 +92,12 @@ const SORT_VALUE: Record<SortKey, (line: QuotationLine) => number | null> = {
   optimal: (line) => toNumber(line.optimal_price),
   new_price: (line) => toNumber(line.new_price),
   new_margin: (line) => (line.new_price === null ? null : toNumber(line.new_margin_with_support_pct ?? line.new_margin_pct)),
-  cost: (line) => toNumber(line.cost),
   vat: (line) => toNumber(line.vat_pct),
   final_price: priceWithVat,
   variation: (line) => toNumber(line.variation_pct),
   quantity: (line) => toNumber(line.quantity),
+  min_price: (line) => toNumber(line.min_price),
+  consumption_tax: (line) => toNumber(line.value_tax_amount),
   line_total: (line) => offerAmounts(line)?.total ?? null,
 };
 

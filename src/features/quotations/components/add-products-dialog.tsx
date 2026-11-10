@@ -66,7 +66,7 @@ export default function AddProductsDialog({
       isForm
       wide
       title="Agregar productos a la cotización"
-      description="Busca y marca varios productos, o pega una columna de Excel. Los nuevos entran al final con su costo, margen objetivo, apoyos e impuesto de licores; los que ya están se revalidan con los datos de hoy y conservan su precio nuevo."
+      description="Busca y marca varios productos, o pega una columna de Excel. Los nuevos entran al final con su precio sugerido, apoyos e impuesto al consumo; los que ya están se revalidan con los datos de hoy y conservan su precio nuevo."
     >
       <form
         noValidate

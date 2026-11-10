@@ -1,21 +1,19 @@
 import PageHeader from "@/shared/components/page-header";
-import QuotationsGate from "@/features/quotations/components/quotations-gate";
-import RequestedProductsView from "@/features/quotations/components/requested-products-view";
+import RequestedProductsView from "@/features/requested-products/components/requested-products-view";
 import { requireModule } from "@/features/areas/server/area-access";
 
-/** Products quoted that SIESA does not have yet; Comercial follows them, BI resolves them. */
+/** Its own module: products quoted that SIESA does not have yet; Comercial follows them, BI resolves them. */
 export default async function ProductosSolicitadosPage({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
-  await requireModule(area, "cotizador");
-  const basePath = `/${area}/cotizador`;
+  await requireModule(area, "productos-solicitados");
 
   return (
-    <QuotationsGate basePath={basePath}>
+    <div className="space-y-4">
       <PageHeader
         title="Productos solicitados"
         description="Lo que se cotizó sin existir en SIESA, para crearlo, volver a cotizarlo o comprarlo. Queda aquí aunque se borre la cotización."
       />
-      <RequestedProductsView basePath={basePath} />
-    </QuotationsGate>
+      <RequestedProductsView />
+    </div>
   );
 }
