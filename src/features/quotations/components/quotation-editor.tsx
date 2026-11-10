@@ -24,6 +24,7 @@ import {
   Save,
   Search,
   Send,
+  Sheet,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -48,9 +49,10 @@ import SupportDetail from "@/features/supports/components/support-detail";
 import { useLineEditor, type LineEditor } from "../hooks/use-line-editor";
 import { useLineImport } from "../hooks/use-line-import";
 import {
+  useBillingCenters,
   useDeleteQuotation,
   useQuotation,
-  useUpdateBillingCenter,
+  useUpdateCostCenters,
   useUpdateOffer,
   useQuotationPermissions,
   useRefreshQuotation,
@@ -59,11 +61,11 @@ import {
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
 import { offerTotals } from "../lib/offer";
-import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
+import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
-import BillingCenterSelect from "./billing-center-select";
 import BulkPricingPanel from "./bulk-pricing-panel";
+import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
@@ -77,6 +79,13 @@ import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
 import { ToggleChip } from "./toggle-chip";
 
 const PAGE_SIZE = 50;
+
+type Download = "xlsx" | "txt" | "template";
+const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
+  xlsx: downloadQuotationExcel,
+  txt: downloadQuotationFlatFile,
+  template: downloadLinesTemplate,
+};
 
 /**
  * The indicators are the main filters; "inactive" and "imported" (what the
@@ -160,7 +169,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
+  const [downloading, setDownloading] = useState<Download | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
 
   // Confirming needs one priced line, from SIESA or local: a temporary customer may have only local products.
@@ -327,10 +336,10 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
     });
 
-  const download = async (kind: "xlsx" | "txt") => {
+  const download = async (kind: Download) => {
     setDownloading(kind);
     try {
-      await (kind === "xlsx" ? downloadQuotationExcel(quotation.id) : downloadQuotationFlatFile(quotation.id));
+      await DOWNLOADS[kind](quotation.id);
     } catch (failure) {
       toast.error(errorMessage(failure), { duration: Infinity });
     } finally {
@@ -367,6 +376,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     },
     withQuantities: quotation.quote_quantities,
     quantitiesEditable: canManage,
+    // Only BI, who validates, sees the cost behind the suggested prices.
+    showCost: canValidate,
   };
   const totals = offerTotals(quotation);
 
@@ -400,6 +411,18 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
               <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
               {refresh.isPending ? "Refrescando…" : "Refrescar"}
+            </Button>
+          )}
+          {canValidate && (
+            <Button
+              variant="outline"
+              onClick={() => void download("template")}
+              disabled={downloading !== null}
+              title="Excel con todas las líneas y sus costos (cotización del proveedor, inventario y C.O.), para validar contra SIESA"
+              className="max-md:h-11"
+            >
+              {downloading === "template" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Sheet aria-hidden="true" />}
+              Plantilla
             </Button>
           )}
           {isValidated(quotation.status) && (
@@ -786,7 +809,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
     {
       title: "C.O. y costo",
       facts: [
-        ["C.O.", <BillingCenterField key="co" quotation={quotation} editable={canChangeCenter} />],
+        ["C.O.", <CostCentersField key="co" quotation={quotation} editable={canChangeCenter} />],
         ["Regional", quotation.regional_label ?? "—"],
         ["Bodega", quotation.stock_source ?? "—"],
       ],
@@ -814,28 +837,43 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
   );
 }
 
+const sameCodes = (a: string[], b: string[]) => a.length === b.length && a.every((code, index) => code === b[index]);
+
 /**
- * The operation center the prices come from: cost, warehouses, regional and
- * liquor tax depend on it. It starts as the one that bills the customer (the
- * highest regional among its branches) and can be changed; changing it
+ * Where the cost of every line comes from: Nacional (the highest cost of every
+ * warehouse, reference by reference) or one or more operation centers. A
+ * customer billed from several centers starts Nacional; one billed from a
+ * single center starts there. With several centers each line takes the
+ * costliest, and the field says which center that is most often. Changing it
  * recalculates every line, keeps the new prices and sends the quotation back
  * to draft, so it asks first.
  */
-function BillingCenterField({ quotation, editable }: { quotation: Quotation; editable: boolean }) {
+function CostCentersField({ quotation, editable }: { quotation: Quotation; editable: boolean }) {
   const id = useId();
-  const update = useUpdateBillingCenter(quotation.id);
-  const [choice, setChoice] = useState<string | null>(null);
+  const noteId = useId();
+  const update = useUpdateCostCenters(quotation.id);
+  const centers = useBillingCenters();
+  const [choice, setChoice] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const label = quotation.billing_center_code
-    ? `${quotation.billing_center_code}${quotation.billing_center_name ? ` · ${quotation.billing_center_name}` : ""}`
-    : "—";
+  const current = quotation.cost_centers;
+  const label = costCentersLabel(current, centers.data);
+  const manual = quotation.billing_center_source === "manual";
+  const listNote = quotation.centers_set_cost ? null : (
+    <span id={noteId} className="block text-xs text-text-secondary">
+      La lista {quotation.price_list_id ?? ""} tiene sus propias bodegas: el C.O. solo cambia la regional del impuesto al consumo.
+    </span>
+  );
 
   if (!editable) {
     return (
-      <span>
-        {label}
-        {quotation.billing_center_source === "manual" && <span className="text-text-secondary"> (elegido a mano)</span>}
-      </span>
+      <div className="space-y-1">
+        <span className="block">
+          {label}
+          {manual && <span className="text-text-secondary"> (elegido a mano)</span>}
+        </span>
+        {listNote}
+        <CostliestCenter quotation={quotation} />
+      </div>
     );
   }
 
@@ -843,7 +881,7 @@ function BillingCenterField({ quotation, editable }: { quotation: Quotation; edi
     if (!choice) return;
     setError(null);
     update.mutate(
-      { version: quotation.version, code: choice },
+      { version: quotation.version, codes: choice },
       {
         onSuccess: () => {
           setChoice(null);
@@ -856,22 +894,24 @@ function BillingCenterField({ quotation, editable }: { quotation: Quotation; edi
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="sr-only">C.O. desde el que se cotiza</label>
-      <BillingCenterSelect
+      <label htmlFor={id} className="sr-only">C.O. del que sale el costo</label>
+      <CostCentersSelect
         id={id}
-        value={choice ?? quotation.billing_center_code ?? ""}
-        onChange={(code) => setChoice(code && code !== quotation.billing_center_code ? code : null)}
+        value={choice ?? current}
+        onChange={(codes) => setChoice(sameCodes(codes, current) ? null : codes)}
         disabled={update.isPending}
+        describedBy={listNote ? noteId : undefined}
       />
-      {quotation.billing_center_source === "manual" && !choice && (
-        <span className="block text-xs text-text-secondary">Elegido a mano; «Refrescar» lo conserva.</span>
-      )}
+      {listNote}
+      {manual && !choice && <span className="block text-xs text-text-secondary">Elegido a mano; «Refrescar» lo conserva.</span>}
+      {!choice && <CostliestCenter quotation={quotation} />}
       {choice && (
         <div role="group" aria-label="Cambiar el C.O." className="space-y-1.5 rounded-md bg-canvas-subtle p-2 text-[13px]">
           <p>Recalcula costo, precios sugeridos y márgenes de todas las líneas, y la cotización vuelve a borrador.</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={apply} disabled={update.isPending} className="max-md:h-11">
-              {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Cambiar a {choice}
+              {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
+              Cambiar a {choice.length === 0 ? NATIONAL_LABEL : choice.join(", ")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setChoice(null)} disabled={update.isPending} className="max-md:h-11">
               Cancelar
@@ -880,6 +920,44 @@ function BillingCenterField({ quotation, editable }: { quotation: Quotation; edi
         </div>
       )}
       {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * With several centers, which one is the costliest: in how many references
+ * each one set the cost, the highest first. Counts only, no money: the
+ * advisors do not see costs.
+ */
+function CostliestCenter({ quotation }: { quotation: Quotation }) {
+  const centers = useBillingCenters();
+  const counts = useMemo(() => {
+    const byCode = new Map<string, number>();
+    for (const line of quotation.lines) {
+      if (line.cost_center) byCode.set(line.cost_center, (byCode.get(line.cost_center) ?? 0) + 1);
+    }
+    return quotation.cost_centers
+      .map((code) => ({ code, count: byCode.get(code) ?? 0 }))
+      .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+  }, [quotation.lines, quotation.cost_centers]);
+  if (quotation.cost_centers.length < 2 || !quotation.centers_set_cost) return null;
+  const total = counts.reduce((sum, item) => sum + item.count, 0);
+  if (total === 0) return null;
+  const [top, ...rest] = counts;
+  const name = (code: string) => costCentersLabel([code], centers.data);
+  return (
+    <div className="text-[13px]">
+      <p>
+        Más costoso: <span className="font-semibold">{name(top.code)}</span>
+        <span className="text-text-secondary">
+          , en {formatCount(top.count)} de {formatCount(total)} referencias
+        </span>
+      </p>
+      {rest.length > 0 && (
+        <p className="text-text-secondary">
+          {rest.map((item) => `${name(item.code)}: ${formatCount(item.count)}`).join(" · ")}
+        </p>
+      )}
     </div>
   );
 }

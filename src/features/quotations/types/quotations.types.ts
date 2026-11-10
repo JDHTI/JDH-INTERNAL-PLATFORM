@@ -237,6 +237,8 @@ export interface QuotationLine {
   inventory_cost: DecimalText | null;
   /** A supplier quote over 3x the median cost: a capture error in SIESA, not used. */
   discarded_quote_cost: DecimalText | null;
+  /** The operation center whose warehouses set `cost`; null for Nacional or a list with its own warehouses. */
+  cost_center: string | null;
   target_margin_pct: DecimalText | null;
   margin_basis: MarginBasis | null;
   /** The API's own words for `margin_basis`, ready to show. */
@@ -300,7 +302,14 @@ export interface Quotation extends QuotationSummary {
   price_list_customers: number | null;
   billing_center_code: string | null;
   billing_center_name: string | null;
-  /** `auto`: the customer's branches decided it. `manual`: someone chose it; a refresh keeps it. */
+  /**
+   * The operation centers the lines are costed from. Empty is Nacional: the highest cost of
+   * every warehouse, reference by reference. With several, each line takes the costliest.
+   */
+  cost_centers: string[];
+  /** False when the list has its own warehouses: the centers then change only the liquor tax regional. */
+  centers_set_cost: boolean;
+  /** `auto`: the customer's branches decided `cost_centers`. `manual`: someone chose them; a refresh keeps them. */
   billing_center_source: "auto" | "manual";
   regional: string | null;
   regional_label: string | null;

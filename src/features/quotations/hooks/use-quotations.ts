@@ -20,7 +20,7 @@ import {
   refreshQuotation,
   removeLine,
   returnQuotation,
-  updateBillingCenter,
+  updateCostCenters,
   updateLines,
   updateOffer,
   validateQuotation,
@@ -120,10 +120,10 @@ export function useBillingCenters() {
   });
 }
 
-export function useUpdateBillingCenter(id: string) {
+export function useUpdateCostCenters(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, code }: { version: number; code: string }) => updateBillingCenter(id, version, code),
+    mutationFn: ({ version, codes }: { version: number; codes: string[] }) => updateCostCenters(id, version, codes),
     onSuccess: store,
   });
 }

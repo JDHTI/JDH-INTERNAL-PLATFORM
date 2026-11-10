@@ -75,12 +75,20 @@ descripción. El 422 del API (por ejemplo, «La lista 1M ya existe en SIESA») s
 diálogo. **Marcar como cargada** (quien valida, en «Pendiente de carga») pide confirmar que los
 archivos ya se cargaron en SIESA; el historial muestra «Cargada en SIESA» con quién y cuándo.
 
-**C.O.** La tarjeta «C.O. y costo» dice desde qué CO se cotiza y si salió solo (la Costa si
-alguna sucursal factura desde ella; si no, el más frecuente) o lo eligieron. Quien edita lo cambia
-con un buscador de los CO activos (`GET /quotations/billing-centers`, `billing-center-select.tsx`);
-antes de aplicar pide confirmar «Cambiar a …», porque recalcula costo, bodegas, regional e
-impuesto de cada línea y vuelve a borrador (`PATCH /billing-center`). Los precios nuevos y las
-cantidades se conservan.
+**C.O.** La tarjeta «C.O. y costo» dice de qué C.O. sale el costo (`cost_centers`) y si salió solo
+o lo eligieron. Un cliente que factura desde varios C.O. arranca en **Nacional** (el costo más alto
+de todas las bodegas, referencia por referencia); uno que factura desde un solo C.O., en ese.
+Quien edita lo cambia en un desplegable de casillas (`cost-centers-select.tsx`, con los C.O. de
+`GET /quotations/billing-centers` y buscador): **Nacional** va solo (marcarlo desmarca los C.O.;
+marcar un C.O. desmarca Nacional; sin ningún C.O. marcado vuelve a Nacional) o **uno o varios
+C.O.** Las opciones muestran código y nombre, sin la regional entre paréntesis. Antes de aplicar
+pide confirmar «Cambiar a …», porque recalcula costo, bodegas, regional e impuesto de cada línea y
+vuelve a borrador (`PATCH /billing-center`). Los precios nuevos y las cantidades se conservan.
+Con varios C.O., debajo dice cuál es el **más costoso** y en cuántas referencias puso el costo
+cada uno (cuenta los `cost_center` de las líneas; sin montos, para que los asesores no vean
+costos). Si la lista tiene bodegas propias (`centers_set_cost: false`), avisa que el C.O. solo
+cambia la regional del impuesto al consumo. En «Nueva cotización» el selector de un solo C.O.
+(`billing-center-select.tsx`) tampoco muestra ya la regional.
 
 **Cliente temporal.** En «Nueva cotización», «Cliente temporal» pide nombre y razón social
 (obligatorios), nombre comercial y NIT (opcionales) y el C.O. desde donde se cotiza. La cotización
@@ -99,11 +107,12 @@ importación» quedan como chips aparte cuando aplican.
 múltiple; las opciones son los valores únicos de las líneas de esa cotización, `category` y
 `supplier_name`) y «Borrar filtros». Los encabezados numéricos ordenan de mayor a menor o de
 menor a mayor desde un menú; los que tienen dos cifras (precios sugeridos, precio nuevo y su
-margen) ofrecen las dos.
+margen) ofrecen las dos. Para quien valida, «Precios sugeridos» ordena también por el costo más
+alto.
 
 **Tabla.** Bloques de dos o tres renglones, sin scroll lateral: producto (descripción, SKU,
 proveedor y unidad), «Último precio sin IVA» (margen con apoyo y fecha), «Precios sugeridos»
-(«Precio sugerido margen mínimo» y «margen óptimo»), «Precio nuevo sin IVA» con el margen nuevo
+(«Óptimo» y «Mínimo», en ese orden; sin la palabra margen), «Precio nuevo sin IVA» con el margen nuevo
 debajo del campo, apoyo, IVA, «Imp. consumo» (impuesto al consumo por unidad, `value_tax_amount`),
 «Precio con IVA», cantidad (si se cotiza con cantidades) y variación. Cada margen lleva un badge
 con ícono y palabras: cumple, en rango o bajo el mínimo; el tooltip «Alertas de margen» de la
@@ -124,8 +133,15 @@ suspensivos. Los anchos se recuerdan en el navegador (`localStorage`, `jdh-cotiz
 La barra de búsqueda, filtros y acciones también se acomoda al ancho del contenido (container
 queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
 
-- **Costo**: no se muestra a nadie, en ningún área, ni en la tabla ni en el detalle (decisión del
-  2026-11-10). El API sigue enviándolo y lo usa para la regla.
+- **Costo**: los asesores no lo ven (decisión del 2026-11-10). Quien valida (BI, `can_validate`)
+  ve el **costo más alto** justo debajo de los precios sugeridos, separado por una línea; al pasar
+  el mouse, con un clic, un toque o el foco del teclado se abre su desglose: cotización del
+  proveedor e inventario (marcando cuál es el mayor), la cotización descartada si la hay, el C.O.
+  del costo y la nota de cómo se calcula (el mayor, redondeado al peso hacia arriba y con el factor
+  de la lista).
+- **Plantilla** (solo quien valida, en cualquier estado): botón en la cabecera que descarga
+  `lines.xlsx`, cada línea con los datos de la tabla y sus costos para cruzarlos con SIESA. Es de
+  consulta: no se sube de vuelta.
 - **Categorías**: el API completa las de cotizaciones guardadas antes de `0050` la primera vez
   que se abren, así el filtro aparece sin «Refrescar».
 
@@ -141,14 +157,15 @@ indicadores.
   (`3.323`), `,00` o `.0` al final se descartan (lo que pega Excel) y cualquier decimal se
   rechaza en la celda con «El precio va en pesos enteros, sin decimales».
 
-**Asignación masiva de precio.** Sección propia, abierta por defecto. «Asignar con» margen
-óptimo (el `optimal_price` de cada línea), margen mínimo (`min_price`) o personalizado (un
+**Asignación masiva de precio.** Sección propia, abierta por defecto. «Asignar con» óptimo (el
+`optimal_price` de cada línea), mínimo (`min_price`) o personalizado (un
 margen con apoyo en puntos, que va como `margin_pct`) y «Aplicar a las seleccionadas»; en la
 misma fila, a la derecha, «Filtradas (N)», «Limpiar precios» (con confirmación) y una X para
 quitar la selección. La explicación vive en el tooltip «Alertas de margen». Resultados y errores
 salen como notificaciones, nunca como texto bajo el panel; lo que no se pudo calcular queda
-seleccionado y la notificación dice por qué. La plantilla masiva de Excel se retiró: todo se
-gestiona en la plataforma.
+seleccionado y la notificación dice por qué. La plantilla masiva de Excel (la que se subía de
+vuelta) se retiró: los precios se gestionan en la plataforma. La «Plantilla» de BI es solo de
+consulta.
 
 **Crear producto.** Junto a «Agregar productos»: descripción, proveedor (opcional), precio
 estimado sin IVA e IVA 19, 5 o 0 %. `POST /local-lines` lo crea como `LOC-n`, origen `local`
@@ -206,15 +223,25 @@ migración `0052`.
    (`lista_precio_id`) y el vendedor. Si las sucursales no coinciden, la cotización lo advierte
    (`listas_distintas`, `co_distintos`). Las referencias del histórico quedan atadas a la lista que
    el cliente tiene asignada.
-   - **CO inicial** (`cod_co_factura`): si alguna sucursal activa factura desde un CO de la Costa
-     (`004`), se toma el CO de la Costa más frecuente entre ellas (paga el impuesto de licores de la
-     Costa); si no, el más frecuente. `co_distintos` sigue avisando que facturan desde varios.
-   - **CO elegido**: el asesor puede cotizar desde otro CO activo (al crear con
-     `billing_center_code` o con `PATCH /billing-center`). `billing_center_source` dice `auto` o
-     `manual`; un refresco conserva el elegido. Cambiarlo recalcula cada línea con la regional
-     (impuesto de licores) y el plan de bodegas del CO, y vuelve a borrador. El plan de bodegas
-     sigue la regla de la skill: una lista con bodega fija (tabla del paso 4) la conserva aunque
-     cambie el CO; el CO decide las bodegas de las listas fuera de la tabla y de un cliente temporal.
+   - **CO que factura** (`billing_center_code`, de `cod_co_factura`): si alguna sucursal activa
+     factura desde un CO de la Costa (`004`), se toma el CO de la Costa más frecuente entre ellas
+     (paga el impuesto de licores de la Costa); si no, el más frecuente. `co_distintos` sigue
+     avisando que facturan desde varios.
+   - **CO del costo** (`cost_centers`): de qué bodegas sale el costo de cada línea.
+     - **Nacional** (`cost_centers` vacío): el **mayor costo de todas las bodegas**, referencia por
+       referencia (las 17 bodegas de la lista 1, tabla del paso 4). Es el valor inicial de un cliente
+       **nacional**: el que factura desde varios CO (`co_distintos`), si su lista no tiene bodegas
+       propias. Nacional va sola: no se combina con otros CO.
+     - **Un CO**: sus bodegas. Es el valor inicial de un cliente que factura desde un solo CO.
+     - **Varios CO**: cada referencia toma el **más costoso** de ellos, y la línea dice cuál fue
+       (`cost_center`). Un empate va al primero por código.
+   - **CO elegido**: el asesor puede cambiar el CO del costo (al crear, un CO con
+     `billing_center_code`; después, Nacional o uno o varios CO con `PATCH /billing-center`).
+     `billing_center_source` dice `auto` o `manual`; un refresco conserva la elección. Cambiarla
+     recalcula cada línea con la regional (impuesto de licores) y las bodegas, y vuelve a borrador.
+     Una lista con bodegas fijas (tabla del paso 4, y la lista 1) las conserva aunque cambie el CO
+     (`centers_set_cost: false`): el CO decide las bodegas de las listas fuera de la tabla y de un
+     cliente temporal.
 2. **Último precio** (`consumo.ventas`): por referencia se toma la **última venta de cada CO que
    facturó** (`ventas.co`) en la ventana y, entre ellas, la de **mayor precio neto**; su fecha,
    documento y unidad son los `last_*`. Dentro de un CO, un empate de fecha va al documento mayor,
@@ -253,15 +280,19 @@ migración `0052`.
    | 35P | URA6 | URA6 |
    | 1 | el mayor entre MDE1, MDE3, MDE4, OCC1, OCC16, OCC14, BTA9, BTA8, BTA20, CTG1, CTG15, CTG14, BGA1, BGA11, BAQ1, BAQ2, BAQ10 | |
 
-   Una lista que no está en la tabla (31A, 62Y…) usa las bodegas del **CO que factura** al
-   cliente (001 → MDE1/MDE3, 002 → OCC1/OCC16, 003 → BTA9/BTA8, 004 → CTG1/CTG15, 005 → BGA1,
-   009 → BAQ1/BAQ2). Sin CO, o con un CO fuera de esa lista (006, 007, 008, 010, 100, 200, 201),
-   el mayor de las bodegas de la lista 1. La cabecera dice cuál se usó (`stock_source`).
+   Una lista que no está en la tabla (31A, 62Y…) usa las bodegas del **CO del costo** (paso 1):
+   001 → MDE1/MDE3, 002 → OCC1/OCC16, 003 → BTA9/BTA8, 004 → CTG1/CTG15, 005 → BGA1,
+   009 → BAQ1/BAQ2. Nacional, o un CO fuera de esa lista (006, 007, 008, 010, 100, 200, 201), toma
+   el mayor de las bodegas de la lista 1. Con varios CO se lee el costo de cada uno (a la vez) y
+   cada referencia se queda con el mayor. La cabecera dice cuál se usó (`stock_source`: las bodegas
+   de un CO, «Nacional: mayor costo entre todas las bodegas» o «Mayor costo entre los C.O. 001,
+   003»).
 5. **Impuesto**: solo el **impuesto al consumo de licores** (`consumo.producto_impuestos`, llave
    `0011` importados o `0024` nacionales). El valor es el que SIESA tiene en la lista del cliente
    (`precios_lista_vigentes.impoconsumo_valor`); si la lista no lo trae, el del maestro de
-   márgenes según la **regional** del cliente: **Costa** si factura desde el CO `004`, Nacional
-   para el resto (`regional` en la cabecera). El IVA no se muestra ni se suma.
+   márgenes según la **regional**: **Costa** si alguno de los CO del costo es el `004`; con
+   Nacional, la del CO que factura; Nacional para el resto (`regional` en la cabecera). El IVA no
+   se muestra ni se suma.
 6. **Margen objetivo**: el del producto para el canal del cliente, como en el validador:
    `MAYORISTAS Y DISTRIBUIDORES` y `SUBDISTRIBUIDOR` → Margen Mayoristas; `SALSAMENTARIAS` →
    Margen Salsamentarias; cualquier otro canal (o sin canal) → Margen Lista 1. Si un apoyo aplica
@@ -422,7 +453,18 @@ administradores; ellos leen todas las cotizaciones aunque no sean del área come
 - Asignar la lista nueva al cliente se hace **a mano en SIESA**: el registro `0201` de clientes
   reescribe la sucursal completa (vendedor, cupo, dirección…) y no se automatiza.
 
-La plantilla para cambios masivos (`template.xlsx`) se retiró: todo se gestiona en la plataforma.
+La plantilla para cambios masivos (`template.xlsx`, que se subía de vuelta) se retiró: los precios
+se gestionan en la plataforma.
+
+**Plantilla de BI** (`lines.xlsx`): solo de consulta, para que quien valida cruce los costos con
+SIESA. Trae cada línea con los datos de la tabla y sus costos: el costo más alto, de dónde salió,
+el CO del costo, la cotización del proveedor, el costo de inventario y la cotización descartada.
+Hoja `Lineas` (una fila por línea) y hoja `Cotizacion` (cliente, lista, CO del costo, bodega,
+regional, corte). Solo quien valida la descarga (403 para el resto): lleva costos, que los asesores
+no ven. Se escribe con openpyxl en modo de solo escritura (las filas van directo al archivo, sin
+fórmulas, validaciones ni formatos condicionales) y en un hilo aparte, para que una cotización
+grande no frene la API ni pese al abrirla. La oferta y el Excel de SIESA también se escriben en un
+hilo aparte.
 
 ## Formato de actualización
 
@@ -489,14 +531,15 @@ Decimales en texto; márgenes y variación como fracción (`0.18` = 18 %).
 | `DELETE /quotations/{id}/lines/{sku}?version=N` | Quita una referencia **agregada**, **inactiva** o **solo para cotización** |
 | `PATCH /quotations/{id}/offer` | `{version, validity_days?, conditions?, include_seller?, quote_quantities?, offer_scope?: changed \| all, include_variation?}`: solo cambian las llaves enviadas (`null` deja el valor). En cualquier estado y sin cambiarlo; sube la versión; 409 por versión. Una vigencia nueva empieza hoy |
 | `GET /quotations/{id}/offer.xlsx` | La oferta para el cliente, en cualquier estado, para quien puede leer la cotización |
-| `PATCH /quotations/{id}/billing-center` | `{version, billing_center_code}`: cotiza desde ese CO (`manual`) y recalcula regional, plan de bodegas, costo, impuesto de licores, objetivo, mínimo, óptimo, márgenes y cumplimiento de cada línea; conserva precios nuevos, cantidades y productos locales. Mismas reglas que `/refresh` (vuelve a borrador; 409 por versión o pendiente de validación). 422 si el CO no existe o está inactivo |
-| `POST /quotations/{id}/refresh` | `{version}`: reconstruye desde el DWH conservando los precios nuevos y el CO elegido; los productos solo para cotización quedan iguales, al final. Un cliente temporal no tiene ventas: se recalculan sus líneas |
+| `PATCH /quotations/{id}/billing-center` | `{version, national: true}` (Nacional) o `{version, cost_centers: [...]}` (uno o varios CO; `billing_center_code` sigue sirviendo para uno): fija el CO del costo (`manual`) y recalcula regional, bodegas, costo, impuesto de licores, objetivo, mínimo, óptimo, márgenes y cumplimiento de cada línea; conserva precios nuevos, cantidades y productos locales. Mismas reglas que `/refresh` (vuelve a borrador; 409 por versión o pendiente de validación). 422 si un CO no existe o está inactivo, o si llega Nacional con CO o ninguno de los dos |
+| `POST /quotations/{id}/refresh` | `{version}`: reconstruye desde el DWH conservando los precios nuevos y el CO del costo elegido; los productos solo para cotización quedan iguales, al final. Un cliente temporal no tiene ventas: se recalculan sus líneas |
 | `POST /quotations/{id}/confirm` | `{version, list_action?, new_list_name?, activation_date?}` → `pendiente_validacion`. La regla no bloquea; 422 si no hay ninguna línea activa con precio nuevo, si la lista 1 o un cliente temporal se quiere actualizar, o la fecha es anterior a hoy. Ya no recibe `price_list_id` |
 | `POST /quotations/{id}/return` | `{version, note}` → `borrador`. Quien valida debe escribir la nota |
 | `POST /quotations/{id}/validate` | `{version, price_list_id?, new_list_name?}` → `pendiente_carga`. Solo quien valida. Para `creacion`, `price_list_id` es obligatorio (1 a 3 letras o números, que no exista en SIESA); fija `export_price_list_id` |
 | `POST /quotations/{id}/uploaded` | `{version}`: de `pendiente_carga` a `cargada`, con `uploaded_by` y `uploaded_at`. Solo quien valida (403); 409 desde otro estado |
 | `GET /quotations/{id}/export.xlsx` | El Excel (solo `pendiente_carga`/`cargada`; si no, 409) |
 | `GET /quotations/{id}/export.txt` | El plano SIESA (solo `pendiente_carga`/`cargada`; si no, 409) |
+| `GET /quotations/{id}/lines.xlsx` | La plantilla de BI: cada línea con sus costos, en cualquier estado. Solo quien valida (403 para el resto) |
 | `DELETE /quotations/{id}` | 204. Quien la creó o un administrador |
 
 **Resumen** (lista): `id, customer_nit, customer_name, channel, price_list_id, window_months,
@@ -507,7 +550,8 @@ valid_until, is_temporary_customer, temporary_customer: {name, legal_name, trade
 (fechas `AAAA-MM-DD`). `price_list_id` es `null` en un cliente temporal.
 
 **Cotización completa**: el resumen más `channel_code, price_list_name, price_list_customers,
-billing_center_code, billing_center_name, billing_center_source: auto | manual, regional,
+billing_center_code, billing_center_name, cost_centers (vacío = Nacional), centers_set_cost,
+billing_center_source: auto | manual, regional,
 regional_label, price_family, price_family_label, stock_source, salesperson_code,
 salesperson_name, built_at, cost_cut_date, activation_date, new_list_name,
 max_points_below_target, warnings: [{code, label}], confirmed_by, validated_by, review_note,
@@ -529,6 +573,7 @@ vat_groups: [{vat_pct, base, vat}], liquor_tax, total} | null` y `lines`.
 | `value_tax_key`, `value_tax_name`, `value_tax_amount` | impuesto de licores por unidad, según la lista o la regional |
 | `cost`, `cost_source`, `cost_source_label` | costo de la regla y de dónde salió |
 | `quote_cost`, `inventory_cost`, `discarded_quote_cost` | la cotización usada, el inventario de la bodega y la cotización descartada por fuera de rango |
+| `cost_center` | el CO cuyas bodegas dieron el costo; `null` con Nacional o con una lista de bodegas fijas |
 | `target_margin_pct`, `margin_basis`, `min_margin_pct` | objetivo y mínimo permitido |
 | `min_price`, `optimal_price` | precio mínimo que cumple la regla y precio al margen objetivo |
 | `below_target` | el último precio deja el margen bajo el mínimo (alerta) |
