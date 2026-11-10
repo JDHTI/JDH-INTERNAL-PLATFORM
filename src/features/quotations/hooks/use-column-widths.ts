@@ -48,6 +48,33 @@ function load(): Record<ColumnKey, number> {
   }
 }
 
+/**
+ * The narrowest each fixed column can be without its figures or fields spilling
+ * into the next one: its min-content width, read off the table as it is now. An
+ * auto-layout table squeezed to nothing lays every column out at exactly that
+ * width; the styles go back before the browser paints, so nothing flickers.
+ */
+function measureContent(table: HTMLTableElement, columns: ColumnKey[]): Partial<Record<ColumnKey, number>> {
+  const cols = Array.from(table.querySelectorAll<HTMLTableColElement>(":scope > colgroup > col"));
+  const header = table.tHead?.rows[0];
+  if (!header || header.cells.length !== cols.length) return {};
+  const first = cols.length - columns.length;
+  const saved = { layout: table.style.tableLayout, width: table.style.width, cols: cols.map((col) => col.style.width) };
+  table.style.tableLayout = "auto";
+  table.style.width = "0";
+  for (const col of cols) col.style.width = "0";
+  const fit: Partial<Record<ColumnKey, number>> = {};
+  columns.forEach((key, index) => {
+    fit[key] = Math.ceil(header.cells[first + index].getBoundingClientRect().width);
+  });
+  table.style.tableLayout = saved.layout;
+  table.style.width = saved.width;
+  cols.forEach((col, index) => {
+    col.style.width = saved.cols[index];
+  });
+  return fit;
+}
+
 function save(widths: Record<ColumnKey, number>) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
@@ -63,7 +90,9 @@ function save(widths: Record<ColumnKey, number>) {
  * Moving the divider between two fixed columns is zero-sum: one grows what
  * the other loses, so the table never changes width. The divider after the
  * product column trades with the first fixed column, and never leaves the
- * product narrower than PRODUCT_MIN.
+ * product narrower than PRODUCT_MIN. No column gets narrower than what its
+ * content needs (prices, margins, the input), measured when a divider starts
+ * to move.
  */
 export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   // The table only renders in the browser, once the quotation has loaded (the server sends the
@@ -71,10 +100,16 @@ export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   const [widths, setWidths] = useState<Record<ColumnKey, number>>(() => (typeof window === "undefined" ? COLUMN_DEFAULTS : load()));
   const tableRef = useRef<HTMLTableElement>(null);
   const drag = useRef<{ boundary: number; x: number; start: Record<ColumnKey, number> } | null>(null);
+  const fit = useRef<Partial<Record<ColumnKey, number>>>({});
+
+  const measure = () => {
+    if (tableRef.current) fit.current = measureContent(tableRef.current, columns);
+  };
 
   /** `boundary` 0 is the divider after the product column; n is between columns n-1 and n. */
   const move = useCallback(
     (boundary: number, dx: number, from: Record<ColumnKey, number>) => {
+      const floor = (key: ColumnKey) => Math.max(COLUMN_MIN[key], fit.current[key] ?? 0);
       const next = { ...from };
       if (boundary === 0) {
         const first = columns[0];
@@ -82,11 +117,11 @@ export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
         const used = columns.reduce((sum, key) => sum + from[key], 0) + fixedExtra;
         const slack = Math.max(0, table - used - PRODUCT_MIN);
         // Moving it right narrows the first column and widens the product.
-        next[first] = Math.min(from[first] + slack, Math.max(COLUMN_MIN[first], from[first] - dx));
+        next[first] = Math.min(from[first] + slack, Math.max(floor(first), from[first] - dx));
       } else {
         const left = columns[boundary - 1];
         const right = columns[boundary];
-        const shift = Math.min(from[right] - COLUMN_MIN[right], Math.max(COLUMN_MIN[left] - from[left], dx));
+        const shift = Math.min(from[right] - floor(right), Math.max(floor(left) - from[left], dx));
         next[left] = from[left] + shift;
         next[right] = from[right] - shift;
       }
@@ -98,6 +133,7 @@ export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   const startDrag = (boundary: number, event: React.PointerEvent<HTMLElement>) => {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    measure();
     drag.current = { boundary, x: event.clientX, start: widths };
   };
 
@@ -121,6 +157,7 @@ export function useColumnWidths(columns: ColumnKey[], fixedExtra: number) {
   const onKey = (boundary: number, event: React.KeyboardEvent<HTMLElement>) => {
     const step = event.shiftKey ? 32 : 8;
     let next: Record<ColumnKey, number> | null = null;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") measure();
     if (event.key === "ArrowLeft") next = move(boundary, -step, widths);
     else if (event.key === "ArrowRight") next = move(boundary, step, widths);
     else if (event.key === "Enter") next = COLUMN_DEFAULTS;

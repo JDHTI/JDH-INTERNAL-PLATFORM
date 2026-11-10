@@ -597,7 +597,7 @@ function LastSale({ line, alignStart = false }: { line: QuotationLine; alignStar
     .join(", ");
   return (
     <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
-      <span className="block font-semibold" title={origin || undefined}>{formatMoney(line.last_price)}</span>
+      <span className="block whitespace-nowrap font-semibold" title={origin || undefined}>{formatMoney(line.last_price)}</span>
       <span className="block"><MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} /></span>
       {line.last_sale_date && (
         <span className="block whitespace-nowrap text-xs text-text-secondary" title={`Facturado el ${formatDay(line.last_sale_date)}`}>
@@ -619,11 +619,11 @@ function Bounds({ line }: { line: QuotationLine }) {
     <dl className="space-y-0.5 text-[13px] tabular-nums">
       <div className={row} title={`Precio sugerido margen mínimo. ${MIN_PRICE_HELP}`}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">margen mínimo</dt>
-        <dd className="font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
+        <dd className="whitespace-nowrap font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
       </div>
       <div className={row} title={`Precio sugerido margen óptimo. ${OPTIMAL_PRICE_HELP}`}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">margen óptimo</dt>
-        <dd className="font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
+        <dd className="whitespace-nowrap font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
       </div>
     </dl>
   );
@@ -661,7 +661,8 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         aria-describedby={error ? errorId : undefined}
         className={cn(
           "bg-surface text-right tabular-nums",
-          wide ? "h-11 w-40" : "h-8 w-full",
+          // The floor keeps a seven-digit price readable when the column is narrowed.
+          wide ? "h-11 w-40" : "h-8 w-full min-w-24",
           editor.isDirty(line.sku) && !error && "border-text-primary"
         )}
       />
@@ -718,7 +719,7 @@ function QuantityCell({ line, editor, editable, wide = false }: { line: Quotatio
         aria-describedby={error ? errorId : undefined}
         className={cn(
           "bg-surface text-right tabular-nums",
-          wide ? "h-11 w-28" : "h-8 w-full",
+          wide ? "h-11 w-28" : "h-8 w-full min-w-20",
           editor.isDirty(line.sku, "quantity") && !error && "border-text-primary"
         )}
       />
@@ -766,7 +767,7 @@ function Vat({ line }: { line: QuotationLine }) {
 function ConsumptionTax({ line }: { line: QuotationLine }) {
   const amount = toNumber(line.value_tax_amount);
   if (amount === null || amount === 0) return dash;
-  return <span title={line.value_tax_name ?? undefined}>{formatMoney(amount)}</span>;
+  return <span className="whitespace-nowrap" title={line.value_tax_name ?? undefined}>{formatMoney(amount)}</span>;
 }
 
 /**
@@ -776,7 +777,7 @@ function ConsumptionTax({ line }: { line: QuotationLine }) {
 function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignStart?: boolean }) {
   const withVat = priceWithVat(line);
   if (withVat === null) return dash;
-  return <span className={cn("block font-semibold tabular-nums", alignStart ? "text-left" : "text-right")}>{formatMoney(withVat)}</span>;
+  return <span className={cn("block whitespace-nowrap font-semibold tabular-nums", alignStart ? "text-left" : "text-right")}>{formatMoney(withVat)}</span>;
 }
 
 /**

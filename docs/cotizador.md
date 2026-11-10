@@ -114,8 +114,10 @@ con cantidades; container query, así el sidebar abierto o cerrado decide); por 
 Entre columnas hay un divisor visible desde «Último». El del encabezado se mueve: se arrastra, o
 con foco se usan las flechas (Mayús para pasos de 32 px); Enter o doble clic restablecen los
 anchos (`use-column-widths.ts`). Mover el divisor entre dos columnas reparte el ancho entre ellas;
-el que sigue al producto cambia la primera columna y nunca deja el producto en menos de 176 px. Los
-anchos se recuerdan en el navegador (`localStorage`, `jdh-cotizador-columnas`).
+el que sigue al producto cambia la primera columna y nunca deja el producto en menos de 176 px.
+Ninguna columna queda más angosta que su contenido: al empezar a mover un divisor se mide el ancho
+mínimo de cada una (montos sin partir, los campos de precio y cantidad con su ancho mínimo) y ese es
+el tope. Los anchos se recuerdan en el navegador (`localStorage`, `jdh-cotizador-columnas`).
 
 La barra de búsqueda, filtros y acciones también se acomoda al ancho del contenido (container
 queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
