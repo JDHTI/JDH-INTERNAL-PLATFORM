@@ -22,7 +22,6 @@ import {
 import { canPreview, Preview } from "./case-files";
 import { EventSentence, RailIcon, eventIcon, isMessageEvent } from "./event-line";
 import { formatDateTime, formatRelativeTime, stripCid, stripReplyDivider } from "../lib/format";
-import { accessSentence, groupAccess } from "../lib/timeline";
 import { downloadCaseFile } from "../services/pqrsf.service";
 import type {
   CaseEvent,
@@ -32,6 +31,8 @@ import type {
 } from "../types/pqrsf.types";
 import CcPicker from "./cc-picker";
 import ForwardToCustomerDialog from "./forward-to-customer-dialog";
+
+const OPENING_EVENT_TYPES: ReadonlySet<string> = new Set(["read", "viewed"]);
 
 const MAX_FILES = 10;
 const MB = 1024 * 1024;
@@ -272,9 +273,11 @@ export default function CaseTimeline({
       }
     );
   };
-  const entries = groupAccess(
-    [...events].sort((a, b) => a.created_at.localeCompare(b.created_at))
-  );
+  // Who opened the case lives in its own popover (API #55). An older API still
+  // sends those events here, so they are left out by type instead of by version.
+  const entries = events
+    .filter((event) => !OPENING_EVENT_TYPES.has(event.event_type))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const filesOf = (event: CaseEvent) =>
     (caseFiles.data ?? []).filter(
       (file) => file.comment_event_id === event.id || commentFileIds(event).includes(file.id)
@@ -290,19 +293,7 @@ export default function CaseTimeline({
         <p className="text-sm text-text-secondary">Todavía no hay movimientos registrados.</p>
       ) : (
         <ol className="ml-3 border-l border-border">
-          {entries.map((entry) => {
-            if (entry.kind === "access") {
-              const last = entry.events.at(-1)!;
-              const sentence = accessSentence(entry);
-              return (
-                <li key={entry.key} className="relative pb-4 pl-6 last:pb-0">
-                  <RailIcon icon={eventIcon(last)} className="absolute top-0 -left-3" />
-                  <EventSentence actor={sentence.actor} title={sentence.title} muted />
-                  <EntryTime iso={last.created_at} />
-                </li>
-              );
-            }
-            const { event } = entry;
+          {entries.map((event) => {
             // Text people wrote reads as a message; a system note reads as a caption.
             const isMessage = isMessageEvent(event);
             return (

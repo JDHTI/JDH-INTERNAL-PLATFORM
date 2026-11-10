@@ -41,6 +41,7 @@ import { DueLabel, NewsBadge } from "./case-badges";
 import CaseClassification from "./case-classification";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
 import CaseItems from "./case-items";
+import CaseOpenings from "./case-openings";
 import CaseProducts from "./case-products";
 import CaseTimeline from "./case-timeline";
 import CaseFiles from "./case-files";
@@ -242,9 +243,12 @@ function CaseHeader({
               </>
             )}
           </p>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-text-secondary">Vence</span>
-            <DueLabel item={item} layout="inline" />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span className="flex items-center gap-2">
+              <span className="text-text-secondary">Vence</span>
+              <DueLabel item={item} layout="inline" />
+            </span>
+            <CaseOpenings caseId={item.id} />
           </div>
         </div>
 
