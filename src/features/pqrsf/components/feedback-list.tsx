@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { CloudOff, Lock, Paperclip, ThumbsUp } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { DateRangePicker, type IsoDateRange } from "@/shared/components/ui/date-range-picker";
@@ -70,21 +71,23 @@ export default function FeedbackList({ area }: { area: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Sugerencias y felicitaciones</h1>
-        <p className="text-sm text-text-secondary">
-          No abren caso: se guardan aparte y quien escribe recibe una respuesta automática firmada
-          «PQRSF JDH».
-          {summary.data && (
-            <>
-              {" "}
-              <span className="tabular">
-                {summary.data.unread} sin leer de {summary.data.total}.
-              </span>
-            </>
-          )}
-        </p>
-      </div>
+      <PageHeader
+        title="Sugerencias y felicitaciones"
+        description={
+          <>
+            No abren caso: se guardan aparte y quien escribe recibe una respuesta automática firmada
+            «PQRSF JDH».
+            {summary.data && (
+              <>
+                {" "}
+                <span className="tabular">
+                  {summary.data.unread} sin leer de {summary.data.total}.
+                </span>
+              </>
+            )}
+          </>
+        }
+      />
 
       {forbidden ? (
         <StatePanel icon={Lock} title="Esta vista es para quienes gestionan PQRSF">

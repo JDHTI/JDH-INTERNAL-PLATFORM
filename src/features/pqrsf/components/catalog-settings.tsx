@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CloudOff, Lock, Plus } from "lucide-react";
 import { toast } from "sonner";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -67,12 +68,10 @@ export default function CatalogSettings({ area }: { area: string }) {
         <ArrowLeft className="size-4" aria-hidden="true" />
         Volver a la bandeja
       </Link>
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Configuración de PQRSF</h1>
-        <p className="text-sm text-text-secondary">
-          Nada se borra: lo que ya no se usa se desactiva y los casos antiguos lo conservan.
-        </p>
-      </div>
+      <PageHeader
+        title="Configuración de PQRSF"
+        description="Nada se borra: lo que ya no se usa se desactiva y los casos antiguos lo conservan."
+      />
     </div>
   );
 

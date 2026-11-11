@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CloudOff, History, Loader2, Lock } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
@@ -106,13 +107,10 @@ export default function ActivityHistory({ area }: { area: string }) {
   return (
     <div className="space-y-6">
       {back}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Historial de PQRSF</h1>
-        <p className="text-sm text-text-secondary">
-          Quién hizo qué y cuándo en todos los casos, incluidos los eliminados, y quién entró a la
-          bandeja. Los accesos se guardan 90 días; los cambios, siempre.
-        </p>
-      </div>
+      <PageHeader
+        title="Historial de PQRSF"
+        description="Quién hizo qué y cuándo en todos los casos, incluidos los eliminados, y quién entró a la bandeja. Los accesos se guardan 90 días; los cambios, siempre."
+      />
 
       {forbidden ? (
         <StatePanel icon={Lock} title="El historial es para quienes gestionan PQRSF">

@@ -63,7 +63,10 @@ export interface PriceIncreasePage {
 }
 
 export interface PriceIncreaseParams {
+  /** Reference prefix or description. */
   q: string;
+  /** A commercial supplier code, picked from the options; never typed. */
+  supplier: string;
   status: IncreaseStatus | "";
   /** Only the ones SIESA does not have yet. */
   pending: boolean;
@@ -73,14 +76,45 @@ export interface PriceIncreaseParams {
   size: number;
 }
 
-/** The last year (default), two years or the whole history, by increase date. */
-export type AnalysisPeriod = "12m" | "24m" | "all";
+/** A commercial supplier with references in the history. */
+export interface SupplierOption {
+  code: string;
+  name: string | null;
+  references: number;
+}
+
+/** A month with increases taking effect, "YYYY-MM". */
+export interface MonthOption {
+  month: string;
+  changes: number;
+  references: number;
+}
+
+/** What the supplier and month dropdowns offer (`/commercial/price-increases/options`). */
+export interface IncreaseFilterOptions {
+  suppliers: SupplierOption[];
+  /** The latest month first. */
+  months: MonthOption[];
+}
+
+/** The last month, the last year (default), two years or the whole history, by increase date. */
+export type AnalysisPeriod = "1m" | "12m" | "24m" | "all";
 export type AnalysisSort = "accumulated" | "increases" | "frequency" | "last_change" | "sku";
+
+/**
+ * The window the analysis covers: a preset up to the latest row, a calendar
+ * month, or a range of days ("YYYY-MM-DD", both included).
+ */
+export type AnalysisWindow =
+  | { kind: "preset"; period: AnalysisPeriod }
+  | { kind: "month"; month: string }
+  | { kind: "range"; from: string; to: string };
 
 /** One reference over the period (`/commercial/price-increases/analysis`). */
 export interface ReferenceAnalysis {
   sku: string;
   description: string | null;
+  supplier_code: string | null;
   supplier_name: string | null;
   category: string | null;
   changes: number;
@@ -117,14 +151,16 @@ export interface AnalysisPage {
   size: number;
   /** Counts of the search, before the movement filter. */
   summary: AnalysisSummary;
-  /** First day of the period; null for the whole history. */
+  /** First and last day of the period; null is an open end (both for the whole history). */
   since: string | null;
+  until: string | null;
 }
 
 export interface AnalysisParams {
-  period: AnalysisPeriod;
+  window: AnalysisWindow;
   movement: IncreaseStatus | "";
   q: string;
+  supplier: string;
   sort: AnalysisSort;
   order: "asc" | "desc";
   page: number;

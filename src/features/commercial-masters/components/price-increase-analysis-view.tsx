@@ -7,6 +7,8 @@ import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { DateRangePicker } from "@/shared/components/ui/date-range-picker";
+import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -15,18 +17,22 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { usePriceIncreaseAnalysis } from "../hooks/use-commercial-masters";
-import type { AnalysisPeriod, AnalysisSort, IncreaseStatus, ReferenceAnalysis } from "../types/price-increases.types";
-import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
+import { usePriceIncreaseAnalysis, usePriceIncreaseOptions } from "../hooks/use-commercial-masters";
+import type { AnalysisPeriod, AnalysisSort, AnalysisWindow, IncreaseStatus, ReferenceAnalysis } from "../types/price-increases.types";
+import { INCREASE_STATUS, describePeriod, formatChange, formatIncreaseDay, formatMonth } from "./increase-format";
+import IncreaseSupplierFilter from "./increase-supplier-filter";
 import ReferenceIncreasesDialog from "./reference-increases-dialog";
 
 const PAGE_SIZE = 50;
 const numberFormat = new Intl.NumberFormat("es-CO");
 const PERIODS: { value: AnalysisPeriod; label: string }[] = [
+  { value: "1m", label: "Último mes" },
   { value: "12m", label: "Último año" },
   { value: "24m", label: "2 años" },
   { value: "all", label: "Todo el histórico" },
 ];
+const DEFAULT_WINDOW: AnalysisWindow = { kind: "preset", period: "12m" };
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 /** The movement filter, in plural: what the references did in the period. */
 const MOVEMENT_FILTERS: { value: IncreaseStatus; label: string }[] = [
   { value: "subio", label: "Subieron" },
@@ -36,25 +42,44 @@ const MOVEMENT_FILTERS: { value: IncreaseStatus; label: string }[] = [
 
 /**
  * How much each reference moved in a period, by when its increases took
- * effect: the last year by default, two years or the whole history. Four
- * figures for the period, the movement as chips that filter (with counts), and
- * one row per reference sorted by how much it went up. A row opens the
- * reference's whole history with a chart of its cost.
+ * effect: the last year by default; the last month, two years, the whole
+ * history, one calendar month or a range of days. The period in words, four
+ * figures for it, the movement as chips that filter (with counts), and one row
+ * per reference sorted by how much it went up. References are typed; the
+ * supplier is picked from a list. A row opens the reference's whole history
+ * with a chart of its cost.
  */
 export default function PriceIncreaseAnalysisView() {
-  const [period, setPeriod] = useState<AnalysisPeriod>("12m");
+  const [period, setPeriod] = useState<AnalysisWindow>(DEFAULT_WINDOW);
   const [movement, setMovement] = useState<IncreaseStatus | "">("");
   const [text, setText] = useState("");
+  const [supplier, setSupplier] = useState("");
   const [sort, setSort] = useState<AnalysisSort>("accumulated");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReferenceAnalysis | null>(null);
   const q = useDebouncedValue(text.trim());
-  const query = usePriceIncreaseAnalysis({ period, movement, q, sort, order, page, size: PAGE_SIZE });
+  const query = usePriceIncreaseAnalysis({ window: period, movement, q, supplier, sort, order, page, size: PAGE_SIZE });
+  const options = usePriceIncreaseOptions();
   const result = query.data;
   const rows = result?.items ?? [];
   const summary = result?.summary;
-  const filtered = q !== "" || movement !== "";
+  const filtered = q !== "" || supplier !== "" || movement !== "";
+  const supplierName = options.data?.suppliers.find((item) => item.code === supplier)?.name ?? supplier;
+  const months = (options.data?.months ?? []).map((item) => ({
+    value: item.month,
+    label: (
+      <>
+        {capitalize(formatMonth(item.month))}
+        <span className="text-text-secondary"> · {numberFormat.format(item.references)} ref.</span>
+      </>
+    ),
+  }));
+
+  const choose = (next: AnalysisWindow) => {
+    setPeriod(next);
+    setPage(1);
+  };
 
   const sortBy = (next: AnalysisSort) => {
     if (next === sort) setOrder((current) => (current === "desc" ? "asc" : "desc"));
@@ -66,6 +91,7 @@ export default function PriceIncreaseAnalysisView() {
   };
   const clear = () => {
     setText("");
+    setSupplier("");
     setMovement("");
     setPage(1);
   };
@@ -77,17 +103,37 @@ export default function PriceIncreaseAnalysisView() {
           {PERIODS.map((item) => (
             <ToggleChip
               key={item.value}
-              active={period === item.value}
-              onClick={() => {
-                setPeriod(item.value);
-                setPage(1);
-              }}
+              active={period.kind === "preset" && period.period === item.value}
+              onClick={() => choose({ kind: "preset", period: item.value })}
             >
               {item.label}
             </ToggleChip>
           ))}
         </div>
-        <div className="relative min-w-60 flex-1 lg:ml-auto lg:max-w-sm lg:flex-none">
+        <div className="w-full sm:w-56">
+          <Dropdown
+            aria-label="Un mes"
+            options={months}
+            value={period.kind === "month" ? period.month : ""}
+            onValueChange={(month) => choose(month ? { kind: "month", month } : DEFAULT_WINDOW)}
+            placeholder={options.data ? "Un mes" : "Cargando meses…"}
+            disabled={months.length === 0}
+            clearable
+            clearLabel="Quitar el mes"
+          />
+        </div>
+        <div className="w-full sm:w-64">
+          <DateRangePicker
+            label="Rango de fechas"
+            placeholder="Rango de fechas"
+            value={period.kind === "range" ? { from: period.from, to: period.to } : {}}
+            onChange={({ from, to }) => choose(from && to ? { kind: "range", from, to } : DEFAULT_WINDOW)}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-60 flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <Input
             type="search"
@@ -96,12 +142,28 @@ export default function PriceIncreaseAnalysisView() {
               setText(event.target.value);
               setPage(1);
             }}
-            placeholder="Referencia, descripción o proveedor"
-            aria-label="Buscar en el análisis de alzas"
-            className="pl-9 lg:w-80"
+            placeholder="Referencia o descripción"
+            aria-label="Buscar en el análisis de alzas por referencia o descripción"
+            className="pl-9"
           />
         </div>
+        <IncreaseSupplierFilter
+          suppliers={options.data?.suppliers}
+          value={supplier}
+          onChange={(code) => {
+            setSupplier(code);
+            setPage(1);
+          }}
+        />
       </div>
+
+      {result && (
+        <p className="text-sm" aria-live="polite">
+          Alzas con fecha de incremento {describePeriod(result.since, result.until)}
+          {supplier && <>, de {supplierName}</>}
+          {q && <>, con «{q}» en la referencia o la descripción</>}.
+        </p>
+      )}
 
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-live="polite">
         <Figure label="Referencias con cambios" value={summary ? numberFormat.format(summary.references) : null} />
@@ -157,11 +219,11 @@ export default function PriceIncreaseAnalysisView() {
       ) : rows.length === 0 ? (
         filtered ? (
           <StatePanel icon={FileX2} title="Ninguna referencia coincide con los filtros" action={<Button variant="outline" onClick={clear}>Limpiar filtros</Button>}>
-            Prueba con otro texto, otro movimiento u otro periodo.
+            Prueba con otro texto, otro proveedor, otro movimiento u otro periodo.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Ninguna referencia tuvo cambios en el periodo">
-            Prueba con «2 años» o «Todo el histórico», o carga el acumulado de alzas en el histórico.
+            Prueba con un periodo más largo, como «Último año» o «Todo el histórico», o carga el acumulado de alzas en el histórico.
           </StatePanel>
         )
       ) : (
@@ -189,8 +251,8 @@ export default function PriceIncreaseAnalysisView() {
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs tabular-nums text-text-secondary">
-                {numberFormat.format(result.total)} {result.total === 1 ? "referencia" : "referencias"}
-                {result.since ? ` con cambios desde el ${formatIncreaseDay(result.since)}` : " en todo el histórico"}
+                {numberFormat.format(result.total)} {result.total === 1 ? "referencia" : "referencias"} con cambios{" "}
+                {describePeriod(result.since, result.until)}
               </span>
               <Pager page={result.page} size={result.size} total={result.total} count={rows.length} onPageChange={setPage} />
             </div>

@@ -4,9 +4,10 @@ import { requireModule } from "@/features/areas/server/area-access";
 import CommercialMasterTable from "@/features/commercial-masters/components/commercial-master-table";
 import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/price-increase-analysis-view";
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
-import ProductsViewsNav, { VIEW_DESCRIPTIONS, productsView } from "@/features/commercial-masters/components/products-views-nav";
 import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
+import { productsView, productsViews } from "@/features/commercial-masters/config/products-views";
 import { COMMERCIAL_MASTERS_AREA_SLUG } from "@/shared/config/areas.config";
+import PageHeader from "@/shared/components/page-header";
 
 export default async function MaestroPage({
   params,
@@ -25,10 +26,11 @@ export default async function MaestroPage({
     const view = productsView((await searchParams).vista);
     return (
       <div className="space-y-6">
-        <div className="space-y-2">
-          <ProductsViewsNav path={`/${area}/${MASTERS_SEGMENT}/${master.key}`} view={view} />
-          <p className="text-sm text-text-secondary">{view === "maestro" ? master.description : VIEW_DESCRIPTIONS[view]}</p>
-        </div>
+        <PageHeader
+          views={productsViews(`/${area}/${MASTERS_SEGMENT}/${master.key}`, master.description)}
+          current={view}
+          viewsLabel="Vistas de productos"
+        />
         {view === "alzas" ? (
           <PriceIncreasesView />
         ) : view === "analisis" ? (
@@ -42,10 +44,7 @@ export default async function MaestroPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{master.name}</h1>
-        <p className="text-sm text-text-secondary">{master.description}</p>
-      </div>
+      <PageHeader title={master.name} description={master.description} />
       {/* Keyed so paging and search start over when the dropdown changes master. */}
       <CommercialMasterTable key={master.key} masterKey={master.key} />
     </div>

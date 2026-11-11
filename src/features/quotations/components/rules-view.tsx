@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, BookX } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
@@ -43,13 +44,10 @@ export default function QuotationRulesView({ basePath }: { basePath: string }) {
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> Cotizador
         </Link>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Reglas del cotizador</h1>
-          <p className="max-w-prose text-sm text-text-secondary">
-            De dónde sale cada número de una cotización y qué precio nuevo deja generar el formato de SIESA, con los
-            valores vigentes.
-          </p>
-        </div>
+        <PageHeader
+          title="Reglas del cotizador"
+          description="De dónde sale cada número de una cotización y qué precio nuevo deja generar el formato de SIESA, con los valores vigentes."
+        />
       </div>
 
       {rules.isPending ? (
