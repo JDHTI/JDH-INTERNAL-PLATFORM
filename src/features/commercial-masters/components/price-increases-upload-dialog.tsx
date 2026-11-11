@@ -22,7 +22,7 @@ const numberFormat = new Intl.NumberFormat("es-CO");
  */
 export default function PriceIncreasesUploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()} isForm wide title="Cargar alzas">
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()} isForm narrow title="Cargar alzas">
       {open && <Uploader onClose={onClose} />}
     </Dialog>
   );
@@ -82,7 +82,7 @@ function Uploader({ onClose }: { onClose: () => void }) {
         />
         <Button variant={report ? "outline" : "primary"} onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
           {upload.isPending && !report ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
-          {file ? "Elegir otro archivo" : "Elegir el acumulado (.xlsx)"}
+          {file ? "Otro archivo" : "Elegir archivo .xlsx"}
         </Button>
         {file && (
           <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
@@ -130,9 +130,9 @@ function Report({ report }: { report: PriceIncreaseReport }) {
       {extras.length > 0 && <p className="text-[13px] text-text-secondary">{extras.join(" · ")}</p>}
       {report.issues.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer font-medium">
-            Celdas que no se pudieron leer ({numberFormat.format(report.issues.length)}
-            {report.issues_truncated ? "+" : ""}): esa celda queda vacía, la fila sí se carga
+          <summary className="cursor-pointer font-medium" title="Esa celda queda vacía; la fila sí se carga.">
+            Celdas sin leer ({numberFormat.format(report.issues.length)}
+            {report.issues_truncated ? "+" : ""})
           </summary>
           <div className="mt-2 max-h-48 overflow-auto rounded-lg border border-border">
             <table className="w-full text-left text-[13px]">
