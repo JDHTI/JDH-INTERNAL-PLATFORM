@@ -155,7 +155,11 @@ queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
   - **Descripción:** una frase dice el periodo completo con las fechas que devolvió la API («Alzas
     con fecha de incremento en octubre de 2026, de ALPINA.»).
   - **Filtros:** la referencia o la descripción se escriben; el proveedor se elige de una lista
-    (`increase-supplier-filter.tsx`; escribir solo acota la lista).
+    (`increase-supplier-filter.tsx`; escribir solo acota la lista). Todos van en un panel
+    (`shared/components/filter-panel.tsx`, el mismo del histórico):
+    - **Campos:** buscador, proveedor, mes y rango en una fila de columnas iguales que se angostan
+      cuando se abre la barra lateral, en lugar de partirse en dos filas.
+    - **Chips:** debajo, los de periodo a un lado y los de movimiento al otro.
   - **Cifras y chips:** cuatro cifras (referencias con cambios, alzas, alza típica, pendientes en
     SIESA) y chips «Subieron», «Bajaron» y «Estables» con conteo.
   - **Tabla:** una fila por referencia con cambio en el periodo (costo inicial → final), alzas,

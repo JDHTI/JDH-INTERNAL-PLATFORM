@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CloudOff, FileX2, RefreshCw, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
+import FilterPanel from "@/shared/components/filter-panel";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
@@ -65,58 +66,73 @@ export default function PriceIncreasesView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-60 flex-1 lg:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
-          <Input
-            type="search"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Referencia o descripción"
-            aria-label="Buscar en el histórico de alzas por referencia o descripción"
-            className="pl-9"
-          />
-        </div>
-        <IncreaseSupplierFilter
-          suppliers={options.data?.suppliers}
-          value={supplier}
-          onChange={(code) => {
-            setSupplier(code);
-            setPage(1);
-          }}
-        />
-        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
-          {(Object.keys(STATUS) as IncreaseStatus[]).map((key) => (
-            <ToggleChip key={key} active={status === key} onClick={() => chooseStatus(key)} count={counts?.[key]}>
-              {STATUS[key].label}
+      {/* The same panel as the analysis: the two fields in one row, the
+          states as chips below and, at the other end, clearing and loading. */}
+      <FilterPanel
+        label="Filtros del histórico"
+        columns="md:grid-cols-2"
+        fields={
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+              <Input
+                type="search"
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Referencia o descripción"
+                aria-label="Buscar en el histórico de alzas por referencia o descripción"
+                className="pl-9"
+              />
+            </div>
+            <IncreaseSupplierFilter
+              className="w-full"
+              suppliers={options.data?.suppliers}
+              value={supplier}
+              onChange={(code) => {
+                setSupplier(code);
+                setPage(1);
+              }}
+            />
+          </>
+        }
+        chips={
+          <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
+            {(Object.keys(STATUS) as IncreaseStatus[]).map((key) => (
+              <ToggleChip key={key} active={status === key} onClick={() => chooseStatus(key)} count={counts?.[key]}>
+                {STATUS[key].label}
+              </ToggleChip>
+            ))}
+            <ToggleChip
+              active={pending}
+              onClick={() => {
+                setPending((current) => !current);
+                setPage(1);
+              }}
+              count={counts?.pendientes}
+              title="Sin fecha de actualización en SIESA: el cotizador compara su costo nuevo"
+            >
+              Pendientes en SIESA
             </ToggleChip>
-          ))}
-          <ToggleChip
-            active={pending}
-            onClick={() => {
-              setPending((current) => !current);
-              setPage(1);
-            }}
-            count={counts?.pendientes}
-            title="Sin fecha de actualización en SIESA: el cotizador compara su costo nuevo"
-          >
-            Pendientes en SIESA
-          </ToggleChip>
-        </div>
-        {filtered && (
-          <Button variant="ghost" size="sm" onClick={clear}>
-            Limpiar filtros
-          </Button>
-        )}
-        {result?.can_manage && (
-          <Button variant="outline" className="ml-auto" onClick={() => setUploading(true)}>
-            <Upload aria-hidden="true" /> Cargar alzas
-          </Button>
-        )}
-      </div>
+          </div>
+        }
+        end={
+          <>
+            {filtered && (
+              <Button variant="ghost" size="sm" onClick={clear}>
+                Limpiar filtros
+              </Button>
+            )}
+            {result?.can_manage && (
+              <Button variant="outline" onClick={() => setUploading(true)}>
+                <Upload aria-hidden="true" /> Cargar alzas
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {query.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando el histórico de alzas" />
