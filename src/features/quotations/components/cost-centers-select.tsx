@@ -1,18 +1,18 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Loader2, Search } from "lucide-react";
 
+import { Badge } from "@/shared/components/ui/badge";
 import { Input } from "@/shared/components/ui/input";
 import { useDismissablePanel } from "@/shared/hooks/use-dismissable-panel";
 import { cn } from "@/shared/lib/utils";
 
-import { useBillingCenters } from "../hooks/use-quotations";
-import type { BillingCenter } from "../types/quotations.types";
+import { useBillingCenters, useCostCentersComparison } from "../hooks/use-quotations";
+import type { BillingCenter, Quotation } from "../types/quotations.types";
 import { centerLabel } from "./billing-center-select";
 
 export const NATIONAL_LABEL = "Nacional";
-export const NATIONAL_HELP = "El costo más alto de todas las bodegas, referencia por referencia.";
 /** From this many centers on, the panel gets a search box. */
 const SEARCH_FROM = 8;
 
@@ -27,26 +27,30 @@ export function costCentersLabel(codes: string[], centers: BillingCenter[] | und
  * Where the cost of every line comes from: Nacional, alone, or one or more
  * operation centers. Nacional and the centers exclude each other: ticking
  * Nacional clears the centers, ticking a center clears Nacional, and leaving
- * no center ticked is Nacional again. The panel is a group of real checkboxes,
- * so Tab, Space and screen readers work as anywhere else; Escape and a click
+ * no center ticked is Nacional again. With two or more ticked, the panel asks
+ * the API which one costs the most for this quotation's references and marks
+ * it, before anything is applied. The panel is a group of real checkboxes, so
+ * Tab, Space and screen readers work as anywhere else; Escape and a click
  * outside close it.
  */
 export default function CostCentersSelect({
   id,
+  quotation,
   value,
   onChange,
   disabled = false,
-  describedBy,
 }: {
   id: string;
+  quotation: Pick<Quotation, "id" | "version">;
   /** Chosen centers by code; empty is Nacional. */
   value: string[];
   onChange: (codes: string[]) => void;
   disabled?: boolean;
-  describedBy?: string;
 }) {
   const panelId = useId();
   const centers = useBillingCenters();
+  const comparison = useCostCentersComparison(quotation.id, quotation.version, value);
+  const costliest = value.length > 1 ? comparison.data?.highest ?? null : null;
   const { containerRef, triggerRef, isOpen, setIsOpen } = useDismissablePanel<HTMLDivElement>();
   const [query, setQuery] = useState("");
   const options = centers.data ?? [];
@@ -79,7 +83,6 @@ export default function CostCentersSelect({
         disabled={disabled || centers.isPending || centers.isError}
         aria-expanded={isOpen}
         aria-controls={isOpen ? panelId : undefined}
-        aria-describedby={describedBy}
         onClick={() => {
           setQuery("");
           setIsOpen(!isOpen);
@@ -103,22 +106,16 @@ export default function CostCentersSelect({
           aria-label="C.O. del costo"
           className="absolute left-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border border-border-control bg-surface p-1 shadow-lg"
         >
-          <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-canvas-subtle max-md:min-h-11">
+          <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm font-medium hover:bg-canvas-subtle max-md:min-h-11">
             <input
               type="checkbox"
               checked={national}
               onChange={() => onChange([])}
-              className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+              className="size-4 shrink-0 accent-[var(--primary)]"
             />
-            <span className="min-w-0">
-              <span className="block font-medium">{NATIONAL_LABEL}</span>
-              <span className="block text-[13px] text-text-secondary">{NATIONAL_HELP} No se combina con otros C.O.</span>
-            </span>
+            {NATIONAL_LABEL}
           </label>
           <div className="mx-2 my-1 border-t border-border" />
-          <p className="px-2 py-1 text-[13px] text-text-secondary">
-            O uno o varios C.O.: con varios, cada referencia toma el más costoso.
-          </p>
           {options.length >= SEARCH_FROM && (
             <div className="relative p-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
@@ -144,11 +141,20 @@ export default function CostCentersSelect({
                     className="size-4 shrink-0 accent-[var(--primary)]"
                   />
                   <span className="min-w-0 flex-1 truncate" title={centerLabel(center)}>{centerLabel(center)}</span>
+                  {costliest === center.code && (
+                    <Badge tone="warning" className="shrink-0 px-1.5 py-0 text-xs">Más costoso</Badge>
+                  )}
+                  {value.length > 1 && selected.has(center.code) && comparison.isFetching && (
+                    <Loader2 className="size-3.5 shrink-0 animate-spin text-text-secondary" aria-hidden="true" />
+                  )}
                 </label>
               </li>
             ))}
             {shown.length === 0 && <li className="px-2 py-2 text-sm text-text-secondary">Ningún C.O. coincide con «{query.trim()}».</li>}
           </ul>
+          <p className="sr-only" aria-live="polite">
+            {costliest ? `Más costoso: ${costCentersLabel([costliest], options)}` : ""}
+          </p>
         </div>
       )}
     </div>

@@ -26,7 +26,6 @@ import { choiceLabel } from "@/features/supports/lib/format";
 
 import { type ColumnKey, useColumnWidths } from "../hooks/use-column-widths";
 import type { LineEditor } from "../hooks/use-line-editor";
-import { useBillingCenters } from "../hooks/use-quotations";
 import { formatDay, formatMargin, formatMoney, formatShortDay, formatVariation } from "../lib/format";
 import {
   type Sort,
@@ -40,7 +39,6 @@ import {
 } from "../lib/line-status";
 import { offerAmounts } from "../lib/offer";
 import type { QuotationLine } from "../types/quotations.types";
-import { costCentersLabel } from "./cost-centers-select";
 import { ComplianceBadge } from "./quotation-badges";
 
 /** Row selection for the bulk actions; absent when the quotation cannot be edited. */
@@ -645,8 +643,8 @@ function CostBreakdown({ line }: { line: QuotationLine }) {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
-          <Popover.Popup className="w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface-raised p-3 text-sm text-text-primary shadow-modal outline-none">
-            <Popover.Title className="mb-2 text-sm font-semibold">Desglose del costo</Popover.Title>
+          <Popover.Popup className="w-56 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface-raised px-2.5 py-2 text-[13px] text-text-primary shadow-modal outline-none">
+            <Popover.Title className="sr-only">Desglose del costo</Popover.Title>
             <CostParts line={line} />
           </Popover.Popup>
         </Popover.Positioner>
@@ -655,48 +653,35 @@ function CostBreakdown({ line }: { line: QuotationLine }) {
   );
 }
 
+/**
+ * The values the rule compared, one per row, the one it took in bold (and
+ * named for screen readers). Empty sources are left out; nothing else is said.
+ */
 function CostParts({ line }: { line: QuotationLine }) {
-  const centers = useBillingCenters();
-  const parts: { label: string; value: string | null; empty: string; used: boolean }[] = [
-    { label: "Cotización del proveedor", value: line.quote_cost, empty: "Sin cotización vigente", used: line.cost_source === "cotizacion" },
-    { label: "Inventario", value: line.inventory_cost, empty: "Sin costo de inventario", used: line.cost_source === "inventario" },
-  ];
+  const parts = [
+    { label: "Cotización", value: line.quote_cost, used: line.cost_source === "cotizacion" },
+    { label: "Inventario", value: line.inventory_cost, used: line.cost_source === "inventario" },
+    { label: "Alza pendiente", value: line.increase_cost, used: line.cost_source === "alza" },
+    { label: "Descartada", value: line.discarded_quote_cost, used: false },
+  ].filter((part) => toNumber(part.value) !== null);
   return (
-    <div className="space-y-2">
-      <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 tabular-nums">
-        {parts.map((part) => (
-          <div key={part.label} className="contents">
-            <dt className={cn(part.used ? "font-medium" : "text-text-secondary")}>
-              {part.label}
-              {part.used && <span className="text-text-secondary"> · el mayor</span>}
-            </dt>
-            <dd className={cn("text-right", part.used ? "font-semibold" : "text-text-secondary")}>
-              {toNumber(part.value) === null ? part.empty : formatMoney(part.value)}
-            </dd>
-          </div>
-        ))}
-        {toNumber(line.discarded_quote_cost) !== null && (
-          <div className="contents">
-            <dt className="text-text-secondary">Cotización descartada</dt>
-            <dd className="text-right text-text-secondary">{formatMoney(line.discarded_quote_cost)}</dd>
-          </div>
-        )}
-        {line.cost_center && (
-          <div className="contents">
-            <dt className="text-text-secondary">C.O. del costo</dt>
-            <dd className="text-right">{costCentersLabel([line.cost_center], centers.data)}</dd>
-          </div>
-        )}
-      </dl>
-      <p className="flex items-baseline justify-between gap-3 border-t border-border pt-1.5 tabular-nums">
-        <span className="font-medium">Costo más alto</span>
-        <span className="font-semibold">{formatMoney(line.cost)}</span>
-      </p>
-      <p className="text-[13px] text-text-secondary">
-        El mayor de los dos, redondeado al peso hacia arriba y con el factor de la lista.
-        {toNumber(line.discarded_quote_cost) !== null && " La cotización descartada pasa de 3 veces el último costo: no se usa."}
-      </p>
-    </div>
+    <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 tabular-nums">
+      {parts.map((part) => (
+        <div key={part.label} className="contents">
+          <dt className={part.used ? "font-medium" : "text-text-secondary"}>
+            {part.label}
+            {part.used && <span className="sr-only">, el que se toma</span>}
+          </dt>
+          <dd className={cn("text-right", part.used ? "font-semibold" : "text-text-secondary")}>{formatMoney(part.value)}</dd>
+        </div>
+      ))}
+      {line.cost_center && (
+        <div className="contents">
+          <dt className="text-text-secondary">C.O.</dt>
+          <dd className="text-right">{line.cost_center}</dd>
+        </div>
+      )}
+    </dl>
   );
 }
 

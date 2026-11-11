@@ -52,8 +52,9 @@ export function getQuotation(id: string): Promise<Quotation> {
  * comes back empty with the `sin_ventas` warning. The validity starts at the
  * API's default and is set while confirming.
  */
-export function createQuotation(customerNit: string, windowMonths: WindowMonths): Promise<Quotation> {
-  return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths } });
+/** `empty`: no lines from the sales history; the advisor adds the references, and a refresh never brings the history in. */
+export function createQuotation(customerNit: string, windowMonths: WindowMonths, empty = false): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths, with_history: !empty } });
 }
 
 /** A customer SIESA does not have: an empty quotation, priced from the chosen operation center. */
@@ -67,6 +68,15 @@ export function createTemporaryQuotation(input: TemporaryQuotationInput): Promis
  * (each line takes the costliest). Cost, regional, liquor tax and suggested
  * prices change for every line; the new prices stay. Back to draft, like a refresh.
  */
+/**
+ * Which of two or more centers costs the most for the quotation's references
+ * (the highest sum of their unit costs), before choosing them. No amounts:
+ * the advisors do not see costs. `highest` is null when they cost the same.
+ */
+export function compareCostCenters(id: string, codes: string[]): Promise<{ highest: string | null }> {
+  return apiFetch<{ highest: string | null }>(`${one(id)}/cost-centers/compare`, { query: { codes } });
+}
+
 export function updateCostCenters(id: string, version: number, codes: string[]): Promise<Quotation> {
   const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes };
   return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body });

@@ -8,11 +8,15 @@ import {
   downloadMarginTemplate,
   getProduct,
   listCommercialMaster,
+  listPriceIncreases,
+  setPriceIncreaseDate,
   setProductMargins,
   updateProduct,
   uploadMargins,
+  uploadPriceIncreases,
 } from "../services/commercial-masters.service";
 import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
+import type { PriceIncreaseParams } from "../types/price-increases.types";
 
 export const commercialMasterKeys = {
   all: ["commercial-masters"] as const,
@@ -69,6 +73,39 @@ export function useUploadMargins() {
     onSuccess: (report) => {
       if (report.applied) return client.invalidateQueries({ queryKey: commercialMasterKeys.all });
     },
+  });
+}
+
+const increaseKeys = {
+  all: [...commercialMasterKeys.all, "price-increases"] as const,
+  list: (params: PriceIncreaseParams) => [...increaseKeys.all, params] as const,
+};
+
+export function usePriceIncreases(params: PriceIncreaseParams) {
+  return useQuery({
+    queryKey: increaseKeys.list(params),
+    queryFn: () => listPriceIncreases(params),
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Simulating writes nothing; applying refreshes the history. */
+export function useUploadPriceIncreases() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, apply }: { file: File; apply: boolean }) => uploadPriceIncreases(file, apply),
+    onSuccess: (report) => {
+      if (report.applied) return client.invalidateQueries({ queryKey: increaseKeys.all });
+    },
+  });
+}
+
+export function useSetPriceIncreaseDate() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, day }: { id: string; day: string | null }) => setPriceIncreaseDate(id, day),
+    onSuccess: () => client.invalidateQueries({ queryKey: increaseKeys.all }),
   });
 }
 

@@ -18,7 +18,7 @@ import { WINDOW_OPTIONS } from "../lib/format";
 import { QUOTATIONS_BASE } from "../services/quotations.service";
 import type { CustomerScope, WindowMonths } from "../types/quotations.types";
 import BillingCenterSelect from "./billing-center-select";
-import { ToggleChip } from "./toggle-chip";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const MAX_TEXT = 120;
@@ -57,15 +57,17 @@ const WINDOW_HINT: Record<WindowMonths, string> = {
   12: "Incluye referencias de temporada o de rotación lenta.",
 };
 
-type Kind = "existing" | "temporary";
+/** Whose customers to search, or a customer SIESA does not have yet. */
+type Mode = CustomerScope | "temporary";
 
 /**
- * New quotation, as a modal over the list: a SIESA customer and the sales
- * window, or a temporary customer (one SIESA does not have yet) quoted from
- * scratch from a chosen operation center. The validity is set while
- * confirming. Building from SIESA reads the DWH (2 to 15 seconds, more when it
- * is cold), so while it runs the dialog cannot be dismissed: closing it would
- * leave a request running that later navigates away on its own.
+ * New quotation, as a compact modal over the list: one row picks all
+ * customers, the seller's own, or (at the far right) a temporary one that
+ * SIESA does not have yet. A SIESA customer is built from the sales window,
+ * or starts empty for the advisor to add references. The validity is set
+ * while confirming. Building from SIESA reads the DWH, so while it runs the
+ * dialog cannot be dismissed: closing it would leave a request running that
+ * later navigates away on its own.
  */
 export default function NewQuotationDialog({
   basePath,
@@ -86,7 +88,6 @@ export default function NewQuotationDialog({
       }}
       isForm
       title="Nueva cotización"
-      description="Para un cliente de SIESA toma el último precio de cada referencia, con el costo de hoy, el margen objetivo de su canal y los apoyos vigentes. Para uno que aún no existe, empieza vacía."
     >
       {open && <NewQuotationForm basePath={basePath} create={create} onCancel={() => onOpenChange(false)} />}
     </Dialog>
@@ -109,25 +110,29 @@ function NewQuotationForm({
   const salesScope = permissions.data?.sales_scope ?? "none";
   // Without a portfolio there is no SIESA customer to list, but a temporary one can still be quoted.
   const portfolio = salesScope !== "none";
-  const [kindChoice, setKindChoice] = useState<Kind>("existing");
-  const kind: Kind = portfolio ? kindChoice : "temporary";
-  const [scopeChoice, setScopeChoice] = useState<CustomerScope | null>(null);
+  // Only whoever sees every customer chooses between all and their own; the rest get their portfolio.
+  const canChoose = salesScope === "all";
+  const [modeChoice, setModeChoice] = useState<Mode | null>(null);
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
+  const [empty, setEmpty] = useState(false);
   const [temp, setTemp] = useState({ name: "", legalName: "", tradeName: "", nit: "" });
   const [center, setCenter] = useState("");
   const [errors, setErrors] = useState<Partial<Record<"name" | "legalName" | "center", string>>>({});
   const [error, setError] = useState<string | null>(null);
 
-  // Only whoever sees every customer chooses; for the rest the API answers with their portfolio.
-  const canChoose = salesScope === "all";
   // Without a linked seller "mis clientes" is always empty, so it starts on everyone.
-  const scope: CustomerScope = canChoose ? (scopeChoice ?? (sellerLinked ? "mine" : "all")) : "mine";
+  const defaultMode: Mode = !portfolio ? "temporary" : canChoose && !sellerLinked ? "all" : "mine";
+  const mode: Mode = !portfolio ? "temporary" : (modeChoice ?? defaultMode);
+  const kind = mode === "temporary" ? "temporary" : "existing";
+  const scope: CustomerScope = mode === "all" && canChoose ? "all" : "mine";
 
-  const chooseScope = (next: CustomerScope) => {
-    setScopeChoice(next);
+  const chooseMode = (next: Mode) => {
+    setModeChoice(next);
     setCustomer(null);
+    setError(null);
   };
+  const noPortfolio = "Aún no tienes cartera asignada: pide a TI que te vincule con tu código de vendedor.";
 
   const done = {
     onSuccess: (quotation: { id: string }) => router.push(`${basePath}/${quotation.id}`),
@@ -142,7 +147,7 @@ function NewQuotationForm({
         setError("Elige el cliente que vas a cotizar.");
         return;
       }
-      create.mutate({ kind: "existing", customerNit: customer.value, windowMonths }, done);
+      create.mutate({ kind: "existing", customerNit: customer.value, windowMonths, empty }, done);
       return;
     }
     const found: typeof errors = {};
@@ -172,58 +177,43 @@ function NewQuotationForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
+    <form onSubmit={submit} className="space-y-4" noValidate>
       {/* min-w-0: a fieldset defaults to min-content width, which defeats the chip's truncation. */}
-      <fieldset disabled={create.isPending} className="min-w-0 space-y-5">
-        <div role="group" aria-label="Tipo de cliente" className="flex flex-wrap gap-2">
-          <ToggleChip active={kind === "existing"} onClick={() => setKindChoice("existing")} disabled={!portfolio}>
-            Cliente de SIESA
+      <fieldset disabled={create.isPending} className="min-w-0 space-y-4">
+        {/* The temporary customer sits at the far right: it is the exception, not the usual path. */}
+        <div role="group" aria-label="Cliente a cotizar" className="flex flex-wrap items-center gap-2">
+          {canChoose && (
+            <ToggleChip active={mode === "all"} onClick={() => chooseMode("all")}>
+              Todos los clientes
+            </ToggleChip>
+          )}
+          <ToggleChip
+            active={mode === "mine"}
+            onClick={() => chooseMode("mine")}
+            disabled={!portfolio || (canChoose && !sellerLinked)}
+            title={
+              !portfolio
+                ? noPortfolio
+                : canChoose && !sellerLinked
+                  ? "No estás vinculado como vendedor: busca en «Todos los clientes»."
+                  : salesScope === "team"
+                    ? "Los clientes de los vendedores de tu equipo."
+                    : permissions.data?.seller
+                      ? `La cartera de ${permissions.data.seller.name} (${permissions.data.seller.code}).`
+                      : undefined
+            }
+          >
+            {salesScope === "team" ? "Clientes de mi equipo" : "Mis clientes"}
           </ToggleChip>
-          <ToggleChip active={kind === "temporary"} onClick={() => setKindChoice("temporary")}>
-            Cliente temporal
-          </ToggleChip>
+          <span className="ml-auto">
+            <ToggleChip active={mode === "temporary"} onClick={() => chooseMode("temporary")}>
+              Cliente temporal (nuevo)
+            </ToggleChip>
+          </span>
         </div>
-        {!portfolio && permissions.data && (
-          <p className="text-[13px] text-text-secondary">
-            Aún no tienes cartera asignada, así que solo puedes cotizar un cliente temporal. Para los de SIESA, pide a TI que te
-            vincule con tu código de vendedor en Solicitudes de soporte.
-          </p>
-        )}
 
         {kind === "existing" ? (
           <>
-            <div className="space-y-2">
-              {canChoose ? (
-                <>
-                  <div role="group" aria-label="Clientes a buscar" className="flex flex-wrap gap-2">
-                    <ToggleChip active={scope === "mine"} onClick={() => chooseScope("mine")}>
-                      Mis clientes
-                    </ToggleChip>
-                    <ToggleChip active={scope === "all"} onClick={() => chooseScope("all")}>
-                      Todos los clientes
-                    </ToggleChip>
-                  </div>
-                  {permissions.data && !sellerLinked && (
-                    <p className="text-[13px] text-text-secondary">
-                      No estás vinculado como vendedor, así que «Mis clientes» no tiene a quién listar. Puedes cotizar cualquier cliente
-                      desde «Todos los clientes».
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-[13px] text-text-secondary">
-                  {salesScope === "team"
-                    ? "Puedes cotizar los clientes de los vendedores de tu equipo."
-                    : "Puedes cotizar los clientes de tu cartera."}
-                </p>
-              )}
-              {permissions.data?.seller && (
-                <p className="text-[13px] text-text-secondary">
-                  Mis clientes: la cartera de {permissions.data.seller.name} ({permissions.data.seller.code}).
-                </p>
-              )}
-            </div>
-
             <BasePicker
               key={scope}
               config={customerPicker(scope)}
@@ -235,15 +225,18 @@ function NewQuotationForm({
               onClear={() => setCustomer(null)}
             />
 
-            <fieldset className="min-w-0 space-y-2">
-              <legend className="text-[13px] font-medium">Ventana de ventas</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div role="radiogroup" aria-label="Ventana de ventas" className="flex items-center gap-2">
+                <span className="text-[13px] font-medium" aria-hidden="true">Ventas de los</span>
                 {WINDOW_OPTIONS.map((months) => (
                   <label
                     key={months}
+                    title={WINDOW_HINT[months]}
                     className={cn(
-                      "flex cursor-pointer gap-3 rounded-md border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
-                      windowMonths === months ? "border-primary bg-primary-subtle" : "border-border-control hover:bg-canvas-subtle"
+                      "inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm max-md:min-h-11",
+                      "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
+                      "has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50",
+                      windowMonths === months ? "border-primary bg-primary-subtle font-medium" : "border-border-control hover:bg-canvas-subtle"
                     )}
                   >
                     <input
@@ -252,24 +245,30 @@ function NewQuotationForm({
                       value={months}
                       checked={windowMonths === months}
                       onChange={() => setWindowMonths(months)}
-                      className="mt-0.5 size-4 accent-[var(--primary)]"
+                      disabled={empty}
+                      className="size-4 accent-[var(--primary)]"
                     />
-                    <span className="space-y-0.5">
-                      <span className="block text-sm font-medium">Últimos {months} meses</span>
-                      <span className="block text-[13px] text-text-secondary">{WINDOW_HINT[months]}</span>
-                    </span>
+                    {months} meses
                   </label>
                 ))}
               </div>
-            </fieldset>
+              <label
+                className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm max-md:min-h-11"
+                title="Sin el histórico de ventas: agregas las referencias a cotizar."
+              >
+                <input
+                  type="checkbox"
+                  checked={empty}
+                  onChange={(event) => setEmpty(event.target.checked)}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                Empezar vacía
+              </label>
+            </div>
           </>
         ) : (
           <>
-            <p className="text-[13px] text-text-secondary">
-              Para un cliente que aún no existe en SIESA. Queda registrado en la cotización, empieza sin productos y al confirmar
-              se le crea una lista nueva.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Nombre" htmlFor={`${id}-name`} error={errors.name}>
                 <Input
                   id={`${id}-name`}
@@ -306,7 +305,7 @@ function NewQuotationForm({
                 />
               </Field>
             </div>
-            <Field label="C.O. desde el que se cotiza" htmlFor={`${id}-center`} error={errors.center} hint="Define el costo, las bodegas y la regional de los precios.">
+            <Field label="Centro de operación" htmlFor={`${id}-center`} error={errors.center}>
               <BillingCenterSelect
                 id={`${id}-center`}
                 value={center}
@@ -321,11 +320,6 @@ function NewQuotationForm({
         )}
       </fieldset>
 
-      {create.isPending && kind === "existing" && (
-        <p className="text-[13px] text-text-secondary" aria-live="polite">
-          Leyendo las ventas, el costo y los apoyos del cliente en el datawarehouse. Suele tardar entre 2 y 15 segundos.
-        </p>
-      )}
       <DialogError message={error} />
       <DialogFooter>
         <Button variant="outline" onClick={onCancel} disabled={create.isPending} className="max-md:h-11">
@@ -333,7 +327,9 @@ function NewQuotationForm({
         </Button>
         <Button type="submit" disabled={create.isPending} className="max-md:h-11">
           {create.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Calculator aria-hidden="true" />}
-          {create.isPending ? "Armando cotización…" : kind === "existing" ? "Armar cotización" : "Crear cotización"}
+          <span aria-live="polite">
+            {create.isPending ? "Armando cotización…" : kind === "existing" && !empty ? "Armar cotización" : "Crear cotización"}
+          </span>
         </Button>
       </DialogFooter>
     </form>
