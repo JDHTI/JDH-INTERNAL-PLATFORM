@@ -10,6 +10,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
+import { Switch } from "@/shared/components/ui/switch";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber, type Decimal } from "@/shared/lib/format";
@@ -20,6 +21,7 @@ import { useCommercialMaster } from "../hooks/use-commercial-masters";
 import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
 import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
+import PriceIncreasesView from "./price-increases-view";
 import ProductDialog from "./product-dialog";
 
 const PAGE_SIZE = 50;
@@ -44,6 +46,8 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
   const [openSku, setOpenSku] = useState<string | null>(null);
   const [updatingMargins, setUpdatingMargins] = useState(false);
   const [marginSku, setMarginSku] = useState<string | null>(null);
+  // Products only: the price increase history takes the table's place.
+  const [showIncreases, setShowIncreases] = useState(false);
   // The same managers who load the margin file edit one product's margins by hand.
   const editsMargins = master.key === "productos" && canManage;
   const q = useDebouncedValue(text.trim());
@@ -59,8 +63,18 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
     setPage(1);
   };
 
+  if (master.key === "productos" && showIncreases) {
+    return (
+      <div className="space-y-3">
+        <IncreasesSwitch checked onChange={setShowIncreases} />
+        <PriceIncreasesView />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {master.key === "productos" && <IncreasesSwitch checked={false} onChange={setShowIncreases} />}
       <div className="flex flex-col gap-2 lg:flex-row">
         <div className="relative flex-1 lg:max-w-xl">
           <Search
@@ -195,6 +209,19 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
           <MarginEditDialog sku={marginSku} onClose={() => setMarginSku(null)} />
         </>
       )}
+    </div>
+  );
+}
+
+/** Switches the products master between its table and the price increase history. */
+function IncreasesSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <div className="flex justify-end">
+      {/* The switch is a button inside the label: the text names it and toggles it too. */}
+      <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm font-medium">
+        Histórico de alza de precios
+        <Switch checked={checked} onCheckedChange={onChange} />
+      </label>
     </div>
   );
 }

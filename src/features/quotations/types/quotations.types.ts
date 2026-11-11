@@ -200,7 +200,8 @@ export interface SupportCandidate {
   reason: string;
 }
 
-export type CostSource = "cotizacion" | "inventario";
+/** `alza`: a price increase the product master has and SIESA does not yet (no system update date). */
+export type CostSource = "cotizacion" | "inventario" | "alza";
 
 export interface QuotationLine {
   sku: string;
@@ -239,6 +240,8 @@ export interface QuotationLine {
   discarded_quote_cost: DecimalText | null;
   /** The operation center whose warehouses set `cost`; null for Nacional or a list with its own warehouses. */
   cost_center: string | null;
+  /** The new cost of a pending price increase (not loaded in SIESA yet), the third value the rule compares. */
+  increase_cost: DecimalText | null;
   target_margin_pct: DecimalText | null;
   margin_basis: MarginBasis | null;
   /** The API's own words for `margin_basis`, ready to show. */
@@ -309,6 +312,8 @@ export interface Quotation extends QuotationSummary {
   cost_centers: string[];
   /** False when the list has its own warehouses: the centers then change only the liquor tax regional. */
   centers_set_cost: boolean;
+  /** False when it started empty: a refresh revalidates its references and never brings the sales history in. */
+  with_history: boolean;
   /** `auto`: the customer's branches decided `cost_centers`. `manual`: someone chose them; a refresh keeps them. */
   billing_center_source: "auto" | "manual";
   regional: string | null;

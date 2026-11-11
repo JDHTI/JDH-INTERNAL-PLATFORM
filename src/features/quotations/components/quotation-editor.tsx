@@ -76,7 +76,7 @@ import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
 import { ConfirmDialog } from "./confirm-wizard";
 import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
-import { ToggleChip } from "./toggle-chip";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 const PAGE_SIZE = 50;
 
@@ -807,7 +807,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
           ],
     },
     {
-      title: "C.O. y costo",
+      title: "Centro de operación y despacho",
       facts: [
         ["C.O.", <CostCentersField key="co" quotation={quotation} editable={canChangeCenter} />],
         ["Regional", quotation.regional_label ?? "—"],
@@ -840,42 +840,22 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
 const sameCodes = (a: string[], b: string[]) => a.length === b.length && a.every((code, index) => code === b[index]);
 
 /**
- * Where the cost of every line comes from: Nacional (the highest cost of every
- * warehouse, reference by reference) or one or more operation centers. A
- * customer billed from several centers starts Nacional; one billed from a
- * single center starts there. With several centers each line takes the
- * costliest, and the field says which center that is most often. Changing it
- * recalculates every line, keeps the new prices and sends the quotation back
- * to draft, so it asks first.
+ * Where the cost of every line comes from: Nacional or one or more operation
+ * centers (a customer billed from several centers starts Nacional). While
+ * several are ticked, the dropdown marks the costliest before applying.
+ * Changing it recalculates every line, keeps the new prices and sends the
+ * quotation back to draft, so it asks first. No notes under it: the card stays
+ * as compact as the other two.
  */
 function CostCentersField({ quotation, editable }: { quotation: Quotation; editable: boolean }) {
   const id = useId();
-  const noteId = useId();
   const update = useUpdateCostCenters(quotation.id);
   const centers = useBillingCenters();
   const [choice, setChoice] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = quotation.cost_centers;
-  const label = costCentersLabel(current, centers.data);
-  const manual = quotation.billing_center_source === "manual";
-  const listNote = quotation.centers_set_cost ? null : (
-    <span id={noteId} className="block text-xs text-text-secondary">
-      La lista {quotation.price_list_id ?? ""} tiene sus propias bodegas: el C.O. solo cambia la regional del impuesto al consumo.
-    </span>
-  );
 
-  if (!editable) {
-    return (
-      <div className="space-y-1">
-        <span className="block">
-          {label}
-          {manual && <span className="text-text-secondary"> (elegido a mano)</span>}
-        </span>
-        {listNote}
-        <CostliestCenter quotation={quotation} />
-      </div>
-    );
-  }
+  if (!editable) return <span>{costCentersLabel(current, centers.data)}</span>;
 
   const apply = () => {
     if (!choice) return;
@@ -897,17 +877,14 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
       <label htmlFor={id} className="sr-only">C.O. del que sale el costo</label>
       <CostCentersSelect
         id={id}
+        quotation={quotation}
         value={choice ?? current}
         onChange={(codes) => setChoice(sameCodes(codes, current) ? null : codes)}
         disabled={update.isPending}
-        describedBy={listNote ? noteId : undefined}
       />
-      {listNote}
-      {manual && !choice && <span className="block text-xs text-text-secondary">Elegido a mano; «Refrescar» lo conserva.</span>}
-      {!choice && <CostliestCenter quotation={quotation} />}
       {choice && (
         <div role="group" aria-label="Cambiar el C.O." className="space-y-1.5 rounded-md bg-canvas-subtle p-2 text-[13px]">
-          <p>Recalcula costo, precios sugeridos y márgenes de todas las líneas, y la cotización vuelve a borrador.</p>
+          <p>Recalcula todas las líneas y vuelve a borrador.</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={apply} disabled={update.isPending} className="max-md:h-11">
               {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
@@ -920,44 +897,6 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
         </div>
       )}
       {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
-    </div>
-  );
-}
-
-/**
- * With several centers, which one is the costliest: in how many references
- * each one set the cost, the highest first. Counts only, no money: the
- * advisors do not see costs.
- */
-function CostliestCenter({ quotation }: { quotation: Quotation }) {
-  const centers = useBillingCenters();
-  const counts = useMemo(() => {
-    const byCode = new Map<string, number>();
-    for (const line of quotation.lines) {
-      if (line.cost_center) byCode.set(line.cost_center, (byCode.get(line.cost_center) ?? 0) + 1);
-    }
-    return quotation.cost_centers
-      .map((code) => ({ code, count: byCode.get(code) ?? 0 }))
-      .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
-  }, [quotation.lines, quotation.cost_centers]);
-  if (quotation.cost_centers.length < 2 || !quotation.centers_set_cost) return null;
-  const total = counts.reduce((sum, item) => sum + item.count, 0);
-  if (total === 0) return null;
-  const [top, ...rest] = counts;
-  const name = (code: string) => costCentersLabel([code], centers.data);
-  return (
-    <div className="text-[13px]">
-      <p>
-        Más costoso: <span className="font-semibold">{name(top.code)}</span>
-        <span className="text-text-secondary">
-          , en {formatCount(top.count)} de {formatCount(total)} referencias
-        </span>
-      </p>
-      {rest.length > 0 && (
-        <p className="text-text-secondary">
-          {rest.map((item) => `${name(item.code)}: ${formatCount(item.count)}`).join(" · ")}
-        </p>
-      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import type {
   ProductMarginsInput,
   ProductPatch,
 } from "../types/commercial-master.types";
+import type { PriceIncrease, PriceIncreasePage, PriceIncreaseParams, PriceIncreaseReport } from "../types/price-increases.types";
 
 /** Rows stay untyped here: the table is driven by each master's column list. */
 export type MasterRow = Record<string, unknown>;
@@ -47,6 +48,38 @@ export async function downloadMarginTemplate(withData: boolean): Promise<void> {
     // The query builder drops a boolean false, so the flag travels as text.
     query: { with_data: withData ? "true" : "false" },
     fallbackName: withData ? "margenes-productos.xlsx" : "plantilla-margenes.xlsx",
+  });
+}
+
+const INCREASES = "/commercial/price-increases";
+
+/** The price increase history, the latest first, with the counts of the filter. */
+export async function listPriceIncreases({ q, status, pending, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
+  return apiFetch<PriceIncreasePage>(INCREASES, {
+    query: { q: q || undefined, status: status || undefined, pending: pending ? "true" : undefined, page, size },
+  });
+}
+
+/**
+ * The purchasing area's `Acumulado Alza Precios`, upserted by reference,
+ * increase date and notification date. Without `apply` it only simulates.
+ * Masters managers only.
+ */
+export async function uploadPriceIncreases(file: File, apply: boolean): Promise<PriceIncreaseReport> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<PriceIncreaseReport>(`${INCREASES}/upload`, {
+    method: "POST",
+    query: { apply: apply ? "true" : "false" },
+    body,
+  });
+}
+
+/** The day SIESA got the increase; null marks it pending again (the quoter compares it). */
+export async function setPriceIncreaseDate(id: string, day: string | null): Promise<PriceIncrease> {
+  return apiFetch<PriceIncrease>(`${INCREASES}/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: { system_updated_on: day },
   });
 }
 

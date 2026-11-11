@@ -23,7 +23,7 @@ import type { QuotationStatus, QuotationSummary } from "../types/quotations.type
 import { QuotationStatusBadge } from "./quotation-badges";
 import NewQuotationDialog from "./new-quotation-dialog";
 import { QuotationLoadError } from "./quotations-gate";
-import { ToggleChip } from "./toggle-chip";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 const PAGE_SIZE = 20;
 

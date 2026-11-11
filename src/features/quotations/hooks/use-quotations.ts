@@ -7,6 +7,7 @@ import { ApiError } from "@/shared/lib/api-client";
 import {
   addLines,
   addLocalLine,
+  compareCostCenters,
   confirmQuotation,
   createQuotation,
   createTemporaryQuotation,
@@ -102,10 +103,12 @@ export function useCreateQuotation() {
   const store = useStoreQuotation();
   return useMutation({
     mutationFn: (
-      input: { kind: "existing"; customerNit: string; windowMonths: WindowMonths } | ({ kind: "temporary" } & TemporaryQuotationInput)
+      input:
+        | { kind: "existing"; customerNit: string; windowMonths: WindowMonths; empty: boolean }
+        | ({ kind: "temporary" } & TemporaryQuotationInput)
     ) =>
       input.kind === "existing"
-        ? createQuotation(input.customerNit, input.windowMonths)
+        ? createQuotation(input.customerNit, input.windowMonths, input.empty)
         : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
     onSuccess: store,
   });
@@ -117,6 +120,21 @@ export function useBillingCenters() {
     queryFn: listBillingCenters,
     staleTime: 30 * 60_000,
     retry: retryTransient,
+  });
+}
+
+/**
+ * Which of the ticked centers costs the most for this quotation's references,
+ * while two or more are ticked. Keyed by the version: a priced line changes it.
+ */
+export function useCostCentersComparison(id: string, version: number, codes: string[]) {
+  const sorted = [...codes].sort();
+  return useQuery({
+    queryKey: [...quotationKeys.all, "compare-centers", id, version, sorted.join(",")] as const,
+    queryFn: () => compareCostCenters(id, sorted),
+    enabled: sorted.length > 1,
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }
 

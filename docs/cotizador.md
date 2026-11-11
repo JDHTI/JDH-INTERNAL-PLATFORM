@@ -35,7 +35,7 @@ listado, toda la fila abre la cotización; un cliente temporal lleva el badge «
 
 | Ruta | Pantalla |
 | --- | --- |
-| `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: cliente de SIESA o temporal, y ventana). Comercial ve solo las suyas. Quien valida arranca en todas y elige entre «Mis cotizaciones» y «Todas». Todos abren en «Todos los estados» (decisión del 2026-11-09) |
+| `/<área>/cotizador` | Cotizaciones, con «Nueva cotización» (modal: todos los clientes, mis clientes o temporal; ventana o empezar vacía). Comercial ve solo las suyas. Quien valida arranca en todas y elige entre «Mis cotizaciones» y «Todas». Todos abren en «Todos los estados» (decisión del 2026-11-09) |
 | `/<área>/cotizador/<id>` | Editor: cabecera, tres tarjetas (Cliente; Lista de precios; C.O. y costo), aviso del estado, indicadores, asignación masiva, filtros, tabla y acciones |
 | `/<área>/cotizador/<id>/oferta` | Vista previa de la oferta para el cliente, Excel y PDF |
 | `/<área>/cotizador/reglas` | `GET /quotations/rules`, abierta a todos |
@@ -75,26 +75,30 @@ descripción. El 422 del API (por ejemplo, «La lista 1M ya existe en SIESA») s
 diálogo. **Marcar como cargada** (quien valida, en «Pendiente de carga») pide confirmar que los
 archivos ya se cargaron en SIESA; el historial muestra «Cargada en SIESA» con quién y cuándo.
 
-**C.O.** La tarjeta «C.O. y costo» dice de qué C.O. sale el costo (`cost_centers`) y si salió solo
-o lo eligieron. Un cliente que factura desde varios C.O. arranca en **Nacional** (el costo más alto
-de todas las bodegas, referencia por referencia); uno que factura desde un solo C.O., en ese.
-Quien edita lo cambia en un desplegable de casillas (`cost-centers-select.tsx`, con los C.O. de
-`GET /quotations/billing-centers` y buscador): **Nacional** va solo (marcarlo desmarca los C.O.;
-marcar un C.O. desmarca Nacional; sin ningún C.O. marcado vuelve a Nacional) o **uno o varios
-C.O.** Las opciones muestran código y nombre, sin la regional entre paréntesis. Antes de aplicar
-pide confirmar «Cambiar a …», porque recalcula costo, bodegas, regional e impuesto de cada línea y
-vuelve a borrador (`PATCH /billing-center`). Los precios nuevos y las cantidades se conservan.
-Con varios C.O., debajo dice cuál es el **más costoso** y en cuántas referencias puso el costo
-cada uno (cuenta los `cost_center` de las líneas; sin montos, para que los asesores no vean
-costos). Si la lista tiene bodegas propias (`centers_set_cost: false`), avisa que el C.O. solo
-cambia la regional del impuesto al consumo. En «Nueva cotización» el selector de un solo C.O.
-(`billing-center-select.tsx`) tampoco muestra ya la regional.
+**Centro de operación y despacho.** La tarjeta (antes «C.O. y costo») dice de qué C.O. sale el
+costo (`cost_centers`), sin textos debajo: queda tan compacta como las otras dos (decisión del
+2026-11-11). Un cliente que factura desde varios C.O. arranca en **Nacional**; uno que factura
+desde un solo C.O., en ese. Quien edita lo cambia en un desplegable de casillas
+(`cost-centers-select.tsx`, con los C.O. de `GET /quotations/billing-centers` y buscador):
+**Nacional** va solo (marcarlo desmarca los C.O.; marcar un C.O. desmarca Nacional; sin ningún C.O.
+marcado vuelve a Nacional) o **uno o varios C.O.** Ninguna opción lleva descripción. Con dos o más
+marcados, el panel pregunta al API (`GET /cost-centers/compare`) y marca **«Más costoso»** junto al
+C.O. que más cuesta, **antes de aplicar**; no da montos. Aplicar pide confirmar «Cambiar a …»
+(recalcula todas las líneas y vuelve a borrador; `PATCH /billing-center`). Los precios nuevos y las
+cantidades se conservan.
 
-**Cliente temporal.** En «Nueva cotización», «Cliente temporal» pide nombre y razón social
-(obligatorios), nombre comercial y NIT (opcionales) y el C.O. desde donde se cotiza. La cotización
-arranca vacía, sin lista; se le agregan productos de SIESA o locales. La tarjeta del cliente lleva
-el badge «Temporal», la oferta muestra sus datos y en SIESA solo va por creación. Quien no tiene
-cartera de clientes solo ve esta opción.
+**Nueva cotización.** Modal compacto, sin descripción ni textos de ayuda. Una fila de chips:
+«Todos los clientes» (solo quien ve toda la base), «Mis clientes» («Clientes de mi equipo» para un
+supervisor) y, a la derecha, «Cliente temporal (nuevo)». Las razones de un chip deshabilitado van
+en su `title` (sin cartera, o sin vínculo de vendedor). Para un cliente de SIESA: el buscador, la
+ventana «Ventas de los 6 / 12 meses» y la casilla **«Empezar vacía»** (`with_history: false`: sin el
+histórico de ventas; el asesor agrega las referencias y un refresco nunca trae el histórico).
+
+**Cliente temporal.** «Cliente temporal (nuevo)» pide nombre y razón social (obligatorios), nombre
+comercial y NIT (opcionales) y el centro de operación. La cotización arranca vacía, sin lista; se
+le agregan productos de SIESA o locales. La tarjeta del cliente lleva el badge «Temporal», la oferta
+muestra sus datos y en SIESA solo va por creación. Quien no tiene cartera de clientes solo puede
+usar esta opción.
 
 **Indicadores.** Una barra (verde, ámbar, rojo) y ocho cifras que también son los filtros de la
 tabla: líneas totales, cumplen objetivo, en rango (autonomía: entre el mínimo y el objetivo),
@@ -135,10 +139,16 @@ queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
 
 - **Costo**: los asesores no lo ven (decisión del 2026-11-10). Quien valida (BI, `can_validate`)
   ve el **costo más alto** justo debajo de los precios sugeridos, separado por una línea; al pasar
-  el mouse, con un clic, un toque o el foco del teclado se abre su desglose: cotización del
-  proveedor e inventario (marcando cuál es el mayor), la cotización descartada si la hay, el C.O.
-  del costo y la nota de cómo se calcula (el mayor, redondeado al peso hacia arriba y con el factor
-  de la lista).
+  el mouse, con un clic, un toque o el foco del teclado se abre un desglose compacto, una fila por
+  valor: cotización, inventario, alza pendiente y descartada (solo las que tienen valor; la que
+  se toma en negrilla) y el C.O.
+- **Histórico de alza de precios** (maestro de productos, `/bi/maestros/productos`): un interruptor
+  sobre la tabla la cambia por el histórico (`price-increases-view.tsx`). Chips con conteo que
+  filtran (Subió, Bajó, Estable, «Pendientes en SIESA»), buscador, y una fila por alza: producto
+  (del maestro), fecha de incremento, costo anterior y nuevo (con impuesto saludable si lo trae),
+  variación en pesos y porcentaje, estado y la fecha de actualización en SIESA. Quien gestiona los
+  maestros la pone o la quita ahí mismo y carga el acumulado con «Cargar alzas» (simula, luego
+  «Aplicar»). Ver `docs/alzas-precios.md` del API.
 - **Plantilla** (solo quien valida, en cualquier estado): botón en la cabecera que descarga
   `lines.xlsx`, cada línea con los datos de la tabla y sus costos para cruzarlos con SIESA. Es de
   consulta: no se sube de vuelta.
@@ -242,6 +252,12 @@ migración `0052`.
      Una lista con bodegas fijas (tabla del paso 4, y la lista 1) las conserva aunque cambie el CO
      (`centers_set_cost: false`): el CO decide las bodegas de las listas fuera de la tabla y de un
      cliente temporal.
+   - **Comparar antes de elegir**: con dos o más CO marcados, `GET
+     /cost-centers/compare?codes=…` dice cuál cuesta más para las referencias de la cotización: el
+     de mayor suma de costos unitarios sobre las referencias con costo en todos. Solo el código, sin
+     montos; `null` si empatan o si la lista tiene bodegas propias.
+   - **Empezar vacía** (`with_history: false` al crear): un cliente de SIESA sin el histórico de
+     ventas. El asesor agrega las referencias; un refresco las revalida y nunca trae el histórico.
 2. **Último precio** (`consumo.ventas`): por referencia se toma la **última venta de cada CO que
    facturó** (`ventas.co`) en la ventana y, entre ellas, la de **mayor precio neto**; su fecha,
    documento y unidad son los `last_*`. Dentro de un CO, un empate de fecha va al documento mayor,
@@ -250,6 +266,14 @@ migración `0052`.
    cantidad y subtotal mayores que cero. El precio es `subtotal / cantidad`: neto de descuentos,
    **antes de IVA** y **por unidad de inventario** (una caja C45 vendida a 149.551 es 3.323,36 por
    unidad).
+   - **Lectura**: primero las llaves del cliente (`consumo.clientes`) y luego sus ventas por esas
+     llaves (`cliente_key = ANY(...)`, que usa el índice). Con el NIT en una subconsulta, el
+     planificador recorría por fecha todas las ventas de la compañía del último año (2,3 millones
+     de líneas): con el caché frío pasaba de los 30 s del límite y la cotización respondía «No se
+     pudo consultar el datawarehouse» (medido el 2026-11-11 con Sodexo: 33,6 s en frío; por
+     llaves, 1,4 s). Las lecturas del cotizador corren sin JIT (`jit = off`, unos 2 s menos cada
+     una), y si una se pasa del tiempo el mensaje lo dice: «El datawarehouse tardó más de 30 s en
+     responder».
 3. **Costo**: el **mayor** entre:
    - la **cotización vigente del proveedor** (`consumo.cotizaciones_proveedores`: vigente, ítem
      activo, unidad `UNID` o `KL`): `redondear(costo_bruto) × (1 + ICUI/100) + IBUA`, la mayor por
@@ -257,11 +281,16 @@ migración `0052`.
      Centro (003, 10U, 10S, o un cliente que factura desde el CO 003) y la `001` para el resto;
    - el **costo promedio de inventario** (`consumo.inventario_fecha`, la foto de SIESA de la
      mañana) de la bodega de la lista, redondeado al peso. La bodega 2 aplica a las líneas
-     CONGELADOS y REFRIGERADOS.
+     CONGELADOS y REFRIGERADOS;
+   - el **costo nuevo de un alza pendiente**: si la alza más reciente de la referencia en el
+     histórico del maestro de productos no tiene fecha de actualización en SIESA, su costo nuevo
+     (con impuesto saludable si lo trae). Solo gana si es estrictamente mayor
+     ([alzas-precios.md](alzas-precios.md)).
 
    El mayor se redondea hacia arriba y se multiplica por el factor de la familia de la lista:
    **1,004** en Generales, Salsamentarias y Market; **1** en Mayoristas. La cotización indica de
-   dónde salió (`cost_source`: `cotizacion` o `inventario`) y trae los dos valores.
+   dónde salió (`cost_source`: `cotizacion`, `inventario` o `alza`) y trae los valores
+   (`quote_cost`, `inventory_cost`, `increase_cost`).
    - **Cotización fuera de rango**: una cotización mayor que **3 veces la mediana del último
      costo** de las instalaciones del ítem es un error de captura en SIESA (por ejemplo, el precio
      de la caja cargado como unidad). No se usa, se muestra (`discarded_quote_cost`) y la línea
@@ -521,7 +550,7 @@ Decimales en texto; márgenes y variación como fracción (`0.18` = 18 %).
 | `GET /quotations/permissions` | `{can_manage, can_validate, seller_linked, seller}` |
 | `GET /quotations/rules` | Reglas vigentes por secciones (`precio`, `margen`, `regla`, `formato`) |
 | `GET /quotations/customers` | Clientes para cotizar: `scope=mine` (defecto) o `all`, `q`, `page`, `size` (≤ 100) |
-| `POST /quotations` | `{customer_nit, window_months: 6 \| 12, validity_days?: 1..365 (30), billing_center_code?}` o, para un cliente temporal, `{temporary_customer: {name, legal_name, trade_name?, nit?}, billing_center_code, window_months?, validity_days?}` → 201 con la cotización (borrador). 422 si llegan los dos, ninguno, falta el CO del cliente temporal o el CO no existe |
+| `POST /quotations` | `{customer_nit, window_months: 6 \| 12, validity_days?: 1..365 (30), billing_center_code?, with_history?: true}` (`with_history: false` empieza vacía) o, para un cliente temporal, `{temporary_customer: {name, legal_name, trade_name?, nit?}, billing_center_code, window_months?, validity_days?}` → 201 con la cotización (borrador). 422 si llegan los dos, ninguno, falta el CO del cliente temporal o el CO no existe |
 | `GET /quotations/billing-centers` | `[{code, name, regional, regional_label}]`: los CO activos del maestro `centros-operacion` (`consumo.centros_operacion`), por código; `regional` es la del impuesto de licores (`costa` para `004`) |
 | `GET /quotations` | `mine` (defecto `true`; quien valida usa `mine=false`), `status` (`borrador`, `pendiente_validacion`, `pendiente_carga`, `cargada`), `customer_nit`, `q`, `page`, `size` |
 | `GET /quotations/{id}` | Cotización completa |
@@ -539,7 +568,8 @@ Decimales en texto; márgenes y variación como fracción (`0.18` = 18 %).
 | `POST /quotations/{id}/uploaded` | `{version}`: de `pendiente_carga` a `cargada`, con `uploaded_by` y `uploaded_at`. Solo quien valida (403); 409 desde otro estado |
 | `GET /quotations/{id}/export.xlsx` | El Excel (solo `pendiente_carga`/`cargada`; si no, 409) |
 | `GET /quotations/{id}/export.txt` | El plano SIESA (solo `pendiente_carga`/`cargada`; si no, 409) |
-| `GET /quotations/{id}/lines.xlsx` | La plantilla de BI: cada línea con sus costos, en cualquier estado. Solo quien valida (403 para el resto) |
+| `GET /quotations/{id}/lines.xlsx` | La plantilla de BI: cada línea con sus costos (también el alza pendiente), en cualquier estado. Solo quien valida (403 para el resto) |
+| `GET /quotations/{id}/cost-centers/compare?codes=001&codes=003` | `{highest}`: el CO que más cuesta para las referencias de la cotización (mayor suma de costos unitarios), o `null` si empatan o la lista tiene bodegas propias. Para quien lee la cotización: sin montos. 422 con menos de dos CO o uno inexistente |
 | `DELETE /quotations/{id}` | 204. Quien la creó o un administrador |
 
 **Resumen** (lista): `id, customer_nit, customer_name, channel, price_list_id, window_months,
@@ -551,6 +581,7 @@ valid_until, is_temporary_customer, temporary_customer: {name, legal_name, trade
 
 **Cotización completa**: el resumen más `channel_code, price_list_name, price_list_customers,
 billing_center_code, billing_center_name, cost_centers (vacío = Nacional), centers_set_cost,
+with_history,
 billing_center_source: auto | manual, regional,
 regional_label, price_family, price_family_label, stock_source, salesperson_code,
 salesperson_name, built_at, cost_cut_date, activation_date, new_list_name,
@@ -574,6 +605,7 @@ vat_groups: [{vat_pct, base, vat}], liquor_tax, total} | null` y `lines`.
 | `cost`, `cost_source`, `cost_source_label` | costo de la regla y de dónde salió |
 | `quote_cost`, `inventory_cost`, `discarded_quote_cost` | la cotización usada, el inventario de la bodega y la cotización descartada por fuera de rango |
 | `cost_center` | el CO cuyas bodegas dieron el costo; `null` con Nacional o con una lista de bodegas fijas |
+| `increase_cost` | costo nuevo de un alza que SIESA aún no tiene, el tercer valor que se compara |
 | `target_margin_pct`, `margin_basis`, `min_margin_pct` | objetivo y mínimo permitido |
 | `min_price`, `optimal_price` | precio mínimo que cumple la regla y precio al margen objetivo |
 | `below_target` | el último precio deja el margen bajo el mínimo (alerta) |

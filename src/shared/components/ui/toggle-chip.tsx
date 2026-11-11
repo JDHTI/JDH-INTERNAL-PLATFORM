@@ -9,12 +9,14 @@ export function ToggleChip({
   onClick,
   count,
   disabled,
+  title,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   count?: number | null;
   disabled?: boolean;
+  title?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -23,6 +25,7 @@ export function ToggleChip({
       onClick={onClick}
       aria-pressed={active}
       disabled={disabled}
+      title={title}
       className={cn(
         "inline-flex min-h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors duration-150 max-md:min-h-11",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50",
