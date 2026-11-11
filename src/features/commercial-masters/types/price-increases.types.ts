@@ -67,6 +67,66 @@ export interface PriceIncreaseParams {
   status: IncreaseStatus | "";
   /** Only the ones SIESA does not have yet. */
   pending: boolean;
+  /** One reference's whole history (the analysis detail). */
+  sku?: string;
+  page: number;
+  size: number;
+}
+
+/** The last year (default), two years or the whole history, by increase date. */
+export type AnalysisPeriod = "12m" | "24m" | "all";
+export type AnalysisSort = "accumulated" | "increases" | "frequency" | "last_change" | "sku";
+
+/** One reference over the period (`/commercial/price-increases/analysis`). */
+export interface ReferenceAnalysis {
+  sku: string;
+  description: string | null;
+  supplier_name: string | null;
+  category: string | null;
+  changes: number;
+  increases: number;
+  decreases: number;
+  /** Cost just before the period and at its end, without the healthy-food tax when known. */
+  start_cost: Decimal | null;
+  end_cost: Decimal | null;
+  /** `end_cost` against `start_cost`, a fraction: 0.1025 is 10,25 %. */
+  accumulated_pct: Decimal | null;
+  /** Up, down or flat by the sign of `accumulated_pct`. */
+  movement: IncreaseStatus | null;
+  /** Median days between consecutive increases; null with fewer than two. */
+  frequency_days: number | null;
+  last_increased_on: string;
+  last_status: IncreaseStatus | null;
+  last_change_pct: Decimal | null;
+  is_pending: boolean;
+}
+
+export interface AnalysisSummary {
+  references: number;
+  increases: number;
+  /** Median change of the period's increases. */
+  typical_increase_pct: Decimal | null;
+  pending: number;
+  movements: Record<IncreaseStatus, number>;
+}
+
+export interface AnalysisPage {
+  items: ReferenceAnalysis[];
+  total: number;
+  page: number;
+  size: number;
+  /** Counts of the search, before the movement filter. */
+  summary: AnalysisSummary;
+  /** First day of the period; null for the whole history. */
+  since: string | null;
+}
+
+export interface AnalysisParams {
+  period: AnalysisPeriod;
+  movement: IncreaseStatus | "";
+  q: string;
+  sort: AnalysisSort;
+  order: "asc" | "desc";
   page: number;
   size: number;
 }

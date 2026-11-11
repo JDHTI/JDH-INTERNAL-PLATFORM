@@ -6,6 +6,7 @@ import { ApiError } from "@/shared/lib/api-client";
 
 import {
   downloadMarginTemplate,
+  getPriceIncreaseAnalysis,
   getProduct,
   listCommercialMaster,
   listPriceIncreases,
@@ -16,7 +17,7 @@ import {
   uploadPriceIncreases,
 } from "../services/commercial-masters.service";
 import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
-import type { PriceIncreaseParams } from "../types/price-increases.types";
+import type { AnalysisParams, PriceIncreaseParams } from "../types/price-increases.types";
 
 export const commercialMasterKeys = {
   all: ["commercial-masters"] as const,
@@ -87,6 +88,25 @@ export function usePriceIncreases(params: PriceIncreaseParams) {
     queryFn: () => listPriceIncreases(params),
     retry: retryTransient,
     placeholderData: keepPreviousData,
+  });
+}
+
+export function usePriceIncreaseAnalysis(params: AnalysisParams) {
+  return useQuery({
+    queryKey: [...increaseKeys.all, "analysis", params] as const,
+    queryFn: () => getPriceIncreaseAnalysis(params),
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One reference's whole history, for the analysis detail (24 rows at most in the real workbook). */
+export function useReferenceIncreases(sku: string | null) {
+  return useQuery({
+    queryKey: increaseKeys.list({ q: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 }),
+    queryFn: () => listPriceIncreases({ q: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 }),
+    enabled: sku !== null,
+    retry: retryTransient,
   });
 }
 

@@ -142,9 +142,18 @@ queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
   el mouse, con un clic, un toque o el foco del teclado se abre un desglose compacto, una fila por
   valor: cotización, inventario, alza pendiente y descartada (solo las que tienen valor; la que
   se toma en negrilla) y el C.O.
-- **Histórico de alza de precios** (maestro de productos, `/bi/maestros/productos`): arriba, en
-  lugar del título, dos vistas como enlaces: «Maestro de productos» e «Histórico de alzas»
-  (`?vista=alzas`, `products-views-nav.tsx`; `price-increases-view.tsx`). Chips con conteo que
+- **Vistas del maestro de productos** (`/bi/maestros/productos`): arriba, en lugar del título,
+  tres enlaces: «Maestro de productos», «Histórico de alzas» (`?vista=alzas`) y «Análisis de
+  alzas» (`?vista=analisis`), en `products-views-nav.tsx`. El acceso al módulo `maestros` abre
+  las tres; cambiar algo exige gestionarlo.
+- **Análisis de alzas** (`price-increase-analysis-view.tsx`): periodo «Último año» (por
+  defecto), «2 años» o «Todo el histórico»; cuatro cifras (referencias con cambios, alzas, alza
+  típica, pendientes en SIESA); chips «Subieron», «Bajaron» y «Estables» con conteo; y una fila
+  por referencia: cambio en el periodo (costo inicial → final), alzas, cada cuánto, última
+  variación (estado, porcentaje y fecha) y si está pendiente en SIESA. Las columnas ordenan. Una
+  fila abre su histórico completo (`reference-increases-dialog.tsx`): gráfica escalonada del costo
+  (`cost-step-chart.tsx`, SVG propio, una serie, hover y foco en cada alza) y la tabla de alzas.
+- **Histórico de alza de precios** (`price-increases-view.tsx`): chips con conteo que
   filtran (Subió, Bajó, Estable, «Pendientes en SIESA»), buscador, y una fila por alza: producto
   (del maestro), fecha de incremento, costo anterior y nuevo (con impuesto saludable si lo trae),
   variación en pesos y porcentaje, estado y la fecha de actualización en SIESA. Quien gestiona los
