@@ -9,7 +9,14 @@ import type {
   ProductMarginsInput,
   ProductPatch,
 } from "../types/commercial-master.types";
-import type { PriceIncrease, PriceIncreasePage, PriceIncreaseParams, PriceIncreaseReport } from "../types/price-increases.types";
+import type {
+  AnalysisPage,
+  AnalysisParams,
+  PriceIncrease,
+  PriceIncreasePage,
+  PriceIncreaseParams,
+  PriceIncreaseReport,
+} from "../types/price-increases.types";
 
 /** Rows stay untyped here: the table is driven by each master's column list. */
 export type MasterRow = Record<string, unknown>;
@@ -54,9 +61,16 @@ export async function downloadMarginTemplate(withData: boolean): Promise<void> {
 const INCREASES = "/commercial/price-increases";
 
 /** The price increase history, the latest first, with the counts of the filter. */
-export async function listPriceIncreases({ q, status, pending, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
+export async function listPriceIncreases({ q, status, pending, sku, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
   return apiFetch<PriceIncreasePage>(INCREASES, {
-    query: { q: q || undefined, status: status || undefined, pending: pending ? "true" : undefined, page, size },
+    query: { q: q || undefined, status: status || undefined, pending: pending ? "true" : undefined, sku, page, size },
+  });
+}
+
+/** How much each reference moved in a period, with the period's figures and counts by movement. */
+export async function getPriceIncreaseAnalysis({ period, movement, q, sort, order, page, size }: AnalysisParams): Promise<AnalysisPage> {
+  return apiFetch<AnalysisPage>(`${INCREASES}/analysis`, {
+    query: { period, movement: movement || undefined, q: q || undefined, sort, order, page, size },
   });
 }
 

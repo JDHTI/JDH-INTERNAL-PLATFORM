@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
-import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -18,20 +18,13 @@ import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 import { usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
 import type { IncreaseStatus, PriceIncrease } from "../types/price-increases.types";
+import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
 import PriceIncreasesUploadDialog from "./price-increases-upload-dialog";
 
 const PAGE_SIZE = 50;
 const numberFormat = new Intl.NumberFormat("es-CO");
-const percentFormat = new Intl.NumberFormat("es-CO", { style: "percent", maximumFractionDigits: 2, signDisplay: "exceptZero" });
-const dayFormat = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-
-const STATUS: Record<IncreaseStatus, { label: string; tone: BadgeTone }> = {
-  subio: { label: "Subió", tone: "warning" },
-  bajo: { label: "Bajó", tone: "success" },
-  estable: { label: "Estable", tone: "neutral" },
-};
-
-const formatDay = (value: string | null) => (value ? dayFormat.format(new Date(`${value}T00:00:00Z`)) : "—");
+const STATUS = INCREASE_STATUS;
+const formatDay = formatIncreaseDay;
 const money = (value: Decimal | null) => (toNumber(value) === null ? "—" : formatCop(value!));
 /** The cost the supplier charges: with the healthy-food tax when the row has it. */
 const charged = (withTax: Decimal | null, without: Decimal | null) => (toNumber(withTax) !== null ? withTax : without);
@@ -203,7 +196,7 @@ function IncreaseRow({ row, canManage }: { row: PriceIncrease; canManage: boolea
       <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{money(charged(row.new_cost_with_tax, row.new_cost))}</td>
       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
         {money(row.variation_amount)}
-        {variation !== null && <span className="block text-xs text-text-secondary">{percentFormat.format(variation)}</span>}
+        {variation !== null && <span className="block text-xs text-text-secondary">{formatChange(variation)}</span>}
       </td>
       <td className="px-3 py-2">{look ? <Badge tone={look.tone}>{look.label}</Badge> : "—"}</td>
       <td className="px-3 py-2">
