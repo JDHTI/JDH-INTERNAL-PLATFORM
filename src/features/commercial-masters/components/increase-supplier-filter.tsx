@@ -16,11 +16,14 @@ export default function IncreaseSupplierFilter({
   value,
   onChange,
   disabled = false,
+  className = "w-full sm:w-72",
 }: {
   suppliers: SupplierOption[] | undefined;
   value: string;
   onChange: (code: string) => void;
   disabled?: boolean;
+  /** Width: fixed beside other controls; `w-full` in a grid cell. */
+  className?: string;
 }) {
   const id = useId();
   const options = useMemo(
@@ -32,7 +35,7 @@ export default function IncreaseSupplierFilter({
     [suppliers]
   );
   return (
-    <div className="w-full sm:w-72">
+    <div className={className}>
       <label htmlFor={id} className="sr-only">
         Proveedor
       </label>

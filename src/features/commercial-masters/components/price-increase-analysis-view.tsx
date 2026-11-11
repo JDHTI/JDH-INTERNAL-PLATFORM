@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, CloudOff, FileX2, RefreshCw, Search } from "lucide-react";
 
+import FilterPanel from "@/shared/components/filter-panel";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
@@ -98,19 +99,35 @@ export default function PriceIncreaseAnalysisView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Periodo" className="flex flex-wrap gap-2">
-          {PERIODS.map((item) => (
-            <ToggleChip
-              key={item.value}
-              active={period.kind === "preset" && period.period === item.value}
-              onClick={() => choose({ kind: "preset", period: item.value })}
-            >
-              {item.label}
-            </ToggleChip>
-          ))}
-        </div>
-        <div className="w-full sm:w-56">
+      {/* Four fields of the same width, then the period and the movement as
+          chips, one group at each end. */}
+      <FilterPanel
+        label="Filtros del análisis"
+        fields={
+          <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+            <Input
+              type="search"
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Referencia o descripción"
+              aria-label="Buscar en el análisis de alzas por referencia o descripción"
+              className="pl-9"
+            />
+          </div>
+          <IncreaseSupplierFilter
+            className="w-full"
+            suppliers={options.data?.suppliers}
+            value={supplier}
+            onChange={(code) => {
+              setSupplier(code);
+              setPage(1);
+            }}
+          />
           <Dropdown
             aria-label="Un mes"
             options={months}
@@ -121,41 +138,50 @@ export default function PriceIncreaseAnalysisView() {
             clearable
             clearLabel="Quitar el mes"
           />
-        </div>
-        <div className="w-full sm:w-64">
           <DateRangePicker
             label="Rango de fechas"
             placeholder="Rango de fechas"
             value={period.kind === "range" ? { from: period.from, to: period.to } : {}}
             onChange={({ from, to }) => choose(from && to ? { kind: "range", from, to } : DEFAULT_WINDOW)}
           />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-60 flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
-          <Input
-            type="search"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Referencia o descripción"
-            aria-label="Buscar en el análisis de alzas por referencia o descripción"
-            className="pl-9"
-          />
-        </div>
-        <IncreaseSupplierFilter
-          suppliers={options.data?.suppliers}
-          value={supplier}
-          onChange={(code) => {
-            setSupplier(code);
-            setPage(1);
-          }}
-        />
-      </div>
+          </>
+        }
+        chips={
+          <div role="group" aria-label="Periodo" className="flex flex-wrap gap-2">
+            {PERIODS.map((item) => (
+              <ToggleChip
+                key={item.value}
+                active={period.kind === "preset" && period.period === item.value}
+                onClick={() => choose({ kind: "preset", period: item.value })}
+              >
+                {item.label}
+              </ToggleChip>
+            ))}
+          </div>
+        }
+        end={
+          <div role="group" aria-label="Movimiento en el periodo" className="flex flex-wrap items-center gap-2">
+            {filtered && (
+              <Button variant="ghost" size="sm" onClick={clear}>
+                Limpiar filtros
+              </Button>
+            )}
+            {MOVEMENT_FILTERS.map((item) => (
+              <ToggleChip
+                key={item.value}
+                active={movement === item.value}
+                onClick={() => {
+                  setMovement((current) => (current === item.value ? "" : item.value));
+                  setPage(1);
+                }}
+                count={summary?.movements[item.value]}
+              >
+                {item.label}
+              </ToggleChip>
+            ))}
+          </div>
+        }
+      />
 
       {result && (
         <p className="text-sm" aria-live="polite">
@@ -179,27 +205,6 @@ export default function PriceIncreaseAnalysisView() {
           value={summary ? numberFormat.format(summary.pending) : null}
         />
       </dl>
-
-      <div role="group" aria-label="Movimiento en el periodo" className="flex flex-wrap items-center gap-2">
-        {MOVEMENT_FILTERS.map((item) => (
-          <ToggleChip
-            key={item.value}
-            active={movement === item.value}
-            onClick={() => {
-              setMovement((current) => (current === item.value ? "" : item.value));
-              setPage(1);
-            }}
-            count={summary?.movements[item.value]}
-          >
-            {item.label}
-          </ToggleChip>
-        ))}
-        {filtered && (
-          <Button variant="ghost" size="sm" onClick={clear}>
-            Limpiar filtros
-          </Button>
-        )}
-      </div>
 
       {query.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Calculando el análisis de alzas" />
@@ -274,8 +279,8 @@ export default function PriceIncreaseAnalysisView() {
 function Figure({ label, value, hint }: { label: string; value: string | null; hint?: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface px-4 py-3" title={hint}>
-      <dt className="text-xs text-text-secondary">{label}</dt>
-      <dd className="text-2xl font-semibold tabular-nums">
+      <dt className="text-sm font-semibold text-text-primary">{label}</dt>
+      <dd className="mt-1 text-2xl font-semibold tabular-nums">
         {value ?? <span className="inline-block h-7 w-16 animate-pulse rounded bg-canvas-subtle align-middle" aria-label="Cargando" />}
       </dd>
     </div>
