@@ -60,7 +60,20 @@ function readDetail(body: unknown, status: number): string {
     const first = detail[0] as { msg?: unknown };
     if (typeof first?.msg === "string") return first.msg;
   }
-  return "No se pudo completar la solicitud. Intenta de nuevo.";
+  return withoutDetail(status);
+}
+
+/**
+ * An answer without the API's `detail`: an unexpected server error (plain
+ * text) or the proxy in front of it (an HTML page). The code says which, so a
+ * report to TI can point at the cause instead of "it failed".
+ */
+function withoutDetail(status: number): string {
+  if (status === 413) return "El archivo es demasiado grande para el servidor (error 413).";
+  if (status === 504) return "La plataforma tardó demasiado en responder (error 504). Intenta de nuevo en unos minutos.";
+  if (status === 502 || status === 503) return `La plataforma no está disponible en este momento (error ${status}). Intenta de nuevo en unos minutos.`;
+  if (status >= 500) return `La plataforma tuvo un error interno (error ${status}). Avísale a TI con la hora en que pasó.`;
+  return `No se pudo completar la solicitud (error ${status}). Intenta de nuevo.`;
 }
 
 /** An array repeats the key (`status_id=a&status_id=b`), as FastAPI expects. */
