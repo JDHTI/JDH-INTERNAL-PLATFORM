@@ -142,13 +142,14 @@ queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
   el mouse, con un clic, un toque o el foco del teclado se abre un desglose compacto, una fila por
   valor: cotización, inventario, alza pendiente y descartada (solo las que tienen valor; la que
   se toma en negrilla) y el C.O.
-- **Histórico de alza de precios** (maestro de productos, `/bi/maestros/productos`): un interruptor
-  sobre la tabla la cambia por el histórico (`price-increases-view.tsx`). Chips con conteo que
+- **Histórico de alza de precios** (maestro de productos, `/bi/maestros/productos`): arriba, en
+  lugar del título, dos vistas como enlaces: «Maestro de productos» e «Histórico de alzas»
+  (`?vista=alzas`, `products-views-nav.tsx`; `price-increases-view.tsx`). Chips con conteo que
   filtran (Subió, Bajó, Estable, «Pendientes en SIESA»), buscador, y una fila por alza: producto
   (del maestro), fecha de incremento, costo anterior y nuevo (con impuesto saludable si lo trae),
   variación en pesos y porcentaje, estado y la fecha de actualización en SIESA. Quien gestiona los
-  maestros la pone o la quita ahí mismo y carga el acumulado con «Cargar alzas» (simula, luego
-  «Aplicar»). Ver `docs/alzas-precios.md` del API.
+  maestros la pone o la quita ahí mismo y carga el acumulado con «Cargar alzas»: un modal angosto
+  (`narrow`) que simula y luego «Aplicar». Ver `docs/alzas-precios.md` del API.
 - **Plantilla** (solo quien valida, en cualquier estado): botón en la cabecera que descarga
   `lines.xlsx`, cada línea con los datos de la tabla y sus costos para cruzarlos con SIESA. Es de
   consulta: no se sube de vuelta.
