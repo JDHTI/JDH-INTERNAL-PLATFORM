@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CloudOff, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { DialogError } from "@/shared/components/ui/dialog";
@@ -42,13 +43,10 @@ export default function NewCaseScreen({ area }: { area: string }) {
         <ArrowLeft className="size-4" aria-hidden="true" />
         Volver a la bandeja
       </Link>
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Nuevo caso</h1>
-        <p className="text-sm text-text-secondary">
-          Para lo que llega por correo, teléfono o en persona. Lo del formulario público ya entra
-          solo a la bandeja.
-        </p>
-      </div>
+      <PageHeader
+        title="Nuevo caso"
+        description="Para lo que llega por correo, teléfono o en persona. Lo del formulario público ya entra solo a la bandeja."
+      />
     </div>
   );
 

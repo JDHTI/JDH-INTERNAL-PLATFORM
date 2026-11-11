@@ -5,6 +5,7 @@ import { CloudOff, FileUp, SearchX, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { useArea } from "@/features/areas/hooks/use-areas";
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
@@ -125,24 +126,21 @@ export default function DocumentManager({ slug }: { slug: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Gestor documental</h1>
-          <p className="text-sm text-text-secondary">
-            Carpetas y documentos de {area?.name ?? "el área"}. Todo el equipo
-            del área ve y edita los mismos archivos.
-          </p>
-        </div>
-        <Button
-          size="lg"
-          onClick={() => setUploadOpen(true)}
-          disabled={!selected}
-          title={selected ? `Subir a ${selected.name}` : "Crea una carpeta primero"}
-        >
-          <Upload aria-hidden="true" />
-          Subir documento
-        </Button>
-      </div>
+      <PageHeader
+        title="Gestor documental"
+        description={`Carpetas y documentos de ${area?.name ?? "el área"}. Todo el equipo del área ve y edita los mismos archivos.`}
+        aside={
+          <Button
+            size="lg"
+            onClick={() => setUploadOpen(true)}
+            disabled={!selected}
+            title={selected ? `Subir a ${selected.name}` : "Crea una carpeta primero"}
+          >
+            <Upload aria-hidden="true" />
+            Subir documento
+          </Button>
+        }
+      />
 
       {/* Side by side only from xl: below that the folder rail would leave
           the table too narrow for its columns, so folders stack on top. */}

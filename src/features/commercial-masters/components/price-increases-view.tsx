@@ -16,9 +16,10 @@ import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
-import { usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
+import { usePriceIncreaseOptions, usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
 import type { IncreaseStatus, PriceIncrease } from "../types/price-increases.types";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
+import IncreaseSupplierFilter from "./increase-supplier-filter";
 import PriceIncreasesUploadDialog from "./price-increases-upload-dialog";
 
 const PAGE_SIZE = 50;
@@ -37,16 +38,18 @@ const charged = (withTax: Decimal | null, without: Decimal | null) => (toNumber(
  */
 export default function PriceIncreasesView() {
   const [text, setText] = useState("");
+  const [supplier, setSupplier] = useState("");
   const [status, setStatus] = useState<IncreaseStatus | "">("");
   const [pending, setPending] = useState(false);
   const [page, setPage] = useState(1);
   const [uploading, setUploading] = useState(false);
   const q = useDebouncedValue(text.trim());
-  const query = usePriceIncreases({ q, status, pending, page, size: PAGE_SIZE });
+  const query = usePriceIncreases({ q, supplier, status, pending, page, size: PAGE_SIZE });
+  const options = usePriceIncreaseOptions();
   const result = query.data;
   const rows = result?.items ?? [];
   const counts = result?.counts;
-  const filtered = q !== "" || status !== "" || pending;
+  const filtered = q !== "" || supplier !== "" || status !== "" || pending;
 
   const chooseStatus = (next: IncreaseStatus | "") => {
     setStatus((current) => (current === next ? "" : next));
@@ -54,6 +57,7 @@ export default function PriceIncreasesView() {
   };
   const clear = () => {
     setText("");
+    setSupplier("");
     setStatus("");
     setPending(false);
     setPage(1);
@@ -62,7 +66,7 @@ export default function PriceIncreasesView() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-60 flex-1 lg:max-w-sm">
+        <div className="relative min-w-60 flex-1 lg:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <Input
             type="search"
@@ -71,11 +75,19 @@ export default function PriceIncreasesView() {
               setText(event.target.value);
               setPage(1);
             }}
-            placeholder="Referencia, descripción o proveedor"
-            aria-label="Buscar en el histórico de alzas"
+            placeholder="Referencia o descripción"
+            aria-label="Buscar en el histórico de alzas por referencia o descripción"
             className="pl-9"
           />
         </div>
+        <IncreaseSupplierFilter
+          suppliers={options.data?.suppliers}
+          value={supplier}
+          onChange={(code) => {
+            setSupplier(code);
+            setPage(1);
+          }}
+        />
         <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-2">
           {(Object.keys(STATUS) as IncreaseStatus[]).map((key) => (
             <ToggleChip key={key} active={status === key} onClick={() => chooseStatus(key)} count={counts?.[key]}>
@@ -124,7 +136,7 @@ export default function PriceIncreasesView() {
       ) : rows.length === 0 ? (
         filtered ? (
           <StatePanel icon={FileX2} title="Ninguna alza coincide con los filtros" action={<Button variant="outline" onClick={clear}>Limpiar filtros</Button>}>
-            Prueba con otro texto o quita algún filtro.
+            Prueba con otro texto, otro proveedor o quita algún filtro.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Aún no hay alzas cargadas">

@@ -12,6 +12,7 @@ import type {
 import type {
   AnalysisPage,
   AnalysisParams,
+  IncreaseFilterOptions,
   PriceIncrease,
   PriceIncreasePage,
   PriceIncreaseParams,
@@ -61,16 +62,51 @@ export async function downloadMarginTemplate(withData: boolean): Promise<void> {
 const INCREASES = "/commercial/price-increases";
 
 /** The price increase history, the latest first, with the counts of the filter. */
-export async function listPriceIncreases({ q, status, pending, sku, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
+export async function listPriceIncreases({ q, supplier, status, pending, sku, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
   return apiFetch<PriceIncreasePage>(INCREASES, {
-    query: { q: q || undefined, status: status || undefined, pending: pending ? "true" : undefined, sku, page, size },
+    query: {
+      q: q || undefined,
+      supplier: supplier || undefined,
+      status: status || undefined,
+      pending: pending ? "true" : undefined,
+      sku,
+      page,
+      size,
+    },
   });
 }
 
+/** The suppliers with references in the history and the months with increases. */
+export async function getPriceIncreaseOptions(): Promise<IncreaseFilterOptions> {
+  return apiFetch<IncreaseFilterOptions>(`${INCREASES}/options`);
+}
+
+/** First and last day of a "YYYY-MM" month. */
+function monthDays(month: string): { since: string; until: string } {
+  const [year, number] = month.split("-").map(Number);
+  const last = new Date(year, number, 0).getDate();
+  return { since: `${month}-01`, until: `${month}-${String(last).padStart(2, "0")}` };
+}
+
 /** How much each reference moved in a period, with the period's figures and counts by movement. */
-export async function getPriceIncreaseAnalysis({ period, movement, q, sort, order, page, size }: AnalysisParams): Promise<AnalysisPage> {
+export async function getPriceIncreaseAnalysis({
+  window,
+  movement,
+  q,
+  supplier,
+  sort,
+  order,
+  page,
+  size,
+}: AnalysisParams): Promise<AnalysisPage> {
+  const period =
+    window.kind === "preset"
+      ? { period: window.period }
+      : window.kind === "month"
+        ? monthDays(window.month)
+        : { since: window.from, until: window.to };
   return apiFetch<AnalysisPage>(`${INCREASES}/analysis`, {
-    query: { period, movement: movement || undefined, q: q || undefined, sort, order, page, size },
+    query: { ...period, movement: movement || undefined, q: q || undefined, supplier: supplier || undefined, sort, order, page, size },
   });
 }
 

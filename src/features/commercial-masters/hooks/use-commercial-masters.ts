@@ -7,6 +7,7 @@ import { ApiError } from "@/shared/lib/api-client";
 import {
   downloadMarginTemplate,
   getPriceIncreaseAnalysis,
+  getPriceIncreaseOptions,
   getProduct,
   listCommercialMaster,
   listPriceIncreases,
@@ -100,11 +101,22 @@ export function usePriceIncreaseAnalysis(params: AnalysisParams) {
   });
 }
 
+/** The supplier and month dropdowns; they move only when the history does. */
+export function usePriceIncreaseOptions() {
+  return useQuery({
+    queryKey: [...increaseKeys.all, "options"] as const,
+    queryFn: getPriceIncreaseOptions,
+    retry: retryTransient,
+    staleTime: 5 * 60_000,
+  });
+}
+
 /** One reference's whole history, for the analysis detail (24 rows at most in the real workbook). */
 export function useReferenceIncreases(sku: string | null) {
+  const params = { q: "", supplier: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 } as const;
   return useQuery({
-    queryKey: increaseKeys.list({ q: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 }),
-    queryFn: () => listPriceIncreases({ q: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 }),
+    queryKey: increaseKeys.list(params),
+    queryFn: () => listPriceIncreases(params),
     enabled: sku !== null,
     retry: retryTransient,
   });

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { DateRangePicker, formatIsoRange } from "@/shared/components/ui/date-range-picker";
@@ -138,15 +139,11 @@ export default function CaseInbox({ area }: { area: string }) {
 
 function InboxHeading({ children }: { children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">PQRSF</h1>
-        <p className="text-sm text-text-secondary">
-          Seguimiento de peticiones, quejas, reclamos, sugerencias y felicitaciones.
-        </p>
-      </div>
-      {children}
-    </div>
+    <PageHeader
+      title="PQRSF"
+      description="Seguimiento de peticiones, quejas, reclamos, sugerencias y felicitaciones."
+      aside={children}
+    />
   );
 }
 

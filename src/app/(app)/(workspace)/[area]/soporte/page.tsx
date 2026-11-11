@@ -1,5 +1,6 @@
 import { LifeBuoy } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import { requireModule } from "@/features/areas/server/area-access";
 
 export default async function SoporteTiPage({
@@ -12,14 +13,10 @@ export default async function SoporteTiPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Solicitudes de soporte
-        </h1>
-        <p className="text-sm text-text-secondary">
-          Incidencias de equipos, accesos y sistemas de la compañía.
-        </p>
-      </div>
+      <PageHeader
+        title="Solicitudes de soporte"
+        description="Incidencias de equipos, accesos y sistemas de la compañía."
+      />
 
       {/* Empty state: names the cause and what unblocks it, and does not
           invent a contact address or ticketing channel that doesn't exist

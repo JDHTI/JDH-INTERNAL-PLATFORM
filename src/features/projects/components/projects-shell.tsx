@@ -6,6 +6,7 @@ import { Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { useSession } from "@/features/session/hooks/use-session";
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
@@ -194,7 +195,7 @@ export default function ProjectsShell({
     const isDisabled = pageError?.status === 404 || live.status === "disabled";
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Proyectos</h1>
+        <PageHeader title="Proyectos" />
         <StatePanel
           icon={Lock}
           title={

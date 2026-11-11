@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, BookX, CloudOff, RefreshCw } from "lucide-react";
 
+import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -33,13 +34,10 @@ export default function RulesView({ basePath }: { basePath: string }) {
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> Validador de pedidos
         </Link>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Reglas del validador</h1>
-          <p className="max-w-prose text-sm text-text-secondary">
-            Cómo decide el validador qué pedidos retenidos quedan listos para liberación y cuáles esperan a una persona,
-            en el orden en que aplica cada regla y con los valores vigentes.
-          </p>
-        </div>
+        <PageHeader
+          title="Reglas del validador"
+          description="Cómo decide el validador qué pedidos retenidos quedan listos para liberación y cuáles esperan a una persona, en el orden en que aplica cada regla y con los valores vigentes."
+        />
       </div>
 
       {rules.isPending ? (
