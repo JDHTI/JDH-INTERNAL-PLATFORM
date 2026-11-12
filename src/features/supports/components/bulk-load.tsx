@@ -201,14 +201,14 @@ export default function BulkLoad({ area }: { area: string }) {
         <div className="grid gap-x-4 gap-y-5 md:grid-cols-2">
           <div className="space-y-1.5">
             <BasePicker
-              config={{ ...SUPPLIER_PICKER, label: "Proveedor (opcional)" }}
+              config={{ ...SUPPLIER_PICKER, label: "Proveedor" }}
               selected={supplier}
               onSelect={setSupplier}
               onClear={() => setSupplier(null)}
             />
             <p className="text-[13px] text-text-secondary" aria-live="polite">
               {!supplier
-                ? "Se usa en las filas sin columna Cod. Proveedor, y su perfil dice cómo leer el archivo."
+                ? "Elígelo si el archivo no trae la columna Cod. Proveedor, como la plantilla corta. Si tiene perfil, el archivo se lee con él."
                 : profile.isFetching
                   ? "Buscando el perfil del proveedor."
                   : profile.data
@@ -233,7 +233,7 @@ export default function BulkLoad({ area }: { area: string }) {
               <p className="text-[13px] text-text-secondary">
                 {supplier
                   ? "Con los encabezados de su perfil, sin las columnas de valor fijo. La completa trae todos los campos."
-                  : "La corta pide solo lo que se negocia: llave, tipo y valor del apoyo. La completa trae todos los campos."}
+                  : "La corta trae vigencia, cliente, SKU, tipo y valor del apoyo, márgenes, % Apoyo JDH y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo y los demás campos opcionales."}
               </p>
             )}
           </div>
