@@ -109,22 +109,34 @@ export async function deleteProfile(supplierCode: string): Promise<void> {
   return apiFetch<void>(`/supplier-support-profiles/${encodeURIComponent(supplierCode)}`, { method: "DELETE" });
 }
 
-/** With a supplier, the template follows its profile: its headers, without the fixed columns. */
-export async function downloadBulkTemplate(supplierCode: string | null): Promise<void> {
+/**
+ * The short general template by default; `full` brings every field. With a
+ * supplier, it follows its profile: its headers, without the fixed columns.
+ */
+export async function downloadBulkTemplate(supplierCode: string | null, full = false): Promise<void> {
+  const name = ["carga-apoyos", supplierCode, full ? "completa" : null].filter(Boolean).join("-");
   return apiDownload("/supplier-supports/bulk/template", {
-    query: { supplier_code: supplierCode },
-    fallbackName: supplierCode ? `carga-apoyos-${supplierCode}.xlsx` : "carga-apoyos.xlsx",
+    query: { supplier_code: supplierCode, full },
+    fallbackName: `${name}.xlsx`,
   });
 }
 
-export async function runBulkLoad({ file, apply, supplierCode, sheet, defaults, columnMap }: BulkLoadInput): Promise<BulkReport> {
+export async function runBulkLoad({
+  file,
+  apply,
+  supplierCode,
+  sheet,
+  defaults,
+  columnMap,
+  expireMissing,
+}: BulkLoadInput): Promise<BulkReport> {
   const form = new FormData();
   form.append("file", file);
   if (Object.keys(defaults).length > 0) form.append("defaults", JSON.stringify(defaults));
   if (Object.keys(columnMap).length > 0) form.append("column_map", JSON.stringify(columnMap));
   return apiFetch<BulkReport>("/supplier-supports/bulk", {
     method: "POST",
-    query: { apply, supplier_code: supplierCode, sheet },
+    query: { apply, supplier_code: supplierCode, sheet, expire_missing: expireMissing },
     body: form,
   });
 }

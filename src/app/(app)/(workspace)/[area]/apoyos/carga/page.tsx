@@ -11,7 +11,7 @@ export default async function CargaApoyosPage({ params }: { params: Promise<{ ar
     <div className="space-y-6">
       <PageHeader
         title="Carga masiva de apoyos"
-        description="Sube el archivo del proveedor, revisa la simulación y guarda. Si una sola fila tiene un error, no se guarda ninguna."
+        description="Sube el archivo del proveedor, revisa la simulación y aplícala: crea los apoyos nuevos y actualiza los que ya existen. Si una sola fila tiene un error, no se guarda ninguna."
       />
       <ManagerGate action="cargar apoyos">
         <BulkLoad area={area} />

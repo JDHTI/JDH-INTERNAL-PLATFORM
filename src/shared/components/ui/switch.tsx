@@ -22,6 +22,7 @@ export function Switch({
   disabled?: boolean;
   className?: string;
   "aria-label"?: string;
+  "aria-labelledby"?: string;
   "aria-describedby"?: string;
 }) {
   return (

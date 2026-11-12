@@ -1,25 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, CloudOff, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { ArrowDown, ArrowUp, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
-import { Button } from "@/shared/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
+import { Menu, MenuCheckboxItem, MenuLabel } from "@/shared/components/ui/menu";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { useCanManage, useFilterFields, useSupportCatalogs, useSupportPermissions, useSupportSearch } from "../hooks/use-supports";
+import {
+  useCalcMethodLabel,
+  useCanManage,
+  useFilterFields,
+  useSupportCatalogs,
+  useSupportPermissions,
+  useSupportSearch,
+} from "../hooks/use-supports";
 import { requestEligible, requestSelectionError, sameRequestScope } from "../lib/request-selection";
 import BatchRequestDialog from "./batch-request-dialog";
 import {
-  calcMethodLabel,
   choiceLabel,
   formatCop,
   formatDay,
@@ -51,6 +59,11 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 
 type PerUnitKey = "net_cost_per" | "supplier_amount_per";
 
+interface CellContext {
+  open: () => void;
+  methodLabel: (code: string | null | undefined) => string;
+}
+
 interface Column {
   key: string;
   label: string;
@@ -59,11 +72,67 @@ interface Column {
   align?: "right";
   /** A column with nothing to show in the current page is left out. */
   hasData?: (items: SupplierSupport[]) => boolean;
-  cell: (support: SupplierSupport, open: () => void) => React.ReactNode;
+  /** The person can hide it from the "Columnas" menu. */
+  hideable?: boolean;
+  cell: (support: SupplierSupport, context: CellContext) => React.ReactNode;
 }
 
 const dash = <span aria-label="sin dato">—</span>;
 const list = (values: string[]) => (values.length > 0 ? values.join(", ") : dash);
+
+/** A computed figure with a second one under it, as the API sends them. */
+function pairCell(main: string | null, sub: string | null) {
+  return (
+    <>
+      <span className="block tabular-nums">{main ?? dash}</span>
+      {sub && <span className="block text-xs tabular-nums text-text-secondary">{sub}</span>}
+    </>
+  );
+}
+
+/*
+ * Columns the person hid, kept in this browser. A per-viewer convenience: a
+ * blocked storage keeps the choice in memory until the page reloads, and the
+ * server render (no storage) shows every column.
+ */
+const HIDDEN_COLUMNS_KEY = "jdh-supports-hidden-columns";
+const hiddenListeners = new Set<() => void>();
+let hiddenSnapshot: string | null = null;
+
+function hiddenColumnsSnapshot(): string {
+  if (hiddenSnapshot === null) {
+    try {
+      hiddenSnapshot = window.localStorage.getItem(HIDDEN_COLUMNS_KEY) ?? "[]";
+    } catch {
+      hiddenSnapshot = "[]";
+    }
+  }
+  return hiddenSnapshot;
+}
+
+function subscribeHiddenColumns(listener: () => void) {
+  hiddenListeners.add(listener);
+  return () => hiddenListeners.delete(listener);
+}
+
+function parseHiddenColumns(snapshot: string): string[] {
+  try {
+    const stored: unknown = JSON.parse(snapshot);
+    return Array.isArray(stored) ? stored.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHiddenColumns(keys: string[]) {
+  hiddenSnapshot = JSON.stringify(keys);
+  try {
+    window.localStorage.setItem(HIDDEN_COLUMNS_KEY, hiddenSnapshot);
+  } catch {
+    // Kept in memory only.
+  }
+  hiddenListeners.forEach((listener) => listener());
+}
 
 /**
  * The API converts to unit and box; the client never does. With no base
@@ -94,6 +163,27 @@ function perUnitCell(support: SupplierSupport, key: PerUnitKey, side: keyof PerU
   );
 }
 
+/** Cost per unit and per box, marked with where it comes from: the DWH (quoter's rule) or the stored reference. */
+function CostCell({ support }: { support: SupplierSupport }) {
+  const unit = toNumber(support.derived?.cost?.unit);
+  const box = toNumber(support.derived?.cost?.box);
+  const basis = support.derived?.cost_basis;
+  if (unit === null && box === null) return dash;
+  return (
+    <>
+      <span className="flex items-center justify-end gap-1.5">
+        {basis && (
+          <Badge tone={basis === "dwh" ? "info" : "neutral"} className="px-1.5 text-[11px] leading-4">
+            {basis === "dwh" ? "DWH" : "Referencia"}
+          </Badge>
+        )}
+        <span className="tabular-nums">{unit === null ? dash : formatCop(unit)}</span>
+      </span>
+      {box !== null && <span className="block text-xs tabular-nums text-text-secondary">Caja {formatCop(box)}</span>}
+    </>
+  );
+}
+
 const COLUMNS: Column[] = [
   // SKU is what people search by, so it gets its own column ahead of the rest.
   {
@@ -112,7 +202,7 @@ const COLUMNS: Column[] = [
     key: "supplier",
     label: "Proveedor",
     sortField: "supplier.name",
-    cell: (s, open) => (
+    cell: (s, { open }) => (
       <>
         <button
           type="button"
@@ -129,7 +219,13 @@ const COLUMNS: Column[] = [
       </>
     ),
   },
-  { key: "kind", label: "Tipo", sortField: "kind", cell: (s) => (s.kind ? choiceLabel("kind", s.kind) : dash) },
+  {
+    key: "kind",
+    label: "Clase",
+    sortField: "kind",
+    hideable: true,
+    cell: (s) => (s.kind ? choiceLabel("kind", s.kind) : dash),
+  },
   {
     key: "customer",
     label: "Cliente",
@@ -144,12 +240,14 @@ const COLUMNS: Column[] = [
   {
     key: "regional",
     label: "Regional",
+    hideable: true,
     hasData: (items) => items.some((s) => s.regionals.length > 0),
     cell: (s) => list(s.regionals),
   },
   {
     key: "business_unit",
     label: "Unidad de negocio",
+    hideable: true,
     hasData: (items) => items.some((s) => s.business_units.length > 0),
     cell: (s) => list(s.business_units),
   },
@@ -158,27 +256,65 @@ const COLUMNS: Column[] = [
     label: "Valor del apoyo",
     sortField: "supplier_value",
     align: "right",
-    cell: (s) => (
+    cell: (s, { methodLabel }) => (
       <>
         <span className="block tabular-nums">{formatSupplierValue(s.calc_method, s.supplier_value)}</span>
-        <span className="block text-xs text-text-secondary">{calcMethodLabel(s.calc_method)}</span>
+        <span className="block text-xs text-text-secondary">{methodLabel(s.calc_method)}</span>
       </>
     ),
+  },
+  {
+    key: "pct",
+    label: "% apoyo",
+    align: "right",
+    hideable: true,
+    cell: (s) =>
+      pairCell(
+        toNumber(s.derived?.pct_on_cost) === null ? null : `${formatPct(s.derived?.pct_on_cost)} costo`,
+        toNumber(s.derived?.pct_on_list) === null ? null : `${formatPct(s.derived?.pct_on_list)} lista`
+      ),
   },
   {
     key: "jdh",
     label: "Aporte JDH",
     sortField: "jdh_pct",
     align: "right",
+    hideable: true,
     // JDH net cost is independent from the supplier value, including zero.
     cell: (s) => <span className="tabular-nums">{s.calc_method === "costo_neto" ? formatCop(s.jdh_net_cost) : formatPct(s.jdh_pct)}</span>,
   },
-  { key: "net-unit", label: "Neto unitario", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
-  { key: "net-box", label: "Neto caja", align: "right", cell: (s) => perUnitCell(s, "net_cost_per", "box") },
+  {
+    key: "cost",
+    label: "Costo",
+    align: "right",
+    hideable: true,
+    cell: (s) => <CostCell support={s} />,
+  },
+  { key: "net-unit", label: "Neto unitario", align: "right", hideable: true, cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
+  { key: "net-box", label: "Neto caja", align: "right", hideable: true, cell: (s) => perUnitCell(s, "net_cost_per", "box") },
+  {
+    key: "price",
+    label: "Precio apoyado",
+    align: "right",
+    hideable: true,
+    cell: (s) => {
+      const unit = toNumber(s.derived?.suggested_price_per?.unit);
+      const box = toNumber(s.derived?.suggested_price_per?.box);
+      return pairCell(unit === null ? null : formatCop(unit), box === null ? null : `Caja ${formatCop(box)}`);
+    },
+  },
+  {
+    key: "margin",
+    label: "Margen real",
+    align: "right",
+    hideable: true,
+    cell: (s) => <span className="tabular-nums">{formatPct(s.derived?.margin_recomposed)}</span>,
+  },
   {
     key: "pack",
     label: "Und/caja",
     align: "right",
+    hideable: true,
     cell: (s) => <span className="tabular-nums">{toNumber(s.pack_factor) ? numberFormat.format(Number(s.pack_factor)) : dash}</span>,
   },
   {
@@ -304,7 +440,14 @@ export default function SupportsBrowser({
   const editing = items.find((item) => item.id === editId) ?? null;
   const voiding = items.find((item) => item.id === voidId) ?? null;
 
-  const columns = COLUMNS.filter((column) => !column.hasData || column.hasData(items));
+  const methodLabel = useCalcMethodLabel();
+  const hiddenRaw = useSyncExternalStore(subscribeHiddenColumns, hiddenColumnsSnapshot, () => "[]");
+  const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
+  const toggleColumn = (key: string, shown: boolean) =>
+    writeHiddenColumns(shown ? hiddenColumns.filter((hidden) => hidden !== key) : [...hiddenColumns, key]);
+  const columns = COLUMNS.filter(
+    (column) => !hiddenColumns.includes(column.key) && (!column.hasData || column.hasData(items))
+  );
 
   const filtered =
     q !== "" ||
@@ -379,7 +522,7 @@ export default function SupportsBrowser({
   const sortState = (field: string): "ascending" | "descending" | "none" =>
     sort[0] === field ? "ascending" : sort[0] === `-${field}` ? "descending" : "none";
 
-  const kindOptions = [{ value: ALL, label: "Todos los tipos" }, ...toOptions(catalogs?.kinds)];
+  const kindOptions = [{ value: ALL, label: "Todas las clases" }, ...toOptions(catalogs?.kinds)];
   const stateOptions = [
     { value: ALL, label: "Todos los estados" },
     ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
@@ -461,7 +604,7 @@ export default function SupportsBrowser({
           value={kind}
           onValueChange={(value) => reset(() => setKind(value))}
           options={kindOptions}
-          aria-label="Filtrar por tipo de apoyo"
+          aria-label="Filtrar por clase de apoyo"
         />
       </div>
 
@@ -502,10 +645,36 @@ export default function SupportsBrowser({
             Adjuntar soporte
           </Button>
         )}
+        <Menu
+          align="end"
+          trigger={
+            <>
+              <Columns3 aria-hidden="true" />
+              Columnas
+              {hiddenColumns.length === 1 ? " (1 oculta)" : hiddenColumns.length > 1 ? ` (${hiddenColumns.length} ocultas)` : ""}
+            </>
+          }
+          triggerClassName={buttonVariants({
+            variant: "outline",
+            size: "sm",
+            className: cn("max-md:hidden", !canWrite && "ml-auto"),
+          })}
+        >
+          <MenuLabel>Columnas de la tabla</MenuLabel>
+          {COLUMNS.filter((column) => column.hideable).map((column) => (
+            <MenuCheckboxItem
+              key={column.key}
+              checked={!hiddenColumns.includes(column.key)}
+              onCheckedChange={(shown) => toggleColumn(column.key, shown)}
+            >
+              {column.label}
+            </MenuCheckboxItem>
+          ))}
+        </Menu>
         <Button
           variant="outline"
           size="sm"
-          className={cn(!canWrite && "ml-auto")}
+          className={cn(!canWrite && "max-md:ml-auto")}
           onClick={() => setShowAdvanced((value) => !value)}
           aria-expanded={showAdvanced}
           aria-controls="supports-advanced"
@@ -660,7 +829,7 @@ export default function SupportsBrowser({
                     )}
                     {columns.map((column) => (
                       <td key={column.key} className={cn("max-w-56 px-3 py-2", alignClass(column))}>
-                        {column.cell(support, () => setOpenId(support.id))}
+                        {column.cell(support, { open: () => setOpenId(support.id), methodLabel })}
                       </td>
                     ))}
                     {canWrite && <td className="px-3 py-1 text-right">{actions(support)}</td>}

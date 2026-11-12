@@ -6,18 +6,25 @@ import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 
-import { useSupport, useSupportConflicts } from "../hooks/use-supports";
+import { useCalcMethodLabel, useSupport, useSupportConflicts } from "../hooks/use-supports";
 import {
-  calcMethodLabel,
   choiceLabel,
   formatCop,
   formatDay,
   formatNumber,
   formatPct,
   formatSupplierValue,
+  formatWhen,
   humanize,
+  originLabel,
 } from "../lib/format";
-import type { SupplierSupport, SupportAttachment, SupportConflict, SupportTier } from "../types/support.types";
+import type {
+  SupplierSupport,
+  SupportAttachment,
+  SupportConflict,
+  SupportDwhCost,
+  SupportTier,
+} from "../types/support.types";
 import SupportAttachments from "./support-attachments";
 import JdhSupport from "./jdh-support";
 import DiscardDialog from "./discard-dialog";
@@ -51,6 +58,7 @@ export default function SupportDetail({
   const [discard, setDiscard] = useState(false);
   const support = detail.data;
   const conflicts = useSupportConflicts(id, support?.has_conflicts === true);
+  const calcMethodLabel = useCalcMethodLabel();
 
   return (
     <><Dialog
@@ -99,6 +107,7 @@ function Body({
 }) {
   const derived = support.derived;
   const jdhPctLabel = formatPct(support.jdh_pct);
+  const calcMethodLabel = useCalcMethodLabel();
 
   return (
     <div className="space-y-5 text-sm">
@@ -110,11 +119,11 @@ function Body({
       {children}
 
       <Section title="Apoyo">
-        <Row label="Tipo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
+        <Row label="Tipo de apoyo">{calcMethodLabel(support.calc_method)}</Row>
+        <Row label="Clase de apoyo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
         <Row label="Financia">{support.funding ? choiceLabel("funding", support.funding) : "—"}</Row>
         <Row label="Programa">{support.program ?? "—"}</Row>
         <Row label="Referencia externa" mono>{support.external_ref ?? "—"}</Row>
-        <Row label="Forma de cálculo">{calcMethodLabel(support.calc_method)}</Row>
         <Row label="Valor del proveedor" tabular>
           {formatSupplierValue(support.calc_method, support.supplier_value)}
           {support.value_unit ? ` (${support.value_unit})` : ""}
@@ -128,6 +137,17 @@ function Body({
         <Row label="Condición de cierre">{support.end_condition ? humanize(support.end_condition) : "—"}</Row>
         <Row label="Autorizado por">{support.authorized_by ?? "—"}</Row>
         <Row label="Versión" tabular>{support.version}</Row>
+        {support.last_origin && (
+          <Row label="Última modificación">
+            {originLabel(support.last_origin)}
+            {support.last_load_id && (
+              <>
+                {" · carga "}
+                <span className="break-all font-mono text-[13px]">{support.last_load_id}</span>
+              </>
+            )}
+          </Row>
+        )}
       </Section>
 
       <Section title="A quién aplica">
@@ -155,6 +175,8 @@ function Body({
         <Row label="Costo de referencia" tabular>{formatCop(support.reference_cost)}</Row>
         <Row label="Precio de lista de referencia" tabular>{formatCop(support.reference_list_price)}</Row>
       </Section>
+
+      {support.dwh_cost !== undefined && <DwhCost cost={support.dwh_cost} basis={derived?.cost_basis ?? null} />}
 
       {derived && (
         <Section title="Cifras calculadas">
@@ -310,14 +332,60 @@ function TiersTable({ tiers, calcMethod }: { tiers: SupportTier[]; calcMethod: s
   );
 }
 
+const COST_SOURCES: Record<string, string> = {
+  cotizacion: "Cotización del proveedor",
+  inventario: "Inventario",
+};
+
+/**
+ * The SKU's cost in the DWH with the quoter's rule (the higher of quotation
+ * and inventory, in the customer's warehouses), from the daily job.
+ */
+function DwhCost({ cost, basis }: { cost: SupportDwhCost | null; basis: "dwh" | "referencia" | null }) {
+  return (
+    <section className="space-y-1">
+      <h3 className="font-semibold">Costo del DWH</h3>
+      {cost === null ? (
+        <p className="text-text-secondary">
+          El cálculo diario aún no tiene costo para este apoyo.{" "}
+          {basis === "referencia"
+            ? "Las cifras usan el costo de referencia."
+            : "Sin costo, las cifras que dependen de él quedan vacías."}
+        </p>
+      ) : (
+        <>
+          <p className="text-text-secondary">
+            El mayor entre la cotización vigente y el costo de inventario, por unidad de inventario.{" "}
+            {basis === "dwh"
+              ? "Las cifras calculadas usan este costo."
+              : basis === "referencia"
+                ? "Las cifras usan el costo de referencia: este no se pudo llevar a la unidad del apoyo."
+                : ""}
+          </p>
+          <dl className="divide-y divide-border">
+            <Row label="Costo por unidad" tabular>{formatCop(cost.unit_cost)}</Row>
+            <Row label="Fuente">{cost.source ? (COST_SOURCES[cost.source] ?? humanize(cost.source)) : "—"}</Row>
+            <Row label="Cotización" tabular>{formatCop(cost.quote_cost)}</Row>
+            <Row label="Inventario" tabular>{formatCop(cost.inventory_cost)}</Row>
+            <Row label="Bodegas">{cost.plan_label}</Row>
+            <Row label="Fecha del dato" tabular>{formatDay(cost.snapshot_date)}</Row>
+            <Row label="Calculado" tabular>{formatWhen(cost.computed_at)}</Row>
+          </dl>
+        </>
+      )}
+    </section>
+  );
+}
+
 function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
+  const calcMethodLabel = useCalcMethodLabel();
   return (
     <table className="w-full text-left text-sm">
       <thead className={headClass}>
         <tr>
           <th scope="col" className="px-3 py-2">Programa</th>
           <th scope="col" className="px-3 py-2">Vigencia</th>
-          <th scope="col" className="px-3 py-2">Forma de cálculo</th>
+          <th scope="col" className="px-3 py-2">Tipo de apoyo</th>
           <th scope="col" className="px-3 py-2 text-right">Valor</th>
         </tr>
       </thead>

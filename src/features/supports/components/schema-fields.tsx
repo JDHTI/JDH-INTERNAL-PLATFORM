@@ -9,6 +9,7 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 
+import { useCalcMethodLabel } from "../hooks/use-supports";
 import { choiceLabel, toOptions } from "../lib/format";
 import { isPercentField, type Draft } from "../lib/form-values";
 import type { CalcMethodRule, FormFieldSpec, SupportCatalogs } from "../types/support.types";
@@ -111,6 +112,7 @@ function SchemaField({
   catalogs: SupportCatalogs | undefined;
 }) {
   const id = useId();
+  const methodLabel = useCalcMethodLabel();
   const hint = hintFor(spec, rule);
   const text = typeof value === "string" ? value : "";
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
@@ -138,7 +140,10 @@ function SchemaField({
           placeholder="Elige una opción"
           options={[
             ...(isRequired ? [] : [{ value: "", label: "Sin definir" }]),
-            ...spec.choices.map((code) => ({ value: code, label: choiceLabel(spec.name, code) })),
+            ...spec.choices.map((code) => ({
+              value: code,
+              label: spec.name === "calc_method" ? methodLabel(code) : choiceLabel(spec.name, code),
+            })),
           ]}
         />
       );

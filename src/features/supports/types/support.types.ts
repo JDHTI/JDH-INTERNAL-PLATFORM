@@ -53,7 +53,36 @@ export interface SupportDerived {
   supplier_amount_per: PerUnit | null;
   net_cost_per: PerUnit | null;
   suggested_price_per: PerUnit | null;
+  /** Which cost the figures use: the DWH's (quoter's rule) or the stored reference; null, none. */
+  cost_basis?: "dwh" | "referencia" | null;
 }
+
+/** Cost of the support's SKU in the DWH with the quoter's rule, from the daily job. */
+export interface SupportDwhCost {
+  /** Per inventory unit: the higher of quotation and inventory. */
+  unit_cost: Decimal | null;
+  /** Which one won: "cotizacion" or "inventario". */
+  source: string | null;
+  quote_cost: Decimal | null;
+  inventory_cost: Decimal | null;
+  plan_key: string;
+  /** Warehouses used: the customer's price list, or list 1's highest. */
+  plan_label: string;
+  snapshot_date: string | null;
+  computed_at: string | null;
+}
+
+/** What wrote a support's current version. */
+export type SupportOrigin =
+  | "manual"
+  | "lote"
+  | "carga"
+  | "edicion"
+  | "anulacion"
+  | "vencimiento"
+  | "aprobacion_jdh"
+  | "cancelacion_jdh"
+  | "importacion";
 
 export interface SupplierSupport {
   id: string;
@@ -106,6 +135,11 @@ export interface SupplierSupport {
   derived: SupportDerived | null;
   /** Supporting documents linked to it. Missing on API builds older than the attachments. */
   attachment_count?: number;
+  /** Missing on API builds older than the DWH cost job; null when the job has no cost for it. */
+  dwh_cost?: SupportDwhCost | null;
+  last_origin?: SupportOrigin | string | null;
+  /** The bulk load that wrote the current version, when one did. */
+  last_load_id?: string | null;
 }
 
 export interface SupportConflict {
@@ -306,6 +340,8 @@ export interface SupportFormSchema {
   methods: Record<string, CalcMethodRule>;
   required_always: string[];
   tiers: { threshold_types: string[]; max: number };
+  /** Readable name of each calc method ("Tipo de apoyo"). Missing on older API builds. */
+  calc_method_labels?: Record<string, string>;
 }
 
 /** A new support. Percentages are fractions (0.05 = 5%); a missing key is left to the API. */
@@ -364,6 +400,23 @@ export interface BulkPreviewRow {
   supplier_value: Decimal | null;
   valid_from: string | null;
   valid_to: string | null;
+  /** What the row does to the stored supports, matched by key. */
+  action: BulkRowAction;
+  /** The support it updates or leaves as it is; null when it creates one. */
+  support_id: string | null;
+}
+
+export type BulkRowAction = "crear" | "actualizar" | "sin_cambio";
+
+/** A stored support of the same supplier and class that the file no longer brings. */
+export interface BulkMissingSupport {
+  support_id: string;
+  customer_nit: string | null;
+  product_sku: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  /** Whether this load closes it (`expire_missing` and already started). */
+  expires: boolean;
 }
 
 /** Result of a bulk load. All or nothing: one error sets `blocked` and nothing is saved. */
@@ -386,6 +439,21 @@ export interface BulkReport {
   profile_used: boolean;
   created: string[];
   with_conflicts: number;
+  to_create: number;
+  to_update: number;
+  unchanged: number;
+  /** Stored supports of the same suppliers and classes the file no longer brings. */
+  missing: number;
+  /** How many of the missing ones this load closes. */
+  to_expire: number;
+  /** The first 50 missing ones. */
+  missing_preview: BulkMissingSupport[];
+  updated: string[];
+  expired: string[];
+  /** Trace id of the applied load (`carga_id` in the DWH). */
+  load_id: string | null;
+  /** A big load reaches the DWH from this moment (its quiet hours); null, right away. */
+  publish_not_before: string | null;
 }
 
 /** A document of the document manager backing a support. */
@@ -457,4 +525,6 @@ export interface BulkLoadInput {
   sheet: string | null;
   defaults: ProfileDefaults;
   columnMap: ColumnMap;
+  /** Close the stored supports the file no longer brings. */
+  expireMissing: boolean;
 }

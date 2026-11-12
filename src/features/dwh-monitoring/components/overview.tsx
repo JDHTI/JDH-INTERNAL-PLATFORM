@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DatabaseZap } from "lucide-react";
 
+import DwhPublishPanel from "@/features/dwh-publish/components/dwh-publish-panel";
 import PageHeader from "@/shared/components/page-header";
 import StatePanel from "@/shared/components/state-panel";
 import TableSkeleton from "@/shared/components/table-skeleton";
@@ -43,6 +44,9 @@ export default function Overview({ area }: { area: string }) {
           <ReadyToday area={area} rows={data.datos_listos_hoy} />
         </>
       ) : null}
+
+      {/* The way back to the warehouse: renders only for platform administrators. */}
+      <DwhPublishPanel />
     </div>
   );
 }

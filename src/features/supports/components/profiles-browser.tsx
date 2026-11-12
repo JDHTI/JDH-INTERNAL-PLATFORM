@@ -10,7 +10,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 
-import { useProfiles } from "../hooks/use-supports";
+import { useFormSchema, useProfiles } from "../hooks/use-supports";
 import { calcMethodLabel, choiceLabel, formatDay } from "../lib/format";
 import type { SupportProfile } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
@@ -28,6 +28,7 @@ function mappedFields(profile: SupportProfile): string {
 export default function ProfilesBrowser({ area }: { area: string }) {
   const router = useRouter();
   const profiles = useProfiles();
+  const labels = useFormSchema().data?.calc_method_labels;
   useBreadcrumbLabel(`/${area}/apoyos/perfiles`, "Perfiles de proveedor");
   const items = profiles.data ?? [];
 
@@ -73,7 +74,7 @@ export default function ProfilesBrowser({ area }: { area: string }) {
                 >
                   <span className="truncate text-sm font-medium">{profile.supplier_name}</span>
                   <span className="truncate text-xs text-text-secondary">
-                    <span className="font-mono">{profile.supplier_code}</span> · {methodOf(profile)} · {mappedFields(profile)}
+                    <span className="font-mono">{profile.supplier_code}</span> · {methodOf(profile, labels)} · {mappedFields(profile)}
                   </span>
                 </Link>
               </li>
@@ -85,8 +86,8 @@ export default function ProfilesBrowser({ area }: { area: string }) {
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
                   <th scope="col" className="px-3 py-2">Proveedor</th>
-                  <th scope="col" className="px-3 py-2">Método de cálculo</th>
-                  <th scope="col" className="px-3 py-2">Tipo</th>
+                  <th scope="col" className="px-3 py-2">Tipo de apoyo</th>
+                  <th scope="col" className="px-3 py-2">Clase de apoyo</th>
                   <th scope="col" className="px-3 py-2">Archivo</th>
                   <th scope="col" className="px-3 py-2 text-right">Actualizado</th>
                 </tr>
@@ -106,7 +107,7 @@ export default function ProfilesBrowser({ area }: { area: string }) {
                       </Link>
                       <span className="block font-mono text-xs text-text-secondary">{profile.supplier_code}</span>
                     </td>
-                    <td className="px-3 py-2">{methodOf(profile)}</td>
+                    <td className="px-3 py-2">{methodOf(profile, labels)}</td>
                     <td className="px-3 py-2">{text(profile.defaults.kind) ? choiceLabel("kind", text(profile.defaults.kind)) : "Sin definir"}</td>
                     <td className="px-3 py-2">
                       <span className="block">{mappedFields(profile)}</span>
@@ -127,7 +128,7 @@ export default function ProfilesBrowser({ area }: { area: string }) {
   );
 }
 
-function methodOf(profile: SupportProfile): string {
+function methodOf(profile: SupportProfile, labels: Record<string, string> | undefined): string {
   const method = text(profile.defaults.calc_method);
-  return method ? calcMethodLabel(method) : "Método sin definir";
+  return method ? calcMethodLabel(method, labels) : "Tipo sin definir";
 }
