@@ -32,17 +32,6 @@ const ITEMS: { key: Indicator; label: string; tone?: "success" | "warning" | "da
   { key: "apoyo", label: "Con apoyo aplicado", help: "Referencias con un apoyo del proveedor que entra en el margen." },
 ];
 
-/** A list update's indicators: no local products, and the reference price is the list's. */
-const LIST_ITEMS = ITEMS.filter((item) => item.key !== "local").map((item) =>
-  item.key === "sin_referencia"
-    ? { ...item, label: "Sin precio en la lista", help: "La lista no tiene precio vigente (o tiene un marcador de $1), o la referencia se agregó." }
-    : item.key === "objetivo"
-      ? { ...item, help: "El precio nuevo, o el actual de la lista si aún no tiene, deja el margen con apoyo en el objetivo o por encima." }
-      : item.key === "all"
-        ? { ...item, help: "Todas las referencias de la actualización." }
-        : item
-);
-
 const TONE_TEXT ={ success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
 const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" } as const;
 
@@ -56,15 +45,12 @@ export default function QuotationIndicators({
   lines,
   active,
   onSelect,
-  forList = false,
 }: {
   lines: QuotationLine[];
   active: Indicator | null;
   onSelect: (indicator: Indicator) => void;
-  /** A list update: compared against the list's price, and it has no products only for quoting. */
-  forList?: boolean;
 }) {
-  const items = forList ? LIST_ITEMS : ITEMS;
+  const items = ITEMS;
   const counts = Object.fromEntries(ITEMS.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
   const judged = counts.objetivo + counts.rango + counts.minimo;
 
@@ -88,7 +74,7 @@ export default function QuotationIndicators({
           })}
         </div>
         <p className="text-[13px] text-text-secondary">
-          Según el precio nuevo de cada línea, o {forList ? "el actual de la lista" : "el último"} si aún no tiene. Toca una cifra para filtrar la tabla.
+          Según el precio nuevo de cada línea, o el último si aún no tiene. Toca una cifra para filtrar la tabla.
         </p>
       </div>
 

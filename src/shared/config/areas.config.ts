@@ -26,6 +26,7 @@ import {
   Laptop,
   LifeBuoy,
   ListChecks,
+  ListOrdered,
   ListRestart,
   MessageSquareWarning,
   Palette,
@@ -399,6 +400,15 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: ListRestart,
     available: true,
     permission: "actualizacion-listas",
+  },
+  {
+    // Locked to BI in the API's catalog: it only ever reaches BI's `my_modules`.
+    key: "listas-principales",
+    name: "Listas principales",
+    category: "Operación",
+    icon: ListOrdered,
+    available: true,
+    permission: "listas-principales",
   },
   {
     key: "validador-pedidos",

@@ -35,7 +35,8 @@ const PARAMETER_LABELS: Record<string, string> = {
 export default function QuotationRulesView({ basePath }: { basePath: string }) {
   const rules = useQuotationRules();
   // The list updates price with the same engine, so they show the same rules.
-  const isList = useQuotationKind() === "lista";
+  const kind = useQuotationKind();
+  const isList = kind !== "cotizacion";
   useBreadcrumbLabel(`${basePath}/reglas`, "Reglas");
 
   return (
@@ -45,7 +46,8 @@ export default function QuotationRulesView({ basePath }: { basePath: string }) {
           href={basePath}
           className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
         >
-          <ArrowLeft className="size-4" aria-hidden="true" /> {isList ? "Actualización de listas" : "Cotizador"}
+          <ArrowLeft className="size-4" aria-hidden="true" />{" "}
+          {kind === "principal" ? "Listas principales" : isList ? "Actualización de listas" : "Cotizador"}
         </Link>
         <PageHeader
           title={isList ? "Reglas de precios" : "Reglas del cotizador"}

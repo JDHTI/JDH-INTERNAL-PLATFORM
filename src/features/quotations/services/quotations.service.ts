@@ -5,8 +5,11 @@ import type {
   ConfirmOptions,
   LineChange,
   LineImport,
+  LineInsight,
+  ListKind,
   LocalLineInput,
   OfferSettings,
+  PriceListLoad,
   Quotation,
   QuotationListParams,
   QuotationKind,
@@ -14,6 +17,9 @@ import type {
   QuotationPermissions,
   QuotationRuleSection,
   QuotationWithImport,
+  ReviewStatus,
+  StagedList,
+  StockTotals,
   TemporaryQuotationInput,
   ValidateOptions,
   WindowMonths,
@@ -24,7 +30,7 @@ const BASE = QUOTATIONS_BASE;
 
 const one = (id: string) => `${BASE}/${encodeURIComponent(id)}`;
 
-/** `kind=lista` asks for the list updates module (`actualizacion-listas`) instead of the quoter. */
+/** `kind=lista` or `principal` asks for a list module instead of the quoter. */
 export function getQuotationPermissions(kind: QuotationKind = "cotizacion"): Promise<QuotationPermissions> {
   return apiFetch<QuotationPermissions>(`${BASE}/permissions`, { query: { kind } });
 }
@@ -32,10 +38,65 @@ export function getQuotationPermissions(kind: QuotationKind = "cotizacion"): Pro
 /**
  * Starts the update of an existing SIESA list: a customer's assigned list, or
  * the list picked by code or name. Reads the DWH (list, branches, last sales):
- * 404 unknown customer or list, 403 a restricted list for someone outside BI.
+ * 404 unknown customer or list, 403 a main list from Actualización de listas,
+ * 422 a list that is not a main one from Listas principales.
  */
-export function createListUpdate(input: { customer_nit: string } | { price_list_id: string }): Promise<Quotation> {
+export function createListUpdate(
+  input: ({ customer_nit: string } | { price_list_id: string }) & { kind: ListKind }
+): Promise<Quotation> {
   return apiFetch<Quotation>(`${BASE}/list-updates`, { method: "POST", body: input });
+}
+
+const UPDATES = "/price-list-updates";
+const update = (id: string) => `${UPDATES}/${encodeURIComponent(id)}`;
+
+/**
+ * Marks items of a list update. `por_validar` and `sin_marcar`: whoever edits
+ * it; `validada`, or taking an item out of it: whoever validates the module.
+ * Items that cannot be marked come back in `skipped`; 422 when none could.
+ */
+export function reviewLines(id: string, version: number, skus: string[], status: ReviewStatus): Promise<QuotationWithImport> {
+  return apiFetch<QuotationWithImport>(`${update(id)}/review`, { method: "PUT", body: { version, skus, status } });
+}
+
+/** Writes (or clears, with an empty text) the observation of an item. */
+export function setLineNote(id: string, version: number, sku: string, note: string): Promise<Quotation> {
+  return apiFetch<Quotation>(`${update(id)}/lines/${encodeURIComponent(sku)}/note`, { method: "PUT", body: { version, note } });
+}
+
+/** Stock by warehouse, list price history and monthly sale price of one item. */
+export function getLineInsight(id: string, sku: string): Promise<LineInsight> {
+  return apiFetch<LineInsight>(`${update(id)}/lines/${encodeURIComponent(sku)}/insight`);
+}
+
+/** Stock of every item in the list's sellable warehouses, summed per reference. */
+export function getStockTotals(id: string): Promise<StockTotals> {
+  return apiFetch<StockTotals>(`${update(id)}/stock`);
+}
+
+/** Every list of the module with validated items not loaded yet. */
+export function listStaging(kind: ListKind): Promise<StagedList[]> {
+  return apiFetch<StagedList[]>(`${UPDATES}/staging`, { query: { kind } });
+}
+
+/** SIESA's two pages of a list's staging: the workbook or the import file. Only who validates. */
+export function downloadStagingFile(kind: ListKind, priceListId: string, format: "xlsx" | "txt", activationDate: string): Promise<void> {
+  return apiDownload(`${UPDATES}/staging/${encodeURIComponent(priceListId)}/file.${format}`, {
+    query: { kind, activation_date: activationDate },
+    fallbackName: format === "xlsx" ? `ACTUALIZACION LISTA ${priceListId}.xlsx` : `precios-lista${priceListId}-staging.txt`,
+  });
+}
+
+/** The items of the downloaded files were loaded in SIESA; 409 when one left the staging. */
+export function createLoad(kind: ListKind, priceListId: string, lineIds: string[], activationDate: string): Promise<PriceListLoad> {
+  return apiFetch<PriceListLoad>(`${UPDATES}/staging/${encodeURIComponent(priceListId)}/loads`, {
+    method: "POST",
+    body: { kind, line_ids: lineIds, activation_date: activationDate },
+  });
+}
+
+export function listLoads(kind: ListKind): Promise<PriceListLoad[]> {
+  return apiFetch<PriceListLoad[]>(`${UPDATES}/loads`, { query: { kind } });
 }
 
 /** Open to every signed-in user, like the validator's rules. */

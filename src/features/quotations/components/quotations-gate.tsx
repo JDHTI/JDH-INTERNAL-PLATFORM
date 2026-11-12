@@ -9,6 +9,22 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useQuotationPermissions } from "../hooks/use-quotations";
 import { KIND_COPY, useQuotationKind } from "../lib/kind";
+import type { QuotationKind } from "../types/quotations.types";
+
+const GATE_TITLE: Record<QuotationKind, string> = {
+  cotizacion: "El cotizador es del área Comercial",
+  lista: "La actualización de listas es del área BI",
+  principal: "Las listas principales son del área BI",
+};
+
+const GATE_TEXT: Record<QuotationKind, string> = {
+  cotizacion:
+    "Las cotizaciones las arman los miembros del área Comercial y las valida el área BI. Si las necesitas, pide a un administrador de la plataforma que te agregue a una de esas áreas.",
+  lista:
+    "Las actualizaciones de listas las arma quien tenga el permiso de gestión del módulo y valida sus ítems el área BI. Si las necesitas, pide a un administrador de la plataforma que te dé el permiso.",
+  principal:
+    "Las listas principales las actualizan los colaboradores de BI con permiso de gestión del módulo, y validan sus ítems los analistas y el líder de BI. Si las necesitas, pide el permiso a un administrador de la plataforma.",
+};
 
 /**
  * Everything but the rules needs the commercial area (quotes), the validating
@@ -26,22 +42,21 @@ export default function QuotationsGate({ basePath, children }: { basePath: strin
     return <QuotationLoadError error={permissions.error} onRetry={() => void permissions.refetch()} subject={KIND_COPY[kind].module} />;
   }
   if (!permissions.data.can_manage && !permissions.data.can_validate) {
+    const isList = kind !== "cotizacion";
     return (
       <StatePanel
         icon={Lock}
-        title={kind === "lista" ? "La actualización de listas es del área BI" : "El cotizador es del área Comercial"}
+        title={GATE_TITLE[kind]}
         action={
           <Link
             href={`${basePath}/reglas`}
             className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border-control px-3 text-sm font-medium hover:bg-canvas-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:h-11"
           >
-            <BookOpen className="size-4" aria-hidden="true" /> {kind === "lista" ? "Ver las reglas de precios" : "Ver las reglas del cotizador"}
+            <BookOpen className="size-4" aria-hidden="true" /> {isList ? "Ver las reglas de precios" : "Ver las reglas del cotizador"}
           </Link>
         }
       >
-        {kind === "lista"
-          ? "Las actualizaciones de listas las arma quien tenga el permiso de gestión del módulo y las valida el área BI. Si las necesitas, pide a un administrador de la plataforma que te dé el permiso."
-          : "Las cotizaciones las arman los miembros del área Comercial y las valida el área BI. Si las necesitas, pide a un administrador de la plataforma que te agregue a una de esas áreas."}
+        {GATE_TEXT[kind]}
       </StatePanel>
     );
   }

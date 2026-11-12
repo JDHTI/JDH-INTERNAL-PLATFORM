@@ -1,14 +1,22 @@
 "use client";
 
+import { useId, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
+import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
+import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS, formatCount, formatDay, formatMargin, formatMoney } from "../lib/format";
-import type { QuotationLine, SupportOption } from "../types/quotations.types";
-import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP } from "./lines-table";
+import { useLineInsight, useLineNote } from "../hooks/use-list-review";
+import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMargin, formatMoney } from "../lib/format";
+import type { LineInsight, Quotation, QuotationLine, SupportOption } from "../types/quotations.types";
+import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, ReviewChip } from "./lines-table";
+import PriceHistoryChart from "./price-history-chart";
 
 /**
  * Everything about one reference that does not fit on its row: the sale the
@@ -21,15 +29,20 @@ export default function LineDetailDialog({
   onClose,
   onOpenAgreement,
   forList = false,
-  showCost = false,
+  quotation,
+  canEdit = false,
 }: {
   line: QuotationLine | null;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
   /** A list update: the list's price, the last sale apart and every support of the list. */
   forList?: boolean;
-  /** Whoever validates sees the cost of the last sale. */
+  /** Whoever validates sees the costs; the detail no longer shows the last sale's cost. */
   showCost?: boolean;
+  /** A list update: its review, observation, stock by warehouse and price history come with it. */
+  quotation?: Quotation;
+  /** Whoever edits the update writes the observation. */
+  canEdit?: boolean;
 }) {
   const local = line?.origin === "local";
   return (
@@ -37,7 +50,7 @@ export default function LineDetailDialog({
       open={line !== null}
       onOpenChange={(open) => !open && onClose()}
       isForm={false}
-      wide={false}
+      wide={quotation !== undefined}
       title={line ? (local ? "Producto solo para cotización" : `Referencia ${line.sku}`) : "Referencia"}
       description={line?.description ?? undefined}
     >
@@ -45,9 +58,237 @@ export default function LineDetailDialog({
         (local ? (
           <LocalDetail line={line} onClose={onClose} />
         ) : (
-          <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList} showCost={showCost} />
+          <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList}>
+            {quotation && <ListItemPanels quotation={quotation} line={line} canEdit={canEdit} />}
+          </Detail>
         ))}
     </Dialog>
+  );
+}
+
+/**
+ * What a list update adds to an item: its review and observation, the stock in
+ * the list's warehouses, and how its price moved (the list's versions and the
+ * monthly sale price). The DWH parts load when the detail opens.
+ */
+function ListItemPanels({ quotation, line, canEdit }: { quotation: Quotation; line: QuotationLine; canEdit: boolean }) {
+  const insight = useLineInsight(quotation.id, line.sku);
+  const data = insight.data;
+  return (
+    <>
+      <NoteSection quotation={quotation} line={line} canEdit={canEdit} />
+
+      <section aria-labelledby="item-stock" className="space-y-2">
+        <h3 id="item-stock" className="text-base font-semibold">Existencias por bodega</h3>
+        {insight.isPending ? (
+          <div className="h-20 animate-pulse rounded-md bg-canvas-subtle" aria-label="Cargando existencias" />
+        ) : insight.isError ? (
+          <p role="alert" className="text-danger">{errorMessage(insight.error)}</p>
+        ) : data && data.stock.length === 0 ? (
+          <p className="text-text-secondary">
+            Sin existencia en las bodegas de la lista ({data.warehouses.join(", ")}), según la foto de SIESA de esta mañana.
+          </p>
+        ) : data ? (
+          <StockTable insight={data} />
+        ) : null}
+      </section>
+
+      <section aria-labelledby="item-history" className="space-y-2">
+        <h3 id="item-history" className="text-base font-semibold">Cómo ha variado el precio</h3>
+        {insight.isPending ? (
+          <div className="h-48 animate-pulse rounded-md bg-canvas-subtle" aria-label="Cargando el historial" />
+        ) : data ? (
+          <HistoryPanel insight={data} line={line} />
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+const SCOPE_TEXT: Record<LineInsight["sales_scope"], string> = {
+  cliente: "al cliente de la actualización",
+  lista: "a los clientes de la lista",
+  compania: "a toda la compañía (la lista tiene más de 1.000 sucursales)",
+};
+
+function HistoryPanel({ insight, line }: { insight: LineInsight; line: QuotationLine }) {
+  const hasData = insight.history.length > 0 || insight.sales.length > 0;
+  return (
+    <div className="space-y-2">
+      <p className="text-[13px] text-text-secondary">
+        Precio de lista por unidad de inventario
+        {insight.history_since ? ` desde el ${formatDay(insight.history_since)} (SIESA no guarda versiones anteriores)` : ""}, y
+        precio de venta de cada mes {SCOPE_TEXT[insight.sales_scope]} en los últimos 12 meses.
+      </p>
+      {!insight.sales_read && (
+        <p className="text-[13px] text-warning">El datawarehouse no respondió a tiempo con las ventas: la gráfica muestra solo el precio de lista.</p>
+      )}
+      {hasData ? (
+        <>
+          <PriceHistoryChart
+            history={insight.history}
+            sales={insight.sales}
+            label={`Precio de lista y precio de venta por mes de ${line.description ?? line.sku}`}
+          />
+          <details className="text-[13px]">
+            <summary className="cursor-pointer rounded-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              Ver los datos como tabla
+            </summary>
+            <HistoryTables insight={insight} />
+          </details>
+        </>
+      ) : (
+        <p className="text-text-secondary">No hay versiones del precio en la lista ni ventas en los últimos 12 meses.</p>
+      )}
+    </div>
+  );
+}
+
+function HistoryTables({ insight }: { insight: LineInsight }) {
+  const cell = "px-2 py-1";
+  return (
+    <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      {insight.history.length > 0 && (
+        <table className="w-full text-left tabular-nums">
+          <caption className="pb-1 text-left font-medium">Precio de lista</caption>
+          <thead className="text-xs text-text-secondary">
+            <tr>
+              <th scope="col" className={cell}>Desde</th>
+              <th scope="col" className={cell}>Hasta</th>
+              <th scope="col" className={cn(cell, "text-right")}>Precio</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {insight.history.map((version) => (
+              <tr key={version.valid_from}>
+                <td className={cell}>{formatDay(version.valid_from)}</td>
+                <td className={cell}>{version.valid_to ? formatDay(version.valid_to) : "Vigente"}</td>
+                <td className={cn(cell, "text-right")}>{formatMoney(version.price)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {insight.sales.length > 0 && (
+        <table className="w-full text-left tabular-nums">
+          <caption className="pb-1 text-left font-medium">Precio de venta por mes</caption>
+          <thead className="text-xs text-text-secondary">
+            <tr>
+              <th scope="col" className={cell}>Mes</th>
+              <th scope="col" className={cn(cell, "text-right")}>Precio</th>
+              <th scope="col" className={cn(cell, "text-right")}>Unidades</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {insight.sales.map((sale) => (
+              <tr key={sale.month}>
+                <td className={cell}>{monthFormat.format(Date.parse(`${sale.month.slice(0, 10)}T00:00:00Z`))}</td>
+                <td className={cn(cell, "text-right")}>{formatMoney(String(Math.round(toNumber(sale.price) ?? 0)))}</td>
+                <td className={cn(cell, "text-right")}>{unitsFormat.format(toNumber(sale.quantity) ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+const unitsFormat = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+const monthFormat = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric", timeZone: "UTC" });
+
+function StockTable({ insight }: { insight: LineInsight }) {
+  const cell = "px-2 py-1.5";
+  const total = insight.stock.reduce((sum, row) => sum + (toNumber(row.on_hand) ?? 0), 0);
+  return (
+    <div className="overflow-x-auto rounded-md border border-border">
+      <table className="w-full text-left text-[13px] tabular-nums">
+        <caption className="sr-only">Existencias por bodega de la lista</caption>
+        <thead className="bg-canvas-subtle text-xs text-text-secondary">
+          <tr>
+            <th scope="col" className={cell}>Bodega</th>
+            <th scope="col" className={cn(cell, "text-right")}>Existencia</th>
+            <th scope="col" className={cn(cell, "text-right")}>Disponible</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {insight.stock.map((row) => (
+            <tr key={row.warehouse}>
+              <td className={cell}>
+                <span className="font-mono">{row.warehouse}</span>
+                {row.warehouse_name && <span className="text-text-secondary"> · {row.warehouse_name}</span>}
+              </td>
+              <td className={cn(cell, "text-right")}>{unitsFormat.format(toNumber(row.on_hand) ?? 0)}</td>
+              <td className={cn(cell, "text-right")}>{row.available === null ? "—" : unitsFormat.format(toNumber(row.available) ?? 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+        {insight.stock.length > 1 && (
+          <tfoot className="border-t border-border font-semibold">
+            <tr>
+              <td className={cell}>Total</td>
+              <td className={cn(cell, "text-right")}>{unitsFormat.format(total)}</td>
+              <td className={cell} />
+            </tr>
+          </tfoot>
+        )}
+      </table>
+      {insight.stock_at && (
+        <p className="border-t border-border px-2 py-1 text-xs text-text-secondary">Foto de SIESA del {formatDateTime(insight.stock_at)}</p>
+      )}
+    </div>
+  );
+}
+
+/** The item's review and the person's observation; it saves with the button, not on every key. */
+function NoteSection({ quotation, line, canEdit }: { quotation: Quotation; line: QuotationLine; canEdit: boolean }) {
+  const save = useLineNote(quotation.id);
+  const [draft, setDraft] = useState(line.note ?? "");
+  const id = useId();
+  const changed = draft.trim() !== (line.note ?? "");
+  const submit = () =>
+    save.mutate(
+      { version: quotation.version, sku: line.sku, note: draft },
+      {
+        onSuccess: () => toast.success(draft.trim() ? "Observación guardada." : "Observación borrada."),
+        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+      }
+    );
+  return (
+    <section aria-labelledby={`${id}-title`} className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 id={`${id}-title`} className="text-base font-semibold">Revisión</h3>
+        <ReviewChip line={line} />
+        {line.reviewed_by && line.review_status !== "sin_marcar" && (
+          <span className="text-[13px] text-text-secondary">
+            {line.reviewed_by}
+            {line.reviewed_at ? ` · ${formatDateTime(line.reviewed_at)}` : ""}
+          </span>
+        )}
+      </div>
+      <label htmlFor={`${id}-note`} className="block text-sm font-medium">Observación</label>
+      {canEdit ? (
+        <>
+          <textarea
+            id={`${id}-note`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            maxLength={500}
+            rows={3}
+            placeholder="Por qué cambia el precio, qué falta revisar…"
+            className="w-full rounded-md border border-border-control bg-surface px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs tabular-nums text-text-secondary">{draft.length} de 500</span>
+            <Button variant="outline" size="sm" onClick={submit} disabled={!changed || save.isPending} className="max-md:h-11">
+              {save.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Guardar observación
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p id={`${id}-note`} className={line.note ? "" : "text-text-secondary"}>{line.note ?? "Sin observación."}</p>
+      )}
+    </section>
   );
 }
 
@@ -78,13 +319,14 @@ function Detail({
   onClose,
   onOpenAgreement,
   forList,
-  showCost,
+  children,
 }: {
   line: QuotationLine;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
   forList: boolean;
-  showCost: boolean;
+  /** A list update's own panels, after the problems. */
+  children?: React.ReactNode;
 }) {
   const support = line.support;
   const added = line.origin === "agregado";
@@ -123,24 +365,15 @@ function Detail({
         </ul>
       )}
 
+      {children}
+
       <Section title="Precio">
         {forList && (
           <>
             <Row label="Precio actual sin IVA">{toNumber(line.last_price) === null ? "Sin precio en la lista" : formatMoney(line.last_price)}</Row>
             <Row label="Última venta">
-              {toNumber(line.last_sale_price ?? null) === null ? (
-                "Sin ventas en los últimos 12 meses"
-              ) : (
-                <>
-                  {formatMoney(line.last_sale_price ?? null)} · {formatDay(line.last_sale_date)}
-                  {line.last_document ? ` · ${line.last_document}` : ""}
-                  {line.last_sale_unit ? ` · en ${line.last_sale_unit}` : ""}
-                </>
-              )}
+              {toNumber(line.last_sale_price ?? null) === null ? NO_SALE_TEXT : formatMoney(line.last_sale_price ?? null)}
             </Row>
-            {showCost && toNumber(line.last_sale_cost ?? null) !== null && (
-              <Row label="Costo de esa venta">{formatMoney(line.last_sale_cost ?? null)}</Row>
-            )}
           </>
         )}
         {!added && !forList && (

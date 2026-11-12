@@ -20,7 +20,7 @@ import { useSession } from "@/features/session/hooks/use-session";
 import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
 import { KIND_COPY, useQuotationKind } from "../lib/kind";
 import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
-import type { QuotationStatus, QuotationSummary } from "../types/quotations.types";
+import { type QuotationStatus, type QuotationSummary, isListKind } from "../types/quotations.types";
 import { QuotationStatusBadge } from "./quotation-badges";
 import NewListUpdateDialog from "./new-list-update-dialog";
 import NewQuotationDialog from "./new-quotation-dialog";
@@ -43,7 +43,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
   const kind = useQuotationKind();
-  const isList = kind === "lista";
+  // A list update has no state of its own: its items carry the review.
+  const isList = isListKind(kind);
   const copy = KIND_COPY[kind];
   const { data: user } = useSession();
   const canManage = permissions?.can_manage === true;
@@ -101,13 +102,15 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
               className="pl-9 max-md:h-11"
             />
           </div>
-          <Dropdown
-            aria-label="Filtrar por estado"
-            options={STATUS_FILTERS}
-            value={status}
-            onValueChange={(next) => reset(() => setStatus(next as QuotationStatus | ""))}
-            className="w-full sm:w-56"
-          />
+          {!isList && (
+            <Dropdown
+              aria-label="Filtrar por estado"
+              options={STATUS_FILTERS}
+              value={status}
+              onValueChange={(next) => reset(() => setStatus(next as QuotationStatus | ""))}
+              className="w-full sm:w-56"
+            />
+          )}
         </div>
         {canManage && (
           <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
@@ -166,7 +169,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
         )
       ) : (
         <div className={cn("space-y-3", quotations.isPlaceholderData && "opacity-60")}>
-          <QuotationCards items={items} basePath={basePath} showAuthor={!mine} />
+          <QuotationCards items={items} basePath={basePath} showAuthor={!mine} isList={isList} />
           <QuotationTable items={items} basePath={basePath} showAuthor={!mine} isList={isList} />
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -208,7 +211,7 @@ function QuotationTable({
             <th scope="col" className="hidden px-3 py-2 xl:table-cell">Canal</th>
             {!isList && <th scope="col" className="px-3 py-2">Lista</th>}
             {!isList && <th scope="col" className="hidden px-3 py-2 text-right xl:table-cell">Ventana</th>}
-            <th scope="col" className="px-3 py-2">Estado</th>
+            {!isList && <th scope="col" className="px-3 py-2">Estado</th>}
             <th scope="col" className="px-3 py-2 text-right">Referencias</th>
             <th scope="col" className="px-3 py-2 text-right">Cambiadas</th>
             <th scope="col" className="px-3 py-2 text-right">No cumplen</th>
@@ -251,7 +254,7 @@ function QuotationTable({
                 </td>
               )}
               {!isList && <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>}
-              <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
+              {!isList && <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>}
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.changed_count)}</td>
               <td className={cn("px-3 py-2 text-right tabular-nums", item.below_rule_count > 0 && "font-semibold text-danger")}>
@@ -270,7 +273,7 @@ function QuotationTable({
 
 /** What names a row: the customer, or for a list update the list. */
 function titleOf(item: QuotationSummary): string {
-  if (item.kind !== "lista") return item.customer_name;
+  if (!isListKind(item.kind)) return item.customer_name;
   return item.price_list_name ?? `Lista ${item.price_list_id}`;
 }
 
@@ -279,7 +282,7 @@ function titleOf(item: QuotationSummary): string {
  * in SIESA, or for a list update the list's code and where it started.
  */
 function CustomerSubline({ item }: { item: QuotationSummary }) {
-  if (item.kind === "lista") {
+  if (isListKind(item.kind)) {
     return (
       <span className="block truncate text-[13px] text-text-secondary">
         <span className="font-mono">Lista {item.price_list_id}</span>
@@ -351,21 +354,21 @@ function ListUpdatesEmpty({
         title="No hay actualizaciones por validar"
         action={<Button variant="outline" onClick={onClear}>Ver todas las actualizaciones</Button>}
       >
-        Cuando alguien confirme una actualización de lista, aparecerá aquí para que la valides o la devuelvas.
+        Cuando alguien marque ítems por validar, aparecerán aquí para que los valides.
       </StatePanel>
     );
   }
   if (filtered) {
     return (
       <StatePanel icon={FileX2} title="Ninguna actualización coincide con la búsqueda" action={<Button variant="outline" onClick={onClear}>Limpiar filtros</Button>}>
-        Prueba con el código de la lista, el NIT completo o quita el filtro de estado.
+        Prueba con el código de la lista o el NIT completo.
       </StatePanel>
     );
   }
   if (!canManage) {
     return (
       <StatePanel icon={ListRestart} title="Aún no hay actualizaciones de listas">
-        Las que se confirmen aparecerán aquí para validarlas.
+        Las que se armen aparecerán aquí para validar sus ítems.
       </StatePanel>
     );
   }
@@ -386,7 +389,17 @@ function ListUpdatesEmpty({
 }
 
 /** Phones: customer, status and the one number that needs action (DESIGN.md §10). */
-function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSummary[]; basePath: string; showAuthor: boolean }) {
+function QuotationCards({
+  items,
+  basePath,
+  showAuthor,
+  isList,
+}: {
+  items: QuotationSummary[];
+  basePath: string;
+  showAuthor: boolean;
+  isList: boolean;
+}) {
   return (
     <ul className="space-y-2 md:hidden">
       {items.map((item) => (
@@ -401,7 +414,7 @@ function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSumma
               {showAuthor && <span className="block truncate text-xs text-text-secondary">Creada por {item.created_by}</span>}
             </span>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <QuotationStatusBadge status={item.status} label={item.status_label} />
+              {!isList && <QuotationStatusBadge status={item.status} label={item.status_label} />}
               <span className="tabular-nums">
                 {formatCount(item.changed_count)} de {formatCount(item.line_count)} cambiadas
               </span>

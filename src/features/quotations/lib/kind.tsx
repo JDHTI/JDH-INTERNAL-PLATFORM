@@ -47,4 +47,18 @@ export const KIND_COPY: Record<
     basePrice: "Precio actual",
     create: "Nueva actualización",
   },
+  principal: {
+    one: "la actualización",
+    many: "las actualizaciones",
+    module: "las listas principales",
+    basePrice: "Precio actual",
+    create: "Nueva actualización",
+  },
+};
+
+/** The route segment of each list module, for links between its pages. */
+export const KIND_SEGMENT: Record<QuotationKind, string> = {
+  cotizacion: "cotizador",
+  lista: "actualizacion-listas",
+  principal: "listas-principales",
 };

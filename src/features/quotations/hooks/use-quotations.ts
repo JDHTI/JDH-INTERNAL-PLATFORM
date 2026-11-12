@@ -67,11 +67,13 @@ export function useQuotationPermissions(kind?: QuotationKind) {
   });
 }
 
-/** Starts a list update from a customer's list or a list chosen by code or name. */
+/** Starts a list update from a customer's list or a list chosen by code or name, in the page's module. */
 export function useCreateListUpdate() {
   const store = useStoreQuotation();
+  const kind = useQuotationKind();
   return useMutation({
-    mutationFn: (input: { customer_nit: string } | { price_list_id: string }) => createListUpdate(input),
+    mutationFn: (input: { customer_nit: string } | { price_list_id: string }) =>
+      createListUpdate({ ...input, kind: kind === "principal" ? "principal" : "lista" }),
     onSuccess: store,
   });
 }

@@ -77,6 +77,9 @@ export interface PlatformModuleDto {
   description: string;
   /** Takes settings when switched on; only `maestros`, which picks the area's masters. */
   configurable: boolean;
+  /** Only its default areas (`area_slugs`) may have it: it cannot be switched on anywhere else. */
+  locked?: boolean;
+  area_slugs?: string[];
 }
 
 /** `maestros`: the masters the area sees; absent or empty means every master. */

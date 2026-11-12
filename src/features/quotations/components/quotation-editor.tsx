@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  CloudUpload,
   FileSpreadsheet,
   FileText,
   FileCheck2,
@@ -58,12 +59,15 @@ import {
   useRefreshQuotation,
   useRemoveLine,
 } from "../hooks/use-quotations";
+import { useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { KIND_COPY } from "../lib/kind";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
+import { LIST_FILTERS, type ListFilter } from "../lib/list-review";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import type { ImportResult, Quotation, QuotationLine } from "../types/quotations.types";
+import { type ImportResult, type Quotation, type QuotationLine, isListKind } from "../types/quotations.types";
+import { ListFilters, ReviewBar } from "./list-review-controls";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
@@ -113,7 +117,7 @@ export default function QuotationEditor({ quotationId, basePath }: { quotationId
   const data = quotation.data;
   useBreadcrumbLabel(
     `${basePath}/${quotationId}`,
-    data?.kind === "lista" ? (data.price_list_name ?? `Lista ${data.price_list_id}`) : data?.customer_name
+    data && isListKind(data.kind) ? (data.price_list_name ?? `Lista ${data.price_list_id}`) : data?.customer_name
   );
 
   if (quotation.isPending) {
@@ -145,8 +149,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions(quotation.kind).data;
-  // A list update goes to SIESA only: no customer offer, quantities or products only for quoting.
-  const isList = quotation.kind === "lista";
+  // A list update goes to SIESA only: no customer offer, quantities or products only for quoting,
+  // and its items are reviewed one by one instead of confirming the whole.
+  const isList = isListKind(quotation.kind);
   const copy = KIND_COPY[quotation.kind];
   // The API decides which quotations each person opens (Comercial: its own; BI and admins: all),
   // so whoever opens one and quotes has the whole editor.
@@ -167,6 +172,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [removingSku, setRemovingSku] = useState<string | null>(null);
   const [creatingLocal, setCreatingLocal] = useState(false);
   const [filter, setFilter] = useState<LineFilter>("all");
+  // A list update filters by the item's review and by where its price leaves the margin.
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
+  const stockTotals = useStockTotals(quotation.id, isList);
   const [text, setText] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -194,23 +202,29 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     const matching = quotation.lines.filter(
       (line) =>
         (filter === "imported" ? imported.has(line.sku) : filter === "inactive" ? inactive(line) : INDICATORS[filter](line)) &&
+        (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
         (bySupplier.size === 0 || bySupplier.has(supplierOf(line)?.trim() ?? ""))
     );
     return sortLines(matching, sort);
-  }, [quotation.lines, filter, q, imported, categories, suppliers, sort]);
+  }, [quotation.lines, filter, listFilter, q, imported, categories, suppliers, sort]);
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const filtered = filter !== "all" || text.trim() !== "" || categories.length > 0 || suppliers.length > 0;
+  const filtered = filter !== "all" || listFilter !== "all" || text.trim() !== "" || categories.length > 0 || suppliers.length > 0;
 
   const chooseFilter = (next: LineFilter) => {
     setFilter(next);
     setPage(1);
   };
+  const chooseListFilter = (next: ListFilter) => {
+    setListFilter(next);
+    setPage(1);
+  };
   const clearFilters = () => {
     setFilter("all");
+    setListFilter("all");
     setText("");
     setCategories([]);
     setSuppliers([]);
@@ -392,8 +406,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     // Only BI, who validates, sees the cost behind the suggested prices.
     showCost: canValidate,
     basePriceLabel: copy.basePrice,
-    // A list update shows the last sale apart: its price, and its cost to whoever validates.
+    // A list update keeps the last sale in a tooltip beside the list's price.
     showLastSale: isList,
+    listMeta: isList
+      ? {
+          stock: stockTotals.data?.items,
+          stockState: stockTotals.isPending ? ("loading" as const) : stockTotals.isError ? ("error" as const) : ("ready" as const),
+        }
+      : undefined,
   };
   const totals = isList ? null : offerTotals(quotation);
   const title = isList ? (quotation.price_list_name ?? `Lista ${quotation.price_list_id}`) : quotation.customer_name;
@@ -415,7 +435,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />
+            {!isList && <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
             <span>Creada por {quotation.created_by}</span>
@@ -480,7 +500,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
             </Button>
           )}
-          {canManage && quotation.status === "borrador" && (
+          {isList && (
+            <Link href={`${basePath}/por-cargar`} className={cn(buttonVariants({ variant: "outline" }), "max-md:h-11")}>
+              <CloudUpload aria-hidden="true" /> Por cargar
+            </Link>
+          )}
+          {canManage && !isList && quotation.status === "borrador" && (
             <Button
               onClick={() => setDialog("confirm")}
               disabled={busy || pricedCount === 0}
@@ -516,12 +541,24 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       {!isList && quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
       <Warnings quotation={quotation} />
 
-      {quotation.lines.length > 0 && (
+      {quotation.lines.length > 0 && !isList && (
         <QuotationIndicators
-          forList={isList}
           lines={quotation.lines}
           active={filter === "inactive" || filter === "imported" ? null : filter}
           onSelect={chooseFilter}
+        />
+      )}
+      {quotation.lines.length > 0 && isList && (
+        <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} />
+      )}
+
+      {editable && isList && hasRows && (
+        <ReviewBar
+          quotation={quotation}
+          selected={selected}
+          canValidate={canValidate}
+          disabled={busy}
+          onDone={() => setSelected(new Set())}
         />
       )}
 
@@ -740,7 +777,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         }}
       />
       <LineDetailDialog
-        line={detailLine}
+        line={detailLine ? (quotation.lines.find((line) => line.sku === detailLine.sku) ?? detailLine) : null}
+        quotation={isList ? quotation : undefined}
+        canEdit={editable}
         forList={isList}
         showCost={canValidate}
         onClose={() => setDetailLine(null)}
@@ -815,7 +854,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
     ["Familia", quotation.price_family_label ?? "—"],
   ];
   const groups: { title: string; badge?: React.ReactNode; facts: Fact[] }[] =
-    quotation.kind === "lista"
+    isListKind(quotation.kind)
       ? [
           {
             title: "Lista de precios",

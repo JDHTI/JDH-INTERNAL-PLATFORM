@@ -22,7 +22,16 @@ export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_c
  * states and files, but no customer offer, quantities or local products, and the
  * lines are compared against the list's price in force.
  */
-export type QuotationKind = "cotizacion" | "lista";
+export type QuotationKind = "cotizacion" | "lista" | "principal";
+
+/**
+ * The kinds that update an existing list: `lista` (Actualización de listas)
+ * and `principal` (Listas principales, locked to BI: the general, wholesale and
+ * Market lists). Reviewed item by item and loaded from the staging.
+ */
+export type ListKind = Exclude<QuotationKind, "cotizacion">;
+
+export const isListKind = (kind: QuotationKind): kind is ListKind => kind !== "cotizacion";
 
 /** A SIESA price list a list update can start from. */
 export interface PriceList {
@@ -31,8 +40,97 @@ export interface PriceList {
   is_active: boolean;
   /** Active branches assigned to it (SIESA counts branches, not customers). */
   active_branches: number | null;
-  /** A regional base list (001 to 009): only BI's analysts and leader update it. */
+  /** It belongs to the other module (a main list from Actualización de listas, or the reverse): it cannot be chosen here. */
   restricted: boolean;
+  /** One of the main lists. */
+  main?: boolean;
+}
+
+/** Each item of a list update: marked ready by whoever edits it, validated by BI. */
+export type ReviewStatus = "sin_marcar" | "por_validar" | "validada";
+
+/** A validated item waiting in its list's staging. */
+export interface StagedItem {
+  line_id: string;
+  quotation_id: string;
+  quotation_name: string | null;
+  sku: string;
+  description: string | null;
+  unit: string | null;
+  current_price: DecimalText | null;
+  new_price: DecimalText;
+  variation_pct: DecimalText | null;
+  value_tax_key: string | null;
+  value_tax_amount: DecimalText | null;
+  note: string | null;
+  validated_by: string | null;
+  validated_at: string | null;
+}
+
+export interface StagedList {
+  price_list_id: string;
+  price_list_name: string | null;
+  item_count: number;
+  items: StagedItem[];
+}
+
+/** A load of a list's staging in SIESA. */
+export interface PriceListLoad {
+  id: string;
+  kind: ListKind;
+  price_list_id: string;
+  price_list_name: string | null;
+  activation_date: string;
+  line_count: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface StockRow {
+  warehouse: string;
+  warehouse_name: string | null;
+  center_code: string | null;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+}
+
+export interface PriceVersion {
+  valid_from: string;
+  valid_to: string | null;
+  price: DecimalText;
+  value_tax_amount: DecimalText | null;
+}
+
+export interface MonthlySale {
+  month: string;
+  price: DecimalText;
+  quantity: DecimalText;
+}
+
+/** What an item's detail shows beyond the line. */
+export interface LineInsight {
+  sku: string;
+  warehouses: string[];
+  stock: StockRow[];
+  stock_at: string | null;
+  history: PriceVersion[];
+  /** The first version the DWH keeps (the main lists only have them from 2026). */
+  history_since: string | null;
+  sales: MonthlySale[];
+  /** Whose sales: the update's customer, the list's branches, or the whole company. */
+  sales_scope: "cliente" | "lista" | "compania";
+  sales_read: boolean;
+}
+
+export interface StockTotal {
+  on_hand: DecimalText;
+  available: DecimalText | null;
+  warehouses: number;
+}
+
+export interface StockTotals {
+  warehouses: string[];
+  items: Record<string, StockTotal>;
 }
 
 /** A customer SIESA does not have yet, registered on the quotation itself to quote from scratch. */
@@ -335,6 +433,14 @@ export interface QuotationLine {
   last_sale_cost?: DecimalText | null;
   /** A list update: every support of the list's customers, the applied one first. */
   support_options?: SupportOption[];
+  /** A list update: the item's review, its observation, and whether a load took it to SIESA. */
+  review_status?: ReviewStatus;
+  review_label?: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  note?: string | null;
+  load_id?: string | null;
+  loaded?: boolean;
 }
 
 /** `lista`: a reference with a price in force on the list a list update starts from. */

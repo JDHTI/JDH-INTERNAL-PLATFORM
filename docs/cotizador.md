@@ -33,23 +33,40 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   (`src/features/quotations/lib/kind.tsx`). Los permisos (`?kind=lista`), el listado y los textos
   siguen el tipo; en el editor manda el `kind` de la actualización abierta.
 - **Nueva actualización** (`new-list-update-dialog.tsx`), por una de dos vías:
-  - **Por lista:** buscador por código o por nombre (`GET /quotations/price-lists`). Cada opción
-    muestra el código, las sucursales activas y si es una lista base que solo actualiza BI.
+  - **Por lista:** buscador por código o por nombre (`GET /quotations/price-lists?kind=lista`). Cada
+    opción muestra el código, las sucursales activas y si es una lista principal (no se puede
+    elegir aquí). En Listas principales, las 14 listas salen en una lista para elegir.
   - **Por cliente:** todos los clientes, sin cartera (`/customers?kind=lista`). Se toma la lista
     que el cliente tiene asignada.
-- **Lo que no aparece:** oferta, «Cotizar con cantidades», «Crear producto» y el consolidado.
-  Tampoco el indicador «Sin SKU en SIESA».
-- **Confirmación:** un solo paso (`ListConfirm` en `confirm-wizard.tsx`), con la lista, cuántos
-  clientes la tienen y la fecha de activación. Siempre es actualización.
-- **Tabla:** la primera cifra es «Precio actual sin IVA», el de la lista, con su margen. Debajo va
-  la última venta («Vendido $ …» y la fecha), y su costo solo para quien valida. «Sin precio en
-  la lista» marca un marcador de $1 o una referencia agregada.
+- **Lo que no aparece:** oferta, «Cotizar con cantidades», «Crear producto», el consolidado, el
+  estado de la actualización y la confirmación.
+- **Revisión por ítem** (`list-review-controls.tsx`, `lib/list-review.ts`): cada ítem lleva un
+  chip (Sin marcar, Por validar, Validada, Cargada) bajo el producto. Con ítems seleccionados
+  aparecen «Marcar por validar», «Validar» (solo quien valida) y «Desmarcar». Lo que la API no
+  puede marcar vuelve en `skipped` y sale en un aviso.
+- **Filtros:** en lugar de los indicadores del cotizador, dos grupos que filtran la tabla: la
+  revisión de los ítems y el margen del precio actual contra el objetivo con ±0,5 puntos («Con
+  alza», «En el objetivo», «Por encima», «Alerta»: bajo el mínimo, sin costo o precio marcador).
+- **Tabla:** la primera cifra es «Precio actual sin IVA», el de la lista, con su margen. La última
+  venta va en un tooltip junto al precio (dos iconos distintos): «Última venta $X» o «Sin venta en
+  los últimos 12 meses». Bajo el producto van la existencia en las bodegas de la lista
+  (`GET /price-list-updates/{id}/stock`) y la observación.
 - **Apoyo:** la insignia dice el aplicado y cuántos más hay («Táctico +2»). El detalle de la línea
   lista **todos los apoyos de los clientes de la lista**, cada uno con su mínimo, su óptimo, por
   unidad y a quién cubre (toda la lista o un NIT). Primero el aplicado, que es el de mínimo más
   bajo; los que no se aplican dicen por qué.
-- **Restricción:** las listas 001, 002, 003, 004, 005 y 009 solo las crean y editan los analistas
-  y el líder de BI. La API responde 403 a los demás y la UI muestra el `detail`.
+- **Detalle del ítem:** la revisión y la observación (se guarda con su botón), las existencias por
+  bodega y «Cómo ha variado el precio» (`price-history-chart.tsx`): el precio de lista en
+  escalones y el precio de venta por mes, con leyenda, tooltip por punto y la tabla de datos.
+- **Por cargar** (`staging-view.tsx`, `/<área>/<módulo>/por-cargar`): los ítems validados sin cargar,
+  por lista. Quien valida elige la fecha de activación, descarga el Excel o el plano de la lista y
+  marca la carga. Abajo, las últimas cargas.
+- **Listas principales:** las listas 1, 001 a 005, 009, 1M, 10T, 10U, 11N, 10N, 1DR y 35P no se
+  abren aquí. Van por el módulo **Listas principales** (`/bi/listas-principales`, `kind="principal"`),
+  bloqueado a BI, con las mismas pantallas y además **Impuesto licor** (`liquor-taxes-view.tsx`): los
+  licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
+  llave y los cambios masivos con su validación y sus dos hojas de SIESA. El contrato está en
+  `docs/listas-principales.md` del repo del API.
 
 ## Interfaz
 
