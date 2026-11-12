@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { ListRestart, Loader2 } from "lucide-react";
 
 import BasePicker, { type BasePickerConfig } from "@/shared/components/pickers/base-picker";
@@ -9,53 +10,102 @@ import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
-import { errorMessage } from "@/shared/lib/api-client";
+import { apiFetch, errorMessage } from "@/shared/lib/api-client";
+import { cn } from "@/shared/lib/utils";
 
-import { useCreateListUpdate, useQuotationPermissions } from "../hooks/use-quotations";
+import { useCreateListUpdate } from "../hooks/use-quotations";
 import { formatCount } from "../lib/format";
+import { useQuotationKind } from "../lib/kind";
 import { QUOTATIONS_BASE } from "../services/quotations.service";
+import type { ListKind, PriceList } from "../types/quotations.types";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
-/** SIESA lists by code (exact, any case) or by part of the name; names repeat, so the code always shows. */
-function listPicker(canValidate: boolean): BasePickerConfig {
+/**
+ * SIESA lists by code (exact, any case) or by part of the name; names repeat,
+ * so the code always shows. A main list says it goes through Listas principales.
+ */
+const LIST_PICKER: BasePickerConfig = {
+  label: "Lista de precios",
+  placeholder: "Código (10U) o nombre de la lista",
+  endpoint: `${QUOTATIONS_BASE}/price-lists`,
+  query: { kind: "lista" },
+  minChars: 1,
+  emptyText: "Ninguna lista coincide. Prueba con el código exacto o con otra palabra del nombre.",
+  toOption: (row) => {
+    const branches = typeof row.active_branches === "number" ? row.active_branches : null;
+    return {
+      value: text(row.code),
+      label: `${text(row.code)} · ${text(row.name) || "Sin nombre"}`,
+      hint: [
+        branches === null ? null : `${formatCount(branches)} ${branches === 1 ? "sucursal activa" : "sucursales activas"}`,
+        row.is_active === false ? "inactiva" : null,
+        row.restricted === true ? "lista principal: se actualiza en Listas principales" : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  },
+};
+
+/** Every customer: a list update is about the list, not a portfolio. */
+function customerPicker(kind: ListKind): BasePickerConfig {
   return {
-    label: "Lista de precios",
-    placeholder: "Código (10U) o nombre de la lista",
-    endpoint: `${QUOTATIONS_BASE}/price-lists`,
-    minChars: 1,
-    emptyText: "Ninguna lista coincide. Prueba con el código exacto o con otra palabra del nombre.",
-    toOption: (row) => {
-      const branches = typeof row.active_branches === "number" ? row.active_branches : null;
-      const restricted = row.restricted === true;
-      return {
-        value: text(row.code),
-        label: `${text(row.code)} · ${text(row.name) || "Sin nombre"}`,
-        hint: [
-          branches === null ? null : `${formatCount(branches)} ${branches === 1 ? "sucursal activa" : "sucursales activas"}`,
-          row.is_active === false ? "inactiva" : null,
-          restricted ? (canValidate ? "lista base: solo BI" : "solo la actualiza BI") : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      };
-    },
+    label: "Cliente",
+    placeholder: "Nombre o NIT",
+    endpoint: `${QUOTATIONS_BASE}/customers`,
+    query: { scope: "all", kind },
+    emptyText: "Sin coincidencias. Prueba con el NIT completo.",
+    toOption: (row) => ({
+      value: text(row.nit),
+      label: text(row.name) || text(row.nit),
+      hint: [`NIT ${text(row.nit)}`, text(row.channel)].filter(Boolean).join(" · ") + (row.is_active === false ? " · inactivo" : ""),
+    }),
   };
 }
 
-/** Every customer: a list update is about the list, not a portfolio. */
-const CUSTOMER_PICKER: BasePickerConfig = {
-  label: "Cliente",
-  placeholder: "Nombre o NIT",
-  endpoint: `${QUOTATIONS_BASE}/customers`,
-  query: { scope: "all", kind: "lista" },
-  emptyText: "Sin coincidencias. Prueba con el NIT completo.",
-  toOption: (row) => ({
-    value: text(row.nit),
-    label: text(row.name) || text(row.nit),
-    hint: [`NIT ${text(row.nit)}`, text(row.channel)].filter(Boolean).join(" · ") + (row.is_active === false ? " · inactivo" : ""),
-  }),
-};
+/** The main lists, all of them: there are few, so they are chosen from a list rather than searched. */
+function MainListChoice({ value, onChange }: { value: string | null; onChange: (option: AutocompleteOption) => void }) {
+  const lists = useQuery({
+    queryKey: ["quotations", "main-lists"],
+    queryFn: () => apiFetch<{ items: PriceList[] }>(`${QUOTATIONS_BASE}/price-lists`, { query: { kind: "principal" } }),
+    staleTime: 30 * 60_000,
+  });
+  if (lists.isPending) return <div className="h-40 animate-pulse rounded-md bg-canvas-subtle" aria-label="Cargando las listas principales" />;
+  if (lists.isError) return <p role="alert" className="text-sm text-danger">{errorMessage(lists.error)}</p>;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium">Lista principal</legend>
+      <div role="radiogroup" aria-label="Lista principal" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {lists.data.items.map((item) => {
+          const checked = value === item.code;
+          return (
+            <button
+              key={item.code}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              onClick={() => onChange({ value: item.code, label: `${item.code} · ${item.name ?? ""}` })}
+              className={cn(
+                "flex min-h-11 min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                checked ? "border-primary bg-primary-subtle" : "border-border-control bg-surface hover:bg-canvas-subtle"
+              )}
+            >
+              <span className="w-10 shrink-0 font-mono font-semibold">{item.code}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{item.name ?? "Sin nombre"}</span>
+                <span className="block text-xs text-text-secondary">
+                  {item.active_branches ? `${formatCount(item.active_branches)} sucursales activas` : "Sin sucursales activas"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
 
 type Mode = "lista" | "cliente";
 
@@ -100,7 +150,7 @@ function NewListUpdateForm({
   onCancel: () => void;
 }) {
   const router = useRouter();
-  const canValidate = useQuotationPermissions("lista").data?.can_validate === true;
+  const kind: ListKind = useQuotationKind() === "principal" ? "principal" : "lista";
   const [mode, setMode] = useState<Mode>("lista");
   const [choice, setChoice] = useState<AutocompleteOption | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,20 +185,32 @@ function NewListUpdateForm({
             Por cliente
           </ToggleChip>
         </div>
-        <BasePicker
-          key={mode}
-          config={mode === "lista" ? listPicker(canValidate) : CUSTOMER_PICKER}
-          selected={choice}
-          onSelect={(option) => {
-            setChoice(option);
-            setError(null);
-          }}
-          onClear={() => setChoice(null)}
-        />
+        {mode === "lista" && kind === "principal" ? (
+          <MainListChoice
+            value={choice?.value ?? null}
+            onChange={(option) => {
+              setChoice(option);
+              setError(null);
+            }}
+          />
+        ) : (
+          <BasePicker
+            key={mode}
+            config={mode === "lista" ? LIST_PICKER : customerPicker(kind)}
+            selected={choice}
+            onSelect={(option) => {
+              setChoice(option);
+              setError(null);
+            }}
+            onClear={() => setChoice(null)}
+          />
+        )}
         <p className="text-[13px] text-text-secondary">
           {mode === "lista"
             ? "Trae cada referencia con precio vigente en la lista. La última venta se busca entre los clientes de la lista."
-            : "Toma la lista que el cliente tiene asignada en SIESA. La última venta es la de ese cliente; los apoyos, los de todos los clientes de la lista."}
+            : kind === "principal"
+              ? "Toma la lista que el cliente tiene asignada en SIESA, si es una lista principal. La última venta es la de ese cliente; los apoyos, los de todos los clientes de la lista."
+              : "Toma la lista que el cliente tiene asignada en SIESA. La última venta es la de ese cliente; los apoyos, los de todos los clientes de la lista."}
         </p>
       </fieldset>
 

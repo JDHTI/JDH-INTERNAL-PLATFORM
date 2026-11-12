@@ -59,6 +59,7 @@ las que creó (`docs/cotizador.md`).
 | PQRSF | `pqrsf` |
 | Cotizador | `cotizador` |
 | Actualización de listas | `actualizacion-listas` |
+| Listas principales (bloqueado a BI) | `listas-principales`; validar ítems y el impuesto licor pide además `validacion-listas` (sin pantalla) |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
@@ -73,7 +74,12 @@ pasos, en el API y en la UI, es la skill `modulo-con-permisos` del repositorio d
 **Actualización de listas** reutiliza las pantallas del cotizador: sus páginas envuelven el listado,
 el editor y las reglas en `QuotationKindProvider kind="lista"` (`src/features/quotations/lib/kind.tsx`).
 Los permisos salen de `GET /quotations/permissions?kind=lista` y el listado de `?kind=lista`; dentro del
-editor manda el `kind` de la cotización abierta.
+editor manda el `kind` de la cotización abierta. **Listas principales** hace lo mismo con
+`kind="principal"`.
+
+**Módulo bloqueado.** `listas-principales` y `validacion-listas` tienen `locked` en el catálogo del API:
+solo viven en BI. En `/ti/administracion/modulos` las demás áreas muestran «Bloqueado» en lugar del
+interruptor, y el API rechaza encenderlo. Un comercial con `actualizacion-listas` nunca los recibe.
 
 **Maestros.** `/{área}/maestros` lista `GET /masters?area={slug}`: los maestros que TI eligió para el
 área (todos si no eligió). Cada maestro se busca y se ve registro por registro; no hay descarga. El API

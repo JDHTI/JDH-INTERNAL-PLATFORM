@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloudOff, Loader2, RotateCcw, Settings2 } from "lucide-react";
+import { CloudOff, Loader2, Lock, RotateCcw, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { areaKeys } from "@/features/areas/hooks/use-areas";
@@ -307,10 +307,16 @@ function ModuleCell({
   const { area, module, state } = toggle;
   const masters = mastersOf(state.config);
   const scope = masters ? `${masters.length} ${masters.length === 1 ? "maestro" : "maestros"}` : "Todos los maestros";
+  // A locked module never leaves its own areas: elsewhere it is off and stays off.
+  const lockedOut = module.locked === true && !(module.area_slugs ?? []).includes(area.slug);
 
   return (
     <span className="flex flex-col items-end gap-1.5 md:items-center">
-      {canEdit ? (
+      {lockedOut ? (
+        <Badge tone="neutral" title={`Bloqueado: solo se activa en ${(module.area_slugs ?? []).join(", ")}`}>
+          <Lock aria-hidden="true" /> Bloqueado
+        </Badge>
+      ) : canEdit ? (
         <Switch
           checked={state.enabled}
           onCheckedChange={onSwitch}

@@ -8,12 +8,20 @@ import {
   ArrowUp,
   ArrowUpDown,
   Ban,
+  CheckCircle2,
+  Circle,
+  CircleDashed,
+  Clock3,
+  CloudUpload,
   HandCoins,
   Loader2,
+  MessageSquareText,
+  Receipt,
   ThumbsDown,
   ThumbsUp,
   TrendingDown,
   TrendingUp,
+  Warehouse,
   X,
 } from "lucide-react";
 
@@ -37,8 +45,9 @@ import {
   priceWithVat,
   supplierOf,
 } from "../lib/line-status";
+import { REVIEW_HELP, REVIEW_LABELS, type ReviewView, reviewOf } from "../lib/list-review";
 import { offerAmounts } from "../lib/offer";
-import type { QuotationLine } from "../types/quotations.types";
+import type { QuotationLine, StockTotal } from "../types/quotations.types";
 import { ComplianceBadge } from "./quotation-badges";
 
 /** Row selection for the bulk actions; absent when the quotation cannot be edited. */
@@ -77,8 +86,16 @@ interface LinesProps {
   showCost: boolean;
   /** What each line is compared against: "Último precio", or "Precio actual" (the list's) on a list update. */
   basePriceLabel?: string;
-  /** A list update: the last sale goes under the list price, its cost only to whoever sees costs. */
+  /** A list update: the last sale goes in a tooltip beside the list price. */
   showLastSale?: boolean;
+  /** A list update: each item's review chip, its stock and its observation under the product. */
+  listMeta?: ListMeta;
+}
+
+export interface ListMeta {
+  /** Stock per reference in the list's warehouses; undefined while it loads or when it failed. */
+  stock?: Record<string, StockTotal>;
+  stockState: "loading" | "ready" | "error";
 }
 
 export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
@@ -277,7 +294,7 @@ export function LinesTable(props: LinesProps) {
                 )}
                 <td className={td}><Product line={line} {...props} /></td>
                 <td className={cn(td, divided, "text-right")}>
-                  <LastSale line={line} forList={props.showLastSale} showCost={props.showCost} />
+                  <LastSale line={line} forList={props.showLastSale} />
                 </td>
                 <td className={cn(td, divided)}><Bounds line={line} showCost={props.showCost} /></td>
                 <td className={cn(td, divided)}>
@@ -337,7 +354,7 @@ export function LinesList(props: LinesProps) {
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Pair label={`${props.basePriceLabel ?? "Último precio"} sin IVA`}>
-              <LastSale line={line} alignStart forList={props.showLastSale} showCost={props.showCost} />
+              <LastSale line={line} alignStart forList={props.showLastSale} />
             </Pair>
             <Pair label="Precios sugeridos"><Bounds line={line} showCost={props.showCost} /></Pair>
             <Pair label="Apoyo"><SupportBadge line={line} onOpen={props.onOpenDetail} /></Pair>
@@ -498,7 +515,7 @@ const dash = <span className="text-text-secondary">—</span>;
  * supplier and unit. An added, local or inactive one says so, and can be taken
  * out; an active one from the sales history cannot (emptying its price is enough).
  */
-function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable }: { line: QuotationLine } & LinesProps) {
+function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, listMeta }: { line: QuotationLine } & LinesProps) {
   const isRemoving = removing === line.sku;
   const local = isLocal(line);
   const meta = [local ? "Sin SKU en SIESA" : `SKU ${line.sku}`, supplierOf(line), line.unit].filter(Boolean).join(" · ");
@@ -538,6 +555,7 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable }
         >
           {meta}
         </p>
+        {listMeta && <ListItemMeta line={line} meta={listMeta} onOpenDetail={onOpenDetail} />}
       </div>
       {editable && removable(line) && (
         <button
@@ -589,14 +607,12 @@ function LastSale({
   line,
   alignStart = false,
   forList = false,
-  showCost = false,
 }: {
   line: QuotationLine;
   alignStart?: boolean;
   forList?: boolean;
-  showCost?: boolean;
 }) {
-  if (forList) return <ListPrice line={line} alignStart={alignStart} showCost={showCost} />;
+  if (forList) return <ListPrice line={line} alignStart={alignStart} />;
   if (toNumber(line.last_price) === null) {
     return <span className="text-[13px] text-text-secondary">{isLocal(line) ? "—" : "Sin compras en la ventana"}</span>;
   }
@@ -616,40 +632,138 @@ function LastSale({
   );
 }
 
-/** A list update's base: the price in force on the list and its margin, then the last sale. */
-function ListPrice({ line, alignStart, showCost }: { line: QuotationLine; alignStart: boolean; showCost: boolean }) {
+/**
+ * A list update's base: the price in force on the list and its margin. Whether
+ * the item sold, and at what price, stays out of sight in a small mark beside
+ * the price: hover, focus or tap it to read it.
+ */
+function ListPrice({ line, alignStart }: { line: QuotationLine; alignStart: boolean }) {
   const hasPrice = toNumber(line.last_price) !== null;
-  const sold = toNumber(line.last_sale_price ?? null) !== null;
   return (
     <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
       {hasPrice ? (
         <>
-          <span className="block whitespace-nowrap font-semibold">{formatMoney(line.last_price)}</span>
+          <span className={cn("flex items-center gap-1 whitespace-nowrap font-semibold", alignStart ? "justify-start" : "justify-end")}>
+            {formatMoney(line.last_price)}
+            <SaleMark line={line} />
+          </span>
           <span className="block"><MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} /></span>
         </>
       ) : (
-        <span className="block text-[13px] text-text-secondary">{line.origin === "agregado" ? "No está en la lista" : "Sin precio en la lista"}</span>
+        <span className={cn("flex items-center gap-1 text-[13px] text-text-secondary", alignStart ? "justify-start" : "justify-end")}>
+          {line.origin === "agregado" ? "No está en la lista" : "Sin precio en la lista"}
+          <SaleMark line={line} />
+        </span>
       )}
-      {sold ? (
-        <span
-          className="block text-xs text-text-secondary"
-          title={[
-            line.last_sale_date ? `Última venta el ${formatDay(line.last_sale_date)}` : "Última venta",
-            line.last_document ? `documento ${line.last_document}` : null,
-          ]
-            .filter(Boolean)
-            .join(", ")}
+    </div>
+  );
+}
+
+export const NO_SALE_TEXT = "Sin venta en los últimos 12 meses";
+
+/** "Última venta $X", or that it did not sell in the window. Two icons, so it reads without color. */
+export function saleText(line: QuotationLine): string {
+  const price = toNumber(line.last_sale_price ?? null);
+  return price === null ? NO_SALE_TEXT : `Última venta ${formatMoney(line.last_sale_price ?? null)}`;
+}
+
+function SaleMark({ line }: { line: QuotationLine }) {
+  const sold = toNumber(line.last_sale_price ?? null) !== null;
+  const text = saleText(line);
+  const Icon = sold ? Receipt : CircleDashed;
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        openOnHover
+        delay={100}
+        aria-label={`${text}. ${line.description ?? line.sku}`}
+        className={cn(
+          "inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-secondary hover:text-text-primary",
+          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring max-xl:size-8"
+        )}
+      >
+        <Icon className="size-3.5" aria-hidden="true" />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="top" align="center" sideOffset={6} className="z-50">
+          <Popover.Popup className="max-w-[calc(100vw-2rem)] whitespace-nowrap rounded-md border border-border bg-surface-raised px-2.5 py-1.5 text-[13px] font-medium text-text-primary shadow-modal outline-none">
+            {text}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+const REVIEW_TONE: Record<ReviewView, BadgeTone> = {
+  sin_marcar: "neutral",
+  por_validar: "warning",
+  validada: "success",
+  cargada: "info",
+};
+const REVIEW_ICON: Record<ReviewView, typeof Circle> = {
+  sin_marcar: Circle,
+  por_validar: Clock3,
+  validada: CheckCircle2,
+  cargada: CloudUpload,
+};
+
+/** The item's review: tone, an icon of its own and the words, so it never rests on color alone. */
+export function ReviewChip({ line }: { line: QuotationLine }) {
+  const view = reviewOf(line);
+  const Icon = REVIEW_ICON[view];
+  const who = line.reviewed_by && view !== "sin_marcar" ? ` · ${line.reviewed_by}` : "";
+  return (
+    <Badge tone={REVIEW_TONE[view]} className="shrink-0 px-1.5 py-0 text-xs" title={`${REVIEW_HELP[view]}${who}`}>
+      <Icon aria-hidden="true" /> {REVIEW_LABELS[view]}
+    </Badge>
+  );
+}
+
+const quantityFormat = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+
+/** Under the product of a list update: the review chip, the stock in the list's warehouses and the observation. */
+function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta: ListMeta; onOpenDetail: (line: QuotationLine) => void }) {
+  const stock = meta.stock?.[line.sku];
+  const onHand = toNumber(stock?.on_hand ?? null);
+  const available = toNumber(stock?.available ?? null);
+  const stockText =
+    meta.stockState === "loading"
+      ? "Existencia…"
+      : meta.stockState === "error"
+        ? null
+        : onHand === null
+          ? "Sin existencia"
+          : `Existencia ${quantityFormat.format(onHand)}`;
+  const stockTitle =
+    onHand !== null
+      ? `${quantityFormat.format(onHand)} en ${stock?.warehouses ?? 0} ${stock?.warehouses === 1 ? "bodega" : "bodegas"} de la lista${
+          available !== null ? `, ${quantityFormat.format(available)} disponibles` : ""
+        }. El detalle trae cada bodega.`
+      : "Sin existencia en las bodegas de la lista (foto de SIESA de esta mañana).";
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
+      <ReviewChip line={line} />
+      {stockText && (
+        <span className="inline-flex items-center gap-1 tabular-nums" title={stockTitle}>
+          <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />
+          {stockText}
+          {available !== null && onHand !== null && available < onHand && (
+            <span className="text-text-secondary">({quantityFormat.format(available)} disp.)</span>
+          )}
+        </span>
+      )}
+      {line.note && (
+        <button
+          type="button"
+          onClick={() => onOpenDetail(line)}
+          title={`Observación: ${line.note}`}
+          aria-label={`Observación de ${line.description ?? line.sku}: ${line.note}. Ver el detalle`}
+          className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
         >
-          <span className="block whitespace-nowrap">Vendido {formatMoney(line.last_sale_price ?? null)}</span>
-          {line.last_sale_date && <span className="block whitespace-nowrap">{formatShortDay(line.last_sale_date)}</span>}
-        </span>
-      ) : (
-        <span className="block text-xs text-text-secondary">Sin ventas en 12 meses</span>
-      )}
-      {sold && showCost && toNumber(line.last_sale_cost ?? null) !== null && (
-        <span className="block whitespace-nowrap text-xs text-text-secondary" title="Costo de ventas unitario registrado en esa venta">
-          Costo {formatMoney(line.last_sale_cost ?? null)}
-        </span>
+          <MessageSquareText className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{line.note}</span>
+        </button>
       )}
     </div>
   );
