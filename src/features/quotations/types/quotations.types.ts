@@ -16,6 +16,25 @@ export type DecimalText = string;
  */
 export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
 
+/**
+ * `cotizacion`: a customer quotation (module `cotizador`). `lista`: the update of
+ * an existing SIESA price list (module `actualizacion-listas`, BI): same engine,
+ * states and files, but no customer offer, quantities or local products, and the
+ * lines are compared against the list's price in force.
+ */
+export type QuotationKind = "cotizacion" | "lista";
+
+/** A SIESA price list a list update can start from. */
+export interface PriceList {
+  code: string;
+  name: string | null;
+  is_active: boolean;
+  /** Active branches assigned to it (SIESA counts branches, not customers). */
+  active_branches: number | null;
+  /** A regional base list (001 to 009): only BI's analysts and leader update it. */
+  restricted: boolean;
+}
+
 /** A customer SIESA does not have yet, registered on the quotation itself to quote from scratch. */
 export interface TemporaryCustomer {
   name: string;
@@ -122,6 +141,10 @@ export interface QuotationSummary {
   uploaded_by: string | null;
   is_temporary_customer: boolean;
   temporary_customer: TemporaryCustomer | null;
+  kind: QuotationKind;
+  /** A list update: started from a customer's list (`cliente`) or from the list itself. */
+  source: "cliente" | "lista" | null;
+  price_list_name: string | null;
 }
 
 /** `changed`: the lines with a new price (local ones included). `all`: every active line with a price to offer. */
@@ -169,6 +192,7 @@ export interface QuotationPage {
 }
 
 export interface QuotationListParams {
+  kind: QuotationKind;
   mine: boolean;
   status: QuotationStatus | "";
   q: string;
@@ -198,6 +222,29 @@ export interface SupportCandidate {
   calc_method: string | null;
   program: string | null;
   reason: string;
+}
+
+/**
+ * A list update: one support of the list's customers on the reference, with the
+ * minimum and optimal price it leaves. The one with the lowest minimum is applied.
+ */
+export interface SupportOption {
+  support_id: string;
+  kind: string;
+  calc_method: string;
+  program: string | null;
+  detail: string;
+  /** Support per inventory unit, in pesos. */
+  amount: DecimalText | null;
+  required_margin_pct: DecimalText | null;
+  min_price: DecimalText | null;
+  optimal_price: DecimalText | null;
+  applied: boolean;
+  /** Why it cannot be applied: in review, one warehouse, a rebate, no value. */
+  reason: string | null;
+  /** Set when the support is for one customer of the list. */
+  customer_nit: string | null;
+  valid_to: string | null;
 }
 
 /** `alza`: a price increase the product master has and SIESA does not yet (no system update date). */
@@ -280,9 +327,18 @@ export interface QuotationLine {
   offer_price: DecimalText | null;
   /** Whether the line goes in the customer's offer, per `offer_scope`. */
   in_offer: boolean;
+  /**
+   * A list update: `last_price` is the list's price in force, and these are the
+   * net price and unit cost of goods sold of the last sale (`last_sale_date`).
+   */
+  last_sale_price?: DecimalText | null;
+  last_sale_cost?: DecimalText | null;
+  /** A list update: every support of the list's customers, the applied one first. */
+  support_options?: SupportOption[];
 }
 
-export type LineOrigin = "historico" | "agregado" | "local";
+/** `lista`: a reference with a price in force on the list a list update starts from. */
+export type LineOrigin = "historico" | "agregado" | "local" | "lista";
 
 /** VAT rates a local product can carry, in points. */
 export type LocalVat = 19 | 5 | 0;

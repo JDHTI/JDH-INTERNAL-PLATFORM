@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calculator, CheckCircle2, FileX2, Plus, Search } from "lucide-react";
+import { Calculator, CheckCircle2, FileX2, ListRestart, Plus, Search } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -18,9 +18,11 @@ import { cn } from "@/shared/lib/utils";
 import { useSession } from "@/features/session/hooks/use-session";
 
 import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
+import { KIND_COPY, useQuotationKind } from "../lib/kind";
 import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
 import type { QuotationStatus, QuotationSummary } from "../types/quotations.types";
 import { QuotationStatusBadge } from "./quotation-badges";
+import NewListUpdateDialog from "./new-list-update-dialog";
 import NewQuotationDialog from "./new-quotation-dialog";
 import { QuotationLoadError } from "./quotations-gate";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
@@ -40,6 +42,9 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
+  const kind = useQuotationKind();
+  const isList = kind === "lista";
+  const copy = KIND_COPY[kind];
   const { data: user } = useSession();
   const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
@@ -52,7 +57,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   const [creating, setCreating] = useState(false);
   const q = useDebouncedValue(text.trim());
 
-  const quotations = useQuotations({ mine, status, q, page, size: PAGE_SIZE });
+  const quotations = useQuotations({ kind, mine, status, q, page, size: PAGE_SIZE });
   const result = quotations.data;
   const items = result?.items ?? [];
   const filtered = status !== "" || q !== "";
@@ -68,13 +73,17 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
 
   return (
     <div className="space-y-4">
-      <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
+      {isList ? (
+        <NewListUpdateDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
+      ) : (
+        <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           {canManage && seesAll && (
             <div role="group" aria-label="De quién" className="flex gap-2">
               <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
-                Mis cotizaciones
+                {isList ? "Mis actualizaciones" : "Mis cotizaciones"}
               </ToggleChip>
               <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
                 Todas
@@ -87,8 +96,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
               type="search"
               value={text}
               onChange={(event) => reset(() => setText(event.target.value))}
-              placeholder="Cliente o NIT"
-              aria-label="Buscar cotizaciones por cliente o NIT"
+              placeholder={isList ? "Lista, cliente o NIT" : "Cliente o NIT"}
+              aria-label={isList ? "Buscar actualizaciones por lista, cliente o NIT" : "Buscar cotizaciones por cliente o NIT"}
               className="pl-9 max-md:h-11"
             />
           </div>
@@ -102,15 +111,24 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
         </div>
         {canManage && (
           <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
-            <Plus aria-hidden="true" /> Nueva cotización
+            <Plus aria-hidden="true" /> {copy.create}
           </Button>
         )}
       </div>
 
       {quotations.isPending ? (
-        <TableSkeleton rows={6} label="Cargando cotizaciones" />
+        <TableSkeleton rows={6} label={isList ? "Cargando actualizaciones" : "Cargando cotizaciones"} />
       ) : quotations.isError && !result ? (
-        <QuotationLoadError error={quotations.error} onRetry={() => void quotations.refetch()} subject="las cotizaciones" />
+        <QuotationLoadError error={quotations.error} onRetry={() => void quotations.refetch()} subject={copy.many} />
+      ) : items.length === 0 && isList ? (
+        <ListUpdatesEmpty
+          filtered={filtered}
+          pendingFilter={canValidate && !mine && status === "pendiente_validacion" && q === ""}
+          canManage={canManage}
+          mine={mine}
+          onClear={clearFilters}
+          onCreate={() => setCreating(true)}
+        />
       ) : items.length === 0 ? (
         canValidate && !mine && status === "pendiente_validacion" && q === "" ? (
           <StatePanel
@@ -149,11 +167,12 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
       ) : (
         <div className={cn("space-y-3", quotations.isPlaceholderData && "opacity-60")}>
           <QuotationCards items={items} basePath={basePath} showAuthor={!mine} />
-          <QuotationTable items={items} basePath={basePath} showAuthor={!mine} />
+          <QuotationTable items={items} basePath={basePath} showAuthor={!mine} isList={isList} />
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs tabular-nums text-text-secondary">
-                {formatCount(result.total)} {result.total === 1 ? "cotización" : "cotizaciones"}
+                {formatCount(result.total)}{" "}
+                {isList ? (result.total === 1 ? "actualización" : "actualizaciones") : result.total === 1 ? "cotización" : "cotizaciones"}
               </span>
               <Pager page={result.page} size={result.size} total={result.total} count={items.length} onPageChange={setPage} />
             </div>
@@ -168,22 +187,36 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
 }
 
 
-function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSummary[]; basePath: string; showAuthor: boolean }) {
+function QuotationTable({
+  items,
+  basePath,
+  showAuthor,
+  isList,
+}: {
+  items: QuotationSummary[];
+  basePath: string;
+  showAuthor: boolean;
+  isList: boolean;
+}) {
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
       <table className="w-full min-w-max text-left text-sm">
-        <caption className="sr-only">Cotizaciones</caption>
+        <caption className="sr-only">{isList ? "Actualizaciones de listas" : "Cotizaciones"}</caption>
         <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
-            <th scope="col" className="px-3 py-2">Cliente</th>
+            <th scope="col" className="px-3 py-2">{isList ? "Lista" : "Cliente"}</th>
             <th scope="col" className="hidden px-3 py-2 xl:table-cell">Canal</th>
-            <th scope="col" className="px-3 py-2">Lista</th>
-            <th scope="col" className="hidden px-3 py-2 text-right xl:table-cell">Ventana</th>
+            {!isList && <th scope="col" className="px-3 py-2">Lista</th>}
+            {!isList && <th scope="col" className="hidden px-3 py-2 text-right xl:table-cell">Ventana</th>}
             <th scope="col" className="px-3 py-2">Estado</th>
             <th scope="col" className="px-3 py-2 text-right">Referencias</th>
             <th scope="col" className="px-3 py-2 text-right">Cambiadas</th>
             <th scope="col" className="px-3 py-2 text-right">No cumplen</th>
-            <th scope="col" className="px-3 py-2 text-right" title="Referencias cuyo último precio deja el margen bajo el objetivo, contando el apoyo">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right"
+              title={`Referencias cuyo ${isList ? "precio actual" : "último precio"} deja el margen bajo el objetivo, contando el apoyo`}
+            >
               Bajo objetivo
             </th>
             {showAuthor && <th scope="col" className="px-3 py-2">Creada por</th>}
@@ -198,22 +231,26 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
               <td className="max-w-80 px-3 py-2">
                 <Link
                   href={`${basePath}/${item.id}`}
-                  aria-label={`Abrir la cotización de ${item.customer_name}`}
+                  aria-label={
+                    isList ? `Abrir la actualización de la lista ${item.price_list_id}` : `Abrir la cotización de ${item.customer_name}`
+                  }
                   className={cn(
                     "block truncate font-medium outline-none",
                     "after:absolute after:inset-0 after:content-['']",
                     "focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring"
                   )}
                 >
-                  {item.customer_name}
+                  {titleOf(item)}
                 </Link>
                 <CustomerSubline item={item} />
               </td>
               <td className="hidden px-3 py-2 xl:table-cell">{item.channel ?? "—"}</td>
-              <td className="px-3 py-2">
-                <ListTarget item={item} />
-              </td>
-              <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>
+              {!isList && (
+                <td className="px-3 py-2">
+                  <ListTarget item={item} />
+                </td>
+              )}
+              {!isList && <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>}
               <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.changed_count)}</td>
@@ -231,8 +268,30 @@ function QuotationTable({ items, basePath, showAuthor }: { items: QuotationSumma
   );
 }
 
-/** Under the customer's name: its NIT, or that it is a temporary customer not yet in SIESA. */
+/** What names a row: the customer, or for a list update the list. */
+function titleOf(item: QuotationSummary): string {
+  if (item.kind !== "lista") return item.customer_name;
+  return item.price_list_name ?? `Lista ${item.price_list_id}`;
+}
+
+/**
+ * Under the name: the customer's NIT, that it is a temporary customer not yet
+ * in SIESA, or for a list update the list's code and where it started.
+ */
 function CustomerSubline({ item }: { item: QuotationSummary }) {
+  if (item.kind === "lista") {
+    return (
+      <span className="block truncate text-[13px] text-text-secondary">
+        <span className="font-mono">Lista {item.price_list_id}</span>
+        {item.source === "cliente" && (
+          <>
+            {" · desde "}
+            {item.customer_name} (<span className="font-mono">NIT {item.customer_nit}</span>)
+          </>
+        )}
+      </span>
+    );
+  }
   if (item.is_temporary_customer) {
     return (
       <span className="flex items-center gap-1.5 text-[13px] text-text-secondary">
@@ -269,6 +328,63 @@ function ListTarget({ item }: { item: QuotationSummary }) {
   );
 }
 
+/** Nothing to list in the list updates module, and what to do about it. */
+function ListUpdatesEmpty({
+  filtered,
+  pendingFilter,
+  canManage,
+  mine,
+  onClear,
+  onCreate,
+}: {
+  filtered: boolean;
+  pendingFilter: boolean;
+  canManage: boolean;
+  mine: boolean;
+  onClear: () => void;
+  onCreate: () => void;
+}) {
+  if (pendingFilter) {
+    return (
+      <StatePanel
+        icon={CheckCircle2}
+        title="No hay actualizaciones por validar"
+        action={<Button variant="outline" onClick={onClear}>Ver todas las actualizaciones</Button>}
+      >
+        Cuando alguien confirme una actualización de lista, aparecerá aquí para que la valides o la devuelvas.
+      </StatePanel>
+    );
+  }
+  if (filtered) {
+    return (
+      <StatePanel icon={FileX2} title="Ninguna actualización coincide con la búsqueda" action={<Button variant="outline" onClick={onClear}>Limpiar filtros</Button>}>
+        Prueba con el código de la lista, el NIT completo o quita el filtro de estado.
+      </StatePanel>
+    );
+  }
+  if (!canManage) {
+    return (
+      <StatePanel icon={ListRestart} title="Aún no hay actualizaciones de listas">
+        Las que se confirmen aparecerán aquí para validarlas.
+      </StatePanel>
+    );
+  }
+  return (
+    <StatePanel
+      icon={ListRestart}
+      title={mine ? "Aún no tienes actualizaciones" : "Aún no hay actualizaciones"}
+      action={
+        <Button variant="outline" onClick={onCreate} className="max-md:h-11">
+          <Plus aria-hidden="true" /> Actualizar una lista
+        </Button>
+      }
+    >
+      Elige una lista de precios por su código o su nombre, o un cliente para tomar la suya: cada referencia parte del
+      precio vigente en la lista y lo cruza con el costo, el margen objetivo y los apoyos de sus clientes.
+    </StatePanel>
+  );
+}
+
 /** Phones: customer, status and the one number that needs action (DESIGN.md §10). */
 function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSummary[]; basePath: string; showAuthor: boolean }) {
   return (
@@ -280,7 +396,7 @@ function QuotationCards({ items, basePath, showAuthor }: { items: QuotationSumma
             className="block space-y-2 rounded-lg border border-border bg-surface p-3 hover:bg-primary-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <span className="block min-w-0">
-              <span className="block truncate font-medium">{item.customer_name}</span>
+              <span className="block truncate font-medium">{titleOf(item)}</span>
               <CustomerSubline item={item} />
               {showAuthor && <span className="block truncate text-xs text-text-secondary">Creada por {item.created_by}</span>}
             </span>

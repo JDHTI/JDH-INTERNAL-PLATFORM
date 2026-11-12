@@ -4,11 +4,14 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { ApiError } from "@/shared/lib/api-client";
 
+import { useQuotationKind } from "../lib/kind";
+
 import {
   addLines,
   addLocalLine,
   compareCostCenters,
   confirmQuotation,
+  createListUpdate,
   createQuotation,
   createTemporaryQuotation,
   deleteQuotation,
@@ -33,6 +36,7 @@ import type {
   LocalLineInput,
   OfferSettings,
   Quotation,
+  QuotationKind,
   QuotationListParams,
   TemporaryQuotationInput,
   ValidateOptions,
@@ -41,7 +45,7 @@ import type {
 
 export const quotationKeys = {
   all: ["quotations"] as const,
-  permissions: () => [...quotationKeys.all, "permissions"] as const,
+  permissions: (kind: QuotationKind = "cotizacion") => [...quotationKeys.all, "permissions", kind] as const,
   rules: () => [...quotationKeys.all, "rules"] as const,
   lists: () => [...quotationKeys.all, "list"] as const,
   list: (params: QuotationListParams) => [...quotationKeys.lists(), params] as const,
@@ -51,12 +55,24 @@ export const quotationKeys = {
 const retryTransient = (count: number, error: Error) =>
   !(error instanceof ApiError && [401, 403, 404, 409, 422, 429, 503].includes(error.status)) && count < 1;
 
-export function useQuotationPermissions() {
+/** The permissions of the module the page is in (quoter or list updates), or of `kind` when given. */
+export function useQuotationPermissions(kind?: QuotationKind) {
+  const pageKind = useQuotationKind();
+  const which = kind ?? pageKind;
   return useQuery({
-    queryKey: quotationKeys.permissions(),
-    queryFn: getQuotationPermissions,
+    queryKey: quotationKeys.permissions(which),
+    queryFn: () => getQuotationPermissions(which),
     staleTime: 5 * 60_000,
     retry: retryTransient,
+  });
+}
+
+/** Starts a list update from a customer's list or a list chosen by code or name. */
+export function useCreateListUpdate() {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: (input: { customer_nit: string } | { price_list_id: string }) => createListUpdate(input),
+    onSuccess: store,
   });
 }
 

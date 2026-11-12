@@ -26,6 +26,7 @@ import {
   Laptop,
   LifeBuoy,
   ListChecks,
+  ListRestart,
   MessageSquareWarning,
   Palette,
   ReceiptText,
@@ -390,6 +391,14 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: Calculator,
     available: true,
     permission: "cotizador",
+  },
+  {
+    key: "actualizacion-listas",
+    name: "Actualización de listas",
+    category: "Operación",
+    icon: ListRestart,
+    available: true,
+    permission: "actualizacion-listas",
   },
   {
     key: "validador-pedidos",

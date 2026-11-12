@@ -7,7 +7,7 @@ import { toNumber } from "@/shared/lib/format";
 import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
 
 import { MARGIN_BASIS_LABELS, formatCount, formatDay, formatMargin, formatMoney } from "../lib/format";
-import type { QuotationLine } from "../types/quotations.types";
+import type { QuotationLine, SupportOption } from "../types/quotations.types";
 import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP } from "./lines-table";
 
 /**
@@ -20,10 +20,16 @@ export default function LineDetailDialog({
   line,
   onClose,
   onOpenAgreement,
+  forList = false,
+  showCost = false,
 }: {
   line: QuotationLine | null;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
+  /** A list update: the list's price, the last sale apart and every support of the list. */
+  forList?: boolean;
+  /** Whoever validates sees the cost of the last sale. */
+  showCost?: boolean;
 }) {
   const local = line?.origin === "local";
   return (
@@ -39,7 +45,7 @@ export default function LineDetailDialog({
         (local ? (
           <LocalDetail line={line} onClose={onClose} />
         ) : (
-          <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} />
+          <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList} showCost={showCost} />
         ))}
     </Dialog>
   );
@@ -71,13 +77,18 @@ function Detail({
   line,
   onClose,
   onOpenAgreement,
+  forList,
+  showCost,
 }: {
   line: QuotationLine;
   onClose: () => void;
   onOpenAgreement: (supportId: string) => void;
+  forList: boolean;
+  showCost: boolean;
 }) {
   const support = line.support;
   const added = line.origin === "agregado";
+  const options = line.support_options ?? [];
   const basis = line.margin_basis ? line.margin_basis_label || MARGIN_BASIS_LABELS[line.margin_basis] : null;
   const liquor = toNumber(line.value_tax_amount);
 
@@ -91,7 +102,11 @@ function Detail({
       {added && line.is_active && (
         <p>
           <Badge tone="info">{line.origin_label || "Agregado"}</Badge>{" "}
-          <span className="text-text-secondary">El cliente no la compró en la ventana: se cotiza sin último precio.</span>
+          <span className="text-text-secondary">
+            {forList
+              ? "No tiene precio vigente en la lista: el precio nuevo la agrega."
+              : "El cliente no la compró en la ventana: se cotiza sin último precio."}
+          </span>
         </p>
       )}
       {line.below_target && (
@@ -109,7 +124,26 @@ function Detail({
       )}
 
       <Section title="Precio">
-        {!added && (
+        {forList && (
+          <>
+            <Row label="Precio actual sin IVA">{toNumber(line.last_price) === null ? "Sin precio en la lista" : formatMoney(line.last_price)}</Row>
+            <Row label="Última venta">
+              {toNumber(line.last_sale_price ?? null) === null ? (
+                "Sin ventas en los últimos 12 meses"
+              ) : (
+                <>
+                  {formatMoney(line.last_sale_price ?? null)} · {formatDay(line.last_sale_date)}
+                  {line.last_document ? ` · ${line.last_document}` : ""}
+                  {line.last_sale_unit ? ` · en ${line.last_sale_unit}` : ""}
+                </>
+              )}
+            </Row>
+            {showCost && toNumber(line.last_sale_cost ?? null) !== null && (
+              <Row label="Costo de esa venta">{formatMoney(line.last_sale_cost ?? null)}</Row>
+            )}
+          </>
+        )}
+        {!added && !forList && (
           <>
             <Row label="Último precio sin IVA">{formatMoney(line.last_price)}</Row>
             <Row label="Última venta">
@@ -122,7 +156,7 @@ function Detail({
             {line.sales_in_window !== null && <Row label="Ventas en la ventana">{formatCount(line.sales_in_window)}</Row>}
           </>
         )}
-        <Row label="Precio de lista">{formatMoney(line.list_price)}</Row>
+        {!forList && <Row label="Precio de lista">{formatMoney(line.list_price)}</Row>}
         {liquor !== null && liquor > 0 && (
           <Row label="Imp. consumo">
             {formatMoney(liquor)}
@@ -168,7 +202,9 @@ function Detail({
         )}
       </Section>
 
-      {line.support_candidates.length > 0 && (
+      {forList && <SupportOptions options={options} onOpenAgreement={onOpenAgreement} />}
+
+      {!forList && line.support_candidates.length > 0 && (
         <section aria-labelledby="support-candidates" className="space-y-2">
           <h3 id="support-candidates" className="text-base font-semibold">Cubren la referencia, sin aplicar</h3>
           <ul className="divide-y divide-border rounded-md border border-border">
@@ -197,6 +233,61 @@ function Detail({
         )}
       </DialogFooter>
     </div>
+  );
+}
+
+/**
+ * Every support of the list's customers on the reference, with the minimum and
+ * optimal price each one leaves, so it is clear what each allows. The applied
+ * one (the lowest minimum) goes first; the ones that cannot apply say why.
+ */
+function SupportOptions({
+  options,
+  onOpenAgreement,
+}: {
+  options: SupportOption[];
+  onOpenAgreement: (supportId: string) => void;
+}) {
+  return (
+    <section aria-labelledby="support-options" className="space-y-2">
+      <h3 id="support-options" className="text-base font-semibold">Apoyos de la lista</h3>
+      {options.length === 0 ? (
+        <p className="text-text-secondary">Ningún apoyo de los clientes de la lista cubre esta referencia.</p>
+      ) : (
+        <ul className="divide-y divide-border rounded-md border border-border" aria-label="Apoyos de los clientes de la lista, con el precio que deja cada uno">
+          {options.map((option) => (
+            <li key={option.support_id} className="space-y-1.5 px-3 py-2">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-medium">{option.program ?? "Sin programa"}</span>
+                {option.applied && <Badge tone="success" className="px-1.5 py-0 text-xs">Aplicado</Badge>}
+                <span className="text-[13px] text-text-secondary">
+                  {option.customer_nit ? <>Solo el cliente <span className="font-mono">NIT {option.customer_nit}</span></> : "Toda la lista"}
+                </span>
+              </p>
+              <p className="text-[13px] text-text-secondary">{option.detail || calcMethodLabel(option.calc_method)}</p>
+              {option.reason && <p className="text-[13px]">No se aplica: {option.reason}</p>}
+              <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] tabular-nums">
+                <div className="flex gap-1.5">
+                  <dt className="text-text-secondary">Mínimo</dt>
+                  <dd className="font-semibold">{toNumber(option.min_price) === null ? "—" : formatMoney(option.min_price)}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-text-secondary">Óptimo</dt>
+                  <dd className="font-semibold">{toNumber(option.optimal_price) === null ? "—" : formatMoney(option.optimal_price)}</dd>
+                </div>
+                <div className="flex gap-1.5">
+                  <dt className="text-text-secondary">Por unidad</dt>
+                  <dd>{toNumber(option.amount) === null ? "—" : formatMoney(option.amount)}</dd>
+                </div>
+              </dl>
+              <Button variant="ghost" size="sm" className="-ml-2.5 max-md:h-11" onClick={() => onOpenAgreement(option.support_id)}>
+                Ver el apoyo
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

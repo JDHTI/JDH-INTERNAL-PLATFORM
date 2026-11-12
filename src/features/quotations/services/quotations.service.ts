@@ -9,6 +9,7 @@ import type {
   OfferSettings,
   Quotation,
   QuotationListParams,
+  QuotationKind,
   QuotationPage,
   QuotationPermissions,
   QuotationRuleSection,
@@ -23,8 +24,18 @@ const BASE = QUOTATIONS_BASE;
 
 const one = (id: string) => `${BASE}/${encodeURIComponent(id)}`;
 
-export function getQuotationPermissions(): Promise<QuotationPermissions> {
-  return apiFetch<QuotationPermissions>(`${BASE}/permissions`);
+/** `kind=lista` asks for the list updates module (`actualizacion-listas`) instead of the quoter. */
+export function getQuotationPermissions(kind: QuotationKind = "cotizacion"): Promise<QuotationPermissions> {
+  return apiFetch<QuotationPermissions>(`${BASE}/permissions`, { query: { kind } });
+}
+
+/**
+ * Starts the update of an existing SIESA list: a customer's assigned list, or
+ * the list picked by code or name. Reads the DWH (list, branches, last sales):
+ * 404 unknown customer or list, 403 a restricted list for someone outside BI.
+ */
+export function createListUpdate(input: { customer_nit: string } | { price_list_id: string }): Promise<Quotation> {
+  return apiFetch<Quotation>(`${BASE}/list-updates`, { method: "POST", body: input });
 }
 
 /** Open to every signed-in user, like the validator's rules. */
@@ -37,9 +48,9 @@ export function listBillingCenters(): Promise<BillingCenter[]> {
   return apiFetch<BillingCenter[]>(`${BASE}/billing-centers`);
 }
 
-export function listQuotations({ mine, status, q, page, size }: QuotationListParams): Promise<QuotationPage> {
+export function listQuotations({ kind, mine, status, q, page, size }: QuotationListParams): Promise<QuotationPage> {
   // `mine` defaults to true on the API, so false has to be sent explicitly.
-  return apiFetch<QuotationPage>(BASE, { query: { mine: String(mine), status, q, page, size } });
+  return apiFetch<QuotationPage>(BASE, { query: { kind, mine: String(mine), status, q, page, size } });
 }
 
 export function getQuotation(id: string): Promise<Quotation> {
