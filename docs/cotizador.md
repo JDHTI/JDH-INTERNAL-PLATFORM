@@ -24,6 +24,33 @@ Las reglas de costo, bodega, redondeo e impuesto son las del área de listas de 
 en la skill `lista-precios` del repo del API y centralizadas en
 `app/modules/quotations/domain/pricing.py`.
 
+## Actualización de listas (BI)
+
+El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-listas`, en
+`/bi/actualizacion-listas`. El contrato está en `docs/actualizacion-listas.md` del repo del API.
+
+- **Pantallas:** son las del cotizador dentro de `QuotationKindProvider kind="lista"`
+  (`src/features/quotations/lib/kind.tsx`). Los permisos (`?kind=lista`), el listado y los textos
+  siguen el tipo; en el editor manda el `kind` de la actualización abierta.
+- **Nueva actualización** (`new-list-update-dialog.tsx`), por una de dos vías:
+  - **Por lista:** buscador por código o por nombre (`GET /quotations/price-lists`). Cada opción
+    muestra el código, las sucursales activas y si es una lista base que solo actualiza BI.
+  - **Por cliente:** todos los clientes, sin cartera (`/customers?kind=lista`). Se toma la lista
+    que el cliente tiene asignada.
+- **Lo que no aparece:** oferta, «Cotizar con cantidades», «Crear producto» y el consolidado.
+  Tampoco el indicador «Sin SKU en SIESA».
+- **Confirmación:** un solo paso (`ListConfirm` en `confirm-wizard.tsx`), con la lista, cuántos
+  clientes la tienen y la fecha de activación. Siempre es actualización.
+- **Tabla:** la primera cifra es «Precio actual sin IVA», el de la lista, con su margen. Debajo va
+  la última venta («Vendido $ …» y la fecha), y su costo solo para quien valida. «Sin precio en
+  la lista» marca un marcador de $1 o una referencia agregada.
+- **Apoyo:** la insignia dice el aplicado y cuántos más hay («Táctico +2»). El detalle de la línea
+  lista **todos los apoyos de los clientes de la lista**, cada uno con su mínimo, su óptimo, por
+  unidad y a quién cubre (toda la lista o un NIT). Primero el aplicado, que es el de mínimo más
+  bajo; los que no se aplican dicen por qué.
+- **Restricción:** las listas 001, 002, 003, 004, 005 y 009 solo las crean y editan los analistas
+  y el líder de BI. La API responde 403 a los demás y la UI muestra el `detail`.
+
 ## Interfaz
 
 Código en `src/features/quotations/` y páginas en `src/app/(app)/(workspace)/[area]/cotizador/`.

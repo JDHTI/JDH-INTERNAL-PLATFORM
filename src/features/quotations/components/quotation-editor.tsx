@@ -59,6 +59,7 @@ import {
   useRemoveLine,
 } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
+import { KIND_COPY } from "../lib/kind";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
@@ -109,7 +110,11 @@ const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
 
 export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
   const quotation = useQuotation(quotationId);
-  useBreadcrumbLabel(`${basePath}/${quotationId}`, quotation.data?.customer_name);
+  const data = quotation.data;
+  useBreadcrumbLabel(
+    `${basePath}/${quotationId}`,
+    data?.kind === "lista" ? (data.price_list_name ?? `Lista ${data.price_list_id}`) : data?.customer_name
+  );
 
   if (quotation.isPending) {
     return (
@@ -139,7 +144,10 @@ export default function QuotationEditor({ quotationId, basePath }: { quotationId
 function Editor({ quotation, basePath }: { quotation: Quotation; basePath: string }) {
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
-  const permissions = useQuotationPermissions().data;
+  const permissions = useQuotationPermissions(quotation.kind).data;
+  // A list update goes to SIESA only: no customer offer, quantities or products only for quoting.
+  const isList = quotation.kind === "lista";
+  const copy = KIND_COPY[quotation.kind];
   // The API decides which quotations each person opens (Comercial: its own; BI and admins: all),
   // so whoever opens one and quotes has the whole editor.
   const canManage = permissions?.can_manage === true;
@@ -300,7 +308,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             next.delete(line.sku);
             return next;
           });
-          toast.success(`Se quitó ${line.description ?? line.sku} de la cotización.`);
+          toast.success(`Se quitó ${line.description ?? line.sku} de ${copy.one}.`);
         },
         onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
         onSettled: () => setRemovingSku(null),
@@ -332,7 +340,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
 
   const runRefresh = () =>
     refresh.mutate(quotation.version, {
-      onSuccess: () => toast.success("Cotización actualizada con las ventas, los costos y los apoyos de hoy. Tus precios nuevos se conservaron."),
+      onSuccess: () =>
+        toast.success(
+          isList
+            ? "Actualización refrescada con la lista, los costos, la última venta y los apoyos de hoy. Tus precios nuevos se conservaron."
+            : "Cotización actualizada con las ventas, los costos y los apoyos de hoy. Tus precios nuevos se conservaron."
+        ),
       onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
     });
 
@@ -350,7 +363,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const confirmDelete = () =>
     remove.mutate(quotation.id, {
       onSuccess: () => {
-        toast.success(`Cotización de ${quotation.customer_name} eliminada.`);
+        toast.success(isList ? `Actualización de la lista ${quotation.price_list_id} eliminada.` : `Cotización de ${quotation.customer_name} eliminada.`);
         router.push(basePath);
       },
       onError: (failure) => setDeleteError(errorMessage(failure)),
@@ -374,12 +387,16 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       setSort(next);
       setPage(1);
     },
-    withQuantities: quotation.quote_quantities,
+    withQuantities: !isList && quotation.quote_quantities,
     quantitiesEditable: canManage,
     // Only BI, who validates, sees the cost behind the suggested prices.
     showCost: canValidate,
+    basePriceLabel: copy.basePrice,
+    // A list update shows the last sale apart: its price, and its cost to whoever validates.
+    showLastSale: isList,
   };
-  const totals = offerTotals(quotation);
+  const totals = isList ? null : offerTotals(quotation);
+  const title = isList ? (quotation.price_list_name ?? `Lista ${quotation.price_list_id}`) : quotation.customer_name;
 
   return (
     // A container: the cards, indicators and toolbar adapt to the room the sidebar leaves.
@@ -389,15 +406,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           href={basePath}
           className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
         >
-          <ArrowLeft className="size-4" aria-hidden="true" /> Cotizaciones
+          <ArrowLeft className="size-4" aria-hidden="true" /> {isList ? "Actualizaciones" : "Cotizaciones"}
         </Link>
-        <QuotationRulesLink basePath={basePath} />
+        <QuotationRulesLink basePath={basePath} label={isList ? "Reglas de precios" : undefined} />
       </div>
 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{quotation.customer_name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
@@ -457,7 +474,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <Undo2 aria-hidden="true" /> Retirar de validación
             </Button>
           )}
-          {(editable || (canManage && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
+          {(editable || (canManage && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
           {editable && (
             <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
@@ -478,7 +495,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               align="end"
               trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
               triggerClassName={cn(buttonVariants({ variant: "ghost", size: "icon" }), "max-md:size-11")}
-              triggerLabel="Más acciones de la cotización"
+              triggerLabel={isList ? "Más acciones de la actualización" : "Más acciones de la cotización"}
             >
               <MenuItem
                 onClick={() => {
@@ -486,7 +503,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
                   setDialog("delete");
                 }}
               >
-                <Trash2 aria-hidden="true" /> Eliminar cotización
+                <Trash2 aria-hidden="true" /> {isList ? "Eliminar actualización" : "Eliminar cotización"}
               </MenuItem>
             </Menu>
           )}
@@ -496,11 +513,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is put together while confirming; once confirmed it is here to preview and export. */}
-      {quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
+      {!isList && quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && (
         <QuotationIndicators
+          forList={isList}
           lines={quotation.lines}
           active={filter === "inactive" || filter === "imported" ? null : filter}
           onSelect={chooseFilter}
@@ -518,7 +536,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       {/* Quantities save in every status, so the status shows whenever something can be typed. */}
-      {(editable || (canManage && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
+      {(editable || (canManage && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
         Laid out by the width the content really has, not the window's: with the sidebar
@@ -573,12 +591,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           {canManage && (
             // Next to the references they work on, not among the quotation's own actions.
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
-              <QuantitiesToggle quotation={quotation} disabled={busy} />
+              {!isList && <QuantitiesToggle quotation={quotation} disabled={busy} />}
               {editable && (
                 <>
-                  <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
-                    <PackageOpen aria-hidden="true" /> Crear producto
-                  </Button>
+                  {!isList && (
+                    <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                      <PackageOpen aria-hidden="true" /> Crear producto
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={openImport} disabled={busy} className="max-md:h-11">
                     <PackagePlus aria-hidden="true" /> Agregar productos
                   </Button>
@@ -607,7 +627,22 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         )}
       </div>
 
-      {!hasRows ? (
+      {!hasRows && isList ? (
+        <StatePanel
+          icon={PackagePlus}
+          title="La lista no tiene precios vigentes"
+          action={
+            editable ? (
+              <Button onClick={openImport} disabled={busy} className="max-md:h-11">
+                <PackagePlus aria-hidden="true" /> Agregar productos
+              </Button>
+            ) : undefined
+          }
+        >
+          SIESA no tiene precios vigentes en la lista {quotation.price_list_id}.
+          {editable && " Agrega las referencias que vas a cargar: cada una trae su costo, precios sugeridos y apoyos."}
+        </StatePanel>
+      ) : !hasRows ? (
         <StatePanel
           icon={PackagePlus}
           title="El cliente no tiene ventas en la ventana"
@@ -706,6 +741,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       />
       <LineDetailDialog
         line={detailLine}
+        forList={isList}
+        showCost={canValidate}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
           setDetailLine(null);
@@ -716,13 +753,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       <ConfirmDeleteDialog
         open={dialog === "delete"}
         onOpenChange={(open) => !open && closeDialog()}
-        title="¿Eliminar esta cotización?"
-        confirmLabel="Eliminar cotización"
+        title={isList ? "¿Eliminar esta actualización?" : "¿Eliminar esta cotización?"}
+        confirmLabel={isList ? "Eliminar actualización" : "Eliminar cotización"}
         onConfirm={confirmDelete}
         isPending={remove.isPending}
         error={deleteError}
       >
-        Los precios nuevos de {quotation.customer_name} se pierden; los archivos ya descargados no cambian.
+        Los precios nuevos de {title} se pierden; los archivos ya descargados no cambian.
       </ConfirmDeleteDialog>
     </div>
   );
@@ -767,7 +804,53 @@ type Fact = [label: string, value: React.ReactNode];
 function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; canChangeCenter: boolean }) {
   const sharedList = quotation.price_list_customers;
   const temporary = quotation.is_temporary_customer ? quotation.temporary_customer : null;
-  const groups: { title: string; badge?: React.ReactNode; facts: Fact[] }[] = [
+  const listFacts: Fact[] = [
+    [
+      "Lista SIESA",
+      <span key="list" className="block truncate" title={quotation.price_list_name ?? undefined}>
+        <span className="font-mono">{quotation.price_list_id ?? "—"}</span>
+        {quotation.price_list_name && <span className="text-text-secondary"> · {quotation.price_list_name}</span>}
+      </span>,
+    ],
+    ["Familia", quotation.price_family_label ?? "—"],
+  ];
+  const groups: { title: string; badge?: React.ReactNode; facts: Fact[] }[] =
+    quotation.kind === "lista"
+      ? [
+          {
+            title: "Lista de precios",
+            facts: [
+              ...listFacts,
+              ["Clientes", sharedList ? `${formatCount(sharedList)} con sucursales activas` : "Sin clientes activos"],
+            ],
+          },
+          {
+            title: "Origen",
+            facts: [
+              [
+                "Desde",
+                quotation.source === "cliente" ? (
+                  <span key="from" className="block truncate">
+                    {quotation.customer_name} <span className="font-mono text-text-secondary">NIT {quotation.customer_nit}</span>
+                  </span>
+                ) : (
+                  "La lista, por su código o nombre"
+                ),
+              ],
+              ["Canal", quotation.channel ?? "Sin canal: margen Lista 1"],
+              ["Última venta", quotation.source === "cliente" ? "Del cliente, últimos 12 meses" : "De los clientes de la lista, últimos 12 meses"],
+            ],
+          },
+          {
+            title: "Centro de operación y despacho",
+            facts: [
+              ["C.O.", <CostCentersField key="co" quotation={quotation} editable={canChangeCenter} />],
+              ["Regional", quotation.regional_label ?? "—"],
+              ["Bodega", quotation.stock_source ?? "—"],
+            ],
+          },
+        ]
+      : [
     temporary
       ? {
           title: "Cliente",

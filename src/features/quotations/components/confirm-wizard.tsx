@@ -32,6 +32,19 @@ const STEPS = ["Oferta", "Observaciones", "Lista en SIESA"] as const;
  * back. Afterwards the editor shows the offer ready to preview and export.
  */
 export function ConfirmDialog({ quotation, open, onOpenChange }: { quotation: Quotation; open: boolean; onOpenChange: (open: boolean) => void }) {
+  if (quotation.kind === "lista") {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        isForm
+        title="Confirmar la actualización"
+        description="Al enviarla pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan."
+      >
+        {open && <ListConfirm quotation={quotation} onClose={() => onOpenChange(false)} />}
+      </Dialog>
+    );
+  }
   return (
     <Dialog
       open={open}
@@ -148,6 +161,70 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
               Siguiente <ArrowRight aria-hidden="true" />
             </>
           )}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/**
+ * A list update has no offer and always writes over its own list: one step,
+ * the list and who shares it, and from when the prices hold.
+ */
+function ListConfirm({ quotation, onClose }: { quotation: Quotation; onClose: () => void }) {
+  const confirm = useConfirmQuotation(quotation.id);
+  const dateId = useId();
+  const [activation, setActivation] = useState(quotation.activation_date ?? tomorrow());
+  const [error, setError] = useState<string | null>(null);
+  const failing = quotation.lines.filter((line) => line.is_active && line.compliance !== null && line.compliance !== "cumple").length;
+  const priced = quotation.lines.filter((line) => line.is_active && line.new_price !== null).length;
+  const shared = quotation.price_list_customers ?? 0;
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    confirm.mutate(
+      { version: quotation.version, options: { list_action: "actualizacion", activation_date: activation } },
+      {
+        onSuccess: () => {
+          toast.success("Actualización enviada a validación del área BI.");
+          onClose();
+        },
+        onError: (failure) => setError(errorMessage(failure)),
+      }
+    );
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      {priced === 0 && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de confirmar.</Alert>}
+      {failing > 0 && (
+        <Alert severity="warning">
+          {failing === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(failing)} referencias con precio nuevo quedan`} bajo la regla
+          (bajo el mínimo, sin margen objetivo o sin costo). Puedes enviarla igual: el validador las verá marcadas.
+        </Alert>
+      )}
+      <p className="text-sm">
+        Actualiza la lista <span className="font-mono font-semibold">{quotation.price_list_id ?? "—"}</span>
+        {quotation.price_list_name && <span className="text-text-secondary"> {quotation.price_list_name}</span>} con{" "}
+        <strong className="tabular-nums">{formatCount(priced)}</strong> {priced === 1 ? "precio nuevo" : "precios nuevos"}.
+        {shared > 1 && (
+          <span className="mt-1 block text-text-secondary">
+            La tienen <strong className="tabular-nums text-text-primary">{formatCount(shared)}</strong> clientes activos: al cargarla en SIESA,
+            estos precios les cambian a todos.
+          </span>
+        )}
+      </p>
+      <div className="max-w-56">
+        <Field label="Fecha de activación" htmlFor={dateId} hint="Desde cuándo rige el precio en SIESA.">
+          <DatePicker id={dateId} value={activation} onChange={setActivation} min={toIso(new Date())} aria-describedby={`${dateId}-hint`} />
+        </Field>
+      </div>
+      <DialogError message={error} />
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} disabled={confirm.isPending} className="max-md:h-11">Cancelar</Button>
+        <Button type="submit" disabled={priced === 0 || confirm.isPending} className="max-md:h-11">
+          {confirm.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />} Enviar a validación
         </Button>
       </DialogFooter>
     </form>

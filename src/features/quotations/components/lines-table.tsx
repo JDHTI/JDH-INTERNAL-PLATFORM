@@ -75,6 +75,10 @@ interface LinesProps {
   quantitiesEditable: boolean;
   /** BI (who validates) sees the highest cost under the suggested prices, with its breakdown. */
   showCost: boolean;
+  /** What each line is compared against: "Último precio", or "Precio actual" (the list's) on a list update. */
+  basePriceLabel?: string;
+  /** A list update: the last sale goes under the list price, its cost only to whoever sees costs. */
+  showLastSale?: boolean;
 }
 
 export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
@@ -83,7 +87,8 @@ export const BELOW_TARGET_HELP = "Margen actual bajo el objetivo: revisar y actu
 export const INACTIVE_HELP = "Inactiva en SIESA: reemplázala. No sale en el Excel ni en el plano.";
 export const LOCAL_HELP = "Producto creado solo para cotizar: no existe en SIESA, no tiene costo ni regla y no sale en el Excel ni en el plano.";
 
-const removable = (line: QuotationLine) => line.origin !== "historico" || !line.is_active;
+/** Added, local or inactive references come out; the ones from the sales or the list keep their row. */
+const removable = (line: QuotationLine) => (line.origin !== "historico" && line.origin !== "lista") || !line.is_active;
 
 /*
  * One view, no sideways scroll: each column is a block of two or three short
@@ -170,6 +175,7 @@ export function LinesTable(props: LinesProps) {
     />
   );
   const at = (key: ColumnKey) => columns.indexOf(key);
+  const baseHeader = `${props.basePriceLabel ?? "Último precio"} sin IVA`;
 
   return (
     <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[77rem]:block" : "@min-[70rem]:block")}>
@@ -203,10 +209,10 @@ export function LinesTable(props: LinesProps) {
             <th scope="col" className={cn(th, !selection && "rounded-tl-lg")}>Producto</th>
             {/* The headers say what each figure is, in full; they wrap to two lines rather than abbreviate. */}
             <SortHeader
-              label="Último precio sin IVA"
-              name="Último precio sin IVA"
+              label={baseHeader}
+              name={baseHeader}
               keys={[["last_price", "Precio"], ["current_margin", "Margen"]]}
-              divider={divider(at("last"), "Último precio sin IVA")}
+              divider={divider(at("last"), baseHeader)}
               {...sortProps}
             />
             <SortHeader
@@ -270,7 +276,9 @@ export function LinesTable(props: LinesProps) {
                   </td>
                 )}
                 <td className={td}><Product line={line} {...props} /></td>
-                <td className={cn(td, divided, "text-right")}><LastSale line={line} /></td>
+                <td className={cn(td, divided, "text-right")}>
+                  <LastSale line={line} forList={props.showLastSale} showCost={props.showCost} />
+                </td>
                 <td className={cn(td, divided)}><Bounds line={line} showCost={props.showCost} /></td>
                 <td className={cn(td, divided)}>
                   <NewPrice line={line} editor={props.editor} editable={props.editable} />
@@ -328,7 +336,9 @@ export function LinesList(props: LinesProps) {
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-            <Pair label="Último precio sin IVA"><LastSale line={line} alignStart /></Pair>
+            <Pair label={`${props.basePriceLabel ?? "Último precio"} sin IVA`}>
+              <LastSale line={line} alignStart forList={props.showLastSale} showCost={props.showCost} />
+            </Pair>
             <Pair label="Precios sugeridos"><Bounds line={line} showCost={props.showCost} /></Pair>
             <Pair label="Apoyo"><SupportBadge line={line} onOpen={props.onOpenDetail} /></Pair>
             <Pair label="IVA · imp. consumo">
@@ -570,8 +580,23 @@ function MarginMark({ value, standing }: { value: string | null; standing: Stand
   );
 }
 
-/** The last sale: price, the margin it left (with support) and when it was invoiced. */
-function LastSale({ line, alignStart = false }: { line: QuotationLine; alignStart?: boolean }) {
+/**
+ * The last sale: price, the margin it left (with support) and when it was
+ * invoiced. On a list update, the list's price in force and its margin, with
+ * the last sale under it (its cost only for whoever sees costs).
+ */
+function LastSale({
+  line,
+  alignStart = false,
+  forList = false,
+  showCost = false,
+}: {
+  line: QuotationLine;
+  alignStart?: boolean;
+  forList?: boolean;
+  showCost?: boolean;
+}) {
+  if (forList) return <ListPrice line={line} alignStart={alignStart} showCost={showCost} />;
   if (toNumber(line.last_price) === null) {
     return <span className="text-[13px] text-text-secondary">{isLocal(line) ? "—" : "Sin compras en la ventana"}</span>;
   }
@@ -585,6 +610,45 @@ function LastSale({ line, alignStart = false }: { line: QuotationLine; alignStar
       {line.last_sale_date && (
         <span className="block whitespace-nowrap text-xs text-text-secondary" title={`Facturado el ${formatDay(line.last_sale_date)}`}>
           facturado {formatShortDay(line.last_sale_date)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A list update's base: the price in force on the list and its margin, then the last sale. */
+function ListPrice({ line, alignStart, showCost }: { line: QuotationLine; alignStart: boolean; showCost: boolean }) {
+  const hasPrice = toNumber(line.last_price) !== null;
+  const sold = toNumber(line.last_sale_price ?? null) !== null;
+  return (
+    <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
+      {hasPrice ? (
+        <>
+          <span className="block whitespace-nowrap font-semibold">{formatMoney(line.last_price)}</span>
+          <span className="block"><MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} /></span>
+        </>
+      ) : (
+        <span className="block text-[13px] text-text-secondary">{line.origin === "agregado" ? "No está en la lista" : "Sin precio en la lista"}</span>
+      )}
+      {sold ? (
+        <span
+          className="block text-xs text-text-secondary"
+          title={[
+            line.last_sale_date ? `Última venta el ${formatDay(line.last_sale_date)}` : "Última venta",
+            line.last_document ? `documento ${line.last_document}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ")}
+        >
+          <span className="block whitespace-nowrap">Vendido {formatMoney(line.last_sale_price ?? null)}</span>
+          {line.last_sale_date && <span className="block whitespace-nowrap">{formatShortDay(line.last_sale_date)}</span>}
+        </span>
+      ) : (
+        <span className="block text-xs text-text-secondary">Sin ventas en 12 meses</span>
+      )}
+      {sold && showCost && toNumber(line.last_sale_cost ?? null) !== null && (
+        <span className="block whitespace-nowrap text-xs text-text-secondary" title="Costo de ventas unitario registrado en esa venta">
+          Costo {formatMoney(line.last_sale_cost ?? null)}
         </span>
       )}
     </div>
@@ -793,6 +857,8 @@ function QuantityCell({ line, editor, editable, wide = false }: { line: Quotatio
 function SupportBadge({ line, onOpen }: { line: QuotationLine; onOpen: (line: QuotationLine) => void }) {
   const candidates = line.support_candidates.length;
   if (!line.support && candidates === 0) return dash;
+  // A list update lists every support of its customers: the badge says how many more there are.
+  const others = line.support && candidates > 0 && line.support_options ? candidates : 0;
   const label = line.support
     ? line.support.kind ? choiceLabel("kind", line.support.kind) : "Apoyo"
     : candidates === 1 ? "1 sin aplicar" : `${candidates} sin aplicar`;
@@ -800,13 +866,14 @@ function SupportBadge({ line, onOpen }: { line: QuotationLine; onOpen: (line: Qu
     <button
       type="button"
       onClick={() => onOpen(line)}
-      aria-label={`Apoyo de ${line.description ?? line.sku}: ${label}. Ver detalle`}
+      aria-label={`Apoyo de ${line.description ?? line.sku}: ${label}${others ? ` y ${others} más` : ""}. Ver detalle`}
       title={line.support ? `${formatMoney(line.support.amount)} por unidad` : "Apoyos que cubren la referencia sin aplicarse"}
       className="block max-w-full rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Badge tone={line.support ? "info" : "neutral"} className="max-w-full cursor-pointer py-0">
         <HandCoins aria-hidden="true" />
         <span className="truncate">{label}</span>
+        {others > 0 && <span className="shrink-0 tabular-nums">+{others}</span>}
       </Badge>
     </button>
   );

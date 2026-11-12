@@ -10,6 +10,7 @@ import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import { humanize } from "@/features/supports/lib/format";
 
 import { useQuotationRules } from "../hooks/use-quotations";
+import { useQuotationKind } from "../lib/kind";
 import type { QuotationRule, QuotationRuleSection } from "../types/quotations.types";
 import { QuotationLoadError } from "./quotations-gate";
 
@@ -33,6 +34,8 @@ const PARAMETER_LABELS: Record<string, string> = {
  */
 export default function QuotationRulesView({ basePath }: { basePath: string }) {
   const rules = useQuotationRules();
+  // The list updates price with the same engine, so they show the same rules.
+  const isList = useQuotationKind() === "lista";
   useBreadcrumbLabel(`${basePath}/reglas`, "Reglas");
 
   return (
@@ -42,11 +45,15 @@ export default function QuotationRulesView({ basePath }: { basePath: string }) {
           href={basePath}
           className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
         >
-          <ArrowLeft className="size-4" aria-hidden="true" /> Cotizador
+          <ArrowLeft className="size-4" aria-hidden="true" /> {isList ? "Actualización de listas" : "Cotizador"}
         </Link>
         <PageHeader
-          title="Reglas del cotizador"
-          description="De dónde sale cada número de una cotización y qué precio nuevo deja generar el formato de SIESA, con los valores vigentes."
+          title={isList ? "Reglas de precios" : "Reglas del cotizador"}
+          description={
+            isList
+              ? "Las mismas del cotizador: de dónde sale el costo, el margen objetivo, el apoyo y qué precio nuevo deja generar el formato de SIESA, con los valores vigentes."
+              : "De dónde sale cada número de una cotización y qué precio nuevo deja generar el formato de SIESA, con los valores vigentes."
+          }
         />
       </div>
 

@@ -58,6 +58,7 @@ las que creó (`docs/cotizador.md`).
 | Datawarehouse | `datawarehouse` |
 | PQRSF | `pqrsf` |
 | Cotizador | `cotizador` |
+| Actualización de listas | `actualizacion-listas` |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
@@ -65,7 +66,14 @@ las que creó (`docs/cotizador.md`).
 | Maestros (`/{área}/maestros`) | `maestros` |
 
 Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), se agrega su plantilla
-a `MODULE_TEMPLATES` y sus páginas bajo `[area]/`, cada una con `requireModule`.
+a `MODULE_TEMPLATES` y sus páginas bajo `[area]/`, cada una con `requireModule`. La lista completa de
+pasos, en el API y en la UI, es la skill `modulo-con-permisos` del repositorio del API
+(`.claude/skills/modulo-con-permisos/SKILL.md`).
+
+**Actualización de listas** reutiliza las pantallas del cotizador: sus páginas envuelven el listado,
+el editor y las reglas en `QuotationKindProvider kind="lista"` (`src/features/quotations/lib/kind.tsx`).
+Los permisos salen de `GET /quotations/permissions?kind=lista` y el listado de `?kind=lista`; dentro del
+editor manda el `kind` de la cotización abierta.
 
 **Maestros.** `/{área}/maestros` lista `GET /masters?area={slug}`: los maestros que TI eligió para el
 área (todos si no eligió). Cada maestro se busca y se ve registro por registro; no hay descarga. El API
