@@ -182,7 +182,7 @@ export interface BoardRow extends QuotationLine {
   stock_warehouses: number;
 }
 
-export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion";
+export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion" | "existencia";
 
 export interface BoardFilters {
   lists: string[];
@@ -212,6 +212,8 @@ export interface BoardKey {
 export interface BoardActionResult {
   done: number;
   skipped: SkippedLine[];
+  /** The rows written, as they are now, without stock (empty for the bulk prices). */
+  rows: BoardRow[];
 }
 
 /** A customer SIESA does not have yet, registered on the quotation itself to quote from scratch. */

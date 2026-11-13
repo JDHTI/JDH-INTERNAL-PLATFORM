@@ -11,6 +11,7 @@ import TableSkeleton from "@/shared/components/table-skeleton";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
+import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { MultiSelect } from "@/shared/components/ui/multi-select";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -47,6 +48,7 @@ const quantity = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "lista", label: "Orden: lista y posición" },
   { value: "sku", label: "Orden: referencia" },
+  { value: "existencia:desc", label: "Orden: existencia, mayor primero" },
   { value: "margen_actual:asc", label: "Orden: margen actual, menor primero" },
   { value: "margen_actual:desc", label: "Orden: margen actual, mayor primero" },
   { value: "precio_actual:desc", label: "Orden: precio actual, mayor primero" },
@@ -88,12 +90,12 @@ export default function MainListsBoard() {
   const rows = useBoardRows(effective, page, PAGE_SIZE, built);
   const note = useBoardNote();
   const review = useBoardReview();
-  const pendingKey = review.isPending && review.variables ? keyOf(review.variables.keys[0]) : null;
   // A row's review changes on its own chip, in the table or in its detail; never in bulk.
+  // The chip takes the new state at once (no spinner): it goes back if the API refuses it.
   const reviewControl: ReviewControl = {
     canEdit: canManage,
     canValidate,
-    pending: pendingKey,
+    pending: null,
     keyOf: (line) => keyOf(line as BoardRow),
     onChange: (line, status) => {
       const row = line as BoardRow;
@@ -341,27 +343,28 @@ function ListsPanel({ lists, sync, syncEnabled, canManage }: { lists: BoardList[
       onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
     });
 
+  const progress = running ? (sync?.status === "queued" ? "Sincronización en cola…" : "Sincronizando las listas con SIESA…") : null;
+  const last = sync?.finished_at
+    ? `Última sincronización: ${formatDateTime(sync.finished_at)}, ${TRIGGER_TEXT[sync.trigger] ?? sync.trigger}${
+        sync.trigger === "manual" && sync.triggered_by ? ` (${sync.triggered_by})` : ""
+      }.`
+    : built
+      ? "Aún no hay una sincronización registrada."
+      : "Aún no se ha armado la lista general.";
+
   return (
     <section aria-labelledby="main-lists-title" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 space-y-0.5">
+        <div className="flex min-w-0 items-center gap-1">
           <h2 id="main-lists-title" className="text-base font-semibold">Listas</h2>
-          <p className="text-[13px] text-text-secondary" aria-live="polite">
-            {running ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                {sync?.status === "queued" ? "Sincronización en cola…" : "Sincronizando las listas con SIESA…"}
-              </span>
-            ) : sync?.finished_at ? (
-              `Última sincronización: ${formatDateTime(sync.finished_at)}, ${TRIGGER_TEXT[sync.trigger] ?? sync.trigger}${
-                sync.trigger === "manual" && sync.triggered_by ? ` (${sync.triggered_by})` : ""
-              }.`
-            ) : built ? (
-              "Se sincroniza sola con la carga diaria del DWH."
-            ) : (
-              "Aún no se ha armado la lista general."
-            )}
-          </p>
+          <InfoPopover label="Sincronización de las listas" iconOnly>
+            <div className="space-y-1.5 text-[13px]">
+              {progress && <p className="font-medium">{progress}</p>}
+              <p>{last}</p>
+              <p className="text-text-secondary">Se sincronizan solas con la carga diaria de abastecimiento del DWH, de lunes a viernes.</p>
+            </div>
+          </InfoPopover>
+          <span className="sr-only" aria-live="polite">{progress ?? ""}</span>
         </div>
         {canManage && (
           <Button
@@ -703,7 +706,12 @@ function Suggested({ row, showCost }: { row: BoardRow; showCost: boolean }) {
   );
 }
 
-/** The new price, in whole pesos: saved when the field is left or with Enter. Empty clears it. */
+/**
+ * The new price, in whole pesos: saved when the field is left or with Enter;
+ * empty clears it. The row takes it at once, «Por validar» included, and the
+ * field stays free for the next one; it goes back with the reason if the API
+ * refuses it.
+ */
 function PriceCell({ row, editable, wide = false }: { row: BoardRow; editable: boolean; wide?: boolean }) {
   const save = useBoardPrices();
   const stored = row.new_price === null ? "" : String(Math.round(toNumber(row.new_price) ?? 0));
@@ -733,28 +741,25 @@ function PriceCell({ row, editable, wide = false }: { row: BoardRow; editable: b
   const disabled = !editable || !row.is_active;
   return (
     <div className={cn("space-y-1", !wide && "text-right")}>
-      <div className="relative">
-        <Input
-          inputMode="numeric"
-          autoComplete="off"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            }
-          }}
-          disabled={disabled || save.isPending}
-          placeholder={disabled ? "" : "Sin cambio"}
-          aria-label={`Precio nuevo de ${row.description ?? row.sku} en la lista ${row.price_list_id}, sin IVA`}
-          aria-invalid={error ? true : undefined}
-          title={error ?? undefined}
-          className={cn("bg-surface text-right tabular-nums", wide ? "h-11 w-40" : "h-8 w-full min-w-24", error && "border-danger")}
-        />
-        {save.isPending && <Loader2 className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-text-secondary" aria-hidden="true" />}
-      </div>
+      <Input
+        inputMode="numeric"
+        autoComplete="off"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+        }}
+        disabled={disabled}
+        placeholder={disabled ? "" : "Sin cambio"}
+        aria-label={`Precio nuevo de ${row.description ?? row.sku} en la lista ${row.price_list_id}, sin IVA`}
+        aria-invalid={error ? true : undefined}
+        title={error ?? undefined}
+        className={cn("bg-surface text-right tabular-nums", wide ? "h-11 w-40" : "h-8 w-full min-w-24", error && "border-danger")}
+      />
       {error && <span role="alert" className="block text-xs text-danger">{error}</span>}
       {row.new_price !== null && <span className="block"><NewMargin line={row} /></span>}
     </div>
