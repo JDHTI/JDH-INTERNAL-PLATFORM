@@ -148,10 +148,27 @@ export interface BoardList {
   warnings: QuotationWarning[];
 }
 
+/** The latest sync of the main lists: the background job that builds or refreshes all 14. */
+export interface BoardSync {
+  id: string;
+  status: "queued" | "running" | "success" | "partial" | "failed";
+  /** `dwh`: after the day's supply load; `scheduled`: daily fallback; `manual`: someone asked. */
+  trigger: string;
+  triggered_by: string | null;
+  queued_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  lists: { code: string; status: "ok" | "error"; line_count: number | null; error: string | null }[];
+}
+
 export interface BoardOverview {
   lists: BoardList[];
   suppliers: string[];
   categories: string[];
+  sync: BoardSync | null;
+  /** False when the background worker is off: the sync cannot run. */
+  sync_enabled: boolean;
 }
 
 /** A SKU on one main list, with the update it lives in and its stock in the list's warehouses. */

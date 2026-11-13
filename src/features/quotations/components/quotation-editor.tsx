@@ -59,20 +59,20 @@ import {
   useRefreshQuotation,
   useRemoveLine,
 } from "../hooks/use-quotations";
-import { useLineNote, useStockTotals } from "../hooks/use-list-review";
+import { useLineNote, useReviewLines, useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { KIND_COPY } from "../lib/kind";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
 import { LIST_FILTERS, type ListFilter } from "../lib/list-review";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import { type ImportResult, type Quotation, type QuotationLine, isListKind } from "../types/quotations.types";
-import { ListFilters, ReviewBar } from "./list-review-controls";
+import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isListKind } from "../types/quotations.types";
+import { ListFilters } from "./list-review-controls";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
 import LineDetailDialog from "./line-detail-dialog";
-import { LinesList, LinesTable, type LineSelection } from "./lines-table";
+import { LinesList, LinesTable, type LineSelection, type ReviewControl } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
 import { TotalsTable } from "./offer-document";
 import OfferSection from "./offer-section";
@@ -176,6 +176,24 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const stockTotals = useStockTotals(quotation.id, isList);
   const lineNote = useLineNote(quotation.id);
+  const reviewLines = useReviewLines(quotation.id);
+  // The review of an item changes on its own chip, in the row or in its detail; never in bulk.
+  const setReview = (line: QuotationLine, status: ReviewStatus) =>
+    reviewLines.mutateAsync({ version: quotation.version, skus: [line.sku], status }).then(
+      (result) => {
+        const skipped = result.skipped?.[0];
+        if (skipped) toast.warning(`${line.description ?? line.sku}: ${skipped.reason}`);
+      },
+      (failure) => {
+        toast.error(errorMessage(failure), { duration: Infinity });
+      }
+    );
+  const reviewControl: ReviewControl = {
+    canEdit: editable,
+    canValidate: permissions?.can_validate === true,
+    pending: reviewLines.isPending ? (reviewLines.variables?.skus[0] ?? null) : null,
+    onChange: (line, status) => void setReview(line, status),
+  };
   const [text, setText] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -413,6 +431,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       ? {
           stock: stockTotals.data?.items,
           stockState: stockTotals.isPending ? ("loading" as const) : stockTotals.isError ? ("error" as const) : ("ready" as const),
+          review: reviewControl,
         }
       : undefined,
   };
@@ -551,16 +570,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
       {quotation.lines.length > 0 && isList && (
         <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} />
-      )}
-
-      {editable && isList && hasRows && (
-        <ReviewBar
-          quotation={quotation}
-          selected={selected}
-          canValidate={canValidate}
-          disabled={busy}
-          onDone={() => setSelected(new Set())}
-        />
       )}
 
       {editable && hasRows && (
@@ -785,6 +794,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
                 quotationId: quotation.id,
                 canEdit: editable,
                 saveNote: (note) => lineNote.mutateAsync({ version: quotation.version, sku: detailLine?.sku ?? "", note }),
+                review: reviewControl,
               }
             : undefined
         }
