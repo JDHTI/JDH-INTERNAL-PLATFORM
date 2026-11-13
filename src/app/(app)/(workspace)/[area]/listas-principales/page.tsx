@@ -1,4 +1,6 @@
-import QuotationsBrowser from "@/features/quotations/components/quotations-browser";
+import { Suspense } from "react";
+
+import MainListsBoard from "@/features/quotations/components/main-lists-board";
 import QuotationsGate, { QuotationRulesLink } from "@/features/quotations/components/quotations-gate";
 import { QuotationKindProvider } from "@/features/quotations/lib/kind";
 import { listModuleViews } from "@/features/quotations/lib/list-views";
@@ -7,7 +9,7 @@ import { requireModule } from "@/features/areas/server/area-access";
 
 const SEGMENT = "listas-principales";
 
-/** The main lists (general, wholesale and Market), locked to BI: same engine as Actualización de listas. */
+/** Every main list (general, wholesale and Market) in one table, locked to BI. */
 export default async function ListasPrincipalesPage({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
   await requireModule(area, SEGMENT);
@@ -23,7 +25,10 @@ export default async function ListasPrincipalesPage({ params }: { params: Promis
           aside={<QuotationRulesLink basePath={basePath} label="Reglas de precios" />}
         />
         <QuotationsGate basePath={basePath}>
-          <QuotationsBrowser basePath={basePath} />
+          {/* The board reads its first filter (?lista=…&q=…) from the address. */}
+          <Suspense>
+            <MainListsBoard />
+          </Suspense>
         </QuotationsGate>
       </div>
     </QuotationKindProvider>

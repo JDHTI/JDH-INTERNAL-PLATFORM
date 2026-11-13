@@ -63,7 +63,12 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   marca la carga. Abajo, las últimas cargas.
 - **Listas principales:** las listas 1, 001 a 005, 009, 1M, 10T, 10U, 11N, 10N, 1DR y 35P no se
   abren aquí. Van por el módulo **Listas principales** (`/bi/listas-principales`, `kind="principal"`),
-  bloqueado a BI, con las mismas pantallas y además **Impuesto licor** (`liquor-taxes-view.tsx`): los
+  bloqueado a BI. Su vista principal es **un solo tablero con las 14 listas juntas**
+  (`main-lists-board.tsx`, `GET /price-list-updates/main/rows`): una fila por referencia y lista,
+  un desplegable con buscador para filtrar por una o varias listas, los mismos chips y filtros, y
+  acciones sobre filas de cualquier lista (precio, óptimo, mínimo, limpiar, marcar, validar). Arriba,
+  las 14 listas con su estado y el botón para armar o refrescar cada una desde SIESA. Tiene además
+  **Impuesto licor** (`liquor-taxes-view.tsx`): los
   licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
   llave y los cambios masivos con su validación y sus dos hojas de SIESA. El contrato está en
   `docs/listas-principales.md` del repo del API.

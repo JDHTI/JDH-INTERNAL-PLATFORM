@@ -55,22 +55,33 @@ function FilterButton({
  * Each figure filters the table; pressing it again shows every item.
  */
 export function ListFilters({
-  lines,
+  lines = [],
+  counts,
+  total,
   active,
   onSelect,
 }: {
-  lines: QuotationLine[];
+  /** The lines to count, in the browser; or `counts` and `total` from the API (the board). */
+  lines?: QuotationLine[];
+  counts?: Record<string, number>;
+  total?: number;
   active: ListFilter;
   onSelect: (filter: ListFilter) => void;
 }) {
-  const count = (key: Exclude<ListFilter, "all">) => lines.filter(LIST_FILTERS[key]).length;
+  const count = (key: Exclude<ListFilter, "all">) => (counts ? (counts[key] ?? 0) : lines.filter(LIST_FILTERS[key]).length);
   const toggle = (key: ListFilter) => onSelect(active === key ? "all" : key);
   return (
     <section aria-label="Estado de la actualización" className="grid gap-3 rounded-lg border border-border bg-surface p-3 @4xl:grid-cols-2">
       <div className="space-y-1">
         <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">Revisión de los ítems</h2>
         <div className="grid grid-cols-2 gap-1 @lg:grid-cols-5">
-          <FilterButton label="Todos" count={lines.length} help="Todas las referencias de la actualización." pressed={active === "all"} onClick={() => onSelect("all")} />
+          <FilterButton
+            label="Todos"
+            count={total ?? lines.length}
+            help="Todas las referencias, con los demás filtros."
+            pressed={active === "all"}
+            onClick={() => onSelect("all")}
+          />
           {REVIEW_FILTERS.map((item) => (
             <FilterButton
               key={item.key}

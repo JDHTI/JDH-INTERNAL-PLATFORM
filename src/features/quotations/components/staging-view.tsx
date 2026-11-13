@@ -193,7 +193,11 @@ function StagedListCard({
               <tr key={item.line_id}>
                 <td className="max-w-80 px-3 py-2">
                   <Link
-                    href={`${basePath}/${item.quotation_id}`}
+                    href={
+                      kind === "principal"
+                        ? `${basePath}?lista=${encodeURIComponent(group.price_list_id)}&q=${encodeURIComponent(item.sku)}`
+                        : `${basePath}/${item.quotation_id}`
+                    }
                     className="block truncate font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     title={`Abrir la actualización${item.quotation_name ? ` de ${item.quotation_name}` : ""}`}
                   >
