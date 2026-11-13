@@ -45,39 +45,43 @@ export function Dialog({
             "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
           )}
         />
+        {/* The popup clips to its rounded corners; the inner box scrolls, so the
+            scrollbar stays inside the frame, clear of the corners. */}
         <BaseDialog.Popup
           className={cn(
-            "fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto",
-            "rounded-xl border border-border bg-surface p-6 text-text-primary shadow-modal",
+            "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden",
+            "rounded-xl border border-border bg-surface text-text-primary shadow-modal",
             "transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             "data-[ending-style]:opacity-0 data-[starting-style]:translate-y-[calc(-50%+8px)] data-[starting-style]:opacity-0",
             "outline-none",
             wide ? "max-w-4xl" : isForm && !narrow ? "max-w-2xl" : "max-w-md"
           )}
         >
-          <div className="mb-4 flex items-start gap-3">
-            <div className="min-w-0 flex-1 space-y-1">
-              <BaseDialog.Title className="text-xl font-semibold tracking-tight">
-                {title}
-              </BaseDialog.Title>
-              {description && (
-                <BaseDialog.Description className="text-sm text-text-secondary">
-                  {description}
-                </BaseDialog.Description>
-              )}
+          <div className="my-3 min-h-0 overflow-y-auto overscroll-contain px-6 py-3 [scrollbar-width:thin]">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <BaseDialog.Title className="text-xl font-semibold tracking-tight">
+                  {title}
+                </BaseDialog.Title>
+                {description && (
+                  <BaseDialog.Description className="text-sm text-text-secondary">
+                    {description}
+                  </BaseDialog.Description>
+                )}
+              </div>
+              <BaseDialog.Close
+                aria-label="Cerrar"
+                className={cn(
+                  "-mt-1 -mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary",
+                  "transition-colors duration-150 hover:bg-canvas-subtle hover:text-text-primary",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                )}
+              >
+                <X className="size-4" aria-hidden="true" />
+              </BaseDialog.Close>
             </div>
-            <BaseDialog.Close
-              aria-label="Cerrar"
-              className={cn(
-                "-mt-1 -mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary",
-                "transition-colors duration-150 hover:bg-canvas-subtle hover:text-text-primary",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              )}
-            >
-              <X className="size-4" aria-hidden="true" />
-            </BaseDialog.Close>
+            {children}
           </div>
-          {children}
         </BaseDialog.Popup>
       </BaseDialog.Portal>
     </BaseDialog.Root>
