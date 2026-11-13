@@ -36,6 +36,9 @@ interface FormState {
 
 const EMPTY: FormState = { draft: {}, touched: [], fromProfile: [] };
 
+/** Chosen above the form (the supplier) or typed elsewhere (the JDH percentage, in the requests panel). */
+const HIDDEN_FIELDS = ["supplier_code", "jdh_pct"];
+
 /**
  * New support, rendered from `form-schema`. The supplier comes first: its
  * profile pre-fills the rest, and the calc method then decides which fields
@@ -97,7 +100,10 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
   const gated = useMemo(() => methodGatedFields(schema), [schema]);
   const method = typeof form.draft.calc_method === "string" ? form.draft.calc_method : "";
   const rule = schema.methods[method];
-  const specs = schema.fields.filter((spec) => spec.name !== "supplier_code" && isFieldVisible(spec.name, rule, gated));
+  // The JDH percentage is requested through the JDH panel; the supported margin replaces it here.
+  const specs = schema.fields.filter(
+    (spec) => !HIDDEN_FIELDS.includes(spec.name) && isFieldVisible(spec.name, rule, gated)
+  );
   const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
 
   const setValue = (name: string, value: string | string[]) => {

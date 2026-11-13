@@ -129,7 +129,8 @@ function Body({
           {support.value_unit ? ` (${support.value_unit})` : ""}
         </Row>
         {support.calc_method === "costo_neto" && <Row label="Costo pactado JDH" tabular>{formatCop(support.jdh_net_cost)}</Row>}
-        <Row label="% apoyo JDH" tabular>{toNumber(support.jdh_pct) ? jdhPctLabel : "—"}</Row>
+        <Row label="Margen apoyado" tabular>{formatPct(support.supported_margin_pct)}</Row>
+        {toNumber(support.jdh_pct) ? <Row label="% apoyo JDH" tabular>{jdhPctLabel}</Row> : null}
         <Row label="Unidades por caja" tabular>{formatNumber(support.pack_factor)}</Row>
         <Row label="Vigencia" tabular>
           {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
@@ -176,7 +177,7 @@ function Body({
         <Row label="Precio de lista de referencia" tabular>{formatCop(support.reference_list_price)}</Row>
       </Section>
 
-      {support.dwh_cost !== undefined && <DwhCost cost={support.dwh_cost} basis={derived?.cost_basis ?? null} />}
+      {support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
 
       {derived && (
         <Section title="Cifras calculadas">
@@ -184,6 +185,15 @@ function Body({
           <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>
           <Row label="% sobre costo" tabular>{formatPct(derived.pct_on_cost)}</Row>
           <Row label="% sobre lista" tabular>{formatPct(derived.pct_on_list)}</Row>
+          {derived.product_margin_pct !== undefined && (
+            <>
+              <Row label="Margen del producto" tabular>{formatPct(derived.product_margin_pct)}</Row>
+              <Row label="Margen recompuesto a precio lista" tabular>{formatPct(derived.recomposed_list_margin)}</Row>
+              <Row label="Margen apoyado" tabular>{formatPct(derived.supported_margin_pct)}</Row>
+              <Row label="Precio apoyado" tabular>{formatCop(derived.supported_price)}</Row>
+              <Row label="Descuento al cliente" tabular>{formatPct(derived.customer_discount_pct)}</Row>
+            </>
+          )}
           <Row label="Precio sugerido" tabular>{formatCop(derived.suggested_price)}</Row>
           <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>
           <Row label="Margen recompuesto" tabular>{formatPct(derived.margin_recomposed)}</Row>
@@ -290,10 +300,17 @@ const PER_UNIT_ROWS: [PerUnitKey, string][] = [
   ["list_price", "Precio de lista"],
   ["supplier_amount_per", "Apoyo del proveedor"],
   ["net_cost_per", "Costo neto"],
+  ["supported_price_per", "Precio apoyado"],
   ["suggested_price_per", "Precio sugerido"],
 ];
 
-type PerUnitKey = "cost" | "list_price" | "supplier_amount_per" | "net_cost_per" | "suggested_price_per";
+type PerUnitKey =
+  | "cost"
+  | "list_price"
+  | "supplier_amount_per"
+  | "net_cost_per"
+  | "supported_price_per"
+  | "suggested_price_per";
 
 const THRESHOLD_LABELS: Record<SupportTier["threshold_type"], string> = {
   unidades: "Unidades",
@@ -338,29 +355,21 @@ const COST_SOURCES: Record<string, string> = {
 };
 
 /**
- * The SKU's cost in the DWH with the quoter's rule (the higher of quotation
- * and inventory, in the customer's warehouses), from the daily job.
+ * Where the SKU's cost comes from: the quoter's rule (the higher of quotation
+ * and inventory, in the customer's warehouses), refreshed daily. The basis the
+ * figures used (`cost_basis`) is left out on purpose: the business read the
+ * DWH / Referencia mark as noise.
  */
-function DwhCost({ cost, basis }: { cost: SupportDwhCost | null; basis: "dwh" | "referencia" | null }) {
+function CostSource({ cost }: { cost: SupportDwhCost | null }) {
   return (
     <section className="space-y-1">
-      <h3 className="font-semibold">Costo del DWH</h3>
+      <h3 className="font-semibold">Costo</h3>
       {cost === null ? (
-        <p className="text-text-secondary">
-          El cálculo diario aún no tiene costo para este apoyo.{" "}
-          {basis === "referencia"
-            ? "Las cifras usan el costo de referencia."
-            : "Sin costo, las cifras que dependen de él quedan vacías."}
-        </p>
+        <p className="text-text-secondary">El cálculo diario aún no tiene costo para este producto.</p>
       ) : (
         <>
           <p className="text-text-secondary">
-            El mayor entre la cotización vigente y el costo de inventario, por unidad de inventario.{" "}
-            {basis === "dwh"
-              ? "Las cifras calculadas usan este costo."
-              : basis === "referencia"
-                ? "Las cifras usan el costo de referencia: este no se pudo llevar a la unidad del apoyo."
-                : ""}
+            El mayor entre la cotización vigente y el costo de inventario, por unidad de inventario.
           </p>
           <dl className="divide-y divide-border">
             <Row label="Costo por unidad" tabular>{formatCop(cost.unit_cost)}</Row>

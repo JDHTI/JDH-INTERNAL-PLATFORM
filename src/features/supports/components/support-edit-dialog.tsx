@@ -13,7 +13,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCalcMethodLabel, useUpdateSupport } from "../hooks/use-supports";
-import { PERCENT_METHODS } from "../lib/format";
+import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP } from "../lib/format";
 import { toDecimal, toInput } from "../lib/form-values";
 import type { SupplierSupport, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
 
@@ -34,7 +34,7 @@ interface TierDraft {
 
 interface Draft {
   supplier_value: string;
-  jdh_pct: string;
+  supported_margin_pct: string;
   valid_from: string;
   valid_to: string;
   value_unit: string;
@@ -52,7 +52,7 @@ function draftOf(support: SupplierSupport): Draft {
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
   return {
     supplier_value: toInput(support.supplier_value, valuePercent),
-    jdh_pct: toInput(support.jdh_pct, true),
+    supported_margin_pct: toInput(support.supported_margin_pct, true),
     valid_from: support.valid_from ?? "",
     valid_to: support.valid_to ?? "",
     value_unit: support.value_unit ?? NO_UNIT,
@@ -79,7 +79,8 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
   const changed = <K extends keyof Draft>(key: K) => JSON.stringify(initial[key]) !== JSON.stringify(draft[key]);
 
   if (changed("supplier_value")) patch.supplier_value = toDecimal(draft.supplier_value, valuePercent);
-  if (changed("jdh_pct")) patch.jdh_pct = toDecimal(draft.jdh_pct, true);
+  // The JDH percentage is not edited here: it changes through the JDH requests panel.
+  if (changed("supported_margin_pct")) patch.supported_margin_pct = toDecimal(draft.supported_margin_pct, true);
   if (changed("valid_from")) patch.valid_from = draft.valid_from || null;
   if (changed("valid_to")) patch.valid_to = draft.valid_to || null;
   if (changed("value_unit")) patch.value_unit = draft.value_unit === NO_UNIT ? null : (draft.value_unit as ValueUnit);
@@ -157,25 +158,25 @@ function EditForm({
   const patch = buildPatch(support, initial, draft);
   const dirty = Object.keys(patch).length > 1;
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    update.mutate(
-      { id: support.id, patch },
-      {
-        onSuccess: onClose,
-        onError: (failure) => {
-          if (failure instanceof ApiError && failure.status === 403) {
-            onForbidden();
-            onClose();
-          } else if (failure instanceof ApiError && failure.status === 409) {
-            setError("Otra persona modificó este apoyo mientras lo editabas. Se cargó la versión nueva: revisa los datos y guarda de nuevo.");
-          } else {
-            setError(errorMessage(failure));
-          }
-        },
+    // mutateAsync, not mutate's callbacks: the refetch after saving brings a new
+    // version, which remounts this form (its key), and mutate drops the
+    // callbacks of an unmounted form, so the dialog never closed.
+    try {
+      await update.mutateAsync({ id: support.id, patch });
+      onClose();
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 403) {
+        onForbidden();
+        onClose();
+      } else if (failure instanceof ApiError && failure.status === 409) {
+        setError("Otra persona modificó este apoyo mientras lo editabas. Se cargó la versión nueva: revisa los datos y guarda de nuevo.");
+      } else {
+        setError(errorMessage(failure));
       }
-    );
+    }
   };
 
   return (
@@ -184,8 +185,13 @@ function EditForm({
         <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
           <Input id={`${id}-value`} inputMode="decimal" value={draft.supplier_value} onChange={(e) => set("supplier_value", e.target.value)} />
         </Field>
-        <Field label="% apoyo JDH" htmlFor={`${id}-jdh`} optional>
-          <Input id={`${id}-jdh`} inputMode="decimal" value={draft.jdh_pct} onChange={(e) => set("jdh_pct", e.target.value)} />
+        <Field label="Margen apoyado (%)" htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
+          <Input
+            id={`${id}-supported`}
+            inputMode="decimal"
+            value={draft.supported_margin_pct}
+            onChange={(e) => set("supported_margin_pct", e.target.value)}
+          />
         </Field>
         <Field label="Vigente desde" htmlFor={`${id}-from`}>
           <DatePicker id={`${id}-from`} value={draft.valid_from} onChange={(v) => set("valid_from", v)} max={draft.valid_to || undefined} />

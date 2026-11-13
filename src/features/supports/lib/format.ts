@@ -112,6 +112,10 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
 export const choiceLabel = (field: string, code: string, labels?: Record<string, string>) =>
   labels?.[code] ?? CHOICE_LABELS[field]?.[code] ?? humanize(code);
 
+/** What "Margen apoyado" means, for the edit dialog and the detail. */
+export const SUPPORTED_MARGIN_HELP =
+  "Hasta qué margen se autoriza bajar el producto sobre el margen que deja el apoyo del proveedor, con base en el margen general del producto.";
+
 /** What wrote a support's current version (`last_origin`). */
 export const ORIGIN_LABELS: Record<string, string> = {
   manual: "Creado a mano",
