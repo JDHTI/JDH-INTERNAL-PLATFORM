@@ -267,6 +267,16 @@ export interface QuotationPermissions {
    * own portfolio, or nothing until TI links them (docs/workspace-access.md).
    */
   sales_scope: SalesScope;
+  /** Quotes and is not BI: may ask an internal support for references under the minimum. */
+  can_request_support?: boolean;
+}
+
+/** The latest internal support asked for a line of this quotation. */
+export interface LineSupportRequest {
+  id: string;
+  status: "pendiente" | "aprobada" | "rechazada";
+  decision: "persistente" | "unica_vez" | null;
+  approved_margin_pct: DecimalText | null;
 }
 
 export interface QuotationCustomer {
@@ -477,6 +487,8 @@ export interface QuotationLine {
   min_margin_pct: DecimalText | null;
   support: LineSupport | null;
   support_candidates: SupportCandidate[];
+  /** A customer quotation: the internal support asked for this reference, if any. */
+  support_request?: LineSupportRequest | null;
   current_margin_pct: DecimalText | null;
   current_margin_with_support_pct: DecimalText | null;
   /** Lowest price that passes the rule, whole pesos. */

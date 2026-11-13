@@ -15,6 +15,7 @@ import {
   FileUp,
   FileX2,
   FilterX,
+  HandCoins,
   Hourglass,
   Loader2,
   MessageSquareWarning,
@@ -81,6 +82,7 @@ import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
 import { ConfirmDialog } from "./confirm-wizard";
 import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
+import SupportRequestDialog, { canAskSupport } from "./support-request-dialog";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 const PAGE_SIZE = 50;
@@ -171,6 +173,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [importError, setImportError] = useState<string | null>(null);
   const [removingSku, setRemovingSku] = useState<string | null>(null);
   const [creatingLocal, setCreatingLocal] = useState(false);
+  const [askingSupport, setAskingSupport] = useState(false);
+  // A customer quotation only: an internal support is for one customer, never a list.
+  const canAskSupportHere = !isList && permissions?.can_request_support === true;
+  const supportCandidates = useMemo(
+    () => (canAskSupportHere ? quotation.lines.filter(canAskSupport).length : 0),
+    [canAskSupportHere, quotation.lines]
+  );
   const [filter, setFilter] = useState<LineFilter>("all");
   // A list update filters by the item's review and by where its price leaves the margin.
   const [listFilter, setListFilter] = useState<ListFilter>("all");
@@ -639,6 +648,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             // Next to the references they work on, not among the quotation's own actions.
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
               {!isList && <QuantitiesToggle quotation={quotation} disabled={busy} />}
+              {supportCandidates > 0 && (
+                <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
+                  <HandCoins aria-hidden="true" /> Solicitar apoyo interno
+                </Button>
+              )}
               {editable && (
                 <>
                   {!isList && (
@@ -773,6 +787,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         error={importError}
         onSubmit={submitImport}
       />
+      {canAskSupportHere && (
+        <SupportRequestDialog quotation={quotation} preselected={selected} open={askingSupport} onOpenChange={setAskingSupport} />
+      )}
       <LocalProductDialog
         quotation={quotation}
         open={creatingLocal}
