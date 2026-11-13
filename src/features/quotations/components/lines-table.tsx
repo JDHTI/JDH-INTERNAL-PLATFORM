@@ -9,6 +9,7 @@ import {
   ArrowUpDown,
   Ban,
   CheckCircle2,
+  ChevronDown,
   Circle,
   CircleDashed,
   Clock3,
@@ -25,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
+import { Badge, type BadgeTone, badgeVariants } from "@/shared/components/ui/badge";
 import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from "@/shared/components/ui/menu";
 import { toNumber } from "@/shared/lib/format";
@@ -47,7 +48,7 @@ import {
 } from "../lib/line-status";
 import { REVIEW_HELP, REVIEW_LABELS, type ReviewView, reviewOf } from "../lib/list-review";
 import { offerAmounts } from "../lib/offer";
-import type { QuotationLine, StockTotal } from "../types/quotations.types";
+import type { QuotationLine, ReviewStatus, StockTotal } from "../types/quotations.types";
 import { ComplianceBadge } from "./quotation-badges";
 
 /** Row selection for the bulk actions; absent when the quotation cannot be edited. */
@@ -96,6 +97,8 @@ export interface ListMeta {
   /** Stock per reference in the list's warehouses; undefined while it loads or when it failed. */
   stock?: Record<string, StockTotal>;
   stockState: "loading" | "ready" | "error";
+  /** The review is changed on the row's chip. */
+  review?: ReviewControl;
 }
 
 export const OPTIMAL_PRICE_HELP = "Da exactamente el margen objetivo del producto, con su apoyo, en pesos enteros.";
@@ -720,6 +723,63 @@ export function ReviewChip({ line }: { line: QuotationLine }) {
   );
 }
 
+/** How an item's review is changed where it shows: in its row or in its detail. */
+export interface ReviewControl {
+  canEdit: boolean;
+  canValidate: boolean;
+  /** The item whose review is being saved, for its spinner: its SKU, or `keyOf` of it. */
+  pending: string | null;
+  /** Where a SKU is not unique (the board has it once per list). */
+  keyOf?: (line: QuotationLine) => string;
+  onChange: (line: QuotationLine, status: ReviewStatus) => void;
+}
+
+/**
+ * The item's review, changed right on it: the chip opens the states the person
+ * may give. A loaded item, a validated one for whoever does not validate, or a
+ * read-only update shows the plain chip. Marking needs a new price; the menu
+ * says so instead of offering it.
+ */
+export function ReviewSelect({ line, control }: { line: QuotationLine; control?: ReviewControl }) {
+  const view = reviewOf(line);
+  if (!control || !control.canEdit || view === "cargada" || (view === "validada" && !control.canValidate)) {
+    return <ReviewChip line={line} />;
+  }
+  const Icon = REVIEW_ICON[view];
+  const priced = line.new_price !== null && line.is_active;
+  const pending = control.pending !== null && control.pending === (control.keyOf ? control.keyOf(line) : line.sku);
+  return (
+    <Menu
+      trigger={
+        <>
+          {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Icon aria-hidden="true" />}
+          {REVIEW_LABELS[view]}
+          <ChevronDown aria-hidden="true" />
+        </>
+      }
+      triggerLabel={`Estado de ${line.description ?? line.sku}: ${REVIEW_LABELS[view]}. Cambiar`}
+      triggerTitle={REVIEW_HELP[view]}
+      disabled={pending}
+      triggerClassName={cn(
+        badgeVariants({ tone: REVIEW_TONE[view] }),
+        "shrink-0 cursor-pointer gap-1 px-1.5 py-0 text-xs hover:brightness-95 max-xl:min-h-8",
+        "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+      )}
+    >
+      <MenuRadioGroup
+        value={view}
+        label={`Estado de ${line.description ?? line.sku}`}
+        onValueChange={(next) => control.onChange(line, next as ReviewStatus)}
+      >
+        <MenuRadioItem value="sin_marcar">Sin marcar</MenuRadioItem>
+        {priced && <MenuRadioItem value="por_validar">Por validar</MenuRadioItem>}
+        {priced && control.canValidate && <MenuRadioItem value="validada">Validada</MenuRadioItem>}
+      </MenuRadioGroup>
+      {!priced && <MenuLabel>Escribe el precio nuevo para marcarla</MenuLabel>}
+    </Menu>
+  );
+}
+
 const quantityFormat = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 
 /** Under the product of a list update: the review chip, the stock in the list's warehouses and the observation. */
@@ -743,7 +803,7 @@ function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta:
       : "Sin existencia en las bodegas de la lista (foto de SIESA de esta mañana).";
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
-      <ReviewChip line={line} />
+      <ReviewSelect line={line} control={meta.review} />
       {stockText && (
         <span className="inline-flex items-center gap-1 tabular-nums" title={stockTitle}>
           <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />

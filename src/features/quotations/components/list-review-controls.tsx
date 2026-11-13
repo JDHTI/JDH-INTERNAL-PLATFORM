@@ -1,16 +1,10 @@
 "use client";
 
-import { CheckCircle2, Clock3, Loader2, Undo2 } from "lucide-react";
-import { toast } from "sonner";
-
-import { Button } from "@/shared/components/ui/button";
-import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useReviewLines } from "../hooks/use-list-review";
 import { formatCount } from "../lib/format";
-import { LIST_FILTERS, type ListFilter, MARGIN_FILTERS, REVIEW_FILTERS, reviewOf } from "../lib/list-review";
-import type { Quotation, QuotationLine, ReviewStatus } from "../types/quotations.types";
+import { LIST_FILTERS, type ListFilter, MARGIN_FILTERS, REVIEW_FILTERS } from "../lib/list-review";
+import type { QuotationLine } from "../types/quotations.types";
 
 const TONE_TEXT = { success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
 const MARGIN_TONE: Record<string, keyof typeof TONE_TEXT | undefined> = { alza: "danger", objetivo: "success", alerta: "warning" };
@@ -52,7 +46,8 @@ function FilterButton({
 /**
  * A list update at a glance, and the way into each group: the items by their
  * review, and by where the list's price leaves the margin against the target.
- * Each figure filters the table; pressing it again shows every item.
+ * Each figure filters the table; pressing it again shows every item. The
+ * review itself is changed on each item's chip, never here.
  */
 export function ListFilters({
   lines = [],
@@ -113,86 +108,5 @@ export function ListFilters({
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * What can be done with the ticked items: say their price is ready, validate
- * them (only who validates) or take them back to unmarked. The API skips the
- * ones that cannot take the state and says why.
- */
-export function ReviewBar({
-  quotation,
-  selected,
-  canValidate,
-  disabled,
-  onDone,
-}: {
-  quotation: Quotation;
-  selected: Set<string>;
-  canValidate: boolean;
-  disabled: boolean;
-  onDone: () => void;
-}) {
-  const review = useReviewLines(quotation.id);
-  const ticked = quotation.lines.filter((line) => selected.has(line.sku));
-  if (ticked.length === 0) return null;
-  const validated = ticked.filter((line) => reviewOf(line) === "validada").length;
-
-  const run = (status: ReviewStatus) =>
-    review.mutate(
-      { version: quotation.version, skus: ticked.map((line) => line.sku), status },
-      {
-        onSuccess: (result) => {
-          const skipped = result.skipped ?? [];
-          const done = ticked.length - skipped.length;
-          const verb = status === "validada" ? "validados" : status === "por_validar" ? "marcados por validar" : "desmarcados";
-          if (skipped.length > 0) {
-            toast.warning(
-              `${formatCount(done)} ${verb}. ${formatCount(skipped.length)} no: ${skipped
-                .slice(0, 3)
-                .map((item) => `${item.sku} (${item.reason})`)
-                .join("; ")}${skipped.length > 3 ? "…" : ""}`,
-              { duration: 10_000 }
-            );
-          } else {
-            toast.success(`${formatCount(done)} ${done === 1 ? "ítem" : "ítems"} ${verb}.`);
-          }
-          onDone();
-        },
-        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
-      }
-    );
-
-  const pending = review.isPending ? review.variables?.status : null;
-  const spinner = (status: ReviewStatus) => (pending === status ? <Loader2 className="animate-spin" aria-hidden="true" /> : null);
-
-  return (
-    <div
-      role="region"
-      aria-label="Revisión de los ítems seleccionados"
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2"
-    >
-      <span className="mr-auto text-sm font-medium tabular-nums">
-        {formatCount(ticked.length)} {ticked.length === 1 ? "ítem seleccionado" : "ítems seleccionados"}
-      </span>
-      <Button variant="outline" onClick={() => run("por_validar")} disabled={disabled || review.isPending} className="max-md:h-11">
-        {spinner("por_validar") ?? <Clock3 aria-hidden="true" />} Marcar por validar
-      </Button>
-      {canValidate && (
-        <Button onClick={() => run("validada")} disabled={disabled || review.isPending} className="max-md:h-11">
-          {spinner("validada") ?? <CheckCircle2 aria-hidden="true" />} Validar
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        onClick={() => run("sin_marcar")}
-        disabled={disabled || review.isPending || (!canValidate && validated === ticked.length)}
-        title={!canValidate && validated > 0 ? "Los ítems validados solo los desmarca quien valida." : undefined}
-        className="max-md:h-11"
-      >
-        {spinner("sin_marcar") ?? <Undo2 aria-hidden="true" />} Desmarcar
-      </Button>
-    </div>
   );
 }

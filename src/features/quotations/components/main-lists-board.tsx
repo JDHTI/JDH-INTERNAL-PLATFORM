@@ -2,21 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  Clock3,
-  Eraser,
-  FilterX,
-  Loader2,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Target,
-  Undo2,
-  Warehouse,
-  MessageSquareText,
-  X,
-} from "lucide-react";
+import { Eraser, FilterX, ListOrdered, Loader2, MessageSquareText, RefreshCw, Search, Target, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 
 import Pager from "@/shared/components/pager";
@@ -33,7 +19,7 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import SupportDetail from "@/features/supports/components/support-detail";
 
-import { useBoardApply, useBoardNote, useBoardOverview, useBoardPrices, useBoardReview, useBoardRows, useBuildBoardList } from "../hooks/use-board";
+import { useBoardApply, useBoardNote, useBoardOverview, useBoardPrices, useBoardReview, useBoardRows, useSyncBoard } from "../hooks/use-board";
 import { useQuotationPermissions } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatMoney, formatVariation } from "../lib/format";
 import { lastPriceStanding } from "../lib/line-status";
@@ -47,10 +33,10 @@ import type {
   BoardList,
   BoardRow,
   BoardSort,
-  ReviewStatus,
+  BoardSync,
 } from "../types/quotations.types";
 import LineDetailDialog from "./line-detail-dialog";
-import { CostBreakdown, MarginMark, NewMargin, ReviewChip, SaleMark } from "./lines-table";
+import { CostBreakdown, MarginMark, NewMargin, type ReviewControl, ReviewSelect, SaleMark } from "./lines-table";
 import { ListFilters } from "./list-review-controls";
 import { QuotationLoadError } from "./quotations-gate";
 
@@ -101,6 +87,28 @@ export default function MainListsBoard() {
   const built = lists.some((item) => item.quotation_id !== null);
   const rows = useBoardRows(effective, page, PAGE_SIZE, built);
   const note = useBoardNote();
+  const review = useBoardReview();
+  const pendingKey = review.isPending && review.variables ? keyOf(review.variables.keys[0]) : null;
+  // A row's review changes on its own chip, in the table or in its detail; never in bulk.
+  const reviewControl: ReviewControl = {
+    canEdit: canManage,
+    canValidate,
+    pending: pendingKey,
+    keyOf: (line) => keyOf(line as BoardRow),
+    onChange: (line, status) => {
+      const row = line as BoardRow;
+      review.mutate(
+        { keys: [{ quotation_id: row.quotation_id, sku: row.sku }], status },
+        {
+          onSuccess: (result) => {
+            const skipped = result.skipped[0];
+            if (skipped) toast.warning(`${row.description ?? row.sku}: ${skipped.reason}`, { duration: 10_000 });
+          },
+          onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+        }
+      );
+    },
+  };
 
   // A new filter starts on its first page.
   const change = (next: Partial<BoardFilters>) => {
@@ -125,22 +133,30 @@ export default function MainListsBoard() {
   const pageRows = page_?.items ?? [];
   const pageKeys = pageRows.map((row) => ({ quotation_id: row.quotation_id, sku: row.sku }));
   const allOnPage = pageKeys.length > 0 && pageKeys.every((key) => selected.has(keyOf(key)));
+  // The open detail follows its row as the page is read again (a review just changed).
+  const shown = detail ? (pageRows.find((row) => keyOf(row) === keyOf(detail)) ?? detail) : null;
 
   return (
     // A container: the filters lay out by the room the sidebar leaves, not the window's.
     <div className="@container space-y-4">
-      <ListsPanel lists={lists} canManage={canManage} />
+      <ListsPanel
+        lists={lists}
+        sync={overview.data?.sync ?? null}
+        syncEnabled={overview.data?.sync_enabled === true}
+        canManage={canManage}
+      />
 
       {!built ? (
-        <StatePanel icon={Sparkles} title="Aún no se ha armado ninguna lista">
+        <StatePanel icon={ListOrdered} title="Aún no se ha armado la lista general">
           {canManage
-            ? "Usa «Armar las que faltan» para traer de SIESA las 14 listas con su costo, margen objetivo, última venta y apoyos. Después se trabajan todas juntas en esta tabla."
-            : "Cuando un colaborador arme las listas, aparecerán aquí todas juntas."}
+            ? "Usa «Armar lista general» para traer de SIESA las 14 listas con su costo, margen objetivo, última venta y apoyos. Después se trabajan todas juntas en esta tabla y se sincronizan solas con la carga diaria."
+            : "Cuando un colaborador arme la lista general, aparecerán aquí las 14 listas juntas."}
         </StatePanel>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center">
-            <div className="relative w-full sm:col-span-2 xl:w-72">
+          {/* One row once there is room; stacked on a phone. */}
+          <div role="search" aria-label="Filtros de las listas" className="flex flex-col gap-2 @3xl:flex-row @3xl:items-center">
+            <div className="relative min-w-0 @3xl:flex-[1.4]">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
               <Input
                 type="search"
@@ -160,7 +176,7 @@ export default function MainListsBoard() {
               options={listOptions}
               value={filters.lists.map((code) => listOptions.find((label) => byLabel.get(label) === code) ?? code)}
               onValueChange={(labels) => change({ lists: labels.map((label) => byLabel.get(label) ?? label) })}
-              className="w-full xl:w-64"
+              className="min-w-0 @3xl:flex-1"
             />
             {(overview.data?.suppliers.length ?? 0) > 0 && (
               <MultiSelect
@@ -169,7 +185,7 @@ export default function MainListsBoard() {
                 options={overview.data?.suppliers ?? []}
                 value={filters.suppliers}
                 onValueChange={(next) => change({ suppliers: next })}
-                className="w-full xl:w-56"
+                className="min-w-0 @3xl:flex-1"
               />
             )}
             {(overview.data?.categories.length ?? 0) > 0 && (
@@ -179,7 +195,7 @@ export default function MainListsBoard() {
                 options={overview.data?.categories ?? []}
                 value={filters.categories}
                 onValueChange={(next) => change({ categories: next })}
-                className="w-full xl:w-56"
+                className="min-w-0 @3xl:flex-1"
               />
             )}
             <Dropdown
@@ -190,10 +206,18 @@ export default function MainListsBoard() {
                 const [sort, direction] = next.split(":") as [BoardSort, string | undefined];
                 change({ sort, desc: direction === "desc" });
               }}
-              className="w-full xl:w-72"
+              className="min-w-0 @3xl:flex-[1.2]"
             />
-            <Button variant="ghost" onClick={clear} disabled={!filtered} className="justify-self-start max-md:h-11">
-              <FilterX aria-hidden="true" /> Borrar filtros
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clear}
+              disabled={!filtered}
+              aria-label="Borrar filtros"
+              title="Borrar filtros"
+              className="shrink-0 self-end @3xl:self-auto max-md:size-11"
+            >
+              <FilterX aria-hidden="true" />
             </Button>
           </div>
 
@@ -209,7 +233,6 @@ export default function MainListsBoard() {
               selected={selected}
               filters={effective}
               total={page_?.total ?? 0}
-              canValidate={canValidate}
               onSelect={setSelected}
             />
           )}
@@ -235,6 +258,7 @@ export default function MainListsBoard() {
                 rows={pageRows}
                 canManage={canManage}
                 canValidate={canValidate}
+                review={reviewControl}
                 selected={selected}
                 allOnPage={allOnPage}
                 onToggle={(key) =>
@@ -269,14 +293,15 @@ export default function MainListsBoard() {
       )}
 
       <LineDetailDialog
-        line={detail}
+        line={shown}
         forList
         item={
-          detail
+          shown
             ? {
-                quotationId: detail.quotation_id,
+                quotationId: shown.quotation_id,
                 canEdit: canManage,
-                saveNote: (text) => note.mutateAsync({ key: { quotation_id: detail.quotation_id, sku: detail.sku }, note: text }),
+                review: reviewControl,
+                saveNote: (text) => note.mutateAsync({ key: { quotation_id: shown.quotation_id, sku: shown.sku }, note: text }),
               }
             : undefined
         }
@@ -291,93 +316,99 @@ export default function MainListsBoard() {
   );
 }
 
-/**
- * The 14 main lists: whether each one is built, when, and how its items stand.
- * Each one is read from SIESA on its own (list 1 alone has about 7,600
- * references); «Armar las que faltan» goes one after another and says where it is.
- */
-function ListsPanel({ lists, canManage }: { lists: BoardList[]; canManage: boolean }) {
-  const build = useBuildBoardList();
-  const [running, setRunning] = useState<string | null>(null);
-  const [queue, setQueue] = useState<{ done: number; total: number } | null>(null);
-  const missing = lists.filter((item) => item.quotation_id === null);
+const TRIGGER_TEXT: Record<string, string> = {
+  dwh: "automática, con la carga del día",
+  scheduled: "automática, de respaldo",
+  startup: "automática, al reiniciar",
+  manual: "manual",
+};
 
-  const buildOne = async (code: string) => {
-    setRunning(code);
-    try {
-      await build.mutateAsync(code);
-      return true;
-    } catch (failure) {
-      toast.error(`Lista ${code}: ${errorMessage(failure)}`, { duration: Infinity });
-      return false;
-    } finally {
-      setRunning(null);
-    }
-  };
-  const buildMissing = async () => {
-    const codes = missing.map((item) => item.code);
-    setQueue({ done: 0, total: codes.length });
-    let ok = 0;
-    for (const [index, code] of codes.entries()) {
-      if (await buildOne(code)) ok += 1;
-      setQueue({ done: index + 1, total: codes.length });
-    }
-    setQueue(null);
-    if (ok > 0) toast.success(`${formatCount(ok)} ${ok === 1 ? "lista armada" : "listas armadas"}.`);
-  };
+/**
+ * The 14 main lists, each with its code, name and how many references it has;
+ * when it was read and how its items stand go in the tooltip. The whole set is
+ * built and synced in the background (list 1 alone takes minutes): the first
+ * time with «Armar lista general», then with the day's loads, by itself after
+ * the DWH's supply load or with «Sincronizar».
+ */
+function ListsPanel({ lists, sync, syncEnabled, canManage }: { lists: BoardList[]; sync: BoardSync | null; syncEnabled: boolean; canManage: boolean }) {
+  const start = useSyncBoard();
+  const built = lists.some((item) => item.quotation_id !== null);
+  const running = sync?.status === "queued" || sync?.status === "running";
+  const failed = (sync?.lists ?? []).filter((item) => item.status === "error");
+  const run = () =>
+    start.mutate(undefined, {
+      onSuccess: () => toast.success("Sincronización en curso: las listas se actualizan solas en unos minutos."),
+      onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+    });
 
   return (
     <section aria-labelledby="main-lists-title" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="main-lists-title" className="text-base font-semibold">
-          Listas <span className="font-normal tabular-nums text-text-secondary">· {formatCount(lists.length - missing.length)} de {formatCount(lists.length)} armadas</span>
-        </h2>
-        {canManage && missing.length > 0 && (
-          <Button onClick={() => void buildMissing()} disabled={running !== null} className="max-md:h-11">
-            {queue ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
-            <span aria-live="polite">
-              {queue ? `Armando ${formatCount(queue.done + 1)} de ${formatCount(queue.total)}…` : `Armar las que faltan (${formatCount(missing.length)})`}
-            </span>
+        <div className="min-w-0 space-y-0.5">
+          <h2 id="main-lists-title" className="text-base font-semibold">Listas</h2>
+          <p className="text-[13px] text-text-secondary" aria-live="polite">
+            {running ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                {sync?.status === "queued" ? "Sincronización en cola…" : "Sincronizando las listas con SIESA…"}
+              </span>
+            ) : sync?.finished_at ? (
+              `Última sincronización: ${formatDateTime(sync.finished_at)}, ${TRIGGER_TEXT[sync.trigger] ?? sync.trigger}${
+                sync.trigger === "manual" && sync.triggered_by ? ` (${sync.triggered_by})` : ""
+              }.`
+            ) : built ? (
+              "Se sincroniza sola con la carga diaria del DWH."
+            ) : (
+              "Aún no se ha armado la lista general."
+            )}
+          </p>
+        </div>
+        {canManage && (
+          <Button
+            variant={built ? "outline" : "primary"}
+            onClick={run}
+            disabled={running || start.isPending || !syncEnabled}
+            title={
+              !syncEnabled
+                ? "Las tareas en segundo plano están apagadas: pide a TI que las encienda."
+                : "Lee las 14 listas de SIESA con la carga del día. Conserva precios nuevos, estados y observaciones."
+            }
+            className="max-md:h-11"
+          >
+            {running || start.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+            {built ? "Sincronizar con la carga del día" : "Armar lista general"}
           </Button>
         )}
       </div>
-      <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      {!running && (sync?.status === "failed" || failed.length > 0) && (
+        <p role="alert" className="text-[13px] text-danger">
+          {failed.length > 0
+            ? `No se sincronizaron: ${failed.map((item) => `${item.code} (${item.error ?? "error"})`).join("; ")}.`
+            : `La sincronización falló: ${sync?.error ?? "sin detalle"}.`}
+        </p>
+      )}
+      <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-7">
         {lists.map((item) => {
-          const pending = item.counts.por_validar ?? 0;
-          const validated = item.counts.validada ?? 0;
+          const details = [
+            item.name ? `${item.code} · ${item.name}` : item.code,
+            item.quotation_id === null
+              ? "Sin armar"
+              : `${formatCount(item.counts.sin_marcar ?? 0)} sin marcar · ${formatCount(item.counts.por_validar ?? 0)} por validar · ${formatCount(item.counts.validada ?? 0)} validadas · ${formatCount(item.counts.cargada ?? 0)} cargadas`,
+            item.built_at ? `Leída de SIESA el ${formatDateTime(item.built_at)}` : null,
+            ...item.warnings.map((warning) => warning.label),
+          ]
+            .filter(Boolean)
+            .join("\n");
           return (
-            <li key={item.code} className="flex min-w-0 items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="font-mono text-sm font-semibold">{item.code}</span>
-                  <span className="truncate text-[13px]" title={item.name ?? undefined}>{item.name ?? "—"}</span>
-                </span>
-                <span className="block truncate text-xs text-text-secondary tabular-nums">
-                  {item.quotation_id === null
-                    ? "Sin armar"
-                    : `${formatCount(item.line_count)} ref. · ${formatCount(pending)} por validar · ${formatCount(validated)} validadas`}
-                </span>
-                {item.built_at && <span className="hidden text-xs text-text-secondary sm:block">Leída {formatDateTime(item.built_at)}</span>}
+            <li key={item.code} title={details} className="relative min-w-0 rounded-md border border-border px-2.5 py-1.5">
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className="font-mono text-sm font-semibold">{item.code}</span>
+                <span className="truncate text-[13px]">{item.name ?? "—"}</span>
               </span>
-              {canManage && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => void buildOne(item.code)}
-                  disabled={running !== null}
-                  aria-label={item.quotation_id === null ? `Armar la lista ${item.code}` : `Refrescar la lista ${item.code} con SIESA`}
-                  title={item.quotation_id === null ? "Armar desde SIESA" : "Refrescar con SIESA: conserva precios nuevos, estados y observaciones"}
-                  className="shrink-0 max-md:size-11"
-                >
-                  {running === item.code ? (
-                    <Loader2 className="animate-spin" aria-hidden="true" />
-                  ) : item.quotation_id === null ? (
-                    <Sparkles aria-hidden="true" />
-                  ) : (
-                    <RefreshCw aria-hidden="true" />
-                  )}
-                </Button>
-              )}
+              <span className="block text-xs tabular-nums text-text-secondary">
+                {item.quotation_id === null ? "Sin armar" : `${formatCount(item.line_count)} referencias`}
+              </span>
+              <span className="sr-only">. {details}</span>
             </li>
           );
         })}
@@ -386,24 +417,24 @@ function ListsPanel({ lists, canManage }: { lists: BoardList[]; canManage: boole
   );
 }
 
-/** What the ticked rows can take, on any list: prices from the suggestions, or their review. */
+/**
+ * What the ticked rows can take, on any list: a price from the suggestions, or
+ * none. The review is not here: it changes row by row, on each row's chip.
+ */
 function BoardActions({
   selected,
   filters,
   total,
-  canValidate,
   onSelect,
 }: {
   selected: Map<string, BoardKey>;
   filters: BoardFilters;
   total: number;
-  canValidate: boolean;
   onSelect: (next: Map<string, BoardKey>) => void;
 }) {
   const apply = useBoardApply();
-  const review = useBoardReview();
   const [loadingAll, setLoadingAll] = useState(false);
-  const busy = apply.isPending || review.isPending || loadingAll;
+  const busy = apply.isPending || loadingAll;
   if (selected.size === 0) return null;
   const keys = [...selected.values()];
 
@@ -423,8 +454,6 @@ function BoardActions({
   const onError = (failure: Error) => toast.error(errorMessage(failure), { duration: Infinity });
   const runApply = (mode: "optimo" | "minimo" | "limpiar", verb: string) =>
     apply.mutate({ keys, mode }, { onSuccess: report(verb), onError });
-  const runReview = (status: ReviewStatus, verb: string) =>
-    review.mutate({ keys, status }, { onSuccess: (result) => { report(verb)(result); onSelect(new Map()); }, onError });
   const selectAll = async () => {
     setLoadingAll(true);
     try {
@@ -459,17 +488,6 @@ function BoardActions({
       <Button variant="outline" onClick={() => runApply("limpiar", "sin precio nuevo")} disabled={busy} className="max-md:h-11">
         <Eraser aria-hidden="true" /> Limpiar precio
       </Button>
-      <Button variant="outline" onClick={() => runReview("por_validar", "marcadas por validar")} disabled={busy} className="max-md:h-11">
-        <Clock3 aria-hidden="true" /> Marcar por validar
-      </Button>
-      {canValidate && (
-        <Button onClick={() => runReview("validada", "validadas")} disabled={busy} className="max-md:h-11">
-          <CheckCircle2 aria-hidden="true" /> Validar
-        </Button>
-      )}
-      <Button variant="ghost" onClick={() => runReview("sin_marcar", "desmarcadas")} disabled={busy} className="max-md:h-11">
-        <Undo2 aria-hidden="true" /> Desmarcar
-      </Button>
     </div>
   );
 }
@@ -481,6 +499,7 @@ function BoardTable({
   rows,
   canManage,
   canValidate,
+  review,
   selected,
   allOnPage,
   onToggle,
@@ -490,6 +509,7 @@ function BoardTable({
   rows: BoardRow[];
   canManage: boolean;
   canValidate: boolean;
+  review: ReviewControl;
   selected: Map<string, BoardKey>;
   allOnPage: boolean;
   onToggle: (key: BoardKey) => void;
@@ -540,7 +560,7 @@ function BoardTable({
                       />
                     </td>
                   )}
-                  <td className={cn(td, "min-w-0")}><ProductCell row={row} onOpen={onOpen} /></td>
+                  <td className={cn(td, "min-w-0")}><ProductCell row={row} review={review} onOpen={onOpen} /></td>
                   <td className={td}><ListCell row={row} /></td>
                   <td className={cn(td, "text-right")}><CurrentPrice row={row} /></td>
                   <td className={td}><Suggested row={row} showCost={canValidate} /></td>
@@ -573,7 +593,7 @@ function BoardTable({
                     className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
                   />
                 )}
-                <div className="min-w-0 flex-1"><ProductCell row={row} onOpen={onOpen} /></div>
+                <div className="min-w-0 flex-1"><ProductCell row={row} review={review} onOpen={onOpen} /></div>
                 <ListCell row={row} />
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -598,7 +618,7 @@ function BoardTable({
   );
 }
 
-function ProductCell({ row, onOpen }: { row: BoardRow; onOpen: (row: BoardRow) => void }) {
+function ProductCell({ row, review, onOpen }: { row: BoardRow; review: ReviewControl; onOpen: (row: BoardRow) => void }) {
   const onHand = toNumber(row.stock_on_hand);
   const available = toNumber(row.stock_available);
   return (
@@ -616,7 +636,7 @@ function ProductCell({ row, onOpen }: { row: BoardRow; onOpen: (row: BoardRow) =
         {[`SKU ${row.sku}`, row.supplier_name ?? row.supplier_code, row.unit].filter(Boolean).join(" · ")}
       </p>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
-        <ReviewChip line={row} />
+        <ReviewSelect line={row} control={review} />
         {!row.is_active && <Badge tone="danger" className="px-1.5 py-0 text-xs">Inactiva</Badge>}
         <span className="inline-flex items-center gap-1 tabular-nums" title="En las bodegas de la lista, según la foto de SIESA de esta mañana">
           <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />

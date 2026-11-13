@@ -15,7 +15,7 @@ import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
 import { useLineInsight } from "../hooks/use-list-review";
 import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMargin, formatMoney } from "../lib/format";
 import type { LineInsight, QuotationLine, SupportOption } from "../types/quotations.types";
-import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, ReviewChip } from "./lines-table";
+import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, type ReviewControl, ReviewSelect } from "./lines-table";
 import PriceHistoryChart from "./price-history-chart";
 
 /**
@@ -73,6 +73,8 @@ export interface ItemContext {
   quotationId: string;
   canEdit: boolean;
   saveNote: (note: string) => Promise<unknown>;
+  /** The item's review, changed on its chip here as in the row. */
+  review?: ReviewControl;
 }
 
 function ListItemPanels({ item, line }: { item: ItemContext; line: QuotationLine }) {
@@ -267,7 +269,7 @@ function NoteSection({ item, line }: { item: ItemContext; line: QuotationLine })
     <section aria-labelledby={`${id}-title`} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <h3 id={`${id}-title`} className="text-base font-semibold">Revisión</h3>
-        <ReviewChip line={line} />
+        <ReviewSelect line={line} control={item.review} />
         {line.reviewed_by && line.review_status !== "sin_marcar" && (
           <span className="text-[13px] text-text-secondary">
             {line.reviewed_by}
