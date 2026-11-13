@@ -11,11 +11,11 @@ export function listModuleViews(kind: ListKind, basePath: string): PageView[] {
   const views: PageView[] = [
     {
       key: "actualizaciones",
-      label: "Actualizaciones",
+      label: kind === "principal" ? "Listas" : "Actualizaciones",
       href: basePath,
       description:
         kind === "principal"
-          ? "Las listas generales, mayoristas y de Market contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Cada ítem se marca y se valida por separado."
+          ? "Las 14 listas generales, mayoristas y de Market en una sola tabla, contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Filtra por lista cuando lo necesites; cada ítem se marca y se valida por separado."
           : "Una lista de precios vigente de SIESA contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Cada ítem se marca y se valida por separado.",
     },
     {

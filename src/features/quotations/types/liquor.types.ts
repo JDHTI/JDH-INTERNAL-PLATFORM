@@ -42,6 +42,8 @@ export interface LiquorOverview {
   suspects: LiquorSuspect[];
   /** Lists that pay the Coast value; every other list pays the national one. */
   coast_lists: string[];
+  /** The caller is one of the collaborators who change the liquor tax (`impuesto-licor`). */
+  can_manage: boolean;
 }
 
 export type LiquorUpdateStatus = "pendiente_validacion" | "pendiente_carga" | "cargada" | "devuelta";

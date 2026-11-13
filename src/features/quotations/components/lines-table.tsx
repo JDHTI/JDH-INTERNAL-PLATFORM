@@ -584,7 +584,7 @@ const STANDING_LOOK: Record<Standing, { tone: BadgeTone; icon: typeof ThumbsUp; 
  * the words for screen readers. A badge, not colored text: its opaque
  * background keeps AA on a hovered or flashing row in both themes (§3.5).
  */
-function MarginMark({ value, standing }: { value: string | null; standing: Standing | null }) {
+export function MarginMark({ value, standing }: { value: string | null; standing: Standing | null }) {
   if (toNumber(value) === null) return dash;
   if (!standing) return <span className="font-medium tabular-nums">{formatMargin(value)}</span>;
   const look = STANDING_LOOK[standing];
@@ -667,7 +667,7 @@ export function saleText(line: QuotationLine): string {
   return price === null ? NO_SALE_TEXT : `Última venta ${formatMoney(line.last_sale_price ?? null)}`;
 }
 
-function SaleMark({ line }: { line: QuotationLine }) {
+export function SaleMark({ line }: { line: QuotationLine }) {
   const sold = toNumber(line.last_sale_price ?? null) !== null;
   const text = saleText(line);
   const Icon = sold ? Receipt : CircleDashed;
@@ -804,7 +804,7 @@ function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) 
  * won, a quote left out as a capture error, and the center whose warehouses
  * gave it. Only BI renders it.
  */
-function CostBreakdown({ line }: { line: QuotationLine }) {
+export function CostBreakdown({ line }: { line: QuotationLine }) {
   if (toNumber(line.cost) === null) return <span className="text-text-secondary">Sin costo</span>;
   return (
     <Popover.Root>
@@ -914,7 +914,7 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
  * The margin the new price leaves, with where it stands; or why the rule
  * cannot judge it (no cost, no target). Right under the price that makes it.
  */
-function NewMargin({ line }: { line: QuotationLine }) {
+export function NewMargin({ line }: { line: QuotationLine }) {
   if (line.new_price === null || isLocal(line)) return dash;
   if (line.compliance === "sin_costo" || line.compliance === "sin_objetivo") {
     return <ComplianceBadge compliance={line.compliance} label={line.compliance_label} className="whitespace-normal text-right" />;

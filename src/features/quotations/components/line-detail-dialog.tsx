@@ -12,9 +12,9 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
 
-import { useLineInsight, useLineNote } from "../hooks/use-list-review";
+import { useLineInsight } from "../hooks/use-list-review";
 import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMargin, formatMoney } from "../lib/format";
-import type { LineInsight, Quotation, QuotationLine, SupportOption } from "../types/quotations.types";
+import type { LineInsight, QuotationLine, SupportOption } from "../types/quotations.types";
 import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, ReviewChip } from "./lines-table";
 import PriceHistoryChart from "./price-history-chart";
 
@@ -29,8 +29,7 @@ export default function LineDetailDialog({
   onClose,
   onOpenAgreement,
   forList = false,
-  quotation,
-  canEdit = false,
+  item,
 }: {
   line: QuotationLine | null;
   onClose: () => void;
@@ -40,9 +39,7 @@ export default function LineDetailDialog({
   /** Whoever validates sees the costs; the detail no longer shows the last sale's cost. */
   showCost?: boolean;
   /** A list update: its review, observation, stock by warehouse and price history come with it. */
-  quotation?: Quotation;
-  /** Whoever edits the update writes the observation. */
-  canEdit?: boolean;
+  item?: ItemContext;
 }) {
   const local = line?.origin === "local";
   return (
@@ -50,7 +47,7 @@ export default function LineDetailDialog({
       open={line !== null}
       onOpenChange={(open) => !open && onClose()}
       isForm={false}
-      wide={quotation !== undefined}
+      wide={item !== undefined}
       title={line ? (local ? "Producto solo para cotización" : `Referencia ${line.sku}`) : "Referencia"}
       description={line?.description ?? undefined}
     >
@@ -59,7 +56,7 @@ export default function LineDetailDialog({
           <LocalDetail line={line} onClose={onClose} />
         ) : (
           <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList}>
-            {quotation && <ListItemPanels quotation={quotation} line={line} canEdit={canEdit} />}
+            {item && <ListItemPanels item={item} line={line} />}
           </Detail>
         ))}
     </Dialog>
@@ -71,12 +68,19 @@ export default function LineDetailDialog({
  * the list's warehouses, and how its price moved (the list's versions and the
  * monthly sale price). The DWH parts load when the detail opens.
  */
-function ListItemPanels({ quotation, line, canEdit }: { quotation: Quotation; line: QuotationLine; canEdit: boolean }) {
-  const insight = useLineInsight(quotation.id, line.sku);
+/** Where a list update's item lives, and how its observation is saved (the editor or the board). */
+export interface ItemContext {
+  quotationId: string;
+  canEdit: boolean;
+  saveNote: (note: string) => Promise<unknown>;
+}
+
+function ListItemPanels({ item, line }: { item: ItemContext; line: QuotationLine }) {
+  const insight = useLineInsight(item.quotationId, line.sku);
   const data = insight.data;
   return (
     <>
-      <NoteSection quotation={quotation} line={line} canEdit={canEdit} />
+      <NoteSection item={item} line={line} />
 
       <section aria-labelledby="item-stock" className="space-y-2">
         <h3 id="item-stock" className="text-base font-semibold">Existencias por bodega</h3>
@@ -241,19 +245,24 @@ function StockTable({ insight }: { insight: LineInsight }) {
 }
 
 /** The item's review and the person's observation; it saves with the button, not on every key. */
-function NoteSection({ quotation, line, canEdit }: { quotation: Quotation; line: QuotationLine; canEdit: boolean }) {
-  const save = useLineNote(quotation.id);
+function NoteSection({ item, line }: { item: ItemContext; line: QuotationLine }) {
+  const canEdit = item.canEdit;
   const [draft, setDraft] = useState(line.note ?? "");
+  const [saving, setSaving] = useState(false);
   const id = useId();
   const changed = draft.trim() !== (line.note ?? "");
-  const submit = () =>
-    save.mutate(
-      { version: quotation.version, sku: line.sku, note: draft },
-      {
-        onSuccess: () => toast.success(draft.trim() ? "Observación guardada." : "Observación borrada."),
-        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
-      }
-    );
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await item.saveNote(draft);
+      toast.success(draft.trim() ? "Observación guardada." : "Observación borrada.");
+    } catch (failure) {
+      toast.error(errorMessage(failure), { duration: Infinity });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const save = { isPending: saving };
   return (
     <section aria-labelledby={`${id}-title`} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -280,7 +289,7 @@ function NoteSection({ quotation, line, canEdit }: { quotation: Quotation; line:
           />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-text-secondary">{draft.length} de 500</span>
-            <Button variant="outline" size="sm" onClick={submit} disabled={!changed || save.isPending} className="max-md:h-11">
+            <Button variant="outline" size="sm" onClick={() => void submit()} disabled={!changed || save.isPending} className="max-md:h-11">
               {save.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Guardar observación
             </Button>
           </div>

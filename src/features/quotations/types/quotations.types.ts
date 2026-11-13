@@ -133,6 +133,70 @@ export interface StockTotals {
   items: Record<string, StockTotal>;
 }
 
+/** The chips of a list update's table: the item's review and where its price leaves the margin. */
+export type BoardChip = "sin_marcar" | "por_validar" | "validada" | "cargada" | "alza" | "objetivo" | "encima" | "alerta";
+
+/** A main list on the board of Listas principales, with its update once built. */
+export interface BoardList {
+  code: string;
+  name: string | null;
+  quotation_id: string | null;
+  built_at: string | null;
+  line_count: number;
+  /** Rows of each review state: sin_marcar, por_validar, validada, cargada. */
+  counts: Record<string, number>;
+  warnings: QuotationWarning[];
+}
+
+export interface BoardOverview {
+  lists: BoardList[];
+  suppliers: string[];
+  categories: string[];
+}
+
+/** A SKU on one main list, with the update it lives in and its stock in the list's warehouses. */
+export interface BoardRow extends QuotationLine {
+  quotation_id: string;
+  quotation_version: number;
+  price_list_id: string;
+  price_list_name: string | null;
+  stock_on_hand: DecimalText | null;
+  stock_available: DecimalText | null;
+  stock_warehouses: number;
+}
+
+export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion";
+
+export interface BoardFilters {
+  lists: string[];
+  q: string;
+  suppliers: string[];
+  categories: string[];
+  chip: BoardChip | null;
+  sort: BoardSort;
+  desc: boolean;
+}
+
+export interface BoardPage {
+  items: BoardRow[];
+  total: number;
+  page: number;
+  size: number;
+  /** Rows of each chip under the other filters, and `todos`: every row under them. */
+  counts: Record<string, number>;
+  stock_read: boolean;
+}
+
+export interface BoardKey {
+  quotation_id: string;
+  sku: string;
+}
+
+export interface BoardActionResult {
+  done: number;
+  skipped: SkippedLine[];
+}
+
 /** A customer SIESA does not have yet, registered on the quotation itself to quote from scratch. */
 export interface TemporaryCustomer {
   name: string;

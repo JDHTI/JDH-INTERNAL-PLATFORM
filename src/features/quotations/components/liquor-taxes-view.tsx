@@ -15,10 +15,8 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
-import { useSession } from "@/features/session/hooks/use-session";
 
 import { useCreateLiquorUpdate, useLiquorOverview, useLiquorReview, useLiquorUpdates } from "../hooks/use-list-review";
-import { useQuotationPermissions } from "../hooks/use-quotations";
 import { formatCount, formatDateTime, formatDay, formatMoney } from "../lib/format";
 import { downloadLiquorFile } from "../services/liquor.service";
 import type { Liquor, LiquorUpdate, LiquorUpdateStatus, TaxValue } from "../types/liquor.types";
@@ -35,14 +33,13 @@ const STATUS_TONE: Record<LiquorUpdateStatus, BadgeTone> = {
 /**
  * The liquor tax of every active liquor across every list: the value each
  * regional carries, what does not add up, the liquors of a liquor group with
- * no key, and the bulk changes with their review. A change writes SIESA's two
- * pages (each list's price, unchanged, and its new value tax) on every list.
+ * no key, and the bulk changes. A change goes straight to SIESA, with no
+ * validation: the few collaborators who manage it get SIESA's two pages (each
+ * list's price, unchanged, and its new value tax) the moment they make it.
  */
 export default function LiquorTaxesView() {
   const overview = useLiquorOverview();
-  const permissions = useQuotationPermissions("principal").data;
-  const canManage = permissions?.can_manage === true;
-  const canValidate = permissions?.can_validate === true;
+  const canManage = overview.data?.can_manage === true;
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState(false);
 
@@ -209,7 +206,7 @@ export default function LiquorTaxesView() {
         </section>
       )}
 
-      <LiquorUpdates canValidate={canValidate} />
+      <LiquorUpdates canManage={canManage} />
 
       <ChangeDialog
         items={chosen}
@@ -293,7 +290,7 @@ function ChangeDialog({
       isForm
       wide
       title="Cambiar el impuesto licor"
-      description="Se escribe en todas las listas activas donde el producto tiene precio, con el valor de su regional. Queda pendiente de validación."
+      description="Se escribe en todas las listas activas donde el producto tiene precio, con el valor de su regional. El Excel y el plano para SIESA quedan listos al guardar, sin validación."
     >
       {open && <ChangeForm items={items} create={create} onCancel={() => onOpenChange(false)} onCreated={onCreated} />}
     </Dialog>
@@ -320,8 +317,11 @@ function ChangeForm({
     Object.fromEntries(items.map((item) => [item.sku, { national: plain(item.national), coast: plain(item.coast) }]))
   );
   const [note, setNote] = useState("");
+  const [activation, setActivation] = useState(tomorrow());
   const [error, setError] = useState<string | null>(null);
   const noteId = useId();
+  const dateId = useId();
+  const today = useMemo(() => toIso(new Date()), []);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -337,10 +337,12 @@ function ChangeForm({
       changes.push({ sku: item.sku, national, coast });
     }
     create.mutate(
-      { changes, note },
+      { changes, note, activationDate: activation },
       {
-        onSuccess: () => {
-          toast.success(`Cambio de ${formatCount(changes.length)} ${changes.length === 1 ? "producto" : "productos"} enviado a validación.`);
+        onSuccess: (result) => {
+          toast.success(
+            `Plano listo: ${formatCount(result.row_count)} precios en ${formatCount(result.list_count)} listas. Descárgalo en «Cambios del impuesto».`
+          );
           onCreated();
         },
         onError: (failure) => setError(errorMessage(failure)),
@@ -379,6 +381,17 @@ function ChangeForm({
           ))}
         </ul>
         <div className="space-y-1">
+          <label htmlFor={dateId} className="block text-sm font-medium">Fecha de activación en SIESA</label>
+          <Input
+            id={dateId}
+            type="date"
+            value={activation}
+            min={today}
+            onChange={(event) => setActivation(event.target.value)}
+            className="w-44 max-md:h-11"
+          />
+        </div>
+        <div className="space-y-1">
           <label htmlFor={noteId} className="block text-sm font-medium">Motivo</label>
           <textarea
             id={noteId}
@@ -397,7 +410,7 @@ function ChangeForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={create.isPending} className="max-md:h-11">
-          {create.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Enviar a validación
+          {create.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileText aria-hidden="true" />} Generar plano
         </Button>
       </DialogFooter>
     </form>
@@ -405,9 +418,8 @@ function ChangeForm({
 }
 
 /** The bulk changes and what each person can do with them now. */
-function LiquorUpdates({ canValidate }: { canValidate: boolean }) {
+function LiquorUpdates({ canManage }: { canManage: boolean }) {
   const updates = useLiquorUpdates();
-  const { data: user } = useSession();
   return (
     <section aria-labelledby="liquor-updates-title" className="space-y-2">
       <h2 id="liquor-updates-title" className="text-base font-semibold">Cambios del impuesto</h2>
@@ -420,7 +432,7 @@ function LiquorUpdates({ canValidate }: { canValidate: boolean }) {
       ) : (
         <ul className="space-y-2">
           {updates.data.map((item) => (
-            <LiquorUpdateCard key={item.id} item={item} canValidate={canValidate} isAuthor={user?.email === item.created_by} />
+            <LiquorUpdateCard key={item.id} item={item} canManage={canManage} />
           ))}
         </ul>
       )}
@@ -428,9 +440,9 @@ function LiquorUpdates({ canValidate }: { canValidate: boolean }) {
   );
 }
 
-function LiquorUpdateCard({ item, canValidate, isAuthor }: { item: LiquorUpdate; canValidate: boolean; isAuthor: boolean }) {
+function LiquorUpdateCard({ item, canManage }: { item: LiquorUpdate; canManage: boolean }) {
   const review = useLiquorReview();
-  const [dialog, setDialog] = useState<"validate" | "return" | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
   const download = async (format: "xlsx" | "txt") => {
     setDownloading(format);
@@ -466,24 +478,15 @@ function LiquorUpdateCard({ item, canValidate, isAuthor }: { item: LiquorUpdate;
             )}
           </p>
           <p className="text-[13px] text-text-secondary">
-            Propuso {item.created_by} · {formatDateTime(item.created_at)}
+            Hizo {item.created_by} · {formatDateTime(item.created_at)}
             {item.activation_date && ` · activa el ${formatDay(item.activation_date)}`}
+            {item.uploaded_by && ` · cargó ${item.uploaded_by}`}
           </p>
           {item.note && <p className="text-[13px]">Motivo: {item.note}</p>}
-          {item.review_note && <p className="text-[13px]">Devuelto: {item.review_note}</p>}
+          {item.review_note && <p className="text-[13px]">Anulado: {item.review_note}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {item.status === "pendiente_validacion" && canValidate && (
-            <Button onClick={() => setDialog("validate")} disabled={review.isPending} className="max-md:h-11">
-              <CheckCircle2 aria-hidden="true" /> Validar
-            </Button>
-          )}
-          {item.status === "pendiente_validacion" && (canValidate || isAuthor) && (
-            <Button variant="outline" onClick={() => setDialog("return")} disabled={review.isPending} className="max-md:h-11">
-              <Undo2 aria-hidden="true" /> {canValidate && !isAuthor ? "Devolver" : "Retirar"}
-            </Button>
-          )}
-          {(item.status === "pendiente_carga" || item.status === "cargada") && canValidate && (
+          {(item.status === "pendiente_carga" || item.status === "cargada") && canManage && (
             <>
               <Button variant="outline" onClick={() => void download("xlsx")} disabled={downloading !== null} className="max-md:h-11">
                 {downloading === "xlsx" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileSpreadsheet aria-hidden="true" />}
@@ -495,10 +498,15 @@ function LiquorUpdateCard({ item, canValidate, isAuthor }: { item: LiquorUpdate;
               </Button>
             </>
           )}
-          {item.status === "pendiente_carga" && canValidate && (
-            <Button onClick={markUploaded} disabled={review.isPending} className="max-md:h-11">
-              {review.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileCheck2 aria-hidden="true" />} Marcar cargado
-            </Button>
+          {item.status === "pendiente_carga" && canManage && (
+            <>
+              <Button onClick={markUploaded} disabled={review.isPending} className="max-md:h-11">
+                {review.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileCheck2 aria-hidden="true" />} Marcar cargado
+              </Button>
+              <Button variant="ghost" onClick={() => setCancelling(true)} disabled={review.isPending} className="max-md:h-11">
+                <Undo2 aria-hidden="true" /> Anular
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -532,8 +540,7 @@ function LiquorUpdateCard({ item, canValidate, isAuthor }: { item: LiquorUpdate;
           </tbody>
         </table>
       </div>
-      <ValidateLiquorDialog item={item} open={dialog === "validate"} onOpenChange={(open) => setDialog(open ? "validate" : null)} />
-      <ReturnLiquorDialog item={item} asValidator={canValidate && !isAuthor} open={dialog === "return"} onOpenChange={(open) => setDialog(open ? "return" : null)} />
+      <CancelLiquorDialog item={item} open={cancelling} onOpenChange={setCancelling} />
     </li>
   );
 }
@@ -553,60 +560,8 @@ function Change({ before, after }: { before: string | null; after: string }) {
   );
 }
 
-function ValidateLiquorDialog({ item, open, onOpenChange }: { item: LiquorUpdate; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const review = useLiquorReview();
-  const [activation, setActivation] = useState(tomorrow());
-  const [error, setError] = useState<string | null>(null);
-  const dateId = useId();
-  const today = useMemo(() => toIso(new Date()), []);
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    review.mutate(
-      { kind: "validate", item, activationDate: activation },
-      {
-        onSuccess: (result) => {
-          toast.success(`Cambio validado: ${formatCount(result.row_count)} precios en ${formatCount(result.list_count)} listas. Descarga sus archivos.`);
-          onOpenChange(false);
-        },
-        onError: (failure) => setError(errorMessage(failure)),
-      }
-    );
-  };
-  return (
-    <Dialog open={open} onOpenChange={(next) => !review.isPending && onOpenChange(next)} isForm title="Validar el cambio del impuesto licor">
-      <form onSubmit={submit} className="space-y-4" noValidate>
-        <p className="text-sm">
-          Se leen ahora los precios vigentes de todas las listas activas donde estos productos tienen precio, y quedan fijos en el cambio.
-          Los archivos llevan el precio de cada lista sin cambios y el impuesto nuevo de su regional.
-        </p>
-        <div className="space-y-1">
-          <label htmlFor={dateId} className="block text-sm font-medium">Fecha de activación en SIESA</label>
-          <Input id={dateId} type="date" value={activation} min={today} onChange={(event) => setActivation(event.target.value)} className="w-44 max-md:h-11" />
-        </div>
-        <DialogError message={error} />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={review.isPending} className="max-md:h-11">Cancelar</Button>
-          <Button type="submit" disabled={review.isPending} className="max-md:h-11">
-            {review.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />} Validar
-          </Button>
-        </DialogFooter>
-      </form>
-    </Dialog>
-  );
-}
-
-function ReturnLiquorDialog({
-  item,
-  asValidator,
-  open,
-  onOpenChange,
-}: {
-  item: LiquorUpdate;
-  asValidator: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+/** A change whose files were not loaded: it stops counting and its files no longer download. */
+function CancelLiquorDialog({ item, open, onOpenChange }: { item: LiquorUpdate; open: boolean; onOpenChange: (open: boolean) => void }) {
   const review = useLiquorReview();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -614,15 +569,11 @@ function ReturnLiquorDialog({
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (asValidator && note.trim() === "") {
-      setError("Escribe por qué devuelves el cambio.");
-      return;
-    }
     review.mutate(
-      { kind: "return", item, note },
+      { kind: "cancel", item, note },
       {
         onSuccess: () => {
-          toast.success(asValidator ? "Cambio devuelto." : "Cambio retirado.");
+          toast.success("Cambio anulado. No cargues sus archivos.");
           onOpenChange(false);
         },
         onError: (failure) => setError(errorMessage(failure)),
@@ -634,11 +585,12 @@ function ReturnLiquorDialog({
       open={open}
       onOpenChange={(next) => !review.isPending && onOpenChange(next)}
       isForm
-      title={asValidator ? "Devolver el cambio" : "Retirar el cambio"}
+      title="¿Anular el cambio del impuesto?"
+      description="Solo si sus archivos no se cargaron en SIESA. Deja de contar y sus archivos ya no se descargan."
     >
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="space-y-1">
-          <label htmlFor={noteId} className="block text-sm font-medium">{asValidator ? "Motivo (obligatorio)" : "Motivo (opcional)"}</label>
+          <label htmlFor={noteId} className="block text-sm font-medium">Motivo (opcional)</label>
           <textarea
             id={noteId}
             value={note}
@@ -652,7 +604,7 @@ function ReturnLiquorDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={review.isPending} className="max-md:h-11">Cancelar</Button>
           <Button type="submit" disabled={review.isPending} className="max-md:h-11">
-            {review.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} {asValidator ? "Devolver" : "Retirar"}
+            {review.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Anular
           </Button>
         </DialogFooter>
       </form>

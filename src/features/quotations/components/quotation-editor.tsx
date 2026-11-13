@@ -59,7 +59,7 @@ import {
   useRefreshQuotation,
   useRemoveLine,
 } from "../hooks/use-quotations";
-import { useStockTotals } from "../hooks/use-list-review";
+import { useLineNote, useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { KIND_COPY } from "../lib/kind";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
@@ -175,6 +175,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   // A list update filters by the item's review and by where its price leaves the margin.
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const stockTotals = useStockTotals(quotation.id, isList);
+  const lineNote = useLineNote(quotation.id);
   const [text, setText] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -778,8 +779,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       />
       <LineDetailDialog
         line={detailLine ? (quotation.lines.find((line) => line.sku === detailLine.sku) ?? detailLine) : null}
-        quotation={isList ? quotation : undefined}
-        canEdit={editable}
+        item={
+          isList
+            ? {
+                quotationId: quotation.id,
+                canEdit: editable,
+                saveNote: (note) => lineNote.mutateAsync({ version: quotation.version, sku: detailLine?.sku ?? "", note }),
+              }
+            : undefined
+        }
         forList={isList}
         showCost={canValidate}
         onClose={() => setDetailLine(null)}
