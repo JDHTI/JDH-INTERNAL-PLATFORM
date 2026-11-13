@@ -6,7 +6,7 @@ import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { choiceLabel, formatCop, formatDay, formatPct, formatSupplierValue } from "../lib/format";
+import { choiceLabel, formatCop, formatDay, formatPct, formatSupplierValue, PERCENT_METHODS } from "../lib/format";
 import type { PerUnit, SupplierSupport } from "../types/support.types";
 import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
 
@@ -43,10 +43,7 @@ const secondary = "block truncate text-xs text-text-secondary";
  * under it, and the brand and supplier as the quiet line. It opens the detail.
  */
 function ProductCell({ support, open }: { support: SupplierSupport; open: () => void }) {
-  const supplier = support.supplier_name
-    ? `${support.supplier_name}${support.supplier_code ? ` (${support.supplier_code})` : ""}`
-    : support.supplier_code;
-  const meta = [support.product_brand ?? support.brand, supplier].filter(Boolean).join(" · ");
+  const meta = [support.product_brand ?? support.brand, support.supplier_name].filter(Boolean).join(" · ");
   const description = support.product_sku ? support.product_description : "Todo el portafolio";
   return (
     <div className="min-w-0 space-y-0.5">
@@ -84,7 +81,9 @@ function CustomerCell({ support }: { support: SupplierSupport }) {
 /** Type of support with its value, and the class under it. */
 function SupportCell({ support, methodLabel }: { support: SupplierSupport; methodLabel: CellContext["methodLabel"] }) {
   const value = toNumber(support.supplier_value) === null ? null : formatSupplierValue(support.calc_method, support.supplier_value);
-  const meta = [support.kind ? choiceLabel("kind", support.kind) : null, support.value_unit ? `por ${support.value_unit}` : null]
+  // The unit only reads a value in pesos; on a percentage it says nothing.
+  const inPesos = !PERCENT_METHODS.includes(support.calc_method ?? "");
+  const meta = [support.kind ? choiceLabel("kind", support.kind) : null, inPesos && support.value_unit ? `por ${support.value_unit}` : null]
     .filter(Boolean)
     .join(" · ");
   return (
@@ -121,7 +120,12 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
       rows={[
         { label: "Producto", value: pct(derived?.product_margin_pct), title: "Margen general del producto (maestro de márgenes)" },
         { label: "Recompuesto", value: pct(derived?.recomposed_list_margin), title: "Margen que deja el apoyo del proveedor al precio lista" },
-        { label: "Apoyado", value: pct(derived?.supported_margin_pct ?? support.supported_margin_pct), strong: true },
+        {
+          label: "Apoyado JDH",
+          value: pct(derived?.supported_margin_pct ?? support.supported_margin_pct),
+          strong: true,
+          title: "Margen apoyado: hasta dónde JDH autoriza bajar el margen sobre el que deja el apoyo del proveedor",
+        },
       ]}
     />
   );
@@ -142,18 +146,31 @@ function PriceCell({ support }: { support: SupplierSupport }) {
     : other;
   const supported = derived?.supported_price_per;
   const price = has(supported, side) ? supported : derived?.suggested_price_per;
+  const anyPrice = [derived?.cost, derived?.list_price, price].some((pair) => has(pair, side));
   return (
     <div className="space-y-0.5">
       <Figures
         rows={[
           { label: "Costo", value: cop(derived?.cost?.[side]) },
           { label: "Lista", value: cop(derived?.list_price?.[side]) },
-          { label: price === supported ? "Apoyado" : "Sugerido", value: cop(price?.[side]), strong: true },
-          { label: "Dcto. cliente", value: pct(derived?.customer_discount_pct), title: "Descuento al cliente frente al precio lista" },
+          {
+            label: price === supported ? "Apoyado JDH" : "Sugerido",
+            value: cop(price?.[side]),
+            strong: true,
+            title: price === supported ? "Precio apoyado: el costo neto al margen apoyado por JDH" : undefined,
+          },
+          {
+            label: "Dcto. cliente",
+            value: pct(derived?.customer_discount_pct),
+            title: "Descuento al cliente frente al precio lista si se vende al precio apoyado: 1 − precio apoyado / precio lista",
+          },
         ]}
       />
-      {/* The support cell already names its unit; say it here only when the prices are in another one. */}
-      {side !== preferred || !support.value_unit ? (
+      {/*
+       * The support cell already names its unit; say it here only when the
+       * prices are in another one, and never when there is no price at all.
+       */}
+      {anyPrice && (side !== preferred || !support.value_unit) ? (
         <span className="block text-right text-xs text-text-secondary">por {side === "box" ? "caja" : "unidad"}</span>
       ) : null}
     </div>
