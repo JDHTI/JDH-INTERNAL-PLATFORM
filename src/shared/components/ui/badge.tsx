@@ -27,6 +27,9 @@ const badgeVariants = cva(
 
 export type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>["tone"]>;
 
+/** The badge's look, for a control that must read as one (a status that opens a menu). */
+export { badgeVariants };
+
 export function Badge({
   className,
   tone,

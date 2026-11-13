@@ -41,9 +41,11 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
 - **Lo que no aparece:** oferta, «Cotizar con cantidades», «Crear producto», el consolidado, el
   estado de la actualización y la confirmación.
 - **Revisión por ítem** (`list-review-controls.tsx`, `lib/list-review.ts`): cada ítem lleva un
-  chip (Sin marcar, Por validar, Validada, Cargada) bajo el producto. Con ítems seleccionados
-  aparecen «Marcar por validar», «Validar» (solo quien valida) y «Desmarcar». Lo que la API no
-  puede marcar vuelve en `skipped` y sale en un aviso.
+  chip (Sin marcar, Por validar, Validada, Cargada) bajo el producto. **El estado se cambia en
+  el propio chip** (`ReviewSelect` en `lines-table.tsx`), en la fila o en el detalle del ítem:
+  abre los estados que la persona puede dar (Validada solo para quien valida; marcar pide un
+  precio nuevo). No hay botones para marcar en bloque. Lo que la API no puede marcar vuelve en
+  `skipped` y sale en un aviso.
 - **Filtros:** en lugar de los indicadores del cotizador, dos grupos que filtran la tabla: la
   revisión de los ítems y el margen del precio actual contra el objetivo con ±0,5 puntos («Con
   alza», «En el objetivo», «Por encima», «Alerta»: bajo el mínimo, sin costo o precio marcador).
@@ -65,9 +67,15 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   abren aquí. Van por el módulo **Listas principales** (`/bi/listas-principales`, `kind="principal"`),
   bloqueado a BI. Su vista principal es **un solo tablero con las 14 listas juntas**
   (`main-lists-board.tsx`, `GET /price-list-updates/main/rows`): una fila por referencia y lista,
-  un desplegable con buscador para filtrar por una o varias listas, los mismos chips y filtros, y
-  acciones sobre filas de cualquier lista (precio, óptimo, mínimo, limpiar, marcar, validar). Arriba,
-  las 14 listas con su estado y el botón para armar o refrescar cada una desde SIESA. Tiene además
+  los filtros en una sola fila (buscador, desplegable con buscador para una o varias listas,
+  proveedores, categorías, orden y «Borrar filtros» como icono), los mismos chips y acciones sobre
+  filas seleccionadas de cualquier lista (óptimo, mínimo, limpiar precio); el estado va en el chip
+  de cada fila. Arriba, las 14 listas con código, nombre y cuántas referencias tiene cada una (la
+  lectura de SIESA, los conteos por estado y los avisos van en el tooltip) y un solo botón:
+  «Armar lista general» la primera vez y luego «Sincronizar con la carga del día»
+  (`POST /price-list-updates/main/sync`). La sincronización es una tarea en segundo plano
+  (`main-lists-sync`): corre sola tras la carga de abastecimiento del DWH y el tablero consulta su
+  estado cada 5 s mientras corre; si una lista falla, se dice cuál. Tiene además
   **Impuesto licor** (`liquor-taxes-view.tsx`): los
   licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
   llave y los cambios masivos. Un cambio **no pasa por validación**: lo hacen los colaboradores con

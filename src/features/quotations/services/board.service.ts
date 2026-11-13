@@ -4,10 +4,10 @@ import type {
   BoardActionResult,
   BoardFilters,
   BoardKey,
-  BoardList,
   BoardOverview,
   BoardPage,
   BoardRow,
+  BoardSync,
   ReviewStatus,
 } from "../types/quotations.types";
 
@@ -18,9 +18,12 @@ export function getBoardOverview(): Promise<BoardOverview> {
   return apiFetch<BoardOverview>(BASE);
 }
 
-/** Builds a main list from the warehouse, or refreshes it keeping new prices, reviews and notes. */
-export function buildBoardList(code: string): Promise<BoardList> {
-  return apiFetch<BoardList>(`${BASE}/lists/${encodeURIComponent(code)}/build`, { method: "POST" });
+/**
+ * Queues the sync of the 14 lists with the day's loads (a background job: list 1
+ * alone takes minutes). 409 when the worker is off or one is already running.
+ */
+export function syncBoard(): Promise<BoardSync> {
+  return apiFetch<BoardSync>(`${BASE}/sync`, { method: "POST" });
 }
 
 function filterQuery(filters: BoardFilters) {
