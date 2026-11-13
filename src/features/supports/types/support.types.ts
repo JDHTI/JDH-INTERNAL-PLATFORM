@@ -55,6 +55,20 @@ export interface SupportDerived {
   suggested_price_per: PerUnit | null;
   /** Which cost the figures use: the DWH's (quoter's rule) or the stored reference; null, none. */
   cost_basis?: "dwh" | "referencia" | null;
+  /*
+   * Missing on API builds older than the supported margin. The list price is
+   * the cost at the product's general margin (margin master).
+   */
+  /** The product's general margin, from the margin master. */
+  product_margin_pct?: Decimal | null;
+  /** The margin the supplier's money leaves at the list price. */
+  recomposed_list_margin?: Decimal | null;
+  supported_margin_pct?: Decimal | null;
+  /** Net cost at the supported margin: net cost / (1 - supported margin). */
+  supported_price?: Decimal | null;
+  supported_price_per?: PerUnit | null;
+  /** How far the supported price falls below the list price. */
+  customer_discount_pct?: Decimal | null;
 }
 
 /** Cost of the support's SKU in the DWH with the quoter's rule, from the daily job. */
@@ -117,6 +131,11 @@ export interface SupplierSupport {
   target_margin_pct: Decimal | null;
   min_margin_pct: Decimal | null;
   list_margin_pct: Decimal | null;
+  /**
+   * "Margen apoyado": how far the product's margin may drop on top of what the
+   * supplier's support leaves. Fraction. Missing on older API builds.
+   */
+  supported_margin_pct?: Decimal | null;
   reference_cost: Decimal | null;
   reference_list_price: Decimal | null;
   valid_from: string | null;
@@ -247,6 +266,7 @@ export interface SupportPatch {
   reference_cost?: Decimal | null;
   reference_list_price?: Decimal | null;
   target_margin_pct?: Decimal | null;
+  supported_margin_pct?: Decimal | null;
   program?: string | null;
   notes?: string | null;
   authorized_by?: string | null;

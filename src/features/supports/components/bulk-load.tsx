@@ -233,7 +233,7 @@ export default function BulkLoad({ area }: { area: string }) {
               <p className="text-[13px] text-text-secondary">
                 {supplier
                   ? "Con los encabezados de su perfil, sin las columnas de valor fijo. La completa trae todos los campos."
-                  : "La corta trae vigencia, cliente, SKU, tipo y valor del apoyo, márgenes, % Apoyo JDH y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo y los demás campos opcionales."}
+                  : "La corta trae cliente, SKU, tipo y valor del apoyo, margen apoyado, vigencia y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo, unidad del valor y los demás campos opcionales."}
               </p>
             )}
           </div>

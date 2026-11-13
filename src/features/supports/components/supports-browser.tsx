@@ -1,11 +1,10 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowUp, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
@@ -14,7 +13,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuCheckboxItem, MenuLabel } from "@/shared/components/ui/menu";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
-import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import {
@@ -27,24 +25,16 @@ import {
 } from "../hooks/use-supports";
 import { requestEligible, requestSelectionError, sameRequestScope } from "../lib/request-selection";
 import BatchRequestDialog from "./batch-request-dialog";
-import {
-  choiceLabel,
-  formatCop,
-  formatDay,
-  formatPct,
-  formatSupplierValue,
-  STATE_LABELS,
-  toOptions,
-} from "../lib/format";
+import { formatSupplierValue, STATE_LABELS, toOptions } from "../lib/format";
 import type {
   FilterCondition,
-  PerUnit,
   SupplierSupport,
   SupportSearchBody,
   SupportSearchFilters,
   SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
+import { COLUMNS, SortHeader, td, th, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
@@ -57,38 +47,8 @@ const ALL = "";
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 
-type PerUnitKey = "net_cost_per" | "supplier_amount_per";
-
-interface CellContext {
-  open: () => void;
-  methodLabel: (code: string | null | undefined) => string;
-}
-
-interface Column {
-  key: string;
-  label: string;
-  /** Field name in the API's catalog; the column only sorts if it lists it as sortable. */
-  sortField?: string;
-  align?: "right";
-  /** A column with nothing to show in the current page is left out. */
-  hasData?: (items: SupplierSupport[]) => boolean;
-  /** The person can hide it from the "Columnas" menu. */
-  hideable?: boolean;
-  cell: (support: SupplierSupport, context: CellContext) => React.ReactNode;
-}
-
-const dash = <span aria-label="sin dato">—</span>;
-const list = (values: string[]) => (values.length > 0 ? values.join(", ") : dash);
-
-/** A computed figure with a second one under it, as the API sends them. */
-function pairCell(main: string | null, sub: string | null) {
-  return (
-    <>
-      <span className="block tabular-nums">{main ?? dash}</span>
-      {sub && <span className="block text-xs tabular-nums text-text-secondary">{sub}</span>}
-    </>
-  );
-}
+/** The list opens on the newest supports. */
+const DEFAULT_SORT = ["-valid_from"];
 
 /*
  * Columns the person hid, kept in this browser. A per-viewer convenience: a
@@ -135,216 +95,6 @@ function writeHiddenColumns(keys: string[]) {
 }
 
 /**
- * The API converts to unit and box; the client never does. With no base
- * (`value_unit` null) there is nothing to convert, and the cell says so.
- */
-function perUnitCell(support: SupplierSupport, key: PerUnitKey, side: keyof PerUnit) {
-  const net = toNumber(support.derived?.net_cost_per?.[side]);
-  const aid = toNumber(support.derived?.supplier_amount_per?.[side]);
-  if (net === null && aid === null) {
-    return (
-      <>
-        {dash}
-        {support.value_unit === null && <span className="block text-xs text-text-secondary">sin base</span>}
-      </>
-    );
-  }
-  const main = key === "net_cost_per" ? net : aid;
-  const sub = key === "net_cost_per" ? aid : net;
-  return (
-    <>
-      <span className="block tabular-nums">{main === null ? dash : formatCop(main)}</span>
-      {sub !== null && (
-        <span className="block text-xs tabular-nums text-text-secondary">
-          {key === "net_cost_per" ? "Apoyo" : "Neto"} {formatCop(sub)}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** Cost per unit and per box, marked with where it comes from: the DWH (quoter's rule) or the stored reference. */
-function CostCell({ support }: { support: SupplierSupport }) {
-  const unit = toNumber(support.derived?.cost?.unit);
-  const box = toNumber(support.derived?.cost?.box);
-  const basis = support.derived?.cost_basis;
-  if (unit === null && box === null) return dash;
-  return (
-    <>
-      <span className="flex items-center justify-end gap-1.5">
-        {basis && (
-          <Badge tone={basis === "dwh" ? "info" : "neutral"} className="px-1.5 text-[11px] leading-4">
-            {basis === "dwh" ? "DWH" : "Referencia"}
-          </Badge>
-        )}
-        <span className="tabular-nums">{unit === null ? dash : formatCop(unit)}</span>
-      </span>
-      {box !== null && <span className="block text-xs tabular-nums text-text-secondary">Caja {formatCop(box)}</span>}
-    </>
-  );
-}
-
-const COLUMNS: Column[] = [
-  // SKU is what people search by, so it gets its own column ahead of the rest.
-  {
-    key: "sku",
-    label: "SKU",
-    sortField: "product_sku",
-    cell: (s) => <span className="whitespace-nowrap font-mono text-[13px]">{s.product_sku ?? "—"}</span>,
-  },
-  {
-    key: "brand",
-    label: "Marca",
-    sortField: "brand",
-    cell: (s) => s.product_brand ?? s.brand ?? dash,
-  },
-  {
-    key: "supplier",
-    label: "Proveedor",
-    sortField: "supplier.name",
-    cell: (s, { open }) => (
-      <>
-        <button
-          type="button"
-          onClick={open}
-          aria-label={`Ver detalle del apoyo de ${s.supplier_name ?? s.supplier_code ?? "proveedor"}`}
-          className={cn(
-            "block max-w-full truncate rounded-sm text-left font-medium hover:underline",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          )}
-        >
-          {s.supplier_name ?? "Sin proveedor"}
-        </button>
-        <span className="block truncate font-mono text-xs text-text-secondary">{s.supplier_code ?? "—"}</span>
-      </>
-    ),
-  },
-  {
-    key: "kind",
-    label: "Clase",
-    sortField: "kind",
-    hideable: true,
-    cell: (s) => (s.kind ? choiceLabel("kind", s.kind) : dash),
-  },
-  {
-    key: "customer",
-    label: "Cliente",
-    sortField: "customer_name",
-    cell: (s) => (
-      <>
-        <span className="block truncate">{s.customer_name ?? s.customer_group ?? "Todos"}</span>
-        <span className="block truncate font-mono text-xs text-text-secondary">{s.customer_nit ?? ""}</span>
-      </>
-    ),
-  },
-  {
-    key: "regional",
-    label: "Regional",
-    hideable: true,
-    hasData: (items) => items.some((s) => s.regionals.length > 0),
-    cell: (s) => list(s.regionals),
-  },
-  {
-    key: "business_unit",
-    label: "Unidad de negocio",
-    hideable: true,
-    hasData: (items) => items.some((s) => s.business_units.length > 0),
-    cell: (s) => list(s.business_units),
-  },
-  {
-    key: "value",
-    label: "Valor del apoyo",
-    sortField: "supplier_value",
-    align: "right",
-    cell: (s, { methodLabel }) => (
-      <>
-        <span className="block tabular-nums">{formatSupplierValue(s.calc_method, s.supplier_value)}</span>
-        <span className="block text-xs text-text-secondary">{methodLabel(s.calc_method)}</span>
-      </>
-    ),
-  },
-  {
-    key: "pct",
-    label: "% apoyo",
-    align: "right",
-    hideable: true,
-    cell: (s) =>
-      pairCell(
-        toNumber(s.derived?.pct_on_cost) === null ? null : `${formatPct(s.derived?.pct_on_cost)} costo`,
-        toNumber(s.derived?.pct_on_list) === null ? null : `${formatPct(s.derived?.pct_on_list)} lista`
-      ),
-  },
-  {
-    key: "jdh",
-    label: "Aporte JDH",
-    sortField: "jdh_pct",
-    align: "right",
-    hideable: true,
-    // JDH net cost is independent from the supplier value, including zero.
-    cell: (s) => <span className="tabular-nums">{s.calc_method === "costo_neto" ? formatCop(s.jdh_net_cost) : formatPct(s.jdh_pct)}</span>,
-  },
-  {
-    key: "cost",
-    label: "Costo",
-    align: "right",
-    hideable: true,
-    cell: (s) => <CostCell support={s} />,
-  },
-  { key: "net-unit", label: "Neto unitario", align: "right", hideable: true, cell: (s) => perUnitCell(s, "net_cost_per", "unit") },
-  { key: "net-box", label: "Neto caja", align: "right", hideable: true, cell: (s) => perUnitCell(s, "net_cost_per", "box") },
-  {
-    key: "price",
-    label: "Precio apoyado",
-    align: "right",
-    hideable: true,
-    cell: (s) => {
-      const unit = toNumber(s.derived?.suggested_price_per?.unit);
-      const box = toNumber(s.derived?.suggested_price_per?.box);
-      return pairCell(unit === null ? null : formatCop(unit), box === null ? null : `Caja ${formatCop(box)}`);
-    },
-  },
-  {
-    key: "margin",
-    label: "Margen real",
-    align: "right",
-    hideable: true,
-    cell: (s) => <span className="tabular-nums">{formatPct(s.derived?.margin_recomposed)}</span>,
-  },
-  {
-    key: "pack",
-    label: "Und/caja",
-    align: "right",
-    hideable: true,
-    cell: (s) => <span className="tabular-nums">{toNumber(s.pack_factor) ? numberFormat.format(Number(s.pack_factor)) : dash}</span>,
-  },
-  {
-    key: "state",
-    label: "Estado y vigencia",
-    sortField: "valid_from",
-    cell: (s) => (
-      <div className="whitespace-nowrap">
-        <StateBadge value={s.state} />
-        <span className="mt-0.5 block text-xs tabular-nums text-text-secondary">
-          {formatDay(s.valid_from)} a {s.valid_to ? formatDay(s.valid_to) : "indefinido"}
-        </span>
-      </div>
-    ),
-  },
-  {
-    key: "flags",
-    label: "Marcas",
-    cell: (s) => (
-      <span className="flex flex-wrap gap-1.5">
-        <AttachmentBadge support={s} />
-        <FlagBadges support={s} />
-      </span>
-    ),
-  },
-];
-
-const alignClass = (column: Column) => (column.align === "right" ? "text-right" : undefined);
-
-/**
  * Master of supplier supports. Filtering, sorting and paging all happen in
  * the API (the table holds tens of thousands of rows); this view builds the
  * query and shows what comes back. Managers can also enable, edit and void
@@ -387,7 +137,7 @@ export default function SupportsBrowser({
     conditions: [],
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [sort, setSort] = useState<string[]>(["-valid_from"]);
+  const [sort, setSort] = useState<string[]>(DEFAULT_SORT);
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -445,9 +195,7 @@ export default function SupportsBrowser({
   const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
   const toggleColumn = (key: string, shown: boolean) =>
     writeHiddenColumns(shown ? hiddenColumns.filter((hidden) => hidden !== key) : [...hiddenColumns, key]);
-  const columns = COLUMNS.filter(
-    (column) => !hiddenColumns.includes(column.key) && (!column.hasData || column.hasData(items))
-  );
+  const columns = COLUMNS.filter((column) => !hiddenColumns.includes(column.key));
 
   const filtered =
     q !== "" ||
@@ -509,18 +257,10 @@ export default function SupportsBrowser({
     setPage(1);
   };
 
-  const toggleSort = (field: string) => {
-    setSort((current) => {
-      const [head] = current;
-      if (head === field) return [`-${field}`];
-      if (head === `-${field}`) return [field];
-      return [field];
-    });
+  const changeSort = (field: string | null, direction: SortDirection = "asc") => {
+    setSort(field === null ? DEFAULT_SORT : [direction === "desc" ? `-${field}` : field]);
     setPage(1);
   };
-
-  const sortState = (field: string): "ascending" | "descending" | "none" =>
-    sort[0] === field ? "ascending" : sort[0] === `-${field}` ? "descending" : "none";
 
   const kindOptions = [{ value: ALL, label: "Todas las clases" }, ...toOptions(catalogs?.kinds)];
   const stateOptions = [
@@ -738,10 +478,11 @@ export default function SupportsBrowser({
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{support.supplier_name ?? "Sin proveedor"}</span>
-                      {support.product_sku && (
-                        <span className="block truncate font-mono text-xs">SKU {support.product_sku}</span>
-                      )}
+                      <span className="block truncate text-sm">
+                        <span className="font-semibold tabular-nums">{support.product_sku ?? "Todo el portafolio"}</span>
+                        {support.product_sku && support.product_description && ` · ${support.product_description}`}
+                      </span>
+                      <span className="block truncate text-xs">{support.supplier_name ?? "Sin proveedor"}</span>
                       <span className="block truncate text-xs text-text-secondary">{subject(support)}</span>
                     </span>
                     <span className="shrink-0 text-sm font-medium tabular-nums">
@@ -760,11 +501,19 @@ export default function SupportsBrowser({
           </ul>
 
           <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-            <table className="w-full min-w-max text-left text-sm">
+            <table className="w-full min-w-[64rem] table-fixed text-left text-sm">
+              <caption className="sr-only">Apoyos de proveedores</caption>
+              <colgroup>
+                {canSelect && <col style={{ width: 40 }} />}
+                {columns.map((column) => (
+                  <col key={column.key} style={column.width ? { width: column.width } : undefined} />
+                ))}
+                {canWrite && <col style={{ width: 52 }} />}
+              </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
                   {canSelect && (
-                    <th scope="col" className="w-10 px-3 py-2">
+                    <th scope="col" className={cn(th, "w-10")}>
                       <input
                         type="checkbox"
                         checked={pageSelected}
@@ -775,36 +524,11 @@ export default function SupportsBrowser({
                       />
                     </th>
                   )}
-                  {columns.map((column) => {
-                    const sortField = column.sortField && sortable.has(column.sortField) ? column.sortField : null;
-                    return (
-                      <th
-                        key={column.key}
-                        scope="col"
-                        aria-sort={sortField ? sortState(sortField) : undefined}
-                        className={cn("px-3 py-2", alignClass(column))}
-                      >
-                        {sortField ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(sortField)}
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-sm uppercase tracking-[0.06em] hover:text-text-primary",
-                              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                            )}
-                          >
-                            {column.label}
-                            {sortState(sortField) === "ascending" && <ArrowUp className="size-3.5" aria-hidden="true" />}
-                            {sortState(sortField) === "descending" && <ArrowDown className="size-3.5" aria-hidden="true" />}
-                          </button>
-                        ) : (
-                          column.label
-                        )}
-                      </th>
-                    );
-                  })}
+                  {columns.map((column) => (
+                    <SortHeader key={column.key} column={column} sortable={sortable} sort={sort} onSort={changeSort} />
+                  ))}
                   {canWrite && (
-                    <th scope="col" className="w-12 px-3 py-2">
+                    <th scope="col" className={th}>
                       <span className="sr-only">Acciones</span>
                     </th>
                   )}
@@ -815,7 +539,7 @@ export default function SupportsBrowser({
                   // A disabled support stays in the list, muted: it is reversible, not gone.
                   <tr key={support.id} className={cn("hover:bg-primary-subtle", support.state === "inactivo" && "opacity-60")}>
                     {canSelect && (
-                      <td className="px-3 py-2">
+                      <td className={td}>
                         <input
                           type="checkbox"
                           checked={selectionIds.includes(support.id)}
@@ -828,11 +552,11 @@ export default function SupportsBrowser({
                       </td>
                     )}
                     {columns.map((column) => (
-                      <td key={column.key} className={cn("max-w-56 px-3 py-2", alignClass(column))}>
+                      <td key={column.key} className={cn(td, column.align === "right" && "text-right")}>
                         {column.cell(support, { open: () => setOpenId(support.id), methodLabel })}
                       </td>
                     ))}
-                    {canWrite && <td className="px-3 py-1 text-right">{actions(support)}</td>}
+                    {canWrite && <td className={cn(td, "py-1.5 pl-0 text-right")}>{actions(support)}</td>}
                   </tr>
                 ))}
               </tbody>
