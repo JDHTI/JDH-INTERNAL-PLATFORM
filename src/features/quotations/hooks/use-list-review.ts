@@ -5,12 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  cancelLiquorUpdate,
   createLiquorUpdate,
   getLiquorOverview,
   listLiquorUpdates,
   markLiquorUploaded,
-  returnLiquorUpdate,
-  validateLiquorUpdate,
 } from "../services/liquor.service";
 import {
   createLoad,
@@ -129,25 +128,20 @@ function useStoreLiquor() {
 export function useCreateLiquorUpdate() {
   const store = useStoreLiquor();
   return useMutation({
-    mutationFn: ({ changes, note }: { changes: LiquorChangeInput[]; note: string }) => createLiquorUpdate(changes, note),
+    mutationFn: ({ changes, note, activationDate }: { changes: LiquorChangeInput[]; note: string; activationDate: string }) =>
+      createLiquorUpdate(changes, note, activationDate),
     onSuccess: store,
   });
 }
 
+/** Cancel a change not loaded, or mark it loaded (the margin master takes the values). */
 export function useLiquorReview() {
   const store = useStoreLiquor();
   return useMutation({
-    mutationFn: (
-      action:
-        | { kind: "validate"; item: LiquorUpdate; activationDate: string }
-        | { kind: "return"; item: LiquorUpdate; note: string }
-        | { kind: "uploaded"; item: LiquorUpdate }
-    ) =>
-      action.kind === "validate"
-        ? validateLiquorUpdate(action.item.id, action.item.version, action.activationDate)
-        : action.kind === "return"
-          ? returnLiquorUpdate(action.item.id, action.item.version, action.note)
-          : markLiquorUploaded(action.item.id, action.item.version),
+    mutationFn: (action: { kind: "cancel"; item: LiquorUpdate; note: string } | { kind: "uploaded"; item: LiquorUpdate }) =>
+      action.kind === "cancel"
+        ? cancelLiquorUpdate(action.item.id, action.item.version, action.note)
+        : markLiquorUploaded(action.item.id, action.item.version),
     onSuccess: store,
   });
 }

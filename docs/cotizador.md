@@ -70,7 +70,9 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   las 14 listas con su estado y el botón para armar o refrescar cada una desde SIESA. Tiene además
   **Impuesto licor** (`liquor-taxes-view.tsx`): los
   licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
-  llave y los cambios masivos con su validación y sus dos hojas de SIESA. El contrato está en
+  llave y los cambios masivos. Un cambio **no pasa por validación**: lo hacen los colaboradores con
+  `impuesto-licor`, eligen la fecha de activación y el Excel y el plano (las dos hojas de SIESA)
+  quedan listos al guardar; después se marca cargado o se anula. El contrato está en
   `docs/listas-principales.md` del repo del API.
 
 ## Interfaz

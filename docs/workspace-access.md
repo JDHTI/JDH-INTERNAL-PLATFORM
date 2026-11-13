@@ -59,7 +59,7 @@ las que creó (`docs/cotizador.md`).
 | PQRSF | `pqrsf` |
 | Cotizador | `cotizador` |
 | Actualización de listas | `actualizacion-listas` |
-| Listas principales (bloqueado a BI) | `listas-principales`; validar ítems y el impuesto licor pide además `validacion-listas` (sin pantalla) |
+| Listas principales (bloqueado a BI) | `listas-principales`; validar ítems pide además `validacion-listas`, y cambiar el impuesto licor y generar su plano, `impuesto-licor` (los dos sin pantalla) |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
@@ -77,7 +77,7 @@ Los permisos salen de `GET /quotations/permissions?kind=lista` y el listado de `
 editor manda el `kind` de la cotización abierta. **Listas principales** hace lo mismo con
 `kind="principal"`.
 
-**Módulo bloqueado.** `listas-principales` y `validacion-listas` tienen `locked` en el catálogo del API:
+**Módulo bloqueado.** `listas-principales`, `validacion-listas` e `impuesto-licor` tienen `locked` en el catálogo del API:
 solo viven en BI. En `/ti/administracion/modulos` las demás áreas muestran «Bloqueado» en lugar del
 interruptor, y el API rechaza encenderlo. Un comercial con `actualizacion-listas` nunca los recibe.
 

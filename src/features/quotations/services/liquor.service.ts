@@ -14,19 +14,21 @@ export function listLiquorUpdates(): Promise<LiquorUpdate[]> {
   return apiFetch<LiquorUpdate[]>(`${BASE}/updates`);
 }
 
-/** New national and Coast values; the change waits for validation. */
-export function createLiquorUpdate(changes: LiquorChangeInput[], note: string): Promise<LiquorUpdate> {
-  return apiFetch<LiquorUpdate>(`${BASE}/updates`, { method: "POST", body: { changes, note: note.trim() || null } });
+/**
+ * New national and Coast values, with no validation: the prices of every active
+ * list are fixed now and the SIESA files download at once. Only the
+ * collaborators who manage the liquor tax.
+ */
+export function createLiquorUpdate(changes: LiquorChangeInput[], note: string, activationDate: string): Promise<LiquorUpdate> {
+  return apiFetch<LiquorUpdate>(`${BASE}/updates`, {
+    method: "POST",
+    body: { changes, note: note.trim() || null, activation_date: activationDate },
+  });
 }
 
-/** Reads the prices it writes from every active list and fixes them. Only who validates. */
-export function validateLiquorUpdate(id: string, version: number, activationDate: string): Promise<LiquorUpdate> {
-  return apiFetch<LiquorUpdate>(`${one(id)}/validate`, { method: "POST", body: { version, activation_date: activationDate } });
-}
-
-/** Turned down by who validates (with a reason), or withdrawn by its author. */
-export function returnLiquorUpdate(id: string, version: number, note: string): Promise<LiquorUpdate> {
-  return apiFetch<LiquorUpdate>(`${one(id)}/return`, { method: "POST", body: { version, note: note.trim() || null } });
+/** Cancels a change not loaded in SIESA: its files must not be loaded. */
+export function cancelLiquorUpdate(id: string, version: number, note: string): Promise<LiquorUpdate> {
+  return apiFetch<LiquorUpdate>(`${one(id)}/cancel`, { method: "POST", body: { version, note: note.trim() || null } });
 }
 
 /** Loaded in SIESA: the margin master takes the new values. */
