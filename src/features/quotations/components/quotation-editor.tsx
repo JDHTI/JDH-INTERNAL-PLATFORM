@@ -175,7 +175,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [creatingLocal, setCreatingLocal] = useState(false);
   const [askingSupport, setAskingSupport] = useState(false);
   // A customer quotation only: an internal support is for one customer, never a list.
-  const canAskSupportHere = !isList && permissions?.can_request_support === true;
+  // A temporary customer has no NIT in SIESA to register the support on.
+  const canAskSupportHere = !isList && !quotation.is_temporary_customer && permissions?.can_request_support === true;
   const supportCandidates = useMemo(
     () => (canAskSupportHere ? quotation.lines.filter(canAskSupport).length : 0),
     [canAskSupportHere, quotation.lines]

@@ -16,7 +16,7 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useDecideInternalRequest, useInternalRequest, useInternalRequests } from "../hooks/use-internal-requests";
-import { internalStatusLabel, internalStatusTone, marginPointsText, todayInBogota } from "../lib/internal-requests";
+import { internalStatusLabel, internalStatusTone, marginPointsText } from "../lib/internal-requests";
 import type { InternalSupportRequest } from "../types/internal-request.types";
 import type { RequestStatus } from "../types/request.types";
 import DiscardDialog from "./discard-dialog";
@@ -87,7 +87,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[600px] text-sm">
               <caption className="sr-only">Solicitudes de apoyo interno</caption>
               <thead className="bg-canvas-subtle">
                 <tr>
@@ -243,7 +243,8 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
     Object.fromEntries(request.items.map((item) => [item.sku, marginPointsText(item.requested_margin_pct)]))
   );
   const [included, setIncluded] = useState<Set<string>>(() => new Set(request.items.map((item) => item.sku)));
-  const [validFrom, setValidFrom] = useState(todayInBogota());
+  // A support registered from a request starts, by default, on the order's day.
+  const [validFrom, setValidFrom] = useState(request.requested_for);
   const [validTo, setValidTo] = useState("");
   const [note, setNote] = useState("");
   const [conflict, setConflict] = useState(false);

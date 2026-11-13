@@ -29,11 +29,13 @@ export const quotedMargin = (line: QuotationLine) => line.new_margin_with_suppor
  */
 export function canAskSupport(line: QuotationLine): boolean {
   if (line.origin === "local" || !line.is_active || !line.supplier_code) return false;
-  if (line.support_request && line.support_request.status !== "rechazada") return false;
-  const margin = Number(quotedMargin(line));
-  const minimum = Number(line.min_margin_pct);
-  if (line.compliance === "bajo_minimo" || line.below_target) return true;
-  return quotedMargin(line) !== null && line.min_margin_pct !== null && margin < minimum;
+  const asked = line.support_request;
+  // Pending, or approved for this reference; one BI left out of an approved request can be asked again.
+  if (asked && (asked.status === "pendiente" || (asked.status === "aprobada" && asked.approved_margin_pct !== null))) return false;
+  // With a new price, the rule's verdict on it; without one, whether the last price stays under the minimum.
+  if (line.new_price !== null) return line.compliance === "bajo_minimo";
+  const margin = quotedMargin(line);
+  return line.below_target || (margin !== null && line.min_margin_pct !== null && Number(margin) < Number(line.min_margin_pct));
 }
 
 /**

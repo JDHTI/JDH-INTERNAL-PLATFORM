@@ -449,7 +449,11 @@ function Detail({
 
       {!forList && line.support_request && (
         <Section title="Apoyo interno solicitado">
-          <Row label="Estado">{internalStatusLabel(line.support_request)}</Row>
+          <Row label="Estado">
+            {line.support_request.status === "aprobada" && line.support_request.approved_margin_pct === null
+              ? "No aprobada: BI la dejó fuera de la solicitud"
+              : internalStatusLabel(line.support_request)}
+          </Row>
           {line.support_request.approved_margin_pct !== null && (
             <Row label="Margen aprobado">{formatMargin(line.support_request.approved_margin_pct)}</Row>
           )}
