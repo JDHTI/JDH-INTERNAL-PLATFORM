@@ -70,12 +70,23 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   los filtros en una sola fila (buscador, desplegable con buscador para una o varias listas,
   proveedores, categorías, orden y «Borrar filtros» como icono), los mismos chips y acciones sobre
   filas seleccionadas de cualquier lista (óptimo, mínimo, limpiar precio); el estado va en el chip
-  de cada fila. Arriba, las 14 listas con código, nombre y cuántas referencias tiene cada una (la
-  lectura de SIESA, los conteos por estado y los avisos van en el tooltip) y un solo botón:
-  «Armar lista general» la primera vez y luego «Sincronizar con la carga del día»
-  (`POST /price-list-updates/main/sync`). La sincronización es una tarea en segundo plano
-  (`main-lists-sync`): corre sola tras la carga de abastecimiento del DWH y el tablero consulta su
-  estado cada 5 s mientras corre; si una lista falla, se dice cuál. Tiene además
+  de cada fila. El orden incluye «existencia, mayor primero» (la existencia la guarda la
+  sincronización). La vista no lleva descripción bajo el título.
+  - **Todo es inmediato:** un precio nuevo se ve en la fila al salir del campo o con Enter, y la
+    fila pasa a «Por validar» en ese momento; el campo no se bloquea mientras guarda. El estado del
+    chip también cambia al instante. Las cachés de la página se cambian antes de la respuesta
+    (`useOptimisticRows` en `use-board.ts`), toman las filas que devuelve la API (márgenes,
+    variación, quién revisó) y vuelven atrás, con el motivo, si la API no las guarda. Los conteos
+    se releen en segundo plano cuando ya no queda ninguna edición pendiente.
+  - **Arriba**, las 14 listas con código, nombre y cuántas referencias tiene cada una (la lectura
+    de SIESA, los conteos por estado y los avisos van en el tooltip de cada tarjeta). La última
+    sincronización va en el icono de información junto a «Listas». Un solo botón: «Armar lista
+    general» la primera vez y luego «Sincronizar con la carga del día»
+    (`POST /price-list-updates/main/sync`). La sincronización es una tarea en segundo plano
+    (`main-lists-sync`): corre sola tras la carga de abastecimiento del DWH y el tablero consulta su
+    estado cada 5 s mientras corre; si una lista falla, se dice cuál.
+
+  Tiene además
   **Impuesto licor** (`liquor-taxes-view.tsx`): los
   licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
   llave y los cambios masivos. Un cambio **no pasa por validación**: lo hacen los colaboradores con

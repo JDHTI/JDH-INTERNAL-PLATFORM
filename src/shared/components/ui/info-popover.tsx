@@ -15,12 +15,15 @@ export function InfoPopover({
   title,
   children,
   className,
+  iconOnly = false,
 }: {
   /** Visible text of the trigger, also its accessible name. */
   label: string;
   title?: string;
   children: React.ReactNode;
   className?: string;
+  /** Only the icon shows, beside a heading; `label` stays its accessible name. */
+  iconOnly?: boolean;
 }) {
   return (
     <Popover.Root>
@@ -28,14 +31,14 @@ export function InfoPopover({
         openOnHover
         delay={150}
         className={cn(
-          "inline-flex items-center gap-1 rounded-sm text-[13px] text-text-secondary underline decoration-dotted underline-offset-4",
+          "inline-flex items-center gap-1 rounded-sm text-[13px] text-text-secondary",
           "hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-          "max-md:min-h-11",
+          iconOnly ? "size-6 justify-center max-md:size-11" : "underline decoration-dotted underline-offset-4 max-md:min-h-11",
           className
         )}
       >
-        <Info className="size-3.5 shrink-0" aria-hidden="true" />
-        {label}
+        <Info className={iconOnly ? "size-4 shrink-0" : "size-3.5 shrink-0"} aria-hidden="true" />
+        {iconOnly ? <span className="sr-only">{label}</span> : label}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">

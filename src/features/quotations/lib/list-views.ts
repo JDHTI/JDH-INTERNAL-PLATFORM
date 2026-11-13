@@ -13,9 +13,10 @@ export function listModuleViews(kind: ListKind, basePath: string): PageView[] {
       key: "actualizaciones",
       label: kind === "principal" ? "Listas" : "Actualizaciones",
       href: basePath,
+      // The main lists' board goes without a line: the table says what it is.
       description:
         kind === "principal"
-          ? "Las 14 listas generales, mayoristas y de Market en una sola tabla, contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Filtra por lista cuando lo necesites; cada ítem se marca y se valida por separado."
+          ? undefined
           : "Una lista de precios vigente de SIESA contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Cada ítem se marca y se valida por separado.",
     },
     {
