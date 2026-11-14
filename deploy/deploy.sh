@@ -6,7 +6,7 @@
 # Runs from any checkout of the repo (the runner's workspace or a manual
 # copy): the compose project name is fixed, so the container is the same.
 # Optional overrides go in ~/apps/platform/ui.env (PUBLIC_HOST, EDGE_NETWORK,
-# EDGE_HTTP). See docs/deploy.md.
+# EDGE_HTTP, MAP_ASSETS_DIR). See docs/deploy.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -21,6 +21,15 @@ export EDGE_NETWORK=${EDGE_NETWORK:-intranet-jdh_default}
 # HTTP to this server's Caddy: the check takes that same hop.
 EDGE_HTTP=${EDGE_HTTP:-http://127.0.0.1}
 export GIT_SHA=${GIT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}
+
+# The basemap lives outside the image (docs/mapa-comercial.md). The folder is
+# created here so Docker does not create it as root; an empty one only leaves
+# the commercial map without streets, with a notice on screen.
+export MAP_ASSETS_DIR=${MAP_ASSETS_DIR:-$HOME/apps/platform/mapas}
+mkdir -p "$MAP_ASSETS_DIR"
+if [[ ! -f $MAP_ASSETS_DIR/colombia.pmtiles ]]; then
+  echo "! No basemap in $MAP_ASSETS_DIR: the commercial map will show no streets (docs/mapa-comercial.md)" >&2
+fi
 
 COMPOSE=(docker compose -f deploy/compose.prod.yaml)
 

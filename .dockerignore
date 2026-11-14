@@ -13,6 +13,9 @@ npm-debug.log*
 .env*
 !.env.example
 
+# The basemap (about 600 MB) is served by the edge Caddy, not baked into the image.
+public/mapas
+
 Dockerfile
 .dockerignore
 compose*.yaml

@@ -144,7 +144,8 @@ export function Dropdown({
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-control",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
           size === "sm" ? "h-8 px-2 text-xs" : "h-9 px-2.5 text-sm",
-          clearable && value && "pr-16"
+          // Room for the clear button, which sits at the right edge, after the chevron.
+          clearable && value && "pr-9"
         )}
       >
         <span className={cn("min-w-0 truncate", !selectedOption && "text-text-secondary")}>
@@ -161,7 +162,7 @@ export function Dropdown({
           type="button"
           aria-label={clearLabel}
           onClick={clearSelection}
-          className="absolute right-8 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
+          className="absolute right-1.5 top-1/2 z-10 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-text-secondary hover:bg-canvas-subtle hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring-control"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

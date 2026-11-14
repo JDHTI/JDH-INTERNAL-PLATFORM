@@ -61,6 +61,9 @@ export const APPS_SEGMENT = "aplicativos";
  */
 export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
 
+/** Prospects on the map, commercial zones and visit routes (features/commercial-map). */
+export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
+
 /** Where the typed commercial masters (margins, product edits) live, besides the generic ones. */
 export const COMMERCIAL_MASTERS_AREA_SLUG = "bi";
 
@@ -425,6 +428,14 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: ClipboardList,
     available: true,
     permission: "solicitudes-apoyos",
+  },
+  {
+    key: COMMERCIAL_MAP_SEGMENT,
+    name: "Mapa comercial",
+    category: "Operación",
+    icon: MapPin,
+    available: true,
+    permission: "mapa-comercial",
   },
   {
     key: "pqrsf",

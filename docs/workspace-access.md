@@ -64,6 +64,7 @@ las que creó (`docs/cotizador.md`).
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
 | Casos especiales | `casos-especiales` |
+| Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |
 | Maestros (`/{área}/maestros`) | `maestros` |
 
 Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), se agrega su plantilla
