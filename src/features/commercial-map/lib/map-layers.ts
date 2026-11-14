@@ -10,6 +10,8 @@ import { basemapLayers, MAP_FONT } from "./map-style";
 import { PALETTE_KEYS, type MapPalette } from "./map-tokens";
 
 export const SOURCE = {
+  reference: "reference-zones",
+  referenceLabels: "reference-labels",
   zones: "zones",
   zoneLabels: "zone-labels",
   routeLine: "route-line",
@@ -21,6 +23,10 @@ export const SOURCE = {
 } as const;
 
 export const LAYER = {
+  referenceFill: "reference-fill",
+  referenceLine: "reference-line",
+  referenceSelected: "reference-selected",
+  referenceLabels: "reference-labels",
   zonesFill: "zones-fill",
   zonesLine: "zones-line",
   zonesSelected: "zones-selected",
@@ -109,6 +115,41 @@ export function dataLayers(palette: MapPalette): LayerSpecification[] {
   const isApproximate: ExpressionSpecification = ["==", ["get", "location_quality"], "approximate"];
 
   return [
+    {
+      // The outlines of the official layer (communes, municipalities). The fill
+      // paints nothing: it is what a click inside a perimeter lands on.
+      id: LAYER.referenceFill,
+      type: "fill",
+      source: SOURCE.reference,
+      paint: { "fill-color": labelStrong, "fill-opacity": 0 },
+    },
+    {
+      id: LAYER.referenceLine,
+      type: "line",
+      source: SOURCE.reference,
+      layout: { "line-join": "round" },
+      paint: { "line-color": label, "line-width": 1.25 },
+    },
+    {
+      id: LAYER.referenceSelected,
+      type: "line",
+      source: SOURCE.reference,
+      filter: ["==", ["get", "id"], ""],
+      layout: { "line-join": "round" },
+      paint: { "line-color": labelStrong, "line-width": 3 },
+    },
+    {
+      id: LAYER.referenceLabels,
+      type: "symbol",
+      source: SOURCE.referenceLabels,
+      layout: {
+        "text-field": ["format", ["get", "name"], {}, "\n", {}, ["get", "count"], { "font-scale": 0.9 }],
+        "text-font": [MAP_FONT.medium],
+        "text-size": 12,
+        "text-max-width": 9,
+      },
+      paint: { "text-color": labelStrong, "text-halo-color": halo, "text-halo-width": 1.5 },
+    },
     {
       id: LAYER.zonesFill,
       type: "fill",

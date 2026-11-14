@@ -121,6 +121,54 @@ export function useZoneLayer(
   }, [map, selectedId]);
 }
 
+/** «Comuna 14 - El Poblado» reads as «El Poblado» on the map; the full name stays in the panel. */
+export function shortZoneName(name: string): string {
+  const cut = name.indexOf(" - ");
+  return cut === -1 ? name : name.slice(cut + 3);
+}
+
+/**
+ * Draws the perimeters of the official layer (communes or municipalities),
+ * each with its name and how many prospects fall inside, and thickens the one
+ * that is filtering the map. They are a reference: they assign nothing.
+ */
+export function useReferenceLayer(
+  map: MapLibreMap | null,
+  zones: ZoneCollection | undefined,
+  selectedId: string | null
+): void {
+  useEffect(() => {
+    if (!map) return;
+    const features = zones?.features ?? [];
+    setSourceData(map, SOURCE.reference, { type: "FeatureCollection", features });
+    const labels: FeatureCollection<Point> = {
+      type: "FeatureCollection",
+      features: features.map((zone) => ({
+        type: "Feature",
+        properties: {
+          name: shortZoneName(zone.properties.name),
+          count: zone.properties.prospect_count === 1 ? "1 prospecto" : `${zone.properties.prospect_count} prospectos`,
+        },
+        geometry: { type: "Point", coordinates: ringCentre(mainRing(zone.geometry)) },
+      })),
+    };
+    setSourceData(map, SOURCE.referenceLabels, labels);
+  }, [map, zones]);
+
+  useEffect(() => {
+    if (!map || !map.getLayer(LAYER.referenceSelected)) return;
+    map.setFilter(LAYER.referenceSelected, ["==", ["get", "id"], selectedId ?? ""]);
+  }, [map, selectedId]);
+
+  useEffect(() => {
+    if (!map) return;
+    return () => {
+      setSourceData(map, SOURCE.reference, EMPTY);
+      setSourceData(map, SOURCE.referenceLabels, EMPTY);
+    };
+  }, [map]);
+}
+
 interface ProspectClickHandlers {
   /** One prospect, on the map or on a leaf of the fan. */
   onPick: (feature: PreparedFeature) => void;

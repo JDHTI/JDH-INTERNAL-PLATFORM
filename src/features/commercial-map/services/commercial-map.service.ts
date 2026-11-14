@@ -23,6 +23,7 @@ import type {
   ZoneFeature,
   ZoneInput,
   ZoneLayer,
+  ZoneLevel,
 } from "../types/commercial-map.types";
 
 const BASE = "/territory";
@@ -88,8 +89,9 @@ export function listProspectLoads(): Promise<ProspectLoad[]> {
   return apiFetch<ProspectLoad[]>(`${BASE}/prospects/loads`);
 }
 
-export function listZones(layer: ZoneLayer): Promise<ZoneCollection> {
-  return apiFetch<ZoneCollection>(`${BASE}/zones`, { query: { layer } });
+/** `level` narrows the official layer to communes or municipalities; without it, every level. */
+export function listZones(layer: ZoneLayer, level?: ZoneLevel): Promise<ZoneCollection> {
+  return apiFetch<ZoneCollection>(`${BASE}/zones`, { query: { layer, level } });
 }
 
 /** The full geometry, for editing; the list comes simplified. */

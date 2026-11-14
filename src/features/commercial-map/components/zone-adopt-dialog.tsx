@@ -21,18 +21,21 @@ export default function ZoneAdoptDialog({
   open,
   onOpenChange,
   onCreated,
+  preset,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (zone: ZoneFeature) => void;
+  /** Opens with these official zones chosen and this name proposed, as when it starts from a perimeter on the map. */
+  preset?: { ids: string[]; name: string };
 }) {
   const official = useZones("official", open);
   const adopt = useAdoptZones();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(preset?.name ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
   const [color, setColor] = useState<PaletteKey>("blue");
   const [search, setSearch] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(preset?.ids ?? []);
 
   const zones = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("es");
@@ -43,10 +46,10 @@ export default function ZoneAdoptDialog({
 
   const close = (next: boolean) => {
     if (!next) {
-      setName("");
+      setName(preset?.name ?? "");
       setNameError(null);
       setSearch("");
-      setPicked([]);
+      setPicked(preset?.ids ?? []);
       adopt.reset();
     }
     onOpenChange(next);

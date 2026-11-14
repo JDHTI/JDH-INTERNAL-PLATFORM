@@ -38,6 +38,7 @@ import type {
   ZoneAdoptInput,
   ZoneInput,
   ZoneLayer,
+  ZoneLevel,
 } from "../types/commercial-map.types";
 
 export const territoryKeys = {
@@ -50,7 +51,7 @@ export const territoryKeys = {
   detail: (id: string) => [...territoryKeys.prospects(), "detail", id] as const,
   loads: () => [...territoryKeys.prospects(), "loads"] as const,
   zones: () => [...territoryKeys.all, "zones"] as const,
-  zoneList: (layer: ZoneLayer) => [...territoryKeys.zones(), "list", layer] as const,
+  zoneList: (layer: ZoneLayer, level?: ZoneLevel) => [...territoryKeys.zones(), "list", layer, level ?? "all"] as const,
   zone: (id: string) => [...territoryKeys.zones(), "detail", id] as const,
   routes: () => [...territoryKeys.all, "routes"] as const,
   routeList: (params: { page: number; size: number; mine: boolean }) =>
@@ -152,10 +153,10 @@ export function useProspectLoads(enabled: boolean) {
   });
 }
 
-export function useZones(layer: ZoneLayer, enabled = true) {
+export function useZones(layer: ZoneLayer, enabled = true, level?: ZoneLevel) {
   return useQuery({
-    queryKey: territoryKeys.zoneList(layer),
-    queryFn: () => listZones(layer),
+    queryKey: territoryKeys.zoneList(layer, level),
+    queryFn: () => listZones(layer, level),
     staleTime: STALE,
     retry: retryTransient,
     enabled,

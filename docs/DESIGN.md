@@ -1027,6 +1027,8 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 | Chip «N en este punto» | Igual | Varios prospectos sobre la misma coordenada; clic los abre en abanico |
 | Anillo grueso | `--map-label-strong`, 2,5 px | El prospecto seleccionado |
 | Polígono teñido | Color de la zona al 14% (claro) o 24% (oscuro), borde sólido, nombre | Zona comercial |
+| Contorno sin relleno | Línea `--map-label` de 1,25 px, nombre y conteo en `--map-label-strong` | Comuna o municipio, de referencia |
+| Contorno grueso | `--map-label-strong`, 3 px | El contorno que está filtrando el mapa |
 | Línea continua | `--map-label-strong`, 3,5 px | Ruta trazada por calles |
 | Línea punteada | `--map-label-strong`, 2 px | Ruta en línea recta o sin calcular |
 | Círculo numerado | Vacío: parada pendiente. Relleno: visitada | Parada de una ruta |
@@ -1035,6 +1037,9 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
   alfabético de categorías para que no cambie entre cargas. Con más de nueve categorías o
   zonas los colores se repiten: la identidad va en el nombre.
 - **Ex-cliente y ubicación aproximada son formas**, no colores: se leen en escala de grises.
+- **Un contorno de referencia no lleva color ni relleno.** El color es de las zonas comerciales,
+  que son las que segmentan; una comuna solo marca dónde se está. Se enciende un nivel a la vez
+  (comunas o municipios) y viene apagado, para no cargar el mapa de líneas.
 - **Toda marca lleva contorno `--map-label`** (4.84:1 en claro, 7.60:1 en oscuro). Dos tonos
   de la paleta no llegan a 3:1 contra la tierra por sí solos (§3.5).
 - **La leyenda va debajo del mapa**, con las mismas marcas, no encima tapándolo.

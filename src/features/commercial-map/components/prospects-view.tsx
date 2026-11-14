@@ -32,6 +32,7 @@ import ProspectCard from "./prospect-card";
 import ProspectFilterPanel, { hasActiveFilters } from "./prospect-filters";
 import ProspectList from "./prospect-list";
 import { ProspectMark } from "./prospect-marks";
+import ReferenceZones from "./reference-zones";
 import RelocationBar, { type Relocation } from "./relocation-bar";
 
 const PAGE_SIZE = 50;
@@ -248,6 +249,14 @@ export default function ProspectsView({
         zones={zones.data}
         colors={colors}
         onClear={clearFilters}
+      />
+
+      <ReferenceZones
+        map={map}
+        canManage={canManage}
+        zoneId={filters.zone_id}
+        onZoneChange={(zoneId) => changeFilters({ zone_id: zoneId })}
+        enabled={relocation === null}
       />
 
       {mapData.isError ? (

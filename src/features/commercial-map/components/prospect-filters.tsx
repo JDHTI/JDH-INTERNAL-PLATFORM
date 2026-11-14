@@ -94,7 +94,8 @@ export default function ProspectFilterPanel({
           <Dropdown
             aria-label="Zona comercial"
             options={zoneOptions}
-            value={filters.zone_id ?? ""}
+            // `zone_id` may also hold an official zone picked on the map: that one is not in this list.
+            value={zoneOptions.some((zone) => zone.value === filters.zone_id) ? (filters.zone_id as string) : ""}
             onValueChange={(value) => onChange({ zone_id: value || undefined })}
             placeholder="Todas las zonas comerciales"
             clearable
