@@ -131,6 +131,7 @@ Los componentes **solo** consumen estos tokens. Un hex dentro de un componente e
 | `--*-badge` | El mismo tinte, opaco: fondo de badges (§7.5) |
 | `--file-*` | Íconos de formato del gestor documental, y nada más (§3.7) |
 | `--project-*` | Color que el equipo da a carpetas y proyectos, con la receta de §7.7 (§3.8) |
+| `--map-*` | Base del mapa: tierra, agua, vías, rótulos y chip. Solo los consume el mapa (§15) |
 
 ### 3.4 Mapeo por tema
 
@@ -342,6 +343,25 @@ Peores casos medidos: en claro, el tinte más oscuro; en oscuro, el más luminos
 | Claro | verde al 14% sobre #ffffff | #1d1d1b / #e5eee9 | **14.26** ✅ |
 | Oscuro | amarillo al 24% sobre `--surface` | #ffffff / #4d412d | **9.95** ✅ |
 | Oscuro | rojo al 24% sobre `--surface` | #ffffff / #52312f | **11.42** ✅ |
+
+**Mapa (§15)**
+
+Los tokens `--map-*` son opacos, así que estos pares son los que se ven. El rótulo es
+`--text-secondary` aplanado sobre la tierra con `color-mix`, por eso difiere en un punto del
+#696968 de la primera tabla.
+
+| Par | Claro | Oscuro |
+|---|---|---|
+| Rótulo `--map-label` sobre la tierra `--map-land` | #6a6a68 / #f2f2f2 · **4.84** ✅ | #aeaead / #1d1d1b · **7.60** ✅ |
+| Rótulo sobre agua: `--map-label-strong` sobre `--map-water` | #1d1d1b / #c8c8c4 · **10.06** ✅ | #ffffff / #151513 · **18.28** ✅ |
+| Texto del chip: `--map-label-strong` sobre `--map-chip` | #1d1d1b / #ffffff · **16.88** ✅ | #ffffff / #2f2f2d · **13.42** ✅ |
+| Borde del chip y del cluster: `--map-label` sobre `--map-chip` (3:1) | #6a6a68 / #ffffff · **5.42** ✅ | #aeaead / #2f2f2d · **6.04** ✅ |
+| Contorno de la marca: `--map-label` sobre la tierra (3:1) | **4.84** ✅ | **7.60** ✅ |
+| Nombre de zona sobre su tinte (peor caso de la paleta) | #1d1d1b / rosado al 14% #ebdbe3 · **12.68** ✅ | #ffffff / amarillo al 24% #473b26 · **10.93** ✅ |
+| Relleno de categoría solo, sin contorno, sobre la tierra | amarillo #cb912f · **2.46** ❌, naranja **2.93** ❌ | el más bajo, morado · **4.30** ✅ |
+
+La última fila es la razón del contorno: en claro, dos tonos de la paleta no llegan a 3:1 contra
+la tierra, así que ninguna marca se apoya en su relleno para distinguirse del fondo.
 
 ### 3.6 Reglas de color
 
@@ -957,3 +977,79 @@ const buttonVariants = cva(
 4. Si un componente necesita un token que no existe, se discute el token — no se parchea el componente.
 5. Este documento describe lo que **está construido**. Lo que aún no existe va a §13, no al
    cuerpo del documento redactado como si ya funcionara.
+
+---
+
+## 15. Mapas
+
+El mapa comercial (`src/features/commercial-map`) es la única pantalla donde el contenido es
+una imagen y no una tabla. Sigue las mismas reglas con una traducción: **la base es
+monocroma y el único color son los datos.**
+
+### 15.1 Base
+
+MapLibre GL sobre un archivo `colombia.pmtiles` (Protomaps, datos de OpenStreetMap) servido
+como estático. El estilo no viene de un proveedor: `lib/map-style.ts` arma un flavor de
+Protomaps con los tokens `--map-*` de `globals.css`, que `lib/map-tokens.ts` lee ya resueltos
+para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recargar los datos.
+
+| Token | Claro | Oscuro | Pinta |
+|---|---|---|---|
+| `--map-land` | `--canvas-subtle` | `--neutral-900` | Tierra y fondo |
+| `--map-water` | `--neutral-300` | #151513 | Agua: un escalón más oscura que la tierra |
+| `--map-green` | negro al 4% sobre la tierra | blanco al 4% | Parques, bosques, aeródromos |
+| `--map-building` | negro al 8% | blanco al 8% | Edificios |
+| `--map-road-minor` | `--neutral-200` | blanco al 12% | Calles |
+| `--map-road-major` | `--neutral-300` | blanco al 20% | Avenidas, vía férrea |
+| `--map-road-highway` | `--neutral-500` | blanco al 32% | Autopistas |
+| `--map-boundary` | `--neutral-500` | `--neutral-500` | Límites |
+| `--map-label` | `--text-secondary` aplanado | ídem | Rótulos y contorno de las marcas |
+| `--map-label-strong` | `--neutral-900` | `--neutral-0` | Rótulos sobre agua, texto del chip, ruta |
+| `--map-chip` | `--neutral-0` | blanco al 8% | Fondo del chip y del cluster |
+
+- **Sin puntos de interés ni iconos.** No hay sprite: los únicos puntos del mapa son los
+  prospectos. Tampoco flechas de sentido ni escudos de vía.
+- **Rótulos en Centrale Sans**, generados una vez como glifos SDF (`scripts/mapas/build_glyphs.py`).
+  Llevan halo de 1,5 px del color de la tierra: sobre un parque o un edificio el texto se mide
+  contra el halo, no contra el tono de debajo.
+- **Norte arriba, sin inclinación.** Rotar e inclinar están apagados.
+- Atribución «© OpenStreetMap» siempre visible.
+
+### 15.2 Marcas de datos
+
+| Marca | Forma | Significa |
+|---|---|---|
+| Círculo con número | Fondo `--map-chip`, borde `--map-label` | Varios prospectos juntos; clic acerca |
+| Punto relleno | Color de la categoría, contorno `--map-label` | Un prospecto |
+| Punto con segundo anillo | Anillo `--map-label-strong` | Ex-cliente |
+| Punto con centro hueco | Centro `--map-chip` | Ubicación aproximada |
+| Chip con nombre | Receta de etiqueta (§7.7): caja `--map-chip`, texto `--map-label-strong` | Desde zoom 15 |
+| Chip «N en este punto» | Igual | Varios prospectos sobre la misma coordenada; clic los abre en abanico |
+| Anillo grueso | `--map-label-strong`, 2,5 px | El prospecto seleccionado |
+| Polígono teñido | Color de la zona al 14% (claro) o 24% (oscuro), borde sólido, nombre | Zona comercial |
+| Línea continua | `--map-label-strong`, 3,5 px | Ruta trazada por calles |
+| Línea punteada | `--map-label-strong`, 2 px | Ruta en línea recta o sin calcular |
+| Círculo numerado | Vacío: parada pendiente. Relleno: visitada | Parada de una ruta |
+
+- **El color solo dice la categoría.** Sale de la paleta `--project-*` (§3.8), en orden
+  alfabético de categorías para que no cambie entre cargas. Con más de nueve categorías o
+  zonas los colores se repiten: la identidad va en el nombre.
+- **Ex-cliente y ubicación aproximada son formas**, no colores: se leen en escala de grises.
+- **Toda marca lleva contorno `--map-label`** (4.84:1 en claro, 7.60:1 en oscuro). Dos tonos
+  de la paleta no llegan a 3:1 contra la tierra por sí solos (§3.5).
+- **La leyenda va debajo del mapa**, con las mismas marcas, no encima tapándolo.
+
+### 15.3 Disposición
+
+- El mapa y el panel van lado a lado cuando el módulo tiene 896 px o más de ancho; por debajo
+  se apilan, mapa arriba (58dvh). Es una consulta de contenedor: depende del ancho que deja
+  el sidebar, no del de la pantalla.
+- **La tarjeta del prospecto se acopla** en la esquina superior izquierda del mapa cuando el
+  mapa mide 640 px o más, y nunca es más alta que él. En un mapa angosto o en teléfono va en
+  el panel, en el flujo de la página. Elevación 2 (§6.2).
+- **La lista del panel es el camino del teclado.** Las marcas viven en un canvas y no reciben
+  foco; cada prospecto, zona y parada tiene su fila, que sí.
+- En teléfono un dedo mueve la página y dos mueven el mapa.
+- El movimiento de cámara dura 450 ms y explica a dónde fue el mapa; con
+  `prefers-reduced-motion` es un salto.
+- Trazar una zona necesita puntero. Quien solo usa teclado crea zonas uniendo zonas oficiales.
