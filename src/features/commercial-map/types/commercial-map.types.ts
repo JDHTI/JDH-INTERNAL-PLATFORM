@@ -170,6 +170,11 @@ export interface ImportReport {
   sheets: ImportSheet[];
   errors: ImportError[];
   errors_truncated: boolean;
+  /** Points the load did not trust (marked «Por ubicar», or in another municipality than the address says). */
+  discarded_points?: number;
+  /** Rows worth a look that do not block the load. */
+  warnings?: ImportError[];
+  warnings_truncated?: boolean;
 }
 
 export interface ProspectLoad {

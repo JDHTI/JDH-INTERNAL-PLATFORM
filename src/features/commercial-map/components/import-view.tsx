@@ -13,7 +13,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { useImportProspects, useProspectLoads } from "../hooks/use-commercial-map";
 import { formatCount, formatDateTime } from "../lib/format";
-import type { ImportReport } from "../types/commercial-map.types";
+import type { ImportError, ImportReport } from "../types/commercial-map.types";
 
 const HEAD = "px-3 py-2 text-left text-[11px] font-semibold tracking-[0.06em] text-text-secondary uppercase";
 const NUMBER = "px-3 py-2 text-right tabular";
@@ -208,7 +208,55 @@ export default function ImportView() {
   );
 }
 
+/** Rows of the file with something to say about them: errors, which block, or warnings, which do not. */
+function IssueList({ issues, messageHeading }: { issues: ImportError[]; messageHeading: string }) {
+  const key = (issue: ImportError, index: number) => `${issue.sheet}-${issue.row_number}-${issue.field}-${index}`;
+  return (
+    <>
+      <ul className="divide-y divide-border rounded-lg border border-border md:hidden">
+        {issues.map((issue, index) => (
+          <li key={key(issue, index)} className="space-y-0.5 p-3 text-sm">
+            <p className="text-[13px] text-text-secondary">
+              {[
+                issue.sheet ? `Hoja ${issue.sheet}` : null,
+                issue.row_number !== null ? `fila ${issue.row_number}` : null,
+                issue.field ? `columna ${issue.field}` : null,
+              ]
+                .filter(Boolean)
+                .join(", ") || "Archivo"}
+            </p>
+            <p>{issue.message}</p>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-hidden rounded-lg border border-border md:block">
+        <table className="w-full text-sm">
+          <thead className="bg-canvas-subtle">
+            <tr>
+              <th scope="col" className={HEAD}>Hoja</th>
+              <th scope="col" className={cn(HEAD, "text-right")}>Fila</th>
+              <th scope="col" className={HEAD}>Columna</th>
+              <th scope="col" className={HEAD}>{messageHeading}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {issues.map((issue, index) => (
+              <tr key={key(issue, index)}>
+                <td className="px-3 py-2 whitespace-nowrap">{issue.sheet ?? "—"}</td>
+                <td className={NUMBER}>{issue.row_number ?? "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{issue.field ?? "—"}</td>
+                <td className="px-3 py-2">{issue.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function Report({ report }: { report: ImportReport }) {
+  const warnings = report.warnings ?? [];
   return (
     <section aria-labelledby="report-title" className="space-y-4">
       <h2 id="report-title" className="text-base font-semibold">
@@ -230,11 +278,12 @@ function Report({ report }: { report: ImportReport }) {
         </Alert>
       )}
 
-      <dl className="grid grid-cols-2 gap-2 @xl:grid-cols-4 @5xl:grid-cols-7">
+      <dl className="grid grid-cols-2 gap-2 @xl:grid-cols-4">
         <Figure label="Filas leídas" value={report.rows_read} />
         <Figure label="Con ubicación" value={report.with_location} />
         <Figure label="Sin ubicación" value={report.without_location} />
         <Figure label="Ubicación aproximada" value={report.approximate} />
+        <Figure label="Puntos descartados" value={report.discarded_points ?? 0} />
         <Figure label={report.applied ? "Nuevos" : "Por crear"} value={report.to_create} />
         <Figure label={report.applied ? "Actualizados" : "Por actualizar"} value={report.to_update} />
         <Figure label="Sin cambio" value={report.unchanged} />
@@ -246,44 +295,22 @@ function Report({ report }: { report: ImportReport }) {
             {report.errors.length === 1 ? "1 error" : `${formatCount(report.errors.length)} errores`}
             {report.errors_truncated ? " (hay más: la lista muestra los primeros)" : ""}
           </h3>
-          <ul className="divide-y divide-border rounded-lg border border-border md:hidden">
-            {report.errors.map((error, index) => (
-              <li key={`${error.sheet}-${error.row_number}-${error.field}-${index}`} className="space-y-0.5 p-3 text-sm">
-                <p className="text-[13px] text-text-secondary">
-                  {[
-                    error.sheet ? `Hoja ${error.sheet}` : null,
-                    error.row_number !== null ? `fila ${error.row_number}` : null,
-                    error.field ? `columna ${error.field}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(", ") || "Archivo"}
-                </p>
-                <p>{error.message}</p>
-              </li>
-            ))}
-          </ul>
-          <div className="hidden overflow-hidden rounded-lg border border-border md:block">
-            <table className="w-full text-sm">
-              <thead className="bg-canvas-subtle">
-                <tr>
-                  <th scope="col" className={HEAD}>Hoja</th>
-                  <th scope="col" className={cn(HEAD, "text-right")}>Fila</th>
-                  <th scope="col" className={HEAD}>Columna</th>
-                  <th scope="col" className={HEAD}>Qué corregir</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {report.errors.map((error, index) => (
-                  <tr key={`${error.sheet}-${error.row_number}-${error.field}-${index}`}>
-                    <td className="px-3 py-2 whitespace-nowrap">{error.sheet ?? "—"}</td>
-                    <td className={NUMBER}>{error.row_number ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{error.field ?? "—"}</td>
-                    <td className="px-3 py-2">{error.message}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <IssueList issues={report.errors} messageHeading="Qué corregir" />
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">
+            {warnings.length === 1 ? "1 aviso" : `${formatCount(warnings.length)} avisos`}
+            {report.warnings_truncated ? " (hay más: la lista muestra los primeros)" : ""}
+          </h3>
+          <p className="max-w-prose text-sm text-text-secondary">
+            Los avisos no bloquean la carga. Son filas cuyo punto no es confiable (el archivo las marca «Por
+            ubicar», o la dirección nombra un municipio y el punto cae en otro): entran sin ubicación y quedan en la
+            pestaña Por ubicar para ponerlas a mano.
+          </p>
+          <IssueList issues={warnings} messageHeading="Aviso" />
         </div>
       )}
 
