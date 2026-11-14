@@ -11,6 +11,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, choiceLabel } from "@/features/supports/lib/format";
+import { internalStatusLabel } from "@/features/supports/lib/internal-requests";
 
 import { useLineInsight } from "../hooks/use-list-review";
 import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMargin, formatMoney } from "../lib/format";
@@ -445,6 +446,19 @@ function Detail({
           <p className="col-span-2 text-text-secondary">Ningún apoyo se aplicó a esta referencia.</p>
         )}
       </Section>
+
+      {!forList && line.support_request && (
+        <Section title="Apoyo interno solicitado">
+          <Row label="Estado">
+            {line.support_request.status === "aprobada" && line.support_request.approved_margin_pct === null
+              ? "No aprobada: BI la dejó fuera de la solicitud"
+              : internalStatusLabel(line.support_request)}
+          </Row>
+          {line.support_request.approved_margin_pct !== null && (
+            <Row label="Margen aprobado">{formatMargin(line.support_request.approved_margin_pct)}</Row>
+          )}
+        </Section>
+      )}
 
       {forList && <SupportOptions options={options} onOpenAgreement={onOpenAgreement} />}
 

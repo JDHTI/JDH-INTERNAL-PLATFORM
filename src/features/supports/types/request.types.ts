@@ -1,7 +1,13 @@
 import type { Decimal } from "@/shared/lib/format";
 import type { SupplierSupport } from "./support.types";
 
-export interface SupportPermissions { can_manage: boolean; can_request: boolean; can_review: boolean }
+export interface SupportPermissions {
+  can_manage: boolean; can_request: boolean; can_review: boolean;
+  /** BI or a designated user: decides the internal supports asked from the quoter. */
+  can_review_internal?: boolean;
+  /** Asked internal supports from the quoter: sees their own. */
+  can_request_internal?: boolean;
+}
 export type RequestStatus = "pendiente" | "aprobada" | "rechazada";
 export interface SupportRequest {
   id: string; support_id: string; mode: "porcentaje" | "costo_neto";

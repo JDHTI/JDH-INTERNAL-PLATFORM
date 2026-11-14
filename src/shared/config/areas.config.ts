@@ -420,7 +420,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   },
   {
     key: SUPPORT_REQUESTS_SEGMENT,
-    name: "Solicitudes de apoyo JDH",
+    name: "Solicitudes de apoyo",
     category: "Operación",
     icon: ClipboardList,
     available: true,
