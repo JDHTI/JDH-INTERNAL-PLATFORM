@@ -1,0 +1,85 @@
+/* MapLibre's own controls, moved onto the tokens of globals.css (DESIGN.md §15).
+   The library ships them white with a shadow in both themes. */
+
+.jdh-map .maplibregl-map {
+  font: inherit;
+}
+
+.jdh-map .maplibregl-canvas:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.jdh-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+.jdh-map .maplibregl-ctrl-group button {
+  width: 36px;
+  height: 36px;
+  background-color: transparent;
+}
+
+.jdh-map .maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--border);
+}
+
+.jdh-map .maplibregl-ctrl-group button:not(:disabled):hover {
+  background-color: var(--primary-subtle);
+}
+
+.jdh-map .maplibregl-ctrl-group button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+/* The icons are black SVG backgrounds; inverted they read on the dark surface. */
+.dark .jdh-map .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.jdh-map .maplibregl-ctrl-attrib {
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.jdh-map .maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+
+.jdh-map .maplibregl-ctrl-attrib-button:focus-visible {
+  outline: 2px solid var(--ring);
+  box-shadow: none;
+}
+
+.jdh-map .maplibregl-cooperative-gesture-screen {
+  font-size: 14px;
+}
+
+/* The pin being placed or moved: the one mark on the map in the action color. */
+.jdh-map-pin {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--map-chip);
+  border-radius: 9999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+  cursor: grab;
+}
+
+.jdh-map-pin:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 767px) {
+  .jdh-map .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+}

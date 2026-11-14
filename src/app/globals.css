@@ -119,6 +119,26 @@
   --project-pink: #c14c8a;
   --project-red: #d44c47;
 
+  /* Mapa (§15): base monocroma compuesta con las primitivas; el único color
+     del mapa son los datos. Todos opacos, porque MapLibre los recibe ya
+     resueltos. El rótulo es --text-secondary aplanado sobre la tierra
+     (#6a6a68, 4.84:1) y contornea las marcas de datos (3:1 exigido por
+     WCAG 1.4.11). Sobre el agua el rótulo va en --map-label-strong (10.06:1). */
+  --map-land: var(--canvas-subtle);
+  --map-water: var(--neutral-300);
+  --map-green: color-mix(in srgb, var(--neutral-900) 4%, var(--canvas-subtle));
+  --map-building: color-mix(in srgb, var(--neutral-900) 8%, var(--canvas-subtle));
+  --map-road-minor: var(--neutral-200);
+  --map-road-major: var(--neutral-300);
+  --map-road-highway: var(--neutral-500);
+  --map-boundary: var(--neutral-500);
+  --map-label: color-mix(in srgb, var(--neutral-900) 64%, var(--canvas-subtle));
+  --map-label-strong: var(--neutral-900);
+  --map-halo: var(--canvas-subtle);
+  --map-chip: var(--neutral-0);
+  /* Tinte de zona sobre la tierra: 14% claro, 24% oscuro (§7.7). */
+  --map-zone-tint: 0.14;
+
   /* Modales (§7.4): backdrop sin blur y elevación 3 (§6.2). En oscuro la
      sombra no se ve y la elevación la da --surface con su borde. */
   --backdrop: rgba(29, 29, 27, 0.4);
@@ -198,6 +218,23 @@
   --project-purple: #9d68d3;
   --project-pink: #d15796;
   --project-red: #df5452;
+
+  /* En oscuro la tierra es el lienzo y el agua baja un escalón; las vías
+     suben con blanco sobre el lienzo, como las superficies. Rótulo #aeaead,
+     7.60:1; texto del chip, blanco sobre #2f2f2d, 13.42:1. */
+  --map-land: var(--neutral-900);
+  --map-water: #151513;
+  --map-green: color-mix(in srgb, var(--neutral-0) 4%, var(--neutral-900));
+  --map-building: color-mix(in srgb, var(--neutral-0) 8%, var(--neutral-900));
+  --map-road-minor: color-mix(in srgb, var(--neutral-0) 12%, var(--neutral-900));
+  --map-road-major: color-mix(in srgb, var(--neutral-0) 20%, var(--neutral-900));
+  --map-road-highway: color-mix(in srgb, var(--neutral-0) 32%, var(--neutral-900));
+  --map-boundary: var(--neutral-500);
+  --map-label: color-mix(in srgb, var(--neutral-0) 64%, var(--neutral-900));
+  --map-label-strong: var(--neutral-0);
+  --map-halo: var(--neutral-900);
+  --map-chip: color-mix(in srgb, var(--neutral-0) 8%, var(--neutral-900));
+  --map-zone-tint: 0.24;
 }
 
 /* ── Puente hacia Tailwind ─────────────────────────────────────────────────── */

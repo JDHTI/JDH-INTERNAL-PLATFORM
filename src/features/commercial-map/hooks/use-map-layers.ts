@@ -1,0 +1,223 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FeatureCollection, Point, Position } from "geojson";
+import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
+
+import { EMPTY, LAYER, PROSPECT_HIT_LAYERS, setSourceData, SOURCE } from "../lib/map-layers";
+import { moveDuration } from "../lib/motion";
+import {
+  categoryColors,
+  prepareProspects,
+  type PreparedCollection,
+  type PreparedFeature,
+} from "../lib/prospect-features";
+import type { PaletteKey, ProspectCollection, ZoneCollection, ZoneGeometry } from "../types/commercial-map.types";
+import { useProspectFacets } from "./use-commercial-map";
+
+/** A map this wide has room for the card docked at its left and the point beside it. */
+const DOCK_WIDTH = 640;
+
+/**
+ * Whether the card docks over the map or goes in the panel. It depends on the
+ * map's own width and not on the screen's: the sidebar and the panel take
+ * theirs first, so a wide screen can still leave a narrow map.
+ */
+export function useCanDock(element: HTMLElement | null): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => setWide(entry.contentRect.width >= DOCK_WIDTH));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+  return wide;
+}
+
+/** The color of each category, from the full list of categories and not from what a filter leaves. */
+export function useCategoryColors(): Map<string, PaletteKey> {
+  const facets = useProspectFacets();
+  return useMemo(
+    () => categoryColors((facets.data?.categories ?? []).map((category) => category.value)),
+    [facets.data]
+  );
+}
+
+/** Puts the prospects on the map and returns them as the layers see them. */
+export function useProspectLayer(
+  map: MapLibreMap | null,
+  collection: ProspectCollection | undefined,
+  colors: Map<string, PaletteKey>
+): PreparedCollection | null {
+  const prepared = useMemo(
+    () => (collection ? prepareProspects(collection, colors) : null),
+    [collection, colors]
+  );
+  useEffect(() => {
+    if (!map) return;
+    setSourceData(map, SOURCE.prospects, prepared ?? EMPTY);
+  }, [map, prepared]);
+  return prepared;
+}
+
+/** Area-weighted centre of a ring: where a zone's name goes. */
+function ringCentre(ring: Position[]): Position {
+  let area = 0;
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    const [x0, y0] = ring[index];
+    const [x1, y1] = ring[index + 1];
+    const cross = x0 * y1 - x1 * y0;
+    area += cross;
+    x += (x0 + x1) * cross;
+    y += (y0 + y1) * cross;
+  }
+  if (area === 0) return ring[0];
+  return [x / (3 * area), y / (3 * area)];
+}
+
+function ringArea(ring: Position[]): number {
+  let area = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    area += ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
+  }
+  return Math.abs(area);
+}
+
+/** The outer ring of the largest part: a zone made of several pieces is named once. */
+export function mainRing(geometry: ZoneGeometry): Position[] {
+  const rings = geometry.type === "Polygon" ? [geometry.coordinates[0]] : geometry.coordinates.map((part) => part[0]);
+  return rings.reduce((largest, ring) => (ringArea(ring) > ringArea(largest) ? ring : largest), rings[0]);
+}
+
+/** Paints the commercial zones, each with its name, and outlines the selected one. */
+export function useZoneLayer(
+  map: MapLibreMap | null,
+  zones: ZoneCollection | undefined,
+  selectedId: string | null = null,
+  hiddenId: string | null = null
+): void {
+  useEffect(() => {
+    if (!map) return;
+    const features = (zones?.features ?? [])
+      .filter((zone) => zone.properties.id !== hiddenId)
+      .map((zone) => ({ ...zone, properties: { ...zone.properties, color: zone.properties.color ?? "gray" } }));
+    setSourceData(map, SOURCE.zones, { type: "FeatureCollection", features });
+    const labels: FeatureCollection<Point> = {
+      type: "FeatureCollection",
+      features: features.map((zone) => ({
+        type: "Feature",
+        properties: { name: zone.properties.name },
+        geometry: { type: "Point", coordinates: ringCentre(mainRing(zone.geometry)) },
+      })),
+    };
+    setSourceData(map, SOURCE.zoneLabels, labels);
+  }, [map, zones, hiddenId]);
+
+  useEffect(() => {
+    if (!map || !map.getLayer(LAYER.zonesSelected)) return;
+    map.setFilter(LAYER.zonesSelected, ["==", ["get", "id"], selectedId ?? ""]);
+  }, [map, selectedId]);
+}
+
+interface ProspectClickHandlers {
+  /** One prospect, on the map or on a leaf of the fan. */
+  onPick: (feature: PreparedFeature) => void;
+  /** Several prospects on the same point. */
+  onStack: (leaves: PreparedFeature[]) => void;
+  /** A click on the map and not on a prospect. */
+  onMiss?: (event: MapMouseEvent) => void;
+}
+
+/** A cluster holding this many or fewer is checked for being one shared point. */
+const STACK_LIMIT = 60;
+
+/**
+ * What a click on the prospects means: a cluster opens, a lone point is
+ * picked, and a point shared by several prospects fans out.
+ */
+export function useProspectClicks(
+  map: MapLibreMap | null,
+  prepared: PreparedCollection | null,
+  handlers: ProspectClickHandlers,
+  enabled = true
+): void {
+  const latest = useRef({ prepared, handlers });
+  useEffect(() => {
+    latest.current = { prepared, handlers };
+  });
+
+  useEffect(() => {
+    if (!map || !enabled) return;
+
+    const stackOf = (key: string) =>
+      (latest.current.prepared?.features ?? []).filter((feature) => feature.properties.stack_key === key);
+
+    const onClick = async (event: MapMouseEvent) => {
+      const layers = PROSPECT_HIT_LAYERS.filter((id) => map.getLayer(id));
+      const hit = map.queryRenderedFeatures(event.point, { layers })[0];
+      if (!hit) {
+        latest.current.handlers.onMiss?.(event);
+        return;
+      }
+      const properties = hit.properties ?? {};
+      if (properties.cluster) {
+        const source = map.getSource(SOURCE.prospects) as GeoJSONSource;
+        if (properties.point_count <= STACK_LIMIT) {
+          const leaves = (await source.getClusterLeaves(properties.cluster_id, STACK_LIMIT, 0)) as PreparedFeature[];
+          if (new Set(leaves.map((leaf) => leaf.properties.stack_key)).size === 1) {
+            latest.current.handlers.onStack(leaves);
+            return;
+          }
+        }
+        const zoom = await source.getClusterExpansionZoom(properties.cluster_id);
+        map.easeTo({ center: (hit.geometry as Point).coordinates as [number, number], zoom, duration: moveDuration() });
+        return;
+      }
+      const stack = stackOf(properties.stack_key);
+      const feature = stack.find((candidate) => candidate.properties.id === properties.id);
+      if (!feature) return;
+      if (hit.layer.id !== LAYER.fanPoints && stack.length > 1) latest.current.handlers.onStack(stack);
+      else latest.current.handlers.onPick(feature);
+    };
+
+    const canvas = map.getCanvas();
+    const enter = () => {
+      canvas.style.cursor = "pointer";
+    };
+    const leave = () => {
+      canvas.style.cursor = "";
+    };
+    map.on("click", onClick);
+    for (const layer of PROSPECT_HIT_LAYERS) {
+      map.on("mouseenter", layer, enter);
+      map.on("mouseleave", layer, leave);
+    }
+    return () => {
+      map.off("click", onClick);
+      for (const layer of PROSPECT_HIT_LAYERS) {
+        map.off("mouseenter", layer, enter);
+        map.off("mouseleave", layer, leave);
+      }
+      canvas.style.cursor = "";
+    };
+  }, [map, enabled]);
+}
+
+/** Width the docked card takes at the left of the map, with its margin. */
+const CARD_SPAN = 360;
+
+/**
+ * Moves the map just enough for a point to be clear of the card docked at its
+ * left edge. A point already in the open part of the map does not move it.
+ */
+export function revealBesideCard(map: MapLibreMap, position: [number, number]): void {
+  const { x } = map.project(position);
+  const clear = CARD_SPAN + 32;
+  if (x >= clear) return;
+  map.panBy([x - clear, 0], { duration: moveDuration() });
+}
+
+/** Camera offset that centres a point in the part of the map the card leaves open. */
+export const BESIDE_CARD_OFFSET: [number, number] = [CARD_SPAN / 2, 0];
