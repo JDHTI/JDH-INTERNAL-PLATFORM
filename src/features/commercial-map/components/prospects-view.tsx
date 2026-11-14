@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { Maximize, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ export default function ProspectsView({
   map,
   overlay,
   docked,
+  toolbar,
   canManage,
   relocation,
   onRelocationChange,
@@ -55,6 +57,8 @@ export default function ProspectsView({
   /** The layer over the map, and whether the map is wide enough to dock the card on it. */
   overlay: HTMLElement | null;
   docked: boolean;
+  /** The bar over the map, where the map's own actions go. */
+  toolbar: HTMLElement | null;
   canManage: boolean;
   relocation: Relocation | null;
   onRelocationChange: (relocation: Relocation | null) => void;
@@ -236,6 +240,17 @@ export default function ProspectsView({
       <MapDock overlay={overlay} docked={docked}>
         {relocationBar || card}
       </MapDock>
+      {toolbar &&
+        createPortal(
+          <ReferenceZones
+            map={map}
+            canManage={canManage}
+            zoneId={filters.zone_id}
+            onZoneChange={(zoneId) => changeFilters({ zone_id: zoneId })}
+            enabled={relocation === null}
+          />,
+          toolbar
+        )}
 
       <ProspectFilterPanel
         filters={filters}
@@ -251,13 +266,6 @@ export default function ProspectsView({
         onClear={clearFilters}
       />
 
-      <ReferenceZones
-        map={map}
-        canManage={canManage}
-        zoneId={filters.zone_id}
-        onZoneChange={(zoneId) => changeFilters({ zone_id: zoneId })}
-        enabled={relocation === null}
-      />
 
       {mapData.isError ? (
         <Alert severity="danger">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
 
 import { ViewTab } from "@/shared/components/ui/view-tab";
+import { cn } from "@/shared/lib/utils";
 
 import { useProspectFacets } from "../hooks/use-commercial-map";
 import { useCanDock, useCategoryColors } from "../hooks/use-map-layers";
@@ -36,6 +37,7 @@ function Workspace({ initialView, permissions }: { initialView: MapView; permiss
   const [view, setView] = useState<MapView>(views.includes(initialView) ? initialView : "mapa");
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
+  const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [relocation, setRelocation] = useState<Relocation | null>(null);
   const docked = useCanDock(overlay);
   const facets = useProspectFacets();
@@ -80,17 +82,27 @@ function Workspace({ initialView, permissions }: { initialView: MapView; permiss
         {onMap ? (
           // Stacked until the map and the panel fit side by side with a map worth using.
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @4xl:min-h-0 @4xl:flex-1 @4xl:grid-cols-[minmax(0,1fr)_21rem] @6xl:grid-cols-[minmax(0,1fr)_24rem]">
-            <div className="flex h-[58dvh] min-h-80 flex-col overflow-hidden rounded-lg border border-border @4xl:h-auto @4xl:min-h-0">
-              <div className="relative min-h-0 flex-1">
-                <MapCanvas onReady={setMap} className="absolute inset-0" />
-                <div ref={setOverlay} className="pointer-events-none absolute inset-0 z-[2] flex items-start p-3" />
+            <div className="flex flex-col @4xl:min-h-0">
+              {/* What the map itself can do (its reference outlines) sits over it, filled by the view.
+                  It stays outside the clipped frame so its list can open over the map. */}
+              <div ref={setToolbar} />
+              <div
+                className={cn(
+                  "flex h-[58dvh] min-h-80 flex-col overflow-hidden border border-border @4xl:h-auto @4xl:min-h-0 @4xl:flex-1",
+                  view === "mapa" ? "rounded-b-lg" : "rounded-lg"
+                )}
+              >
+                <div className="relative min-h-0 flex-1">
+                  <MapCanvas onReady={setMap} className="absolute inset-0" />
+                  <div ref={setOverlay} className="pointer-events-none absolute inset-0 z-[2] flex items-start p-3" />
+                </div>
+                {view !== "rutas" && (
+                  <MapLegend
+                    categories={(facets.data?.categories ?? []).map((category) => category.value)}
+                    colors={colors}
+                  />
+                )}
               </div>
-              {view !== "rutas" && (
-                <MapLegend
-                  categories={(facets.data?.categories ?? []).map((category) => category.value)}
-                  colors={colors}
-                />
-              )}
             </div>
             <div
               id={PANEL_ID}
@@ -103,6 +115,7 @@ function Workspace({ initialView, permissions }: { initialView: MapView; permiss
                   map={map}
                   overlay={overlay}
                   docked={docked}
+                  toolbar={toolbar}
                   canManage={canManage}
                   relocation={relocation}
                   onRelocationChange={setRelocation}

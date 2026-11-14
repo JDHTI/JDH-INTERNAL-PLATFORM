@@ -18,7 +18,7 @@ parámetro, el mapa.
 | Zonas | Zonas comerciales: dibujar, editar, borrar, unir zonas oficiales | `read`; editar pide `manage` |
 | Rutas | Rutas de visita: armar, calcular, registrar el resultado de cada parada | `read`; armar pide `manage`; registrar, `manage` o ser quien la recorre |
 
-**Contornos de referencia.** En la vista Mapa, «Comunas» o «Municipios» pinta el perímetro de
+**Contornos de referencia.** En la barra sobre el mapa de la vista Mapa, «Comunas» o «Municipios» pinta el perímetro de
 las zonas oficiales (`GET /territory/zones?layer=official&level=…`) con su nombre y cuántos
 prospectos caen dentro. Un clic dentro de un contorno, o elegirlo en la lista, filtra el mapa y
 la lista con `zone_id`. Una zona oficial no asigna prospectos: con `manage`, «Crear una zona

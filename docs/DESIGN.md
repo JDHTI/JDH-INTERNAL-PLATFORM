@@ -1049,6 +1049,9 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 - El mapa y el panel van lado a lado cuando el módulo tiene 896 px o más de ancho; por debajo
   se apilan, mapa arriba (58dvh). Es una consulta de contenedor: depende del ancho que deja
   el sidebar, no del de la pantalla.
+- **Lo que el mapa hace va en una barra sobre él**: encender los contornos de comunas o
+  municipios y elegir uno. Lo que filtra la lista (búsqueda, zona del archivo, categoría) va en
+  el panel. La barra queda fuera del marco recortado del mapa para que su lista abra encima.
 - **La tarjeta del prospecto se acopla** en la esquina superior izquierda del mapa cuando el
   mapa mide 640 px o más, y nunca es más alta que él. En un mapa angosto o en teléfono va en
   el panel, en el flujo de la página. Elevación 2 (§6.2).

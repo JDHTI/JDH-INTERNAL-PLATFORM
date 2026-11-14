@@ -100,9 +100,13 @@ export default function ReferenceZones({
   };
 
   return (
-    <section aria-labelledby="reference-title" className="space-y-2">
+    // A bar over the map: the outlines are things the map does, not filters of the list beside it.
+    <section
+      aria-labelledby="reference-title"
+      className="relative z-[3] flex flex-wrap items-center gap-x-3 gap-y-2 rounded-t-lg border border-b-0 border-border bg-surface px-3 py-2"
+    >
       <h2 id="reference-title" className="text-[13px] font-medium">
-        Contornos de referencia
+        Contornos
       </h2>
       <div className="flex flex-wrap gap-2" role="group" aria-labelledby="reference-title">
         {LEVELS.map((item) => (
@@ -113,13 +117,13 @@ export default function ReferenceZones({
       </div>
 
       {level !== null && official.isPending && (
-        <div className="h-9 animate-pulse rounded-md bg-canvas-subtle" aria-busy="true">
+        <div className="h-8 w-64 max-w-full animate-pulse rounded-md bg-canvas-subtle" aria-busy="true">
           <span className="sr-only">Cargando los contornos</span>
         </div>
       )}
       {level !== null && official.isError && (
-        <div role="alert" className="space-y-2 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
-          <p>No se pudieron cargar los contornos. {errorMessage(official.error)}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-[13px] text-danger">
+          <span>No se pudieron cargar los contornos. {errorMessage(official.error)}</span>
           <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => void official.refetch()}>
             <RefreshCw aria-hidden="true" /> Reintentar
           </Button>
@@ -142,25 +146,22 @@ export default function ReferenceZones({
             value={selected?.properties.id ?? ""}
             onValueChange={(value) => pick(zones.find((zone) => zone.properties.id === value) ?? null)}
             placeholder={copy.all}
+            size="sm"
             clearable
             clearLabel="Quitar el filtro por contorno"
-            className="max-md:[&_[data-slot=dropdown-trigger]]:h-11"
+            panelClassName="max-h-72"
+            className="w-72 max-w-full max-md:w-full max-md:[&_[data-slot=dropdown-trigger]]:h-11"
           />
-          {selected ? (
-            <p className="text-[13px] text-text-secondary">
-              El mapa y la lista muestran solo los prospectos dentro de {shortZoneName(selected.properties.name)}. Un
-              contorno es una referencia: no asigna prospectos a una zona comercial.
-            </p>
-          ) : (
-            <p className="text-[13px] text-text-secondary">
-              Haz clic dentro de un contorno, o elígelo en la lista, para ver solo sus prospectos.
-            </p>
-          )}
           {selected && canManage && (
             <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setAdopting(true)}>
-              <Combine aria-hidden="true" /> Crear una zona comercial con este contorno
+              <Combine aria-hidden="true" /> Crear zona comercial
             </Button>
           )}
+          <p className="basis-full text-[13px] text-text-secondary">
+            {selected
+              ? `El mapa y la lista muestran solo los prospectos dentro de ${shortZoneName(selected.properties.name)}. Un contorno es de referencia: no asigna prospectos.`
+              : "Haz clic dentro de un contorno, o elígelo en la lista, para ver solo sus prospectos."}
+          </p>
         </>
       )}
 
