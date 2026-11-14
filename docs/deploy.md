@@ -54,6 +54,7 @@ Valores en `~/apps/platform/ui.env` (no versionado, permisos 600):
 | `PUBLIC_HOST` | `intranet.jdh.com.co` |
 | `EDGE_NETWORK` | `intranet-jdh_default` |
 | `EDGE_HTTP` | `http://127.0.0.1` (el Caddy del servidor, donde verifica el despliegue) |
+| `MAP_ASSETS_DIR` | `~/apps/platform/mapas`: el mapa base del mapa comercial, montado en el contenedor (`docs/mapa-comercial.md`) |
 
 ### CD
 

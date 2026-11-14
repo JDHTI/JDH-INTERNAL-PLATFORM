@@ -36,6 +36,12 @@ services:
       STRAPI_PUBLIC_URL: https://${PUBLIC_HOST:-intranet.jdh.com.co}/cms
       # Same value as the edge stack's STRAPI_WEBHOOK_SECRET (CMS revalidation webhook).
       STRAPI_WEBHOOK_SECRET: ${STRAPI_WEBHOOK_SECRET:?set STRAPI_WEBHOOK_SECRET in ~/apps/platform/ui.env}
+    volumes:
+      # The basemap of the commercial map: colombia.pmtiles (about 600 MB) and
+      # the Centrale Sans glyphs. Too big for the image and for git, so it is
+      # copied to the server once and served from /mapas like any public file
+      # (docs/mapa-comercial.md). Read at start: new files need a restart.
+      - ${MAP_ASSETS_DIR:?run through deploy/deploy.sh, which sets MAP_ASSETS_DIR}:/app/public/mapas:ro
     networks:
       edge:
         aliases:

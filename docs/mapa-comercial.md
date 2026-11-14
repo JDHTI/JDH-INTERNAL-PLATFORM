@@ -91,16 +91,27 @@ Lee los woff2 de `public/fonts/` y escribe los cuatro pesos que usa el estilo. P
 `NEXT_PUBLIC_MAP_ASSETS_URL` (por defecto `/mapas`) dice dónde están los dos.
 
 - **Desarrollo:** `public/mapas/`, que Next sirve con peticiones por rango (`206`).
-- **Producción:** el Caddy del stack edge sirve `/mapas/*` con `file_server` sobre un volumen
-  de solo lectura, igual que `/cms/uploads/*`. Es un paso manual en el servidor: copiar la
-  carpeta y agregar la ruta. La imagen de la UI no lleva el archivo: `.dockerignore` deja
-  `public/mapas` fuera del contexto.
-- **Docker en local:** como la imagen no lo trae, se monta la carpeta como volumen en
-  `/app/public/mapas`.
+- **Producción:** la imagen no lleva el mapa base (`.dockerignore` deja `public/mapas` fuera
+  del contexto). `deploy/compose.prod.yaml` monta la carpeta `~/apps/platform/mapas` del
+  servidor en `/app/public/mapas`, de solo lectura, y Next la sirve como cualquier archivo
+  público, con peticiones por rango. El único paso manual, una vez, es copiar la carpeta:
+
+  ```bash
+  scp -r public/mapas/* intranet@<servidor>:~/apps/platform/mapas/
+  ```
+
+  Conviene copiarla **antes** de fusionar: el contenedor lee la carpeta al arrancar, así que
+  lo que se copie después pide `docker restart platform-ui`. Sin la carpeta el módulo abre,
+  pero sin calles ni textos en el mapa, y `deploy.sh` lo avisa. No hay que tocar el Caddy del
+  stack de borde: `/mapas/*` llega a la UI por la ruta por defecto. Otra carpeta se indica con
+  `MAP_ASSETS_DIR` en `~/apps/platform/ui.env`.
+- **Docker en local:** igual, la carpeta se monta como volumen en `/app/public/mapas`.
 - `src/proxy.ts` excluye `.pmtiles` y `.pbf` de su matcher: son estáticos y no necesitan sesión.
 
-Comprobación tras desplegar: una petición con `Range: bytes=0-1023` a
-`/mapas/colombia.pmtiles` responde `206`.
+Comprobación tras desplegar, por el dominio público para pasar también por el proxy de
+infraestructura: `curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-1023' https://intranet.jdh.com.co/mapas/colombia.pmtiles`
+responde `206`. Un `200` significa que algún proxy ignora el rango y el mapa bajaría el
+archivo completo.
 
 ## Probar en local
 
