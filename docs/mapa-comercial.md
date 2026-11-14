@@ -22,6 +22,8 @@ parámetro, el mapa.
 las zonas oficiales (`GET /territory/zones?layer=official&level=commune|municipality`), cada
 una con cuántos prospectos caen dentro. Elegir una filtra el mapa y la lista con `zone_id` y
 dibuja solo ese perímetro; las dos listas se excluyen, porque el filtro es una zona a la vez.
+«Ver segmentación» pinta todos los perímetros (municipios, y Medellín en comunas) con su
+conteo; con ella encendida, un clic dentro de una parte filtra por ella.
 Una zona oficial no asigna prospectos: con `manage`, «Crear zona comercial» la adopta
 (`POST /territory/zones/adopt`). El código está en `components/reference-zones.tsx`.
 

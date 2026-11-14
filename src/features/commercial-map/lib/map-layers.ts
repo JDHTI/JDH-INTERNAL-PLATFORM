@@ -23,6 +23,8 @@ export const SOURCE = {
 } as const;
 
 export const LAYER = {
+  referenceFill: "reference-fill",
+  referenceLine: "reference-line",
   referenceSelected: "reference-selected",
   referenceLabels: "reference-labels",
   zonesFill: "zones-fill",
@@ -113,6 +115,25 @@ export function dataLayers(palette: MapPalette): LayerSpecification[] {
   const isApproximate: ExpressionSpecification = ["==", ["get", "location_quality"], "approximate"];
 
   return [
+    {
+      // The segmentation: how the territory splits into municipalities and communes.
+      // The fill paints nothing; it is what a click inside a segment lands on.
+      id: LAYER.referenceFill,
+      type: "fill",
+      source: SOURCE.reference,
+      paint: { "fill-color": labelStrong, "fill-opacity": 0 },
+    },
+    {
+      // Municipalities weigh more than the communes inside them.
+      id: LAYER.referenceLine,
+      type: "line",
+      source: SOURCE.reference,
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": label,
+        "line-width": ["case", ["==", ["get", "level"], "municipality"], 2, 1.25],
+      },
+    },
     {
       // The perimeter of the commune or municipality that is filtering the map.
       id: LAYER.referenceSelected,

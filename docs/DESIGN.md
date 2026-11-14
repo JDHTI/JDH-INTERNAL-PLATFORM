@@ -1028,6 +1028,7 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 | Anillo grueso | `--map-label-strong`, 2,5 px | El prospecto seleccionado |
 | Polígono teñido | Color de la zona al 14% (claro) o 24% (oscuro), borde sólido, nombre | Zona comercial |
 | Contorno grueso sin relleno | `--map-label-strong`, 3 px, con nombre y conteo | La comuna o el municipio que está filtrando el mapa |
+| Contornos finos sin relleno | `--map-label`; 2 px municipio, 1,25 px comuna; nombre y conteo | La segmentación del territorio, cuando se enciende |
 | Línea continua | `--map-label-strong`, 3,5 px | Ruta trazada por calles |
 | Línea punteada | `--map-label-strong`, 2 px | Ruta en línea recta o sin calcular |
 | Círculo numerado | Vacío: parada pendiente. Relleno: visitada | Parada de una ruta |
@@ -1036,9 +1037,11 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
   alfabético de categorías para que no cambie entre cargas. Con más de nueve categorías o
   zonas los colores se repiten: la identidad va en el nombre.
 - **Ex-cliente y ubicación aproximada son formas**, no colores: se leen en escala de grises.
-- **Comunas y municipios son filtros, no una capa.** Sus perímetros no se pintan todos: solo
-  el de la zona que está filtrando, sin color ni relleno, para que el mapa diga qué está
-  mostrando. El color es de las zonas comerciales, que son las que segmentan.
+- **Comunas y municipios son filtros.** Por defecto solo se pinta el perímetro de la zona que
+  está filtrando, sin color ni relleno, para que el mapa diga qué está mostrando. «Ver
+  segmentación» pinta todos: los municipios con línea de 2 px y las comunas de Medellín con
+  1,25 px, cada parte con su nombre y su conteo. Viene apagada para no cargar el mapa de líneas.
+  El color sigue siendo de las zonas comerciales.
 - **Toda marca lleva contorno `--map-label`** (4.84:1 en claro, 7.60:1 en oscuro). Dos tonos
   de la paleta no llegan a 3:1 contra la tierra por sí solos (§3.5).
 - **La leyenda va debajo del mapa**, con las mismas marcas, no encima tapándolo.

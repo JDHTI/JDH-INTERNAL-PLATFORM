@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Map as MapLibreMap } from "maplibre-gl";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import { Combine, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useZones } from "../hooks/use-commercial-map";
 import { mainRing, shortZoneName, useReferenceLayer } from "../hooks/use-map-layers";
 import { formatCount } from "../lib/format";
+import { LAYER, PROSPECT_HIT_LAYERS } from "../lib/map-layers";
 import { moveDuration } from "../lib/motion";
 import { boundsOf } from "../lib/prospect-features";
 import type { ZoneCollection, ZoneFeature } from "../types/commercial-map.types";
@@ -43,14 +45,18 @@ export default function ReferenceZones({
   canManage,
   zoneId,
   onZoneChange,
+  enabled,
 }: {
   map: MapLibreMap | null;
   canManage: boolean;
   /** The zone filtering the map; it may be a commercial one, which these filters ignore. */
   zoneId: string | undefined;
   onZoneChange: (zoneId: string | undefined) => void;
+  /** False while the map is taking clicks for something else, such as placing a pin. */
+  enabled: boolean;
 }) {
   const [adopting, setAdopting] = useState(false);
+  const [segmented, setSegmented] = useState(false);
   const communeQuery = useZones("official", true, "commune");
   const municipalityQuery = useZones("official", true, "municipality");
   const communes = useMemo(() => byName(communeQuery.data?.features), [communeQuery.data]);
@@ -60,19 +66,49 @@ export default function ReferenceZones({
     () => [...communes, ...municipalities].find((zone) => zone.properties.id === zoneId) ?? null,
     [communes, municipalities, zoneId]
   );
-  const outline = useMemo<ZoneCollection | undefined>(
-    () => (selected ? { type: "FeatureCollection", features: [selected] } : undefined),
-    [selected]
-  );
+  // With the segmentation on, every perimeter; without it, only the one that is filtering.
+  const outline = useMemo<ZoneCollection | undefined>(() => {
+    const features = segmented ? [...municipalities, ...communes] : selected ? [selected] : [];
+    return features.length > 0 ? { type: "FeatureCollection", features } : undefined;
+  }, [segmented, municipalities, communes, selected]);
   useReferenceLayer(map, outline, selected?.properties.id ?? null);
 
   // One zone filters at a time: picking a municipality replaces the commune, and the other way round.
-  const pick = (zones: ZoneFeature[], id: string) => {
-    const zone = zones.find((item) => item.properties.id === id) ?? null;
+  const choose = (zone: ZoneFeature | null) => {
     onZoneChange(zone?.properties.id);
     const bounds = zone ? boundsOf(mainRing(zone.geometry)) : null;
     if (map && bounds) map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: moveDuration() });
   };
+  const pick = (zones: ZoneFeature[], id: string) => choose(zones.find((item) => item.properties.id === id) ?? null);
+
+  const latest = useRef({ communes, municipalities, selected, choose });
+  useEffect(() => {
+    latest.current = { communes, municipalities, selected, choose };
+  });
+
+  // With the segmentation on, a click inside a segment filters by it.
+  useEffect(() => {
+    if (!map || !enabled || !segmented) return;
+    const onClick = (event: MapMouseEvent) => {
+      // A prospect under the pointer wins: the click is for its card.
+      const marks = PROSPECT_HIT_LAYERS.filter((id) => map.getLayer(id));
+      if (map.queryRenderedFeatures(event.point, { layers: marks }).length > 0) return;
+      const ids = map
+        .queryRenderedFeatures(event.point, { layers: [LAYER.referenceFill] })
+        .map((feature) => feature.properties?.id as string);
+      // Inside Medellín the point is in a commune and in the municipality: the smaller one is meant.
+      const zone =
+        latest.current.communes.find((item) => ids.includes(item.properties.id)) ??
+        latest.current.municipalities.find((item) => ids.includes(item.properties.id));
+      if (!zone) return;
+      // A second click on the segment in use lets it go.
+      latest.current.choose(zone.properties.id === latest.current.selected?.properties.id ? null : zone);
+    };
+    map.on("click", onClick);
+    return () => {
+      map.off("click", onClick);
+    };
+  }, [map, enabled, segmented]);
 
   const pending = communeQuery.isPending || municipalityQuery.isPending;
   const failed = communeQuery.isError ? communeQuery : municipalityQuery.isError ? municipalityQuery : null;
@@ -133,6 +169,16 @@ export default function ReferenceZones({
           panelClassName="max-h-72"
           className={TALL}
         />
+      )}
+
+      {!none && !pending && !failed && (
+        <ToggleChip
+          active={segmented}
+          onClick={() => setSegmented((current) => !current)}
+          title="Muestra cómo se divide el territorio en municipios y comunas, con los prospectos de cada parte"
+        >
+          Ver segmentación
+        </ToggleChip>
       )}
 
       {selected && canManage && (

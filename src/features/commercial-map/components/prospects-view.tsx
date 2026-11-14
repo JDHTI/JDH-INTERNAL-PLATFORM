@@ -247,6 +247,7 @@ export default function ProspectsView({
             canManage={canManage}
             zoneId={filters.zone_id}
             onZoneChange={(zoneId) => changeFilters({ zone_id: zoneId })}
+            enabled={relocation === null}
           />,
           toolbar
         )}
