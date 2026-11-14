@@ -23,8 +23,6 @@ export const SOURCE = {
 } as const;
 
 export const LAYER = {
-  referenceFill: "reference-fill",
-  referenceLine: "reference-line",
   referenceSelected: "reference-selected",
   referenceLabels: "reference-labels",
   zonesFill: "zones-fill",
@@ -116,21 +114,7 @@ export function dataLayers(palette: MapPalette): LayerSpecification[] {
 
   return [
     {
-      // The outlines of the official layer (communes, municipalities). The fill
-      // paints nothing: it is what a click inside a perimeter lands on.
-      id: LAYER.referenceFill,
-      type: "fill",
-      source: SOURCE.reference,
-      paint: { "fill-color": labelStrong, "fill-opacity": 0 },
-    },
-    {
-      id: LAYER.referenceLine,
-      type: "line",
-      source: SOURCE.reference,
-      layout: { "line-join": "round" },
-      paint: { "line-color": label, "line-width": 1.25 },
-    },
-    {
+      // The perimeter of the commune or municipality that is filtering the map.
       id: LAYER.referenceSelected,
       type: "line",
       source: SOURCE.reference,

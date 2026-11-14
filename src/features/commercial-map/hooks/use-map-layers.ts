@@ -128,9 +128,9 @@ export function shortZoneName(name: string): string {
 }
 
 /**
- * Draws the perimeters of the official layer (communes or municipalities),
- * each with its name and how many prospects fall inside, and thickens the one
- * that is filtering the map. They are a reference: they assign nothing.
+ * Draws the perimeter of the official zone (a commune, a municipality) that is
+ * filtering the map, with its name and how many prospects fall inside. It is a
+ * reference: it assigns nothing.
  */
 export function useReferenceLayer(
   map: MapLibreMap | null,

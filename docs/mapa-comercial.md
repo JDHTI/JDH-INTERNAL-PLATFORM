@@ -18,12 +18,12 @@ parámetro, el mapa.
 | Zonas | Zonas comerciales: dibujar, editar, borrar, unir zonas oficiales | `read`; editar pide `manage` |
 | Rutas | Rutas de visita: armar, calcular, registrar el resultado de cada parada | `read`; armar pide `manage`; registrar, `manage` o ser quien la recorre |
 
-**Contornos de referencia.** En la barra sobre el mapa de la vista Mapa, «Comunas» o «Municipios» pinta el perímetro de
-las zonas oficiales (`GET /territory/zones?layer=official&level=…`) con su nombre y cuántos
-prospectos caen dentro. Un clic dentro de un contorno, o elegirlo en la lista, filtra el mapa y
-la lista con `zone_id`. Una zona oficial no asigna prospectos: con `manage`, «Crear una zona
-comercial con este contorno» la adopta (`POST /territory/zones/adopt`). El código está en
-`components/reference-zones.tsx`.
+**Filtros de comuna y municipio.** La barra sobre el mapa de la vista Mapa trae dos listas con
+las zonas oficiales (`GET /territory/zones?layer=official&level=commune|municipality`), cada
+una con cuántos prospectos caen dentro. Elegir una filtra el mapa y la lista con `zone_id` y
+dibuja solo ese perímetro; las dos listas se excluyen, porque el filtro es una zona a la vez.
+Una zona oficial no asigna prospectos: con `manage`, «Crear zona comercial» la adopta
+(`POST /territory/zones/adopt`). El código está en `components/reference-zones.tsx`.
 
 Lo que cada persona puede hacer lo responde `GET /territory/permissions`
 (`commercial-map-gate.tsx`); el API lo vuelve a comprobar en cada llamada.

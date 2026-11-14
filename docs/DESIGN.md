@@ -1027,8 +1027,7 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 | Chip «N en este punto» | Igual | Varios prospectos sobre la misma coordenada; clic los abre en abanico |
 | Anillo grueso | `--map-label-strong`, 2,5 px | El prospecto seleccionado |
 | Polígono teñido | Color de la zona al 14% (claro) o 24% (oscuro), borde sólido, nombre | Zona comercial |
-| Contorno sin relleno | Línea `--map-label` de 1,25 px, nombre y conteo en `--map-label-strong` | Comuna o municipio, de referencia |
-| Contorno grueso | `--map-label-strong`, 3 px | El contorno que está filtrando el mapa |
+| Contorno grueso sin relleno | `--map-label-strong`, 3 px, con nombre y conteo | La comuna o el municipio que está filtrando el mapa |
 | Línea continua | `--map-label-strong`, 3,5 px | Ruta trazada por calles |
 | Línea punteada | `--map-label-strong`, 2 px | Ruta en línea recta o sin calcular |
 | Círculo numerado | Vacío: parada pendiente. Relleno: visitada | Parada de una ruta |
@@ -1037,9 +1036,9 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
   alfabético de categorías para que no cambie entre cargas. Con más de nueve categorías o
   zonas los colores se repiten: la identidad va en el nombre.
 - **Ex-cliente y ubicación aproximada son formas**, no colores: se leen en escala de grises.
-- **Un contorno de referencia no lleva color ni relleno.** El color es de las zonas comerciales,
-  que son las que segmentan; una comuna solo marca dónde se está. Se enciende un nivel a la vez
-  (comunas o municipios) y viene apagado, para no cargar el mapa de líneas.
+- **Comunas y municipios son filtros, no una capa.** Sus perímetros no se pintan todos: solo
+  el de la zona que está filtrando, sin color ni relleno, para que el mapa diga qué está
+  mostrando. El color es de las zonas comerciales, que son las que segmentan.
 - **Toda marca lleva contorno `--map-label`** (4.84:1 en claro, 7.60:1 en oscuro). Dos tonos
   de la paleta no llegan a 3:1 contra la tierra por sí solos (§3.5).
 - **La leyenda va debajo del mapa**, con las mismas marcas, no encima tapándolo.
@@ -1049,9 +1048,9 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 - El mapa y el panel van lado a lado cuando el módulo tiene 896 px o más de ancho; por debajo
   se apilan, mapa arriba (58dvh). Es una consulta de contenedor: depende del ancho que deja
   el sidebar, no del de la pantalla.
-- **Lo que el mapa hace va en una barra sobre él**: encender los contornos de comunas o
-  municipios y elegir uno. Lo que filtra la lista (búsqueda, zona del archivo, categoría) va en
-  el panel. La barra queda fuera del marco recortado del mapa para que su lista abra encima.
+- **Los filtros del mapa van en una barra sobre él**: comuna y municipio, uno a la vez. Los
+  demás (búsqueda, zona del archivo, categoría) siguen por ahora en el panel. La barra queda
+  fuera del marco recortado del mapa para que su lista abra encima.
 - **La tarjeta del prospecto se acopla** en la esquina superior izquierda del mapa cuando el
   mapa mide 640 px o más, y nunca es más alta que él. En un mapa angosto o en teléfono va en
   el panel, en el flujo de la página. Elevación 2 (§6.2).
