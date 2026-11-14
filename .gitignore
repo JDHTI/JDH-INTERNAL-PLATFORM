@@ -20,6 +20,9 @@
 # production
 /build
 
+# basemap: colombia.pmtiles and the Centrale Sans glyphs (docs/DESIGN.md §15)
+/public/mapas/
+
 # misc
 .DS_Store
 *.pem
