@@ -41,14 +41,24 @@ const ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.png,.jpg,.jpeg,
 const OTHER_SUPPLIER = "__other__";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-interface SupplierOption {
+/** What sending an OM fixes in the dialog: the OM, its supplier and a suggested text. */
+export interface OmPreset {
+  omId: string;
+  /** «1181BOG»: the PDF goes attached as «OM 1181BOG.pdf». */
+  omCode: string;
+  supplierCode: string | null;
+  supplierName: string | null;
+  body: string;
+}
+
+export interface SupplierOption {
   key: string;
   code: string | null;
   name: string;
 }
 
 /** The suppliers of the case are the ones of its products, each once. */
-function suppliersOf(request: IntakeRequest | null): SupplierOption[] {
+export function suppliersOf(request: IntakeRequest | null): SupplierOption[] {
   const seen = new Map<string, SupplierOption>();
   for (const product of request?.products ?? []) {
     const name = product.supplier_name ?? product.supplier_code;
@@ -69,10 +79,13 @@ export default function SupplierMessageDialog({
   item,
   request,
   onClose,
+  preset,
 }: {
   item: PqrsfCase;
   request: IntakeRequest | null;
   onClose: () => void;
+  /** Sending an improvement opportunity: the message is its cover, and its PDF goes attached. */
+  preset?: OmPreset;
 }) {
   const id = useId();
   const send = useSendSupplierMessage(item.id);
@@ -80,13 +93,18 @@ export default function SupplierMessageDialog({
   const evidence = request?.attachments ?? [];
   const evidenceBytes = evidence.reduce((sum, file) => sum + file.size_bytes, 0);
 
-  const [kind, setKind] = useState<SupplierMessageKind>("request");
-  const [supplierKey, setSupplierKey] = useState(suppliers[0]?.key ?? OTHER_SUPPLIER);
-  const [otherName, setOtherName] = useState("");
+  const presetSupplier = preset
+    ? suppliers.find((option) => (preset.supplierCode ? option.code === preset.supplierCode : option.name === preset.supplierName))
+    : undefined;
+  const [kind, setKind] = useState<SupplierMessageKind>(preset ? "improvement" : "request");
+  const [supplierKey, setSupplierKey] = useState(
+    presetSupplier?.key ?? (preset ? OTHER_SUPPLIER : (suppliers[0]?.key ?? OTHER_SUPPLIER))
+  );
+  const [otherName, setOtherName] = useState(preset && !presetSupplier ? (preset.supplierName ?? "") : "");
   const [recipients, setRecipients] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [cc, setCc] = useState<Person[]>([]);
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(preset?.body ?? "");
   const [includeCaseData, setIncludeCaseData] = useState(true);
   const [includeEvidence, setIncludeEvidence] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -139,8 +157,9 @@ export default function SupplierMessageDialog({
         to,
         cc: cc.flatMap((person) => (person.email ? [person.email.toLowerCase()] : [])),
         body: body.trim(),
-        supplierCode: supplier?.code ?? null,
-        supplierName: supplier?.name ?? (otherName.trim() || null),
+        omId: preset?.omId,
+        supplierCode: supplier?.code ?? preset?.supplierCode ?? null,
+        supplierName: supplier?.name ?? (otherName.trim() || preset?.supplierName || null),
         includeCaseData,
         includeEvidence,
         files,
@@ -167,8 +186,12 @@ export default function SupplierMessageDialog({
       open
       isForm
       onOpenChange={(open) => !open && !send.isPending && onClose()}
-      title="Escribir al proveedor"
-      description="Sale desde pqrsf@jdh.com.co, un correo por destinatario (con copia a quien elijas), con el consecutivo en el asunto para que la respuesta vuelva a este caso. El cliente no lo ve."
+      title={preset ? `Enviar la OM ${preset.omCode} al proveedor` : "Escribir al proveedor"}
+      description={
+        preset
+          ? `Sale desde pqrsf@jdh.com.co con «OM ${preset.omCode}.pdf» adjunto y el consecutivo en el asunto. Al enviarlo, la OM queda como enviada y el caso lleva la marca «OM enviada». El cliente no lo ve.`
+          : "Sale desde pqrsf@jdh.com.co, un correo por destinatario (con copia a quien elijas), con el consecutivo en el asunto para que la respuesta vuelva a este caso. El cliente no lo ve."
+      }
     >
       <form
         className="space-y-4"
@@ -178,15 +201,17 @@ export default function SupplierMessageDialog({
         }}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tipo de mensaje" htmlFor={`${id}-kind`}>
-            <Dropdown
-              id={`${id}-kind`}
-              aria-label="Tipo de mensaje"
-              value={kind}
-              onValueChange={(value) => setKind(value as SupplierMessageKind)}
-              options={KINDS}
-            />
-          </Field>
+          {!preset && (
+            <Field label="Tipo de mensaje" htmlFor={`${id}-kind`}>
+              <Dropdown
+                id={`${id}-kind`}
+                aria-label="Tipo de mensaje"
+                value={kind}
+                onValueChange={(value) => setKind(value as SupplierMessageKind)}
+                options={KINDS}
+              />
+            </Field>
+          )}
           {suppliers.length > 0 ? (
             <Field label="Proveedor" htmlFor={`${id}-supplier`} hint="Sale de los productos del caso.">
               <Dropdown

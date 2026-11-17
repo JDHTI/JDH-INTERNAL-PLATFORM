@@ -25,7 +25,7 @@ import { cn } from "@/shared/lib/utils";
 import { useAssignCase } from "../hooks/use-pqrsf";
 import { formatDate, legacyAssignee, originLabel, personName } from "../lib/format";
 import type { CaseSort, Person, PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
-import { DueLabel, NewsBadge, StatusBadge } from "./case-badges";
+import { DueLabel, NewsBadge, OmBadge, StatusBadge } from "./case-badges";
 import { AssignDialog, AttachmentsDialog, StatusDialog } from "./case-dialogs";
 import { AssigneePicker } from "./pickers";
 import { StatusMenu } from "./status-menu";
@@ -203,7 +203,7 @@ export default function CasesTable({
                   <DueLabel item={item} layout="row" />
                 </td>
                 <td className="px-1.5 py-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span onClick={(event) => event.stopPropagation()}>
                       <StatusMenu
                         item={item}
@@ -212,6 +212,7 @@ export default function CasesTable({
                       />
                     </span>
                     <NewsBadge newsAt={item.news_at} />
+                    <OmBadge sentAt={item.om_sent_at} />
                   </div>
                 </td>
                 <td className="px-2 py-1 text-right" onClick={(event) => event.stopPropagation()}>
@@ -241,9 +242,10 @@ export default function CasesTable({
               <span className="block truncate font-medium">
                 {item.customer_name ?? "Sin cliente"}
               </span>
-              {item.news_at && (
-                <span className="block">
+              {(item.news_at || item.om_sent_at) && (
+                <span className="flex flex-wrap gap-1.5">
                   <NewsBadge newsAt={item.news_at} />
+                  <OmBadge sentAt={item.om_sent_at} />
                 </span>
               )}
               <span className="block text-[13px]">

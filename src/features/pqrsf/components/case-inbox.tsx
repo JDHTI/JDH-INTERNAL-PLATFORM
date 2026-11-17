@@ -342,11 +342,13 @@ function InboxScreen({ area, catalog }: { area: string; catalog: TrackingCatalog
       </InboxHeading>
 
       <ViewBar
-        // An API that does not send `with_news` has no such view to offer
+        // An API that does not send `with_news` or `om_sent` has no such view to offer
         // (unless the URL already points at it, so the bar still shows where you are).
         views={availableViews(isManager).filter(
           (item) =>
-            item !== "con-novedades" || item === view || typeof allSummary.data?.with_news === "number"
+            item === view ||
+            (item !== "con-novedades" && item !== "om-enviada") ||
+            typeof allSummary.data?.[item === "con-novedades" ? "with_news" : "om_sent"] === "number"
         )}
         active={view}
         counts={(item) => viewCount(item, allSummary.data, mineSummary.data)}
@@ -797,6 +799,10 @@ function Results({
     "con-novedades": {
       title: "No hay casos con novedades",
       body: "Cuando un cliente o un proveedor responde por correo a un caso abierto, aparece aquí hasta que alguien lo abre.",
+    },
+    "om-enviada": {
+      title: "Ninguna OM se ha enviado",
+      body: "Cuando una oportunidad de mejora se envía a un proveedor desde un caso, el caso aparece aquí con la marca «OM enviada».",
     },
     "sin-asignar": {
       title: "Todos los casos abiertos tienen responsable",

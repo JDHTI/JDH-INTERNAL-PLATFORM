@@ -28,6 +28,7 @@ import { inboxHref } from "../lib/inbox-state";
 import type { TrackingCatalog } from "../types/pqrsf.types";
 import { StatusBadge } from "./case-badges";
 import NotificationSettingsPanel from "./notification-settings";
+import OmSettingsPanel from "./om-settings";
 import { normalize } from "./pickers";
 import {
   ActiveBadge,
@@ -41,7 +42,7 @@ import {
 } from "./settings-parts";
 import SubjectSettings, { OPTION_DESCRIPTION_LIMIT } from "./subject-settings";
 
-type Tab = "types" | "subjects" | "statuses" | "dependencies" | "documents" | "timers";
+type Tab = "types" | "subjects" | "statuses" | "dependencies" | "documents" | "om" | "timers";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "types", label: "Tipos de solicitud" },
@@ -49,6 +50,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "statuses", label: "Estados" },
   { id: "dependencies", label: "Dependencias" },
   { id: "documents", label: "Tipos de documento" },
+  { id: "om", label: "Oportunidad de mejora" },
   { id: "timers", label: "Temporizadores" },
 ];
 
@@ -145,6 +147,7 @@ export default function CatalogSettings({ area }: { area: string }) {
       {tab === "statuses" && <StatusesTable catalog={catalog.data} />}
       {tab === "dependencies" && <DependenciesTable catalog={catalog.data} />}
       {tab === "documents" && <DocumentTypesTable catalog={catalog.data} />}
+      {tab === "om" && <OmSettingsPanel />}
       {tab === "timers" && <NotificationSettingsPanel />}
     </div>
   );

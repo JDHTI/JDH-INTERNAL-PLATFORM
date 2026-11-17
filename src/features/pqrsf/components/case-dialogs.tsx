@@ -21,7 +21,14 @@ import {
 } from "../hooks/use-pqrsf";
 import { personName, todayIso } from "../lib/format";
 import { PICKUP_ORDER_LABELS } from "../lib/pickup-order";
+import {
+  RESOLUTION_HINTS,
+  RESOLUTION_LABELS,
+  acceptsResolution,
+  requiresResolution,
+} from "../lib/resolution";
 import type {
+  CaseResolution,
   DocumentType,
   Person,
   PickupOrderAnswer,
@@ -74,8 +81,15 @@ export function StatusDialog({
     return (open.find((status) => status.code === "en_curso") ?? open.at(-1))?.id ?? "";
   });
   const [note, setNote] = useState("");
+  const [resolution, setResolution] = useState<CaseResolution | "">("");
+  const [internalFailure, setInternalFailure] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   const target = targets.find((status) => status.id === statusId);
   const isReopening = isClosed && target !== undefined && !target.is_terminal;
+  // How a complaint or a claim ended is asked where it is finalized.
+  const asksResult = target?.is_terminal === true && acceptsResolution(item);
+  const mustPickResult = asksResult && requiresResolution(item);
 
   const close = (next: boolean) => {
     if (!next) mutation.reset();
@@ -95,8 +109,24 @@ export function StatusDialog({
         onSubmit={(event) => {
           event.preventDefault();
           if (!statusId) return;
+          if (mustPickResult && !resolution) {
+            setProblem("Elige el resultado: si procede o no procede.");
+            return;
+          }
+          setProblem(null);
           mutation.mutate(
-            { status_id: statusId, note: note.trim() || null },
+            {
+              status_id: statusId,
+              note: note.trim() || null,
+              // The API refuses a result on a change that does not finalize the case.
+              ...(asksResult
+                ? {
+                    resolution: resolution || null,
+                    internal_failure: internalFailure,
+                    resolution_note: resolutionNote.trim() || null,
+                  }
+                : {}),
+            },
             {
               onSuccess: (updated) => {
                 toast.success(`${updated.code} quedó en «${updated.status.name}».`);
@@ -120,6 +150,67 @@ export function StatusDialog({
             }))}
           />
         </Field>
+        {asksResult && (
+          <fieldset className="space-y-3 rounded-md border border-border p-3">
+            <legend className="px-1 text-[13px] font-medium">
+              Resultado del caso
+              {!mustPickResult && <span className="font-normal text-text-secondary"> (opcional)</span>}
+            </legend>
+            <div role="radiogroup" aria-label="Resultado del caso" className="space-y-1">
+              {(Object.keys(RESOLUTION_LABELS) as CaseResolution[]).map((value) => (
+                <label key={value} className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm sm:min-h-0 sm:py-1">
+                  <input
+                    type="radio"
+                    name={`${id}-resolution`}
+                    value={value}
+                    checked={resolution === value}
+                    onChange={() => {
+                      setResolution(value);
+                      setProblem(null);
+                    }}
+                    className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                  />
+                  <span>
+                    <span className="block font-medium">{RESOLUTION_LABELS[value]}</span>
+                    <span className="block text-[13px] text-text-secondary">{RESOLUTION_HINTS[value]}</span>
+                  </span>
+                </label>
+              ))}
+              {!mustPickResult && resolution && (
+                <button
+                  type="button"
+                  onClick={() => setResolution("")}
+                  className="rounded-sm text-[13px] text-text-secondary underline underline-offset-4 hover:text-text-primary max-md:min-h-11"
+                >
+                  Quitar el resultado
+                </button>
+              )}
+            </div>
+            <label className="flex min-h-11 cursor-pointer items-start gap-2.5 text-sm sm:min-h-0">
+              <input
+                type="checkbox"
+                checked={internalFailure}
+                onChange={(event) => setInternalFailure(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+              />
+              <span>
+                <span className="block font-medium">Hubo fallo en un proceso de JDH</span>
+                <span className="block text-[13px] text-text-secondary">
+                  Si falló un proceso propio, el caso puede dar lugar a una acción correctiva.
+                </span>
+              </span>
+            </label>
+            <Field label="Nota del resultado" htmlFor={`${id}-resolution-note`} optional>
+              <Textarea
+                id={`${id}-resolution-note`}
+                value={resolutionNote}
+                maxLength={2000}
+                onChange={(event) => setResolutionNote(event.target.value)}
+                className="min-h-16"
+              />
+            </Field>
+          </fieldset>
+        )}
         <Field
           label={isReopening ? "Por qué se reabre" : "Nota"}
           htmlFor={`${id}-note`}
@@ -139,13 +230,13 @@ export function StatusDialog({
             aria-describedby={`${id}-note-hint`}
           />
         </Field>
-        <DialogError message={mutation.error ? errorMessage(mutation.error) : null} />
+        <DialogError message={problem ?? (mutation.error ? errorMessage(mutation.error) : null)} />
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
             Cancelar
           </Button>
           <Submit isPending={mutation.isPending}>
-            {isReopening ? "Reabrir caso" : "Cambiar estado"}
+            {isReopening ? "Reabrir caso" : asksResult ? "Finalizar caso" : "Cambiar estado"}
           </Submit>
         </DialogFooter>
       </form>

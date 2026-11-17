@@ -27,13 +27,18 @@ import type {
   FeedbackSummary,
   ForwardPreview,
   ForwardResult,
+  ImprovementOpportunity,
   ItemInput,
   LastSeen,
   NotificationSettings,
   NotificationSettingsInput,
+  OmInput,
+  OmTemplate,
   Person,
   PqrsfCase,
+  PqrsfSiteAdmin,
   RequestType,
+  StatusChangeInput,
   SubjectAdmin,
   SubjectInput,
   SubjectUpdate,
@@ -61,6 +66,9 @@ function filterQuery(filters: CaseFilters): Query {
     overdue: filters.overdue,
     due_today: filters.due_today,
     with_news: filters.with_news,
+    om_sent: filters.om_sent,
+    resolution: filters.resolution,
+    internal_failure: filters.internal_failure,
     received_from: filters.received_from,
     received_to: filters.received_to,
     q: filters.q,
@@ -238,10 +246,7 @@ export function assignCase(
   });
 }
 
-export function changeStatus(
-  id: string,
-  input: { status_id: string; note?: string | null }
-): Promise<PqrsfCase> {
+export function changeStatus(id: string, input: StatusChangeInput): Promise<PqrsfCase> {
   return apiFetch<PqrsfCase>(`${casePath(id)}/status`, { method: "POST", body: input });
 }
 
@@ -352,6 +357,7 @@ export function sendSupplierMessage(
   if (input.supplierName) body.append("supplier_name", input.supplierName);
   body.append("include_case_data", String(input.includeCaseData));
   body.append("include_evidence", String(input.includeEvidence));
+  if (input.omId) body.append("om_id", input.omId);
   for (const file of input.files) body.append("files", file);
   return apiFetch<SupplierMessageResult>(`${casePath(id)}/supplier-messages`, {
     method: "POST",
@@ -411,6 +417,98 @@ export function downloadAttachment(
   });
 }
 
+
+// ── Improvement opportunity, the OM of P.06.F.04 (API #80) ──
+
+const omPath = (id: string) => `${casePath(id)}/improvement-opportunities`;
+
+export function listOms(id: string): Promise<ImprovementOpportunity[]> {
+  return apiFetch<ImprovementOpportunity[]>(omPath(id));
+}
+
+/** Fills the OM for a supplier, or fills it again keeping its number. */
+export function generateOm(id: string, input: OmInput): Promise<ImprovementOpportunity> {
+  return apiFetch<ImprovementOpportunity>(omPath(id), { method: "POST", body: input });
+}
+
+/** The PDF for the in-app preview; the caller owns the object URL. */
+export async function getOmPdfBlob(id: string, omId: string): Promise<Blob> {
+  const { blob } = await apiBlob(`${omPath(id)}/${encodeURIComponent(omId)}/document`, {
+    format: "pdf",
+    inline: true,
+  });
+  return blob;
+}
+
+export function downloadOm(
+  id: string,
+  omId: string,
+  format: "pdf" | "docx",
+  fallbackName: string
+): Promise<void> {
+  return apiDownload(`${omPath(id)}/${encodeURIComponent(omId)}/document`, {
+    query: { format, inline: false },
+    fallbackName,
+  });
+}
+
+/** A Word edited by hand replaces the generated one; the PDF is made again from it. */
+export function uploadEditedOm(id: string, omId: string, file: File): Promise<ImprovementOpportunity> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<ImprovementOpportunity>(`${omPath(id)}/${encodeURIComponent(omId)}/document`, {
+    method: "PUT",
+    body,
+  });
+}
+
+export function retryOmPdf(id: string, omId: string): Promise<ImprovementOpportunity> {
+  return apiFetch<ImprovementOpportunity>(`${omPath(id)}/${encodeURIComponent(omId)}/pdf`, {
+    method: "POST",
+  });
+}
+
+export function listOmTemplates(): Promise<OmTemplate[]> {
+  return apiFetch<OmTemplate[]>("/pqrsf/templates/om");
+}
+
+export function uploadOmTemplate(file: File, versionLabel: string): Promise<OmTemplate> {
+  const body = new FormData();
+  body.append("file", file);
+  if (versionLabel) body.append("version_label", versionLabel);
+  return apiFetch<OmTemplate>("/pqrsf/templates/om", { method: "POST", body });
+}
+
+export function downloadOmTemplate(template: OmTemplate): Promise<void> {
+  return apiDownload(`/pqrsf/templates/om/${encodeURIComponent(template.id)}/download`, {
+    fallbackName: template.filename,
+  });
+}
+
+export function getOmSettings(): Promise<{ next_number: number }> {
+  return apiFetch<{ next_number: number }>("/pqrsf/om/settings");
+}
+
+export function setOmNextNumber(nextNumber: number): Promise<{ next_number: number }> {
+  return apiFetch<{ next_number: number }>("/pqrsf/om/settings", {
+    method: "PUT",
+    body: { next_number: nextNumber },
+  });
+}
+
+// ── The site catalog (platform administrators) ──
+
+export function listPqrsfSites(): Promise<PqrsfSiteAdmin[]> {
+  return apiFetch<PqrsfSiteAdmin[]>("/sites", { query: { include_inactive: true } });
+}
+
+/** `city`, `address` and `om_code` are what the OM prints; `null` clears them. */
+export function updatePqrsfSite(
+  id: string,
+  input: Partial<Pick<PqrsfSiteAdmin, "city" | "address" | "om_code">>
+): Promise<PqrsfSiteAdmin> {
+  return apiFetch<PqrsfSiteAdmin>(`/sites/${encodeURIComponent(id)}`, { method: "PATCH", body: input });
+}
 
 // ── Files received by email ──
 

@@ -230,7 +230,9 @@ export function SettingsTable({
         <div className="max-w-prose text-[13px] text-text-secondary">{caption}</div>
         {action}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
+      {/* `relative` keeps the header's sr-only «Acciones» (absolute) inside the scroller:
+          without it, it sits at the table's far edge and makes the whole page scroll sideways on a phone. */}
+      <div className="relative overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[36rem] text-sm">
           <thead className="bg-canvas-subtle text-left text-[11px] font-semibold tracking-[0.06em] text-text-secondary uppercase">
             <tr>
