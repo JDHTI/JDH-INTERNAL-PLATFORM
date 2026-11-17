@@ -108,7 +108,9 @@ function Workspace({ initialView, permissions }: { initialView: MapView; permiss
               id={PANEL_ID}
               role="tabpanel"
               aria-label={VIEW_LABEL[view]}
-              className="[scrollbar-width:thin] @4xl:min-h-0 @4xl:overflow-y-auto @4xl:pr-1"
+              // A scroll box clips what its content draws outside itself. The margin
+              // it takes back as padding is the room a focus ring needs (2px + 2px offset).
+              className="[scrollbar-width:thin] @4xl:-m-1 @4xl:min-h-0 @4xl:overflow-y-auto @4xl:p-1"
             >
               {view === "mapa" && (
                 <ProspectsView

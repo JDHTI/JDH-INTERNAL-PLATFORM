@@ -61,10 +61,12 @@ const CHIP_IMAGE = "prospect-chip";
 export const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
 
 const NOT_CLUSTER: ExpressionSpecification = ["!", ["has", "point_count"]];
+const IS_MUNICIPALITY: ExpressionSpecification = ["==", ["get", "level"], "municipality"];
 
-function byColor(palette: MapPalette): ExpressionSpecification {
+/** The `--project-*` color a feature names in one of its properties. */
+function byColor(palette: MapPalette, property = "color"): ExpressionSpecification {
   const pairs = PALETTE_KEYS.flatMap((key) => [key, palette.project[key]]);
-  return ["match", ["get", "color"], ...pairs, palette.project.gray] as unknown as ExpressionSpecification;
+  return ["match", ["get", property], ...pairs, palette.project.gray] as unknown as ExpressionSpecification;
 }
 
 /**
@@ -117,21 +119,25 @@ export function dataLayers(palette: MapPalette): LayerSpecification[] {
   return [
     {
       // The segmentation: how the territory splits into municipalities and communes.
-      // The fill paints nothing; it is what a click inside a segment lands on.
+      // A soft tint tells one part from the next; a zone without one paints nothing
+      // and is still what a click inside it lands on.
       id: LAYER.referenceFill,
       type: "fill",
       source: SOURCE.reference,
-      paint: { "fill-color": labelStrong, "fill-opacity": 0 },
+      paint: {
+        "fill-color": byColor(palette, "tint"),
+        "fill-opacity": ["case", ["==", ["get", "tint"], ""], 0, palette.segmentTint],
+      },
     },
     {
-      // Municipalities weigh more than the communes inside them.
+      // A municipality is drawn heavier and darker than the communes inside it.
       id: LAYER.referenceLine,
       type: "line",
       source: SOURCE.reference,
       layout: { "line-join": "round" },
       paint: {
-        "line-color": label,
-        "line-width": ["case", ["==", ["get", "level"], "municipality"], 2, 1.25],
+        "line-color": ["case", IS_MUNICIPALITY, labelStrong, label],
+        "line-width": ["case", IS_MUNICIPALITY, 2.5, 1],
       },
     },
     {
@@ -149,9 +155,11 @@ export function dataLayers(palette: MapPalette): LayerSpecification[] {
       source: SOURCE.referenceLabels,
       layout: {
         "text-field": ["format", ["get", "name"], {}, "\n", {}, ["get", "count"], { "font-scale": 0.9 }],
-        "text-font": [MAP_FONT.medium],
-        "text-size": 12,
+        "text-font": ["case", IS_MUNICIPALITY, ["literal", [MAP_FONT.bold]], ["literal", [MAP_FONT.medium]]],
+        "text-size": ["case", IS_MUNICIPALITY, 13, 12],
         "text-max-width": 9,
+        // Where two names collide, the municipality keeps its place.
+        "symbol-sort-key": ["case", IS_MUNICIPALITY, 0, 1],
       },
       paint: { "text-color": labelStrong, "text-halo-color": halo, "text-halo-width": 1.5 },
     },

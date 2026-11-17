@@ -32,6 +32,8 @@ export interface MapPalette {
   chip: string;
   /** Opacity of a zone's fill over the land. */
   zoneTint: number;
+  /** Opacity of the fill of a commune or a municipality in the segmentation. */
+  segmentTint: number;
   project: Record<PaletteKey, string>;
 }
 
@@ -83,8 +85,12 @@ export function readMapPalette(): MapPalette {
   const project = Object.fromEntries(
     PALETTE_KEYS.map((key) => [key, resolve(`--project-${key}`)])
   ) as Record<PaletteKey, string>;
-  const zoneTint = Number(getComputedStyle(document.documentElement).getPropertyValue("--map-zone-tint"));
+  const root = getComputedStyle(document.documentElement);
+  const opacity = (token: string) => {
+    const value = Number(root.getPropertyValue(token));
+    return Number.isFinite(value) && value > 0 ? value : 0.14;
+  };
   probe.remove();
 
-  return { ...base, project, zoneTint: Number.isFinite(zoneTint) && zoneTint > 0 ? zoneTint : 0.14 };
+  return { ...base, project, zoneTint: opacity("--map-zone-tint"), segmentTint: opacity("--map-segment-tint") };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FeatureCollection, Point, Position } from "geojson";
+import type { FeatureCollection, Point } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 
 import { EMPTY, LAYER, PROSPECT_HIT_LAYERS, setSourceData, SOURCE } from "../lib/map-layers";
@@ -12,7 +12,8 @@ import {
   type PreparedCollection,
   type PreparedFeature,
 } from "../lib/prospect-features";
-import type { PaletteKey, ProspectCollection, ZoneCollection, ZoneGeometry } from "../types/commercial-map.types";
+import { mainRing, ringCentre } from "../lib/zone-geometry";
+import type { PaletteKey, ProspectCollection, ZoneCollection } from "../types/commercial-map.types";
 import { useProspectFacets } from "./use-commercial-map";
 
 /** A map this wide has room for the card docked at its left and the point beside it. */
@@ -60,37 +61,6 @@ export function useProspectLayer(
   return prepared;
 }
 
-/** Area-weighted centre of a ring: where a zone's name goes. */
-function ringCentre(ring: Position[]): Position {
-  let area = 0;
-  let x = 0;
-  let y = 0;
-  for (let index = 0; index < ring.length - 1; index += 1) {
-    const [x0, y0] = ring[index];
-    const [x1, y1] = ring[index + 1];
-    const cross = x0 * y1 - x1 * y0;
-    area += cross;
-    x += (x0 + x1) * cross;
-    y += (y0 + y1) * cross;
-  }
-  if (area === 0) return ring[0];
-  return [x / (3 * area), y / (3 * area)];
-}
-
-function ringArea(ring: Position[]): number {
-  let area = 0;
-  for (let index = 0; index < ring.length - 1; index += 1) {
-    area += ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
-  }
-  return Math.abs(area);
-}
-
-/** The outer ring of the largest part: a zone made of several pieces is named once. */
-export function mainRing(geometry: ZoneGeometry): Position[] {
-  const rings = geometry.type === "Polygon" ? [geometry.coordinates[0]] : geometry.coordinates.map((part) => part[0]);
-  return rings.reduce((largest, ring) => (ringArea(ring) > ringArea(largest) ? ring : largest), rings[0]);
-}
-
 /** Paints the commercial zones, each with its name, and outlines the selected one. */
 export function useZoneLayer(
   map: MapLibreMap | null,
@@ -127,33 +97,57 @@ export function shortZoneName(name: string): string {
   return cut === -1 ? name : name.slice(cut + 3);
 }
 
+/** How the official zones look beyond their perimeter. */
+export interface ReferenceLook {
+  /** The fill of each zone, by id. A zone left out has none. */
+  tints: Map<string, PaletteKey> | null;
+  /** Whether each level shows its names. The zone that filters always shows its own. */
+  communeNames: boolean;
+  municipalityNames: boolean;
+}
+
 /**
- * Draws the perimeter of the official zone (a commune, a municipality) that is
- * filtering the map, with its name and how many prospects fall inside. It is a
- * reference: it assigns nothing.
+ * Draws the official zones (communes, municipalities) over the map: the one
+ * that is filtering, or all of them as the segmentation of the territory, each
+ * with its name and how many prospects fall inside. They are a reference: they
+ * assign nothing.
  */
 export function useReferenceLayer(
   map: MapLibreMap | null,
   zones: ZoneCollection | undefined,
-  selectedId: string | null
+  selectedId: string | null,
+  { tints, communeNames, municipalityNames }: ReferenceLook
 ): void {
   useEffect(() => {
     if (!map) return;
-    const features = zones?.features ?? [];
+    const features = (zones?.features ?? []).map((zone) => ({
+      ...zone,
+      properties: { ...zone.properties, tint: tints?.get(zone.properties.id) ?? "" },
+    }));
     setSourceData(map, SOURCE.reference, { type: "FeatureCollection", features });
+  }, [map, zones, tints]);
+
+  useEffect(() => {
+    if (!map) return;
+    const named = (zones?.features ?? []).filter(
+      (zone) =>
+        zone.properties.id === selectedId ||
+        (zone.properties.level === "municipality" ? municipalityNames : communeNames)
+    );
     const labels: FeatureCollection<Point> = {
       type: "FeatureCollection",
-      features: features.map((zone) => ({
+      features: named.map((zone) => ({
         type: "Feature",
         properties: {
           name: shortZoneName(zone.properties.name),
           count: zone.properties.prospect_count === 1 ? "1 prospecto" : `${zone.properties.prospect_count} prospectos`,
+          level: zone.properties.level,
         },
         geometry: { type: "Point", coordinates: ringCentre(mainRing(zone.geometry)) },
       })),
     };
     setSourceData(map, SOURCE.referenceLabels, labels);
-  }, [map, zones]);
+  }, [map, zones, selectedId, communeNames, municipalityNames]);
 
   useEffect(() => {
     if (!map || !map.getLayer(LAYER.referenceSelected)) return;
