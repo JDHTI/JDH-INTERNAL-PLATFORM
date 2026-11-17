@@ -912,7 +912,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
                   "La lista, por su código o nombre"
                 ),
               ],
-              ["Canal", quotation.channel ?? "Sin canal: margen Lista 1"],
+              ["Canal", quotation.channel ?? "Sin canal: margen Food Service"],
               ["Última venta", quotation.source === "cliente" ? "Del cliente, últimos 12 meses" : "De los clientes de la lista, últimos 12 meses"],
             ],
           },

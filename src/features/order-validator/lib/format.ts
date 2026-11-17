@@ -69,9 +69,11 @@ export const OUTCOME_LABELS: Record<CheckOutcome, string> = {
 
 /** Which product margin a line was compared against, in the words next to the target. */
 export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
-  lista: "margen lista",
-  mayoristas: "margen mayoristas",
-  salsamentarias: "margen salsamentarias",
+  lista: "margen Food Service",
+  mayoristas: "margen Mayoristas",
+  salsamentarias: "margen Salsamentarias",
+  masivo_food: "margen Masivo Food",
+  market: "margen Market Apartadó",
 };
 
 export const THRESHOLD_MIN = 0;

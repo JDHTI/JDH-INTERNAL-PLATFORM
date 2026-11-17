@@ -179,9 +179,11 @@ export const COMPLIANCE_LABELS: Record<Compliance, string> = {
 
 /** Words next to the target margin: where it comes from. */
 export const MARGIN_BASIS_LABELS: Record<MarginBasis, string> = {
-  lista: "Margen lista 1",
-  mayoristas: "Margen mayoristas",
-  salsamentarias: "Margen salsamentarias",
+  lista: "Margen Food Service",
+  mayoristas: "Margen Mayoristas",
+  salsamentarias: "Margen Salsamentarias",
+  masivo_food: "Margen Masivo Food",
+  market: "Margen Market Apartadó",
   apoyo: "Objetivo del apoyo",
 };
 

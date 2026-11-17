@@ -2,14 +2,16 @@
 
 import { useId, useState } from "react";
 
-import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
+import { Autocomplete, type AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { DatePicker } from "@/shared/components/ui/date-picker";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 
-import { useCalcMethodLabel } from "../hooks/use-supports";
+import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+
+import { useBusinessGroups, useCalcMethodLabel } from "../hooks/use-supports";
 import { choiceLabel, toOptions } from "../lib/format";
 import { isPercentField, type Draft } from "../lib/form-values";
 import type { CalcMethodRule, FormFieldSpec, SupportCatalogs } from "../types/support.types";
@@ -129,6 +131,9 @@ function SchemaField({
   if (picker) {
     return <PickerField config={{ ...picker, label: spec.label }} value={text} onChange={onChange} hint={hint} error={error} />;
   }
+  if (spec.name === "customer_group") {
+    return field(<GroupField {...common} value={text} onChange={onChange} />);
+  }
 
   switch (spec.type) {
     case "choice":
@@ -142,13 +147,17 @@ function SchemaField({
             ...(isRequired ? [] : [{ value: "", label: "Sin definir" }]),
             ...spec.choices.map((code) => ({
               value: code,
-              label: spec.name === "calc_method" ? methodLabel(code) : choiceLabel(spec.name, code),
+              label:
+                spec.name === "calc_method"
+                  ? methodLabel(code)
+                  : choiceLabel(spec.name, code, spec.name === "kind" ? catalogs?.kind_labels : undefined),
             })),
           ]}
         />
       );
     case "list": {
-      const options = toOptions(catalogs?.[spec.name as keyof SupportCatalogs], { raw: true }).map((option) => option.value);
+      const vocabulary = catalogs?.[spec.name as keyof SupportCatalogs];
+      const options = toOptions(Array.isArray(vocabulary) ? vocabulary : undefined, { raw: true }).map((option) => option.value);
       if (options.length === 0) {
         return field(<Input {...common} value={text} onChange={(event) => onChange(event.target.value)} />);
       }
@@ -196,6 +205,44 @@ function SchemaField({
         />
       );
   }
+}
+
+/**
+ * A business group of the customer master, by name (the API has no code for
+ * it). The list says how many active customers each one reaches; the text
+ * typed is kept as is, so a group the search does not bring can still be sent.
+ */
+function GroupField({
+  value,
+  onChange,
+  ...input
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  id: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
+}) {
+  const query = useDebouncedValue(value.trim());
+  const groups = useBusinessGroups(query);
+  const options = (groups.data ?? []).map((group) => ({
+    value: group.name,
+    label: group.name,
+    hint: group.customers === 1 ? "1 cliente activo" : `${group.customers.toLocaleString("es-CO")} clientes activos`,
+  }));
+  return (
+    <Autocomplete
+      {...input}
+      value={value}
+      onValueChange={onChange}
+      onSelect={(option) => onChange(option.value)}
+      options={query.length >= 2 ? options : []}
+      isLoading={groups.isFetching}
+      emptyText={query.length >= 2 && groups.isSuccess ? "Ningún grupo con ese nombre" : undefined}
+      placeholder="Escribe al menos 2 letras"
+      maxLength={200}
+    />
+  );
 }
 
 /**

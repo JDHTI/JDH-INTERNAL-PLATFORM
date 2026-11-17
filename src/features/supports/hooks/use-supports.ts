@@ -5,16 +5,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { ApiError } from "@/shared/lib/api-client";
 
-import { calcMethodLabel } from "../lib/format";
+import { calcMethodLabel, choiceLabel } from "../lib/format";
 import {
   attachToSelection,
   attachToSupport,
   listAttachments,
+  listBusinessGroups,
   previewSelection,
+  retireSupports,
   unlinkAttachment,
   viewAttachment,
   createSpecialCase,
   createSupport,
+  createSupportsByGroup,
   deleteProfile,
   getCommercialSupplier,
   getFormSchema,
@@ -38,6 +41,7 @@ import type {
   AttachmentUpload,
   BulkLoadInput,
   ColumnMap,
+  RetireBody,
   SpecialCaseInput,
   SpecialCaseParams,
   SpecialCasePatch,
@@ -110,19 +114,52 @@ export function useFormSchema() {
 }
 
 /**
- * Readable name of a calc method ("Tipo de apoyo"): the form schema's labels,
- * with the built-in ones while it loads or on an older API.
+ * Readable name of a calc method ("Tipo apoyo"): the catalog's labels, then the
+ * form schema's, with the built-in ones while they load or on an older API.
  */
 export function useCalcMethodLabel(): (code: string | null | undefined) => string {
-  const labels = useFormSchema().data?.calc_method_labels;
+  const fromCatalogs = useSupportCatalogs().data?.calc_method_labels;
+  const fromSchema = useFormSchema().data?.calc_method_labels;
+  const labels = fromCatalogs ?? fromSchema;
   return useCallback((code: string | null | undefined) => calcMethodLabel(code, labels), [labels]);
 }
 
+/** Readable name of a support class ("Clase apoyo"), the catalog's first. */
+export function useKindLabel(): (code: string | null | undefined) => string {
+  const labels = useSupportCatalogs().data?.kind_labels;
+  return useCallback((code: string | null | undefined) => (code ? choiceLabel("kind", code, labels) : "—"), [labels]);
+}
+
+/**
+ * Creates one support, or one per customer of a business group (`byGroup`).
+ * Always a list back, so both read the same.
+ */
 export function useCreateSupport() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: SupportCreateBody) => createSupport(body),
+    mutationFn: async ({ body, byGroup }: { body: SupportCreateBody; byGroup: boolean }) =>
+      byGroup ? createSupportsByGroup(body) : [await createSupport(body)],
     onSuccess: () => client.invalidateQueries({ queryKey: supportKeys.all }),
+  });
+}
+
+/** Business groups whose name contains `q` (2 characters at least). */
+export function useBusinessGroups(q: string) {
+  return useQuery({
+    queryKey: [...supportKeys.all, "business-groups", q],
+    queryFn: () => listBusinessGroups(q),
+    enabled: q.length >= 2,
+    staleTime: 5 * 60_000,
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useRetireSupports() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RetireBody) => retireSupports(body),
+    onSettled: () => client.invalidateQueries({ queryKey: supportKeys.all }),
   });
 }
 

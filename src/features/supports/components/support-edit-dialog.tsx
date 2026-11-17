@@ -13,9 +13,11 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCalcMethodLabel, useUpdateSupport } from "../hooks/use-supports";
-import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP } from "../lib/format";
+import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP, SUPPORTED_MARGIN_LABEL } from "../lib/format";
 import { toDecimal, toInput } from "../lib/form-values";
-import type { SupplierSupport, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
+import { overlapsOf } from "../lib/overlaps";
+import type { SupplierSupport, SupportOverlap, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
+import OverlapDialog from "./overlap-dialog";
 
 const NO_UNIT = "";
 
@@ -149,6 +151,7 @@ function EditForm({
   const [initial] = useState(() => draftOf(support));
   const [draft, setDraft] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [crossing, setCrossing] = useState<{ overlaps: SupportOverlap[]; error: string | null } | null>(null);
 
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
@@ -158,16 +161,22 @@ function EditForm({
   const patch = buildPatch(support, initial, draft);
   const dirty = Object.keys(patch).length > 1;
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const save = async (body: SupportPatch) => {
     setError(null);
     // mutateAsync, not mutate's callbacks: the refetch after saving brings a new
     // version, which remounts this form (its key), and mutate drops the
     // callbacks of an unmounted form, so the dialog never closed.
     try {
-      await update.mutateAsync({ id: support.id, patch });
+      await update.mutateAsync({ id: support.id, patch: body });
       onClose();
     } catch (failure) {
+      const overlaps = overlapsOf(failure);
+      if (overlaps) {
+        // New dates crossed a live support: ask what happens to it, then send the same changes.
+        setCrossing({ overlaps, error: crossing ? errorMessage(failure) : null });
+        return;
+      }
+      setCrossing(null);
       if (failure instanceof ApiError && failure.status === 403) {
         onForbidden();
         onClose();
@@ -179,13 +188,26 @@ function EditForm({
     }
   };
 
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void save(patch);
+  };
+
   return (
+    <>
+    <OverlapDialog
+      overlaps={crossing?.overlaps ?? null}
+      pending={update.isPending}
+      error={crossing?.error ?? null}
+      onCancel={() => setCrossing(null)}
+      onResolve={(choice) => void save({ ...patch, ...choice })}
+    />
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
           <Input id={`${id}-value`} inputMode="decimal" value={draft.supplier_value} onChange={(e) => set("supplier_value", e.target.value)} />
         </Field>
-        <Field label="Margen apoyado (%)" htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
+        <Field label={`${SUPPORTED_MARGIN_LABEL} (%)`} htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
           <Input
             id={`${id}-supported`}
             inputMode="decimal"
@@ -294,5 +316,6 @@ function EditForm({
         </Button>
       </div>
     </form>
+    </>
   );
 }

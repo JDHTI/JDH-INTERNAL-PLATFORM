@@ -144,7 +144,7 @@ export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
       { key: "is_active", label: "Activo", kind: "active" },
       { key: "commercial_supplier_code", label: "Proveedor comercial", kind: "mono" },
       // The margins sit next to the description: they are what this view is for.
-      { key: "margin_list", label: "Lista 1", kind: "pct" },
+      { key: "margin_list", label: "Food Service", kind: "pct" },
       { key: "margin_wholesale", label: "Mayoristas", kind: "pct" },
       { key: "margin_salsamentarias", label: "Salsamentarias", kind: "pct" },
       { key: "margin_mass_food", label: "Masivo Food", kind: "pct" },

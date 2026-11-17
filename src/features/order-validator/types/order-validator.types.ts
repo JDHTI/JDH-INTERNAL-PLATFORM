@@ -100,7 +100,7 @@ export interface SupportCheck {
 export type ReleaseBasis = "lineas" | "manual" | "margen" | "tolerancia";
 
 /** Which of the product's margins the line was compared against. */
-export type MarginBasis = "lista" | "mayoristas" | "salsamentarias";
+export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "masivo_food" | "market";
 
 export interface OrderLine {
   id: string;

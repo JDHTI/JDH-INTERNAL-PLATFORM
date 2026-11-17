@@ -241,7 +241,7 @@ export type WindowMonths = 6 | 12;
 export type Compliance = "cumple" | "bajo_minimo" | "sin_objetivo" | "sin_costo";
 
 /** Which margin the target comes from: the product's margin for the channel, or the support's own. */
-export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "apoyo";
+export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "masivo_food" | "market" | "apoyo";
 
 export type CustomerScope = "mine" | "all";
 
@@ -405,6 +405,8 @@ export interface LineSupport {
   needs_review: boolean;
   valid_from: string | null;
   valid_to: string | null;
+  /** JDH's authorized minimum margin (rules v2): when set, the line's minimum price uses it. Fraction. */
+  authorized_margin_pct?: DecimalText | null;
 }
 
 /** A support that would cover the line and was not applied, with the reason. */

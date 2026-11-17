@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarX2, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -19,6 +19,7 @@ import {
   useCalcMethodLabel,
   useCanManage,
   useFilterFields,
+  useKindLabel,
   useSupportCatalogs,
   useSupportPermissions,
   useSupportSearch,
@@ -28,12 +29,14 @@ import BatchRequestDialog from "./batch-request-dialog";
 import { formatSupplierValue, STATE_LABELS, toOptions } from "../lib/format";
 import type {
   FilterCondition,
+  RetireResult,
   SupplierSupport,
   SupportSearchBody,
   SupportSearchFilters,
   SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
+import RetireDialog from "./retire-dialog";
 import { COLUMNS, SortHeader, td, th, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
@@ -124,6 +127,9 @@ export default function SupportsBrowser({
   const [withoutAttachments, setWithoutAttachments] = useState(false);
   // Ticked rows, kept across pages and filters until attached or cleared.
   const [selected, setSelected] = useState<string[]>([]);
+  // The version each ticked row had when ticked: a mass void or expiry sends it, so a row changed meanwhile is a 409.
+  const [selectedVersions, setSelectedVersions] = useState<Record<string, number>>({});
+  const [retireOpen, setRetireOpen] = useState(false);
   const [requestSelected, setRequestSelected] = useState<SupplierSupport[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const permissions = useSupportPermissions();
@@ -191,6 +197,7 @@ export default function SupportsBrowser({
   const voiding = items.find((item) => item.id === voidId) ?? null;
 
   const methodLabel = useCalcMethodLabel();
+  const kindLabel = useKindLabel();
   const hiddenRaw = useSyncExternalStore(subscribeHiddenColumns, hiddenColumnsSnapshot, () => "[]");
   const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
   const toggleColumn = (key: string, shown: boolean) =>
@@ -213,6 +220,12 @@ export default function SupportsBrowser({
 
   // The collective upload reuses the list's filters; with none it would reach every support.
   const attachFilters: SupportSearchFilters | null = filtered ? searchFiltersOf(body) : null;
+  // A mass void or expiry by filter takes the same filters, except two the API's retire does not read.
+  const retireFilter = !filtered
+    ? null
+    : hasConflicts || withoutAttachments
+      ? { blocked: "Con conflictos y Sin soporte no se pueden usar para esto: quítalos o marca los apoyos en la tabla." }
+      : { body: retireFiltersOf(body), total: result?.total ?? 0 };
 
   const selectionIds = readOnly ? requestSelected.map(record => record.id) : selected;
   const requestAnchor = requestSelected[0] ?? items.find(requestEligible);
@@ -220,8 +233,15 @@ export default function SupportsBrowser({
   const pageIds = selectablePage.map(item => item.id);
   const pageSelected = pageIds.length > 0 && pageIds.every(itemId => selectionIds.includes(itemId));
   const selectionDisabled = (record: SupplierSupport) => readOnly && !selectionIds.includes(record.id) && (!requestEligible(record) || requestSelected.length >= 100 || (requestSelected.length > 0 && !sameRequestScope(requestSelected[0], record)));
+  const rememberVersions = (records: SupplierSupport[]) =>
+    setSelectedVersions((current) => ({ ...current, ...Object.fromEntries(records.map((record) => [record.id, record.version])) }));
   const toggleSelected = (itemId: string) => {
-    if (!readOnly) { setSelected(current => current.includes(itemId) ? current.filter(x => x !== itemId) : [...current, itemId]); return; }
+    if (!readOnly) {
+      const record = items.find((item) => item.id === itemId);
+      if (record) rememberVersions([record]);
+      setSelected(current => current.includes(itemId) ? current.filter(x => x !== itemId) : [...current, itemId]);
+      return;
+    }
     if (selectionIds.includes(itemId)) { setRequestSelected(current => current.filter(record => record.id !== itemId)); return; }
     const record = items.find(item => item.id === itemId);
     if (!record) return;
@@ -230,7 +250,11 @@ export default function SupportsBrowser({
     if (error) setNotice({ severity: "danger", message: error }); else { setRequestSelected(next); setNotice(null); }
   };
   const togglePage = () => {
-    if (!readOnly) { setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]); return; }
+    if (!readOnly) {
+      if (!pageSelected) rememberVersions(selectablePage);
+      setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]);
+      return;
+    }
     const next = pageSelected ? requestSelected.filter(record => !pageIds.includes(record.id)) : [...requestSelected, ...selectablePage.filter(record => !selectionIds.includes(record.id))];
     const error = next.length ? requestSelectionError(next) : null;
     if (error) setNotice({ severity: "danger", message: error }); else setRequestSelected(next);
@@ -262,7 +286,10 @@ export default function SupportsBrowser({
     setPage(1);
   };
 
-  const kindOptions = [{ value: ALL, label: "Todas las clases" }, ...toOptions(catalogs?.kinds)];
+  const kindOptions = [
+    { value: ALL, label: "Todas las clases" },
+    ...toOptions(catalogs?.kinds).map((option) => ({ ...option, label: kindLabel(option.value) })),
+  ];
   const stateOptions = [
     { value: ALL, label: "Todos los estados" },
     ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
@@ -371,7 +398,10 @@ export default function SupportsBrowser({
             {selected.length === 1 ? "1 seleccionado" : `${selected.length} seleccionados`}
             <button
               type="button"
-              onClick={() => setSelected([])}
+              onClick={() => {
+                setSelected([]);
+                setSelectedVersions({});
+              }}
               aria-label="Quitar la selección"
               className="flex size-6 items-center justify-center rounded-sm text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
@@ -383,6 +413,12 @@ export default function SupportsBrowser({
           <Button variant="outline" size="sm" className="ml-auto max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
             <Paperclip aria-hidden="true" />
             Adjuntar soporte
+          </Button>
+        )}
+        {canWrite && (selected.length > 0 || filtered) && (
+          <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setRetireOpen(true)}>
+            <CalendarX2 aria-hidden="true" />
+            Anular o vencer
           </Button>
         )}
         <Menu
@@ -603,6 +639,19 @@ export default function SupportsBrowser({
         filters={attachFilters}
         document={bulkAttach?.document ?? null}
       />
+      <RetireDialog
+        open={retireOpen}
+        onClose={() => setRetireOpen(false)}
+        selection={selected.map((supportId) => ({ id: supportId, version: selectedVersions[supportId] }))}
+        filter={retireFilter}
+        onForbidden={onForbidden}
+        onDone={(done) => {
+          setRetireOpen(false);
+          setSelected([]);
+          setSelectedVersions({});
+          setNotice({ severity: "success", message: retiredMessage(done) });
+        }}
+      />
       <SupportEditDialog support={editing} onClose={() => setEditId(null)} onForbidden={onForbidden} />
       <SupportVoidDialog support={voiding} onClose={() => setVoidId(null)} onForbidden={onForbidden} />
     </div>
@@ -613,6 +662,33 @@ export default function SupportsBrowser({
 function subject(support: SupplierSupport): string {
   const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
+}
+
+/** The filters `POST /retire` reads; it would silently drop any other, and reach more than the list shows. */
+function retireFiltersOf(body: SupportSearchBody): SupportSearchFilters {
+  return {
+    match: body.match,
+    conditions: body.conditions,
+    q: body.q,
+    customer_nits: body.customer_nits,
+    supplier_codes: body.supplier_codes,
+    product_skus: body.product_skus,
+    state: body.state,
+    needs_review: body.needs_review,
+    has_issues: body.has_issues,
+  };
+}
+
+/** "Se vencieron 12 apoyos y se anularon 2." The expiry voids the ones not yet started. */
+function retiredMessage(result: RetireResult): string {
+  const count = (n: number) => `${n.toLocaleString("es-CO")} ${n === 1 ? "apoyo" : "apoyos"}`;
+  const parts = [
+    result.expired.length > 0 && `se ${result.expired.length === 1 ? "venció" : "vencieron"} ${count(result.expired.length)}`,
+    result.voided.length > 0 && `se ${result.voided.length === 1 ? "anuló" : "anularon"} ${count(result.voided.length)}`,
+  ].filter((part): part is string => Boolean(part));
+  if (parts.length === 0) return "No cambió ningún apoyo.";
+  const text = parts.join(" y ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
 function searchFiltersOf(body: SupportSearchBody): SupportSearchFilters {

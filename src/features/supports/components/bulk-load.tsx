@@ -21,18 +21,26 @@ import {
   useBulkLoad,
   useCalcMethodLabel,
   useFormSchema,
+  useKindLabel,
   useProfile,
   useSupportCatalogs,
 } from "../hooks/use-supports";
-import { choiceLabel, formatDay, formatPublishFrom, formatSupplierValue } from "../lib/format";
+import { formatDay, formatPublishFrom, formatSupplierValue } from "../lib/format";
 import { PROFILE_DEFAULT_FIELDS, readDraft, withoutKey, type Draft } from "../lib/form-values";
 import { downloadBulkTemplate } from "../services/supports.service";
-import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec } from "../types/support.types";
+import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import SchemaFields from "./schema-fields";
 
 const NOT_USED = "";
+/** No `on_overlap`: a row that crosses a stored support is an error. */
+const CROSSING_ERROR = "error";
 const count = (n: number, one: string, many: string) => `${n.toLocaleString("es-CO")} ${n === 1 ? one : many}`;
+const radio = "mt-0.5 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+const choiceCard = "flex gap-3 rounded-lg border border-border p-3 text-sm has-[:checked]:border-primary";
+
+/** Everything the load writes: created, updated, expired as missing, and retired (crossed or Validación No). */
+const changesOf = (report: BulkReport) => report.to_create + report.to_update + report.to_expire + (report.to_retire ?? 0);
 
 /** Header -> field chosen on screen, turned into the API's field -> headers. */
 function invert(extra: Record<string, string>): ColumnMap {
@@ -80,6 +88,8 @@ export default function BulkLoad({ area }: { area: string }) {
   });
   const [mappingSaved, setMappingSaved] = useState(false);
   const [expireMissing, setExpireMissing] = useState(false);
+  const [onOverlap, setOnOverlap] = useState<OnOverlap | typeof CROSSING_ERROR>(CROSSING_ERROR);
+  const [groups, setGroups] = useState(false);
 
   const defaultSpecs = useMemo(
     () => (schema?.fields ?? []).filter((spec) => PROFILE_DEFAULT_FIELDS.includes(spec.name)),
@@ -92,11 +102,14 @@ export default function BulkLoad({ area }: { area: string }) {
   // What a request would send right now; the report is only valid for this exact input.
   const read = readDraft(defaultSpecs, defaults, defaultRule, { fractionsAsText: true });
   const columnMap = invert(extra);
+  // The group upload has no "close the missing ones": its rows fan out to customers.
+  const closeMissing = expireMissing && !groups;
+  const overlapChoice = onOverlap === CROSSING_ERROR ? null : onOverlap;
   const inputKey = file
-    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, sheet.trim(), read.values, columnMap, expireMissing])
+    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, sheet.trim(), read.values, columnMap, closeMissing, overlapChoice, groups])
     : null;
   const fresh = report !== null && inputKey === reportKey;
-  const changes = report ? report.to_create + report.to_update + report.to_expire : 0;
+  const changes = report ? changesOf(report) : 0;
   const canApply = fresh && !report.blocked && changes > 0;
 
   const input = (apply: boolean): BulkLoadInput => ({
@@ -106,7 +119,9 @@ export default function BulkLoad({ area }: { area: string }) {
     sheet: sheet.trim() || null,
     defaults: read.values as Record<string, string | string[]>,
     columnMap,
-    expireMissing,
+    expireMissing: closeMissing,
+    onOverlap: overlapChoice,
+    groups,
   });
 
   const run = (apply: boolean) => {
@@ -142,6 +157,8 @@ export default function BulkLoad({ area }: { area: string }) {
     setApplied(null);
     setExtra({});
     setExpireMissing(false);
+    setOnOverlap(CROSSING_ERROR);
+    setGroups(false);
     setRequestError(null);
   };
 
@@ -233,7 +250,7 @@ export default function BulkLoad({ area }: { area: string }) {
               <p className="text-[13px] text-text-secondary">
                 {supplier
                   ? "Con los encabezados de su perfil, sin las columnas de valor fijo. La completa trae todos los campos."
-                  : "La corta trae cliente, SKU, tipo y valor del apoyo, margen apoyado, vigencia y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo, unidad del valor y los demás campos opcionales."}
+                  : "La corta trae cliente, SKU, tipo y valor del apoyo, margen mínimo autorizado JDH, vigencia y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo, unidad del valor y los demás campos opcionales."}
               </p>
             )}
           </div>
@@ -302,15 +319,56 @@ export default function BulkLoad({ area }: { area: string }) {
           </div>
         </div>
 
-        <div className="space-y-3 border-t border-border pt-4">
+        <div className="space-y-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">Cómo actualiza el maestro</h3>
           <p className="max-w-prose text-[13px] text-text-secondary">
             Cada fila se busca por su llave (proveedor, clase, NIT, SKU, referencia externa y fecha de inicio): crea el
             apoyo si no existe y, si existe, cambia solo las columnas que trae el archivo. Una columna que no venga
-            conserva lo guardado. El aporte JDH aprobado nunca se reemplaza desde un archivo: se cambia en el panel de
-            solicitudes.
+            conserva lo guardado. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el apoyo
+            guardado con la observación de la fila, y vacío deja la fila sin tocar.
           </p>
-          <div className="flex items-start gap-3">
+
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">Tipo de subida</legend>
+            <div className="grid gap-2 md:grid-cols-2">
+              <label className={choiceCard}>
+                <input type="radio" name={`${id}-groups`} checked={!groups} onChange={() => setGroups(false)} className={radio} />
+                <span>
+                  <span className="block font-medium">Por cliente</span>
+                  <span className="text-text-secondary">Cada fila es un apoyo, con su NIT o para todos los clientes.</span>
+                </span>
+              </label>
+              <label className={choiceCard}>
+                <input type="radio" name={`${id}-groups`} checked={groups} onChange={() => setGroups(true)} className={radio} />
+                <span>
+                  <span className="block font-medium">Por grupo empresarial</span>
+                  <span className="text-text-secondary">
+                    Cada fila trae la columna Grupo Empresarial, sin NIT, y crea un apoyo por cada cliente activo del grupo.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <Field
+            label="Si una fila se cruza con un apoyo guardado"
+            htmlFor={`${id}-overlap`}
+            hint="Misma clase, proveedor, cliente y referencia, con vigencias que se tocan. Dos filas del archivo que se cruzan siempre son error."
+          >
+            <Dropdown
+              id={`${id}-overlap`}
+              value={onOverlap}
+              onValueChange={(value) => setOnOverlap(value as OnOverlap | typeof CROSSING_ERROR)}
+              options={[
+                { value: CROSSING_ERROR, label: "Marcarla como error" },
+                { value: "vencer_anterior", label: "Vencer el anterior el día antes del nuevo" },
+                { value: "anular_anterior", label: "Anular el anterior" },
+              ]}
+              className="md:max-w-md"
+            />
+          </Field>
+
+          {!groups && <div className="flex items-start gap-3">
             <Switch
               checked={expireMissing}
               onCheckedChange={setExpireMissing}
@@ -331,7 +389,7 @@ export default function BulkLoad({ area }: { area: string }) {
                 carga. Nada se borra. Los que aún no empiezan solo se reportan.
               </p>
             </div>
-          </div>
+          </div>}
         </div>
 
         {requestError && (
@@ -357,7 +415,7 @@ export default function BulkLoad({ area }: { area: string }) {
         <Report
           report={report}
           fresh={fresh}
-          expireMissing={expireMissing}
+          expireMissing={closeMissing}
           labelOf={labelOf}
           fields={schema?.fields ?? []}
           extra={extra}
@@ -417,7 +475,9 @@ function Report({
 }) {
   const id = useId();
   const calcMethodLabel = useCalcMethodLabel();
-  const changes = report.to_create + report.to_update + report.to_expire;
+  const kindLabel = useKindLabel();
+  const changes = changesOf(report);
+  const v2 = report.to_retire !== undefined;
   const mapped = Object.entries(report.mapped_columns);
   const chosen = Object.values(extra).filter(Boolean).length;
   const fieldOptions = [{ value: NOT_USED, label: "No usar" }, ...fields.map((spec) => ({ value: spec.name, label: spec.label }))];
@@ -431,13 +491,17 @@ function Report({
           {count(report.rows_read, "fila leída", "filas leídas")}: {count(report.valid, "válida", "válidas")} y{" "}
           {count(report.invalid, "con errores", "con errores")}.
           {report.profile_used && " Se leyó con el perfil del proveedor."}
+          {(report.skipped ?? 0) > 0 &&
+            ` ${count(report.skipped ?? 0, "fila quedó", "filas quedaron")} sin tocar porque su Validación está vacía.`}
+          {(report.group_supports ?? 0) > 0 &&
+            ` Los grupos empresariales dan ${count(report.group_supports ?? 0, "apoyo", "apoyos")}, uno por cliente.`}
         </p>
       </div>
 
       {!fresh ? (
         <p role="status" className="rounded-md bg-canvas-subtle px-3 py-2 text-sm">
-          Cambiaste el archivo, el proveedor, la hoja, el mapeo o la opción de vencer ausentes. Vuelve a simular
-          antes de aplicar.
+          Cambiaste el archivo, el proveedor, la hoja, el mapeo, el tipo de subida o lo que se hace con los cruces o
+          los ausentes. Vuelve a simular antes de aplicar.
         </p>
       ) : report.blocked ? (
         <p role="alert" className="flex items-start gap-2 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
@@ -464,8 +528,13 @@ function Report({
         </div>
       )}
 
-      {report.valid > 0 && (
-        <dl className="grid divide-y divide-border rounded-lg border border-border sm:grid-cols-5 sm:divide-x sm:divide-y-0">
+      {(report.valid > 0 || (report.to_retire ?? 0) > 0) && (
+        <dl
+          className={cn(
+            "grid divide-y divide-border rounded-lg border border-border sm:divide-x sm:divide-y-0",
+            v2 ? "sm:grid-cols-6" : "sm:grid-cols-5"
+          )}
+        >
           <Figure label="Nuevos" value={report.to_create} />
           <Figure label="Se actualizan" value={report.to_update} />
           <Figure label="Sin cambio" value={report.unchanged} />
@@ -475,6 +544,9 @@ function Report({
             value={report.to_expire}
             detail={expireMissing ? "Ausentes ya empezados" : report.missing > 0 ? "Vencer está apagado" : undefined}
           />
+          {v2 && (
+            <Figure label="Se retiran" value={report.to_retire ?? 0} detail="Cruzados o con Validación No" />
+          )}
         </dl>
       )}
 
@@ -579,7 +651,7 @@ function Report({
                   <span className="shrink-0 font-medium tabular-nums">{formatSupplierValue(row.calc_method, row.supplier_value)}</span>
                 </span>
                 <span className="block truncate text-xs text-text-secondary">
-                  {calcMethodLabel(row.calc_method)} · {choiceLabel("kind", row.kind)} ·{" "}
+                  {calcMethodLabel(row.calc_method)} · {kindLabel(row.kind)} ·{" "}
                   {row.customer_nit ? `NIT ${row.customer_nit}` : "Todos los clientes"}
                 </span>
                 <ActionBadge action={row.action} />
@@ -609,7 +681,7 @@ function Report({
                     </td>
                     <td className="px-3 py-2 font-mono text-[13px]">{row.supplier_code ?? "Sin código"}</td>
                     <td className="px-3 py-2">
-                      <span className="block">{choiceLabel("kind", row.kind)}</span>
+                      <span className="block">{kindLabel(row.kind)}</span>
                       {row.program && <span className="block max-w-56 truncate text-xs text-text-secondary">{row.program}</span>}
                     </td>
                     <td className="px-3 py-2 font-mono text-[13px]">{row.customer_nit ?? <span className="font-sans">Todos</span>}</td>
@@ -650,10 +722,12 @@ function appliedSummary(report: BulkReport, projected = false): string {
   const created = projected ? report.to_create : report.created.length;
   const updated = projected ? report.to_update : report.updated.length;
   const expired = projected ? report.to_expire : report.expired.length;
+  const retired = projected ? (report.to_retire ?? 0) : (report.retired?.length ?? 0);
   const parts = [
     created > 0 && count(created, "apoyo nuevo", "apoyos nuevos"),
     updated > 0 && count(updated, projected ? "se actualiza" : "actualizado", projected ? "se actualizan" : "actualizados"),
-    expired > 0 && count(expired, projected ? "se vence" : "vencido", projected ? "se vencen" : "vencidos"),
+    expired > 0 && count(expired, projected ? "ausente se vence" : "ausente vencido", projected ? "ausentes se vencen" : "ausentes vencidos"),
+    retired > 0 && count(retired, projected ? "guardado se retira" : "guardado retirado", projected ? "guardados se retiran" : "guardados retirados"),
   ].filter((part): part is string => Boolean(part));
   if (parts.length === 0) return projected ? "No hay cambios para guardar." : "No cambió ningún apoyo.";
   const text = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}`;

@@ -435,6 +435,9 @@ function Detail({
             <Row label="Por unidad">{formatMoney(support.amount)}</Row>
             <Row label="Sobre el costo">{formatMargin(support.share_of_cost)}</Row>
             {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
+            {support.authorized_margin_pct != null && (
+              <Row label="Margen mínimo autorizado JDH">{formatMargin(support.authorized_margin_pct)}</Row>
+            )}
             <Row label="Vigencia">
               {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
             </Row>

@@ -17,12 +17,17 @@ export async function logoutSession(): Promise<void> {
   await apiFetch<void>("/auth/logout", { method: "POST" });
 }
 
-/** The API answers every error with `{"detail": "..."}` in Spanish. */
+/**
+ * The API answers every error with `{"detail": "..."}` in Spanish. Some add
+ * machine-readable fields next to it (a 409 lists what it collides with), so
+ * the parsed body is kept.
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly detail: string,
-    readonly issues: ApiValidationIssue[] = []
+    readonly issues: ApiValidationIssue[] = [],
+    readonly body: unknown = null
   ) {
     super(detail);
     this.name = "ApiError";
@@ -194,7 +199,8 @@ export async function apiFetch<T>(
     throw new ApiError(
       response.status,
       readDetail(payload, response.status),
-      readIssues(payload)
+      readIssues(payload),
+      payload
     );
   }
   return payload as T;
