@@ -28,7 +28,7 @@ import {
 } from "../hooks/use-supports";
 import { requestEligible, requestSelectionError, sameRequestScope } from "../lib/request-selection";
 import BatchRequestDialog from "./batch-request-dialog";
-import { formatSupplierValue, STATE_LABELS, toOptions } from "../lib/format";
+import { formatSupplierValue, PRICE_LABELS, STATE_LABELS, toOptions } from "../lib/format";
 import type {
   FilterCondition,
   RetireResult,
@@ -40,7 +40,7 @@ import type {
 import AdvancedFilters from "./advanced-filters";
 import ReplacementAlerts from "./replacement-alerts";
 import RetireDialog from "./retire-dialog";
-import { COLUMNS, SortHeader, td, th, type SortDirection } from "./supports-columns";
+import { COLUMNS, HIDEABLE, hideKeyOf, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
@@ -207,7 +207,16 @@ export default function SupportsBrowser({
   const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
   const toggleColumn = (key: string, shown: boolean) =>
     writeHiddenColumns(shown ? hiddenColumns.filter((hidden) => hidden !== key) : [...hiddenColumns, key]);
-  const columns = COLUMNS.filter((column) => !hiddenColumns.includes(column.key));
+  // The «price» key hides the whole price group; the cost sub-column is BI's only.
+  const columns = COLUMNS.filter((column) => !hiddenColumns.includes(hideKeyOf(column)) && (!column.costOnly || !readOnly));
+  const grouped = columns.some((column) => column.group);
+  // The group header row: a cell per column outside a group (spanning both rows), one per group run.
+  const groupHeads = columns.reduce<{ column: Column; span: number }[]>((runs, column) => {
+    const last = runs[runs.length - 1];
+    if (column.group && last?.column.group?.key === column.group.key) last.span += 1;
+    else runs.push({ column, span: 1 });
+    return runs;
+  }, []);
 
   const filtered =
     q !== "" ||
@@ -394,7 +403,7 @@ export default function SupportsBrowser({
             triggerClassName={buttonVariants({ variant: "outline", size: "sm", className: "max-md:hidden" })}
           >
             <MenuLabel>Columnas de la tabla</MenuLabel>
-            {COLUMNS.filter((column) => column.hideable).map((column) => (
+            {HIDEABLE.map((column) => (
               <MenuCheckboxItem
                 key={column.key}
                 checked={!hiddenColumns.includes(column.key)}
@@ -535,6 +544,15 @@ export default function SupportsBrowser({
                       {formatSupplierValue(support.calc_method, support.supplier_value)}
                     </span>
                   </span>
+                  {/* The three prices, full label above each value: the phone has no room for them side by side in a line. */}
+                  <span className="grid w-full grid-cols-3 gap-2 text-xs">
+                    {MOBILE_PRICES.map(([field, label]) => (
+                      <span key={field} className="min-w-0">
+                        <span className="block text-text-secondary">{label}</span>
+                        <PriceValue support={support} field={field} align="left" />
+                      </span>
+                    ))}
+                  </span>
                   <span className="flex flex-wrap gap-1.5">
                     <StateBadge value={support.state} />
                     <AttachmentBadge support={support} />
@@ -547,7 +565,7 @@ export default function SupportsBrowser({
           </ul>
 
           <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-            <table className="w-full min-w-[64rem] table-fixed text-left text-sm">
+            <table className="w-full min-w-[72rem] table-fixed text-left text-sm">
               <caption className="sr-only">Apoyos de proveedores</caption>
               <colgroup>
                 {canSelect && <col style={{ width: 40 }} />}
@@ -559,7 +577,7 @@ export default function SupportsBrowser({
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
                   {canSelect && (
-                    <th scope="col" className={cn(th, "w-10")}>
+                    <th scope="col" rowSpan={grouped ? 2 : undefined} className={cn(th, "w-10")}>
                       <input
                         type="checkbox"
                         checked={pageSelected}
@@ -570,15 +588,28 @@ export default function SupportsBrowser({
                       />
                     </th>
                   )}
-                  {columns.map((column) => (
-                    <SortHeader key={column.key} column={column} sortable={sortable} sort={sort} onSort={changeSort} />
-                  ))}
+                  {groupHeads.map(({ column, span }) =>
+                    column.group ? (
+                      <th key={column.group.key} scope="colgroup" colSpan={span} className={cn(th, "h-7 border-b border-border pb-0 text-center")}>
+                        {column.group.label}
+                      </th>
+                    ) : (
+                      <SortHeader key={column.key} column={column} sortable={sortable} sort={sort} onSort={changeSort} rowSpan={grouped ? 2 : undefined} />
+                    )
+                  )}
                   {canWrite && (
-                    <th scope="col" className={th}>
+                    <th scope="col" rowSpan={grouped ? 2 : undefined} className={th}>
                       <span className="sr-only">Acciones</span>
                     </th>
                   )}
                 </tr>
+                {grouped && (
+                  <tr>
+                    {columns.filter((column) => column.group).map((column) => (
+                      <SortHeader key={column.key} column={column} sortable={sortable} sort={sort} onSort={changeSort} />
+                    ))}
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-border">
                 {items.map((support) => (
@@ -598,7 +629,7 @@ export default function SupportsBrowser({
                       </td>
                     )}
                     {columns.map((column) => (
-                      <td key={column.key} className={cn(td, column.align === "right" && "text-right")}>
+                      <td key={column.key} className={cn(td, column.align === "right" && "text-right", column.tight && "px-1.5")}>
                         {column.cell(support, { open: () => setOpenId(support.id), methodLabel, seesCost: !readOnly })}
                       </td>
                     ))}
@@ -668,6 +699,13 @@ export default function SupportsBrowser({
     </div>
   );
 }
+
+/** The prices the mobile row shows, named as everywhere else. */
+const MOBILE_PRICES = [
+  ["list_price", PRICE_LABELS.list.full],
+  ["suggested_price_per", PRICE_LABELS.suggested.full],
+  ["supported_price_per", PRICE_LABELS.minimum.full],
+] as const;
 
 /** Customer or product the support applies to, for the compact mobile row. */
 function subject(support: SupplierSupport): string {

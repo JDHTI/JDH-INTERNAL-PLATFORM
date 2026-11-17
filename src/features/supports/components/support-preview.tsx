@@ -6,15 +6,15 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useSupportPreview } from "../hooks/use-supports";
-import { formatCop, formatPct, marginListLabel } from "../lib/format";
+import { formatCop, formatPct, marginListLabel, PRICE_LABELS, RECOMPOSED_HELP } from "../lib/format";
 import type { PerUnit, SupportCreateBody, SupportDerived } from "../types/support.types";
 import { NO_EFFECT_HELP } from "./support-badges";
 
 const ROWS: [label: string, pick: (derived: SupportDerived | null | undefined) => PerUnit | null | undefined][] = [
   ["Costo", (derived) => derived?.cost],
-  ["Precio lista", (derived) => derived?.list_price],
-  ["Precio apoyado sugerido", (derived) => derived?.suggested_price_per],
-  ["Precio apoyado mínimo", (derived) => derived?.supported_price_per],
+  [PRICE_LABELS.list.full, (derived) => derived?.list_price],
+  [PRICE_LABELS.suggested.full, (derived) => derived?.suggested_price_per],
+  [PRICE_LABELS.minimum.full, (derived) => derived?.supported_price_per],
 ];
 
 /**
@@ -50,7 +50,7 @@ export default function SupportPreview({ body, missing }: { body: SupportCreateB
           {preview.isError && <p role="alert" className="text-sm text-danger">{errorMessage(preview.error)}</p>}
           {derived?.support_above_cost && (
             <Alert severity="warning">
-              {NO_EFFECT_HELP} Revisa el valor: así como está, el precio sugerido queda en el precio lista.
+              {NO_EFFECT_HELP} Revisa el valor: así como está, el precio apoyado sugerido queda en el precio de lista.
             </Alert>
           )}
           <div className="overflow-x-auto rounded-md border border-border">
@@ -75,8 +75,10 @@ export default function SupportPreview({ body, missing }: { body: SupportCreateB
             </table>
           </div>
           <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            <div className="flex gap-1.5">
-              <dt className="text-text-secondary">Margen recompuesto</dt>
+            <div className="flex gap-1.5" title={RECOMPOSED_HELP}>
+              <dt className="text-text-secondary">
+                Margen recompuesto<span className="sr-only">. {RECOMPOSED_HELP}</span>
+              </dt>
               <dd className="tabular-nums">{formatPct(derived?.margin_recomposed)}</dd>
             </div>
             <div className="flex gap-1.5">

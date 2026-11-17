@@ -128,6 +128,21 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
 export const choiceLabel = (field: string, code: string, labels?: Record<string, string>) =>
   labels?.[code] ?? CHOICE_LABELS[field]?.[code] ?? humanize(code);
 
+/**
+ * The three prices of a support, named the same everywhere (BI's words). The
+ * short name is only for the compact table's sub-headers, with the full one
+ * as their tooltip and accessible name.
+ */
+export const PRICE_LABELS = {
+  list: { full: "Precio de lista", short: "Lista" },
+  suggested: { full: "Precio apoyado sugerido", short: "Apoyado sug." },
+  minimum: { full: "Precio apoyado mínimo", short: "Apoyado mín." },
+} as const;
+
+/** What `derived.margin_recomposed` measures since the API measures it at the supported price. */
+export const RECOMPOSED_HELP =
+  "Margen que deja el apoyo al precio apoyado mínimo, o al sugerido si no hay margen mínimo JDH.";
+
 /** The name of `supported_margin_pct` in rules v2, the same the form schema gives it. */
 export const SUPPORTED_MARGIN_LABEL = "Excepción margen mínimo autorizado JDH";
 
