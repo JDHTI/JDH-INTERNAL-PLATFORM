@@ -19,6 +19,8 @@ import {
   humanize,
   marginListLabel,
   originLabel,
+  PRICE_LABELS,
+  RECOMPOSED_HELP,
   SUPPORTED_MARGIN_LABEL,
 } from "../lib/format";
 import type {
@@ -197,26 +199,29 @@ function Body({
           title="Cifras calculadas, por unidad de inventario"
           note={
             derived.support_above_cost
-              ? `${NO_EFFECT_HELP} Cuenta como 0: el costo neto es el costo y el precio sugerido es el precio lista.`
+              ? `${NO_EFFECT_HELP} Cuenta como 0: el costo neto es el costo y el precio apoyado sugerido es el precio de lista.`
               : undefined
           }
         >
-          <Row label="$ Apoyo" tabular>{formatCop(derived.supplier_amount)}</Row>
-          {seesCost && <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>}
-          <Row label="% sobre costo" tabular>{formatPct(derived.pct_on_cost)}</Row>
-          <Row label="% sobre lista" tabular>{formatPct(derived.pct_on_list)}</Row>
-          <Row label="Precio Apoyado Sugerido" tabular>{formatCop(derived.suggested_price)}</Row>
+          {/* Figures only: the values line up on the right, like a column of numbers. */}
+          <Row label="$ Apoyo" numeric>{formatCop(derived.supplier_amount)}</Row>
+          {seesCost && <Row label="Costo neto" numeric>{formatCop(derived.net_cost)}</Row>}
+          <Row label="% sobre costo" numeric>{formatPct(derived.pct_on_cost)}</Row>
+          <Row label="% sobre lista" numeric>{formatPct(derived.pct_on_list)}</Row>
+          <Row label={PRICE_LABELS.list.full} numeric>{formatCop(derived.list_price?.unit)}</Row>
+          <Row label={PRICE_LABELS.suggested.full} numeric>{formatCop(derived.suggested_price)}</Row>
+          {derived.product_margin_pct !== undefined && (
+            <Row label={PRICE_LABELS.minimum.full} numeric>{formatCop(derived.supported_price)}</Row>
+          )}
           {derived.product_margin_pct !== undefined && (
             <>
-              <Row label="Margen del producto" tabular>{formatPct(derived.product_margin_pct)}</Row>
-              <Row label="Margen recompuesto a precio lista" tabular>{formatPct(derived.recomposed_list_margin)}</Row>
-              <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(derived.supported_margin_pct)}</Row>
-              <Row label="Precio Apoyado Mínimo" tabular>{formatCop(derived.supported_price)}</Row>
+              <Row label="Margen del producto" numeric>{formatPct(derived.product_margin_pct)}</Row>
+              <Row label={SUPPORTED_MARGIN_LABEL} numeric>{formatPct(derived.supported_margin_pct)}</Row>
             </>
           )}
-          {seesCost && <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>}
-          <Row label="Margen recompuesto" tabular>{formatPct(derived.margin_recomposed)}</Row>
-          <Row label="Margen mínimo" tabular>{formatPct(derived.min_margin_pct)}</Row>
+          <Row label="Margen recompuesto" numeric hint={RECOMPOSED_HELP}>{formatPct(derived.margin_recomposed)}</Row>
+          {seesCost && <Row label="Margen del pedido" numeric>{formatPct(derived.margin_order)}</Row>}
+          <Row label="Margen mínimo" numeric>{formatPct(derived.min_margin_pct)}</Row>
         </Section>
       )}
 
@@ -316,11 +321,11 @@ const BASIS_LABELS: Record<NonNullable<SupplierSupport["unit_basis_source"]>, st
 
 const PER_UNIT_ROWS: [PerUnitKey, string][] = [
   ["cost", "Costo"],
-  ["list_price", "Precio de lista"],
+  ["list_price", PRICE_LABELS.list.full],
   ["supplier_amount_per", "$ Apoyo"],
   ["net_cost_per", "Costo neto"],
-  ["suggested_price_per", "Precio Apoyado Sugerido"],
-  ["supported_price_per", "Precio Apoyado Mínimo"],
+  ["suggested_price_per", PRICE_LABELS.suggested.full],
+  ["supported_price_per", PRICE_LABELS.minimum.full],
 ];
 
 /** Per-unit rows Comercial does not get. */
@@ -452,13 +457,30 @@ function Row({
   label,
   mono = false,
   tabular = false,
+  numeric = false,
+  hint,
   children,
 }: {
   label: string;
   mono?: boolean;
   tabular?: boolean;
+  /** A figure: the label may take two lines and the value sits on the right, on one line. */
+  numeric?: boolean;
+  /** What the figure measures: the label's tooltip, and read after it. */
+  hint?: string;
   children: React.ReactNode;
 }) {
+  if (numeric) {
+    return (
+      <div className="flex items-baseline justify-between gap-4 py-2" title={hint}>
+        <dt className="min-w-0 text-text-secondary">
+          {label}
+          {hint && <span className="sr-only">. {hint}</span>}
+        </dt>
+        <dd className="shrink-0 whitespace-nowrap text-right tabular-nums">{children}</dd>
+      </div>
+    );
+  }
   return (
     <div className="grid gap-1 py-2 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-3">
       <dt className="text-text-secondary">{label}</dt>

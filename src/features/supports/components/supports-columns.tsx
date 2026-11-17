@@ -14,6 +14,8 @@ import {
   formatSupplierValue,
   marginListLabel,
   PERCENT_METHODS,
+  PRICE_LABELS,
+  RECOMPOSED_HELP,
   SUPPORTED_MARGIN_LABEL,
 } from "../lib/format";
 import type { PerUnit, SupplierSupport } from "../types/support.types";
@@ -39,6 +41,14 @@ export interface Column {
   hideable?: boolean;
   /** Share of the fixed-layout table; the product takes what the others leave. */
   width?: string;
+  /** The full name, as the header's tooltip and accessible name, when `label` is short. */
+  title?: string;
+  /** Consecutive columns of a group share a header above theirs, and hide together. */
+  group?: { key: string; label: string };
+  /** Only BI sees it: Comercial gets the cost empty. */
+  costOnly?: boolean;
+  /** Less side padding, for a narrow column of figures that sits next to others like it. */
+  tight?: boolean;
   cell: (support: SupplierSupport, context: CellContext) => React.ReactNode;
 }
 
@@ -139,7 +149,7 @@ function Figures({ rows }: { rows: { label: string; value: string | null; strong
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
       {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-4" title={row.title}>
+        <div key={row.label} className="flex items-baseline justify-between gap-2" title={row.title}>
           <dt className="whitespace-nowrap text-xs text-text-secondary">{row.label}</dt>
           <dd className={cn("whitespace-nowrap", row.strong && "font-semibold")}>{row.value ?? dash}</dd>
         </div>
@@ -158,7 +168,7 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
     <Figures
       rows={[
         { label: "Producto", value: pct(derived?.product_margin_pct), title: "Margen general del producto (maestro de márgenes)" },
-        { label: "Recompuesto", value: pct(derived?.recomposed_list_margin), title: "Margen que deja el apoyo del proveedor al precio lista" },
+        { label: "Recompuesto", value: pct(derived?.margin_recomposed), title: RECOMPOSED_HELP },
         {
           label: "Mínimo JDH",
           value: pct(derived?.supported_margin_pct ?? support.supported_margin_pct),
@@ -170,52 +180,55 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
   );
 }
 
+type PriceKey = "cost" | "list_price" | "suggested_price_per" | "supported_price_per";
+const PRICE_KEYS: PriceKey[] = ["cost", "list_price", "suggested_price_per", "supported_price_per"];
+const hasSide = (pair: PerUnit | null | undefined, side: keyof PerUnit) => toNumber(pair?.[side]) !== null;
+
 /**
- * Cost, list price and the two supported prices in the support's own unit
- * (the box when it is per box), and the customer's discount against the list
- * price. Rules v2: everything per inventory unit, the box is unit × pack.
+ * Which side every price of a row is shown in: the support's own unit (the
+ * box when it is per box) when the API has it there, else the other one. All
+ * the prices of a row go in the same unit, so they compare at a glance.
  */
-function PriceCell({ support, seesCost }: { support: SupplierSupport; seesCost: boolean }) {
+export function priceSide(support: SupplierSupport): { side: keyof PerUnit; noted: boolean } {
   const derived = support.derived;
   const preferred: keyof PerUnit = support.value_unit === "caja" ? "box" : "unit";
-  const other: keyof PerUnit = preferred === "box" ? "unit" : "box";
-  const has = (pair: PerUnit | null | undefined, side: keyof PerUnit) => toNumber(pair?.[side]) !== null;
-  const side = [derived?.cost, derived?.list_price, derived?.supported_price_per].some((pair) => has(pair, preferred))
-    ? preferred
-    : other;
-  const minimum = derived?.supported_price_per;
-  const suggested = derived?.suggested_price_per;
-  const anyPrice = [derived?.cost, derived?.list_price, minimum, suggested].some((pair) => has(pair, side));
+  const side = PRICE_KEYS.some((key) => hasSide(derived?.[key], preferred)) ? preferred : preferred === "box" ? "unit" : "box";
+  const any = PRICE_KEYS.some((key) => hasSide(derived?.[key], side));
+  // The support cell already names its unit; say it only when the prices are in another one.
+  return { side, noted: any && (side !== preferred || !support.value_unit) };
+}
+
+/**
+ * One price of the row, right-aligned and never truncated; a dash when the API
+ * has none (the minimum only exists with a JDH margin). The list price carries
+ * the unit when it is not the support's own.
+ */
+export function PriceValue({
+  support,
+  field,
+  align = "right",
+}: {
+  support: SupplierSupport;
+  field: PriceKey;
+  /** Left in the mobile stack, under its label. */
+  align?: "left" | "right";
+}) {
+  const { side, noted } = priceSide(support);
+  const value = cop(support.derived?.[field]?.[side]);
+  // The minimum is the price the support allows, so it leads when there is one.
+  const strong = field === "supported_price_per" || (field === "suggested_price_per" && !hasSide(support.derived?.supported_price_per, side));
+  // Spans only: the mobile row puts it inside a button.
   return (
-    <div className="space-y-0.5">
-      <Figures
-        rows={[
-          ...(seesCost ? [{ label: "Costo", value: cop(derived?.cost?.[side]) }] : []),
-          { label: "Lista", value: cop(derived?.list_price?.[side]) },
-          {
-            label: "Sugerido",
-            value: cop(suggested?.[side]),
-            strong: !has(minimum, side),
-            title: "Precio Apoyado Sugerido: precio lista − $ Apoyo",
-          },
-          {
-            label: "Mínimo",
-            value: cop(minimum?.[side]),
-            strong: has(minimum, side),
-            title: "Precio Apoyado Mínimo: (costo − apoyo) / (1 − margen mínimo autorizado JDH)",
-          },
-        ]}
-      />
-      {/*
-       * The support cell already names its unit; say it here only when the
-       * prices are in another one, and never when there is no price at all.
-       */}
-      {anyPrice && (side !== preferred || !support.value_unit) ? (
-        <span className="block text-right text-xs text-text-secondary">por {side === "box" ? "caja" : "unidad"}</span>
-      ) : null}
-    </div>
+    <span className={cn("block text-[13px] tabular-nums", align === "right" && "text-right")}>
+      <span className={cn("whitespace-nowrap", strong && value && "font-semibold")}>{value ?? dash}</span>
+      {field === "list_price" && noted && (
+        <span className="block text-xs text-text-secondary">por {side === "box" ? "caja" : "unidad"}</span>
+      )}
+    </span>
   );
 }
+
+const PRICE_GROUP = { key: "price", label: "Precio" };
 
 function ValidityCell({ support }: { support: SupplierSupport }) {
   return (
@@ -253,7 +266,7 @@ export const COLUMNS: Column[] = [
     label: "Cliente",
     sorts: [["customer_name", "Cliente"]],
     hideable: true,
-    width: "15%",
+    width: "12%",
     cell: (s) => <CustomerCell support={s} />,
   },
   {
@@ -263,22 +276,57 @@ export const COLUMNS: Column[] = [
       ["supplier_value", "Valor"],
       ["kind", "Clase"],
     ],
-    width: "15%",
+    width: "12%",
     cell: (s, { methodLabel }) => <SupportCell support={s} methodLabel={methodLabel} />,
   },
   {
     key: "margins",
     label: "Márgenes",
     hideable: true,
-    width: "14%",
+    width: "13%",
     cell: (s) => <MarginsCell support={s} />,
   },
+  // «Precio»: one group header over a sub-column per price, hidden together from «Columnas».
   {
-    key: "price",
-    label: "Precio",
-    hideable: true,
-    width: "17%",
-    cell: (s, { seesCost }) => <PriceCell support={s} seesCost={seesCost} />,
+    key: "price-cost",
+    label: "Costo",
+    title: "Costo por unidad de inventario (solo BI)",
+    group: PRICE_GROUP,
+    costOnly: true,
+    align: "right",
+    tight: true,
+    width: "8.5%",
+    cell: (s) => <PriceValue support={s} field="cost" />,
+  },
+  {
+    key: "price-list",
+    label: PRICE_LABELS.list.short,
+    title: PRICE_LABELS.list.full,
+    group: PRICE_GROUP,
+    align: "right",
+    tight: true,
+    width: "9%",
+    cell: (s) => <PriceValue support={s} field="list_price" />,
+  },
+  {
+    key: "price-suggested",
+    label: PRICE_LABELS.suggested.short,
+    title: `${PRICE_LABELS.suggested.full}: precio de lista − $ Apoyo`,
+    group: PRICE_GROUP,
+    align: "right",
+    tight: true,
+    width: "9%",
+    cell: (s) => <PriceValue support={s} field="suggested_price_per" />,
+  },
+  {
+    key: "price-minimum",
+    label: PRICE_LABELS.minimum.short,
+    title: `${PRICE_LABELS.minimum.full}: (costo − apoyo) / (1 − margen mínimo autorizado JDH)`,
+    group: PRICE_GROUP,
+    align: "right",
+    tight: true,
+    width: "9%",
+    cell: (s) => <PriceValue support={s} field="supported_price_per" />,
   },
   {
     key: "validity",
@@ -287,10 +335,20 @@ export const COLUMNS: Column[] = [
       ["valid_from", "Fecha de inicio"],
       ["valid_to", "Fecha de fin"],
     ],
-    width: "13%",
+    width: "11%",
     cell: (s) => <ValidityCell support={s} />,
   },
 ];
+
+/** What the «Columnas» menu hides: a column, or a whole group of them under one name. */
+export function hideKeyOf(column: Column): string {
+  return column.group?.key ?? column.key;
+}
+
+/** One entry per column or group, for the «Columnas» menu. */
+export const HIDEABLE = COLUMNS.filter((column) => column.hideable || column.group).filter(
+  (column, index, all) => all.findIndex((other) => hideKeyOf(other) === hideKeyOf(column)) === index
+).map((column) => ({ key: hideKeyOf(column), label: column.group?.label ?? column.label }));
 
 export type SortDirection = "asc" | "desc";
 
@@ -313,6 +371,7 @@ export function SortHeader({
   sortable,
   sort,
   onSort,
+  rowSpan,
 }: {
   column: Column;
   sortable: Set<string>;
@@ -320,18 +379,27 @@ export function SortHeader({
   sort: string[];
   /** null puts back the list's default order. */
   onSort: (field: string | null, direction?: SortDirection) => void;
+  /** 2 when the header has a second row (a column group) and this column has none. */
+  rowSpan?: number;
 }) {
   const keys = (column.sorts ?? []).filter(([field]) => sortable.has(field));
   const head = sort[0] ?? "";
   const activeField = head.replace(/^-/, "");
   const active = keys.find(([field]) => field === activeField) ?? null;
   const direction: SortDirection = head.startsWith("-") ? "desc" : "asc";
-  const className = cn(th, column.align === "right" && "text-right");
+  const className = cn(th, column.align === "right" && "text-right", column.tight && "px-1.5");
 
   if (keys.length === 0) {
     return (
-      <th scope="col" className={className}>
-        {column.label}
+      <th scope="col" rowSpan={rowSpan} className={className} title={column.title}>
+        {column.title ? (
+          <>
+            <span aria-hidden="true">{column.label}</span>
+            <span className="sr-only">{column.title}</span>
+          </>
+        ) : (
+          column.label
+        )}
       </th>
     );
   }
@@ -342,7 +410,7 @@ export function SortHeader({
     : null;
 
   return (
-    <th scope="col" aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined} className={className}>
+    <th scope="col" rowSpan={rowSpan} aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined} className={className}>
       <Menu
         trigger={
           <>
