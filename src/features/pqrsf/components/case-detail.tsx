@@ -41,6 +41,7 @@ import type {
 import { DueLabel, NewsBadge, OmBadge } from "./case-badges";
 import CaseClassification from "./case-classification";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
+import CaseActionPlans from "./case-action-plans";
 import CaseImprovement from "./case-improvement";
 import CaseItems from "./case-items";
 import CaseOpenings from "./case-openings";
@@ -164,6 +165,7 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
           {request && <IntakeRequestSection caseId={item.id} request={request} />}
           <CaseFiles caseId={item.id} />
           <CaseImprovement item={item} request={request} />
+          <CaseActionPlans item={item} area={area} />
           <CaseTimeline item={item} events={events} />
         </div>
       </div>
