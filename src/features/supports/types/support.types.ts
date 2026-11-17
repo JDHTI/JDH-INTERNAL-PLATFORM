@@ -68,8 +68,13 @@ export interface SupportDerived {
   /** Net cost at the supported margin: net cost / (1 - supported margin). */
   supported_price?: Decimal | null;
   supported_price_per?: PerUnit | null;
-  /** How far the supported price falls below the list price. */
+  /** How far the supported price falls below the list price. BI took it out for now: always null, never shown. */
   customer_discount_pct?: Decimal | null;
+  /**
+   * The supported cost is above today's DWH cost, or the value is negative: the
+   * support counts as 0 (net cost = cost, suggested price = list price).
+   */
+  support_above_cost?: boolean;
 }
 
 /** Cost of the support's SKU in the DWH with the quoter's rule, from the daily job. */

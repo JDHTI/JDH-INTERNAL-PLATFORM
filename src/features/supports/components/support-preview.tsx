@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/shared/components/ui/alert";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -7,6 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { useSupportPreview } from "../hooks/use-supports";
 import { formatCop, formatPct, marginListLabel } from "../lib/format";
 import type { PerUnit, SupportCreateBody, SupportDerived } from "../types/support.types";
+import { NO_EFFECT_HELP } from "./support-badges";
 
 const ROWS: [label: string, pick: (derived: SupportDerived | null | undefined) => PerUnit | null | undefined][] = [
   ["Costo", (derived) => derived?.cost],
@@ -46,6 +48,11 @@ export default function SupportPreview({ body, missing }: { body: SupportCreateB
       ) : (
         <div className={cn("space-y-3", preview.isFetching && "opacity-60")}>
           {preview.isError && <p role="alert" className="text-sm text-danger">{errorMessage(preview.error)}</p>}
+          {derived?.support_above_cost && (
+            <Alert severity="warning">
+              {NO_EFFECT_HELP} Revisa el valor: así como está, el precio sugerido queda en el precio lista.
+            </Alert>
+          )}
           <div className="overflow-x-auto rounded-md border border-border">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Cifras del apoyo antes de guardarlo</caption>

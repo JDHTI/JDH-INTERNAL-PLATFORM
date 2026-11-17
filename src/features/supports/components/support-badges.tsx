@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardCheck, GitCompareArrows, Paperclip } from "lucide-react";
+import { AlertTriangle, CircleSlash, ClipboardCheck, GitCompareArrows, Paperclip } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -30,11 +30,19 @@ export function AttachmentBadge({ support }: { support: SupplierSupport }) {
   );
 }
 
-/** Review, conflicts and issues only render when present: a clean row stays quiet. */
+/** Why a support shows «Sin efecto»: the API counts it as 0. */
+export const NO_EFFECT_HELP = "El costo apoyado supera el costo actual: el apoyo no aporta.";
+
+/** Review, conflicts, issues and a support without effect only render when present: a clean row stays quiet. */
 export function FlagBadges({ support }: { support: SupplierSupport }) {
   const issueCount = support.issues.length;
   return (
     <>
+      {support.derived?.support_above_cost && (
+        <Badge tone="warning" title={NO_EFFECT_HELP}>
+          <CircleSlash aria-hidden="true" /> Sin efecto<span className="sr-only">: {NO_EFFECT_HELP}</span>
+        </Badge>
+      )}
       {support.needs_review && (
         <Badge tone="warning">
           <ClipboardCheck aria-hidden="true" /> Por revisar
