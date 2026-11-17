@@ -149,6 +149,7 @@ export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
       { key: "margin_salsamentarias", label: "Salsamentarias", kind: "pct" },
       { key: "margin_mass_food", label: "Masivo Food", kind: "pct" },
       { key: "margin_market", label: "Market Apartadó", kind: "pct" },
+      { key: "margin_employee", label: "Margen Empleado JDH", kind: "pct" },
       { key: "liquor_tax", label: "Impuesto licor", kind: "liquor" },
       { key: "supplier_sku", label: "SKU del proveedor", kind: "mono" },
       { key: "manufacturer", label: "Fabricante" },

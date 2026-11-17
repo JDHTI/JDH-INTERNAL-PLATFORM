@@ -137,7 +137,7 @@ function ProductReadOnly({ product }: { product: CommercialProduct }) {
       </dl>
       <section className="space-y-2">
         <h3 className="font-semibold">Márgenes</h3>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
           {MARGIN_FIELDS.map((field) => (
             <div key={field}>
               <dt className="text-xs text-text-secondary">{MARGIN_LABELS[field]}</dt>
@@ -184,6 +184,7 @@ function initialValues(product: CommercialProduct): Values {
     margin_mass_food: fractionToPercentInput(product.margin_mass_food),
     margin_market: fractionToPercentInput(product.margin_market),
     margin_salsamentarias: fractionToPercentInput(product.margin_salsamentarias),
+    margin_employee: fractionToPercentInput(product.margin_employee),
     margin_notes: text(product.margin_notes),
   };
 }
@@ -297,7 +298,7 @@ function ProductForm({ product, onClose }: { product: CommercialProduct; onClose
           <h3 className="text-sm font-semibold">Márgenes</h3>
           <p className="text-[13px] text-text-secondary">En porcentaje, por ejemplo 18 o 18,5. Vacío quita el margen.</p>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
           {MARGIN_FIELDS.map((field) => (
             <Field key={field} label={`${MARGIN_LABELS[field]} (%)`} htmlFor={`${id}-${field}`} error={errors[field]}>
               <Input

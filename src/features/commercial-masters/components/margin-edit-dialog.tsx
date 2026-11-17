@@ -26,7 +26,7 @@ const TAX_GROUPS = [
 ];
 
 /**
- * The five margins of one product, its notes and its liquor tax, set by hand.
+ * The margins of one product, its notes and its liquor tax, set by hand.
  * Sends everything every time (PUT): a margin cannot be left empty, and a
  * product that already pays liquor tax cannot stop paying it here.
  */
@@ -88,9 +88,12 @@ function MarginForm({ product, onClose }: { product: CommercialProduct; onClose:
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const found: Errors = {};
-    const fractions = {} as Record<MarginField, string>;
+    const fractions: Partial<Record<MarginField, string>> = {};
     for (const field of MARGIN_FIELDS) {
       const fraction = percentInputToFraction(margins[field]);
+      // The PUT keeps an employee margin that does not arrive and cannot clear
+      // one, so an empty box only passes when the product has none yet.
+      if (fraction === null && field === "margin_employee" && product.margin_employee === null) continue;
       if (fraction === null) found[field] = "Escribe el margen; no puede quedar vacío.";
       else if (fraction === "invalid") found[field] = "Escribe un porcentaje mayor que 0 y menor que 100.";
       else fractions[field] = fraction;
@@ -110,7 +113,7 @@ function MarginForm({ product, onClose }: { product: CommercialProduct; onClose:
     if (Object.keys(found).length > 0) return;
 
     save.mutate(
-      { sku: product.sku, margins: { ...fractions, notes: notes.trim() === "" ? null : notes.trim(), liquor_tax: liquor } },
+      { sku: product.sku, margins: { ...(fractions as Record<Exclude<MarginField, "margin_employee">, string>), notes: notes.trim() === "" ? null : notes.trim(), liquor_tax: liquor } },
       {
         onSuccess: () => {
           toast.success(`Márgenes de ${product.sku} guardados.`);
@@ -133,7 +136,11 @@ function MarginForm({ product, onClose }: { product: CommercialProduct; onClose:
         <section className="space-y-3">
           <div className="space-y-1">
             <h3 className="text-sm font-semibold">Márgenes</h3>
-            <p className="text-[13px] text-text-secondary">En porcentaje, por ejemplo 18 o 18,5. Los cinco son obligatorios.</p>
+            <p className="text-[13px] text-text-secondary">
+              {product.margin_employee === null
+                ? "En porcentaje, por ejemplo 18 o 18,5. Los de canal son obligatorios; Empleado JDH puede quedar vacío."
+                : "En porcentaje, por ejemplo 18 o 18,5. Todos son obligatorios."}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
             {MARGIN_FIELDS.map((field) => (
