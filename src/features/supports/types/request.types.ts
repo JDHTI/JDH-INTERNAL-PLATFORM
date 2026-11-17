@@ -9,8 +9,10 @@ export interface SupportPermissions {
   can_request_internal?: boolean;
 }
 export type RequestStatus = "pendiente" | "aprobada" | "rechazada";
+export type RequestMode = "margen_minimo" | "porcentaje" | "costo_neto";
 export interface SupportRequest {
-  id: string; support_id: string; mode: "porcentaje" | "costo_neto";
+  /** margen_minimo since rules v2; porcentaje and costo_neto are the earlier requests, still decided. */
+  id: string; support_id: string; mode: RequestMode;
   supplier_name?: string | null; supplier_code?: string | null;
   value: Decimal; reason: string; status: RequestStatus; requested_by: string;
   created_at: string; version: number; support_version: number;

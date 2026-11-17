@@ -3,7 +3,7 @@ import { toNumber, type Decimal } from "@/shared/lib/format";
 import type { MarginField, MarginSource } from "../types/commercial-master.types";
 
 export const MARGIN_LABELS: Record<MarginField, string> = {
-  margin_list: "Lista 1",
+  margin_list: "Food Service",
   margin_wholesale: "Mayoristas",
   margin_salsamentarias: "Salsamentarias",
   margin_mass_food: "Masivo Food",

@@ -11,7 +11,9 @@ import { Menu, MenuItem, MenuSeparator } from "@/shared/components/ui/menu";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useUpdateSupport, useVoidSupport } from "../hooks/use-supports";
-import type { SupplierSupport } from "../types/support.types";
+import { overlapsOf } from "../lib/overlaps";
+import type { OverlapChoice, SupplierSupport, SupportOverlap } from "../types/support.types";
+import OverlapDialog from "./overlap-dialog";
 
 /** 403 means the user cannot write; 409 means the row changed under them. */
 export function failureMessage(error: unknown): string {
@@ -43,12 +45,21 @@ export function SupportActions({
   const update = useUpdateSupport();
   const voided = support.state === "anulado";
   const disabled = support.state === "inactivo";
+  // Turning a support back on can cross one that took its place meanwhile.
+  const [crossing, setCrossing] = useState<{ overlaps: SupportOverlap[]; error: string | null } | null>(null);
 
-  const toggle = () =>
+  const toggle = (choice?: OverlapChoice) =>
     update.mutate(
-      { id: support.id, patch: { version: support.version, is_enabled: disabled } },
+      { id: support.id, patch: { version: support.version, is_enabled: disabled, ...choice } },
       {
+        onSuccess: () => setCrossing(null),
         onError: (error) => {
+          const overlaps = overlapsOf(error);
+          if (overlaps) {
+            setCrossing({ overlaps, error: choice ? errorMessage(error) : null });
+            return;
+          }
+          setCrossing(null);
           if (error instanceof ApiError && error.status === 403) onForbidden();
           else onFailure(failureMessage(error));
         },
@@ -56,6 +67,14 @@ export function SupportActions({
     );
 
   return (
+    <>
+    <OverlapDialog
+      overlaps={crossing?.overlaps ?? null}
+      pending={update.isPending}
+      error={crossing?.error ?? null}
+      onCancel={() => setCrossing(null)}
+      onResolve={(choice) => toggle(choice)}
+    />
     <Menu
       align="end"
       trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
@@ -69,7 +88,7 @@ export function SupportActions({
       <MenuItem onClick={onAttach} disabled={voided}>
         <Paperclip aria-hidden="true" /> Adjuntar soporte
       </MenuItem>
-      <MenuItem onClick={toggle} disabled={voided}>
+      <MenuItem onClick={() => toggle()} disabled={voided}>
         {disabled ? <Power aria-hidden="true" /> : <PowerOff aria-hidden="true" />}
         {disabled ? "Activar" : "Desactivar"}
       </MenuItem>
@@ -78,6 +97,7 @@ export function SupportActions({
         <Ban aria-hidden="true" /> Anular
       </MenuItem>
     </Menu>
+    </>
   );
 }
 

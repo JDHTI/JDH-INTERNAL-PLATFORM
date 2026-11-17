@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarClock, CalendarX2, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
+import { Badge } from "@/shared/components/ui/badge";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
@@ -19,6 +20,8 @@ import {
   useCalcMethodLabel,
   useCanManage,
   useFilterFields,
+  useKindLabel,
+  useReplacementAlerts,
   useSupportCatalogs,
   useSupportPermissions,
   useSupportSearch,
@@ -28,12 +31,15 @@ import BatchRequestDialog from "./batch-request-dialog";
 import { formatSupplierValue, STATE_LABELS, toOptions } from "../lib/format";
 import type {
   FilterCondition,
+  RetireResult,
   SupplierSupport,
   SupportSearchBody,
   SupportSearchFilters,
   SupportState,
 } from "../types/support.types";
 import AdvancedFilters from "./advanced-filters";
+import ReplacementAlerts from "./replacement-alerts";
+import RetireDialog from "./retire-dialog";
 import { COLUMNS, SortHeader, td, th, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
@@ -124,6 +130,9 @@ export default function SupportsBrowser({
   const [withoutAttachments, setWithoutAttachments] = useState(false);
   // Ticked rows, kept across pages and filters until attached or cleared.
   const [selected, setSelected] = useState<string[]>([]);
+  // The version each ticked row had when ticked: a mass void or expiry sends it, so a row changed meanwhile is a 409.
+  const [selectedVersions, setSelectedVersions] = useState<Record<string, number>>({});
+  const [retireOpen, setRetireOpen] = useState(false);
   const [requestSelected, setRequestSelected] = useState<SupplierSupport[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const permissions = useSupportPermissions();
@@ -145,6 +154,8 @@ export default function SupportsBrowser({
   const [denied, setDenied] = useState(false);
   const canWrite = useCanManage() && !denied && !readOnly;
   const canSelect = canWrite || canRequest;
+  const alerts = useReplacementAlerts(canWrite);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [notice, setNotice] = useState<{ severity: AlertSeverity; message: string } | null>(null);
   const q = useDebouncedValue(text.trim());
 
@@ -191,6 +202,7 @@ export default function SupportsBrowser({
   const voiding = items.find((item) => item.id === voidId) ?? null;
 
   const methodLabel = useCalcMethodLabel();
+  const kindLabel = useKindLabel();
   const hiddenRaw = useSyncExternalStore(subscribeHiddenColumns, hiddenColumnsSnapshot, () => "[]");
   const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
   const toggleColumn = (key: string, shown: boolean) =>
@@ -213,6 +225,8 @@ export default function SupportsBrowser({
 
   // The collective upload reuses the list's filters; with none it would reach every support.
   const attachFilters: SupportSearchFilters | null = filtered ? searchFiltersOf(body) : null;
+  // A mass void or expiry by filter reaches exactly what the list shows.
+  const retireFilter = filtered ? { body: retireFiltersOf(body), total: result?.total ?? 0 } : null;
 
   const selectionIds = readOnly ? requestSelected.map(record => record.id) : selected;
   const requestAnchor = requestSelected[0] ?? items.find(requestEligible);
@@ -220,8 +234,15 @@ export default function SupportsBrowser({
   const pageIds = selectablePage.map(item => item.id);
   const pageSelected = pageIds.length > 0 && pageIds.every(itemId => selectionIds.includes(itemId));
   const selectionDisabled = (record: SupplierSupport) => readOnly && !selectionIds.includes(record.id) && (!requestEligible(record) || requestSelected.length >= 100 || (requestSelected.length > 0 && !sameRequestScope(requestSelected[0], record)));
+  const rememberVersions = (records: SupplierSupport[]) =>
+    setSelectedVersions((current) => ({ ...current, ...Object.fromEntries(records.map((record) => [record.id, record.version])) }));
   const toggleSelected = (itemId: string) => {
-    if (!readOnly) { setSelected(current => current.includes(itemId) ? current.filter(x => x !== itemId) : [...current, itemId]); return; }
+    if (!readOnly) {
+      const record = items.find((item) => item.id === itemId);
+      if (record) rememberVersions([record]);
+      setSelected(current => current.includes(itemId) ? current.filter(x => x !== itemId) : [...current, itemId]);
+      return;
+    }
     if (selectionIds.includes(itemId)) { setRequestSelected(current => current.filter(record => record.id !== itemId)); return; }
     const record = items.find(item => item.id === itemId);
     if (!record) return;
@@ -230,7 +251,11 @@ export default function SupportsBrowser({
     if (error) setNotice({ severity: "danger", message: error }); else { setRequestSelected(next); setNotice(null); }
   };
   const togglePage = () => {
-    if (!readOnly) { setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]); return; }
+    if (!readOnly) {
+      if (!pageSelected) rememberVersions(selectablePage);
+      setSelected(current => pageSelected ? current.filter(x => !pageIds.includes(x)) : [...new Set([...current, ...pageIds])]);
+      return;
+    }
     const next = pageSelected ? requestSelected.filter(record => !pageIds.includes(record.id)) : [...requestSelected, ...selectablePage.filter(record => !selectionIds.includes(record.id))];
     const error = next.length ? requestSelectionError(next) : null;
     if (error) setNotice({ severity: "danger", message: error }); else setRequestSelected(next);
@@ -262,7 +287,10 @@ export default function SupportsBrowser({
     setPage(1);
   };
 
-  const kindOptions = [{ value: ALL, label: "Todas las clases" }, ...toOptions(catalogs?.kinds)];
+  const kindOptions = [
+    { value: ALL, label: "Todas las clases" },
+    ...toOptions(catalogs?.kinds).map((option) => ({ ...option, label: kindLabel(option.value) })),
+  ];
   const stateOptions = [
     { value: ALL, label: "Todos los estados" },
     ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
@@ -290,9 +318,9 @@ export default function SupportsBrowser({
   return (
     <div className="space-y-4">
       {canRequest && <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
-        <p className="text-sm">Marca los apoyos para solicitar JDH. Puedes seleccionar hasta 100 del mismo proveedor y cliente; cada registro tendrá su propuesta.</p>
+        <p className="text-sm">Marca los apoyos para pedir a BI un margen mínimo autorizado JDH. Puedes seleccionar hasta 100 del mismo proveedor y cliente; cada registro tendrá su propuesta.</p>
         {requestSelected.length > 0 && <><p className="text-sm font-medium">{requestSelected.length} seleccionados · {requestSelected[0].supplier_name ?? requestSelected[0].supplier_code} · {requestSelected[0].customer_name ?? requestSelected[0].customer_group ?? "Todos los clientes"} · NIT {requestSelected[0].customer_nit ?? "sin NIT"}</p>
-          <div className="flex flex-wrap gap-2"><Button onClick={() => setBatchOpen(true)}>Solicitar apoyo JDH ({requestSelected.length})</Button><Button variant="outline" onClick={() => setRequestSelected([])}>Quitar selección</Button></div>
+          <div className="flex flex-wrap gap-2"><Button onClick={() => setBatchOpen(true)}>Solicitar margen JDH ({requestSelected.length})</Button><Button variant="outline" onClick={() => setRequestSelected([])}>Quitar selección</Button></div>
           <details className="text-sm"><summary className="cursor-pointer">Ver selección y quitar registros</summary><ul>{requestSelected.map(record => <li key={record.id} className="flex items-center justify-between gap-2 py-1"><span>{record.product_sku ?? "Todos los productos"} · {record.program ?? record.id}</span><Button variant="ghost" onClick={() => setRequestSelected(current => current.filter(item => item.id !== record.id))}>Quitar</Button></li>)}</ul></details>
         </>}
       </div>}
@@ -371,7 +399,10 @@ export default function SupportsBrowser({
             {selected.length === 1 ? "1 seleccionado" : `${selected.length} seleccionados`}
             <button
               type="button"
-              onClick={() => setSelected([])}
+              onClick={() => {
+                setSelected([]);
+                setSelectedVersions({});
+              }}
               aria-label="Quitar la selección"
               className="flex size-6 items-center justify-center rounded-sm text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
@@ -383,6 +414,19 @@ export default function SupportsBrowser({
           <Button variant="outline" size="sm" className="ml-auto max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
             <Paperclip aria-hidden="true" />
             Adjuntar soporte
+          </Button>
+        )}
+        {canWrite && (alerts.data?.length ?? 0) > 0 && (
+          <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setAlertsOpen(true)}>
+            <CalendarClock aria-hidden="true" />
+            Programados
+            <Badge tone="warning" className="tabular-nums">{alerts.data?.length}</Badge>
+          </Button>
+        )}
+        {canWrite && (selected.length > 0 || filtered) && (
+          <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setRetireOpen(true)}>
+            <CalendarX2 aria-hidden="true" />
+            Anular o vencer
           </Button>
         )}
         <Menu
@@ -553,7 +597,7 @@ export default function SupportsBrowser({
                     )}
                     {columns.map((column) => (
                       <td key={column.key} className={cn(td, column.align === "right" && "text-right")}>
-                        {column.cell(support, { open: () => setOpenId(support.id), methodLabel })}
+                        {column.cell(support, { open: () => setOpenId(support.id), methodLabel, seesCost: !readOnly })}
                       </td>
                     ))}
                     {canWrite && <td className={cn(td, "py-1.5 pl-0 text-right")}>{actions(support)}</td>}
@@ -603,6 +647,20 @@ export default function SupportsBrowser({
         filters={attachFilters}
         document={bulkAttach?.document ?? null}
       />
+      <ReplacementAlerts open={alertsOpen} onClose={() => setAlertsOpen(false)} alerts={alerts.data ?? []} />
+      <RetireDialog
+        open={retireOpen}
+        onClose={() => setRetireOpen(false)}
+        selection={selected.map((supportId) => ({ id: supportId, version: selectedVersions[supportId] }))}
+        filter={retireFilter}
+        onForbidden={onForbidden}
+        onDone={(done) => {
+          setRetireOpen(false);
+          setSelected([]);
+          setSelectedVersions({});
+          setNotice({ severity: "success", message: retiredMessage(done) });
+        }}
+      />
       <SupportEditDialog support={editing} onClose={() => setEditId(null)} onForbidden={onForbidden} />
       <SupportVoidDialog support={voiding} onClose={() => setVoidId(null)} onForbidden={onForbidden} />
     </div>
@@ -613,6 +671,35 @@ export default function SupportsBrowser({
 function subject(support: SupplierSupport): string {
   const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
+}
+
+/** The filters `POST /retire` reads; it would silently drop any other, and reach more than the list shows. */
+function retireFiltersOf(body: SupportSearchBody): SupportSearchFilters {
+  return {
+    match: body.match,
+    conditions: body.conditions,
+    q: body.q,
+    customer_nits: body.customer_nits,
+    supplier_codes: body.supplier_codes,
+    product_skus: body.product_skus,
+    state: body.state,
+    needs_review: body.needs_review,
+    has_issues: body.has_issues,
+    has_conflicts: body.has_conflicts,
+    has_attachments: body.has_attachments,
+  };
+}
+
+/** "Se vencieron 12 apoyos y se anularon 2." The expiry voids the ones not yet started. */
+function retiredMessage(result: RetireResult): string {
+  const count = (n: number) => `${n.toLocaleString("es-CO")} ${n === 1 ? "apoyo" : "apoyos"}`;
+  const parts = [
+    result.expired.length > 0 && `se ${result.expired.length === 1 ? "venció" : "vencieron"} ${count(result.expired.length)}`,
+    result.voided.length > 0 && `se ${result.voided.length === 1 ? "anuló" : "anularon"} ${count(result.voided.length)}`,
+  ].filter((part): part is string => Boolean(part));
+  if (parts.length === 0) return "No cambió ningún apoyo.";
+  const text = parts.join(" y ");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
 function searchFiltersOf(body: SupportSearchBody): SupportSearchFilters {

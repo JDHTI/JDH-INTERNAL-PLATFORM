@@ -241,7 +241,7 @@ export type WindowMonths = 6 | 12;
 export type Compliance = "cumple" | "bajo_minimo" | "sin_objetivo" | "sin_costo";
 
 /** Which margin the target comes from: the product's margin for the channel, or the support's own. */
-export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "apoyo";
+export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "masivo_food" | "market" | "apoyo";
 
 export type CustomerScope = "mine" | "all";
 
@@ -269,6 +269,15 @@ export interface QuotationPermissions {
   sales_scope: SalesScope;
   /** Quotes and is not BI: may ask an internal support for references under the minimum. */
   can_request_support?: boolean;
+  /** BI reads the calculation rules; Comercial (false) reads the operating manual. Missing on older API builds. */
+  can_see_rules?: boolean;
+}
+
+/** `GET /quotations/manual`: how to use the quoter, for Comercial. */
+export interface QuotationManualSection {
+  code: string;
+  title: string;
+  steps: { title: string; text: string }[];
 }
 
 /** The latest internal support asked for a line of this quotation. */
@@ -289,6 +298,8 @@ export interface QuotationCustomer {
   branch_count: number;
   active_branch_count: number;
   is_active: boolean;
+  /** The customer's business group; the search finds by it too. */
+  business_group?: string | null;
 }
 
 export interface QuotationWarning {
@@ -405,6 +416,8 @@ export interface LineSupport {
   needs_review: boolean;
   valid_from: string | null;
   valid_to: string | null;
+  /** JDH's authorized minimum margin (rules v2): when set, the line's minimum price uses it. Fraction. */
+  authorized_margin_pct?: DecimalText | null;
 }
 
 /** A support that would cover the line and was not applied, with the reason. */
@@ -442,6 +455,9 @@ export interface SupportOption {
 export type CostSource = "cotizacion" | "inventario" | "alza";
 
 export interface QuotationLine {
+  /** Units on hand and available in the warehouses that cost the line; null, unknown. */
+  stock_on_hand?: DecimalText | null;
+  stock_available?: DecimalText | null;
   sku: string;
   description: string | null;
   unit: string | null;

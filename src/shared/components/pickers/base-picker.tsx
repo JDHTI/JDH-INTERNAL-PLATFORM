@@ -38,12 +38,13 @@ const text = (value: unknown) => (typeof value === "string" ? value : "");
 
 export const CUSTOMER_PICKER: BasePickerConfig = {
   label: "Cliente",
-  placeholder: "Nombre o NIT",
+  placeholder: "Nombre, NIT o grupo",
   endpoint: "/commercial/customers",
   toOption: (row) => ({
     value: text(row.nit),
     label: text(row.legal_name) || text(row.establishment_name) || text(row.nit),
-    hint: `NIT ${text(row.nit)}`,
+    // The search also finds by business group: the hint says why a customer came up.
+    hint: [`NIT ${text(row.nit)}`, text(row.business_group) && `Grupo ${text(row.business_group)}`].filter(Boolean).join(" · "),
   }),
 };
 

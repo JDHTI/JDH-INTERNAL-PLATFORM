@@ -6,13 +6,24 @@ import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
-import { choiceLabel, formatCop, formatDay, formatPct, formatSupplierValue, PERCENT_METHODS } from "../lib/format";
+import {
+  choiceLabel,
+  formatCop,
+  formatDay,
+  formatPct,
+  formatSupplierValue,
+  marginListLabel,
+  PERCENT_METHODS,
+  SUPPORTED_MARGIN_LABEL,
+} from "../lib/format";
 import type { PerUnit, SupplierSupport } from "../types/support.types";
 import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
 
 export interface CellContext {
   open: () => void;
   methodLabel: (code: string | null | undefined) => string;
+  /** BI sees the cost; Comercial gets it empty from the API, so its rows are left out. */
+  seesCost: boolean;
 }
 
 export interface Column {
@@ -74,9 +85,37 @@ function CustomerCell({ support }: { support: SupplierSupport }) {
       </span>
       {support.customer_nit && <span className={cn(secondary, "font-mono tabular-nums")}>{support.customer_nit}</span>}
       {scope && <span className={secondary} title={scope}>{scope}</span>}
+      <ScopeChips support={support} />
     </div>
   );
 }
+
+/**
+ * The margin list the prices use and the business group, when the API knows
+ * them. The group shows only when the name line is not already the group.
+ */
+export function ScopeChips({ support }: { support: SupplierSupport }) {
+  const list = marginListLabel(support.margin_list);
+  const group = support.business_group && support.business_group !== (support.customer_name ?? support.customer_group) ? support.business_group : null;
+  if (!list && !group) return null;
+  return (
+    <span className="flex flex-wrap gap-1 pt-0.5">
+      {list && (
+        <span className={chip} title="Lista de márgenes con la que se calculan los precios">
+          {list}
+        </span>
+      )}
+      {group && (
+        <span className={chip} title={`Grupo empresarial: ${group}`}>
+          {group}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Quiet on purpose: context next to the customer, not a state. */
+const chip = "max-w-full truncate rounded-sm border border-border px-1.5 text-xs leading-5 text-text-secondary";
 
 /** Type of support with its value, and the class under it. */
 function SupportCell({ support, methodLabel }: { support: SupplierSupport; methodLabel: CellContext["methodLabel"] }) {
@@ -112,7 +151,7 @@ function Figures({ rows }: { rows: { label: string; value: string | null; strong
 const pct = (value: Parameters<typeof toNumber>[0]) => (toNumber(value) === null ? null : formatPct(value));
 const cop = (value: Parameters<typeof toNumber>[0]) => (toNumber(value) === null ? null : formatCop(value));
 
-/** From the product's margin, to what the supplier's money leaves at list price, to how far it may drop. */
+/** From the product's margin, to what the supplier's money leaves at list price, to JDH's authorized floor. */
 function MarginsCell({ support }: { support: SupplierSupport }) {
   const derived = support.derived;
   return (
@@ -121,10 +160,10 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
         { label: "Producto", value: pct(derived?.product_margin_pct), title: "Margen general del producto (maestro de márgenes)" },
         { label: "Recompuesto", value: pct(derived?.recomposed_list_margin), title: "Margen que deja el apoyo del proveedor al precio lista" },
         {
-          label: "Apoyado JDH",
+          label: "Mínimo JDH",
           value: pct(derived?.supported_margin_pct ?? support.supported_margin_pct),
           strong: true,
-          title: "Margen apoyado: hasta dónde JDH autoriza bajar el margen sobre el que deja el apoyo del proveedor",
+          title: SUPPORTED_MARGIN_LABEL,
         },
       ]}
     />
@@ -132,11 +171,11 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
 }
 
 /**
- * Cost, list price and supported price in the support's own unit (the box when
- * it is per box), and the customer's discount against the list price. Without
- * a supported margin the price shown is the suggested one, and it says so.
+ * Cost, list price and the two supported prices in the support's own unit
+ * (the box when it is per box), and the customer's discount against the list
+ * price. Rules v2: everything per inventory unit, the box is unit × pack.
  */
-function PriceCell({ support }: { support: SupplierSupport }) {
+function PriceCell({ support, seesCost }: { support: SupplierSupport; seesCost: boolean }) {
   const derived = support.derived;
   const preferred: keyof PerUnit = support.value_unit === "caja" ? "box" : "unit";
   const other: keyof PerUnit = preferred === "box" ? "unit" : "box";
@@ -144,25 +183,31 @@ function PriceCell({ support }: { support: SupplierSupport }) {
   const side = [derived?.cost, derived?.list_price, derived?.supported_price_per].some((pair) => has(pair, preferred))
     ? preferred
     : other;
-  const supported = derived?.supported_price_per;
-  const price = has(supported, side) ? supported : derived?.suggested_price_per;
-  const anyPrice = [derived?.cost, derived?.list_price, price].some((pair) => has(pair, side));
+  const minimum = derived?.supported_price_per;
+  const suggested = derived?.suggested_price_per;
+  const anyPrice = [derived?.cost, derived?.list_price, minimum, suggested].some((pair) => has(pair, side));
   return (
     <div className="space-y-0.5">
       <Figures
         rows={[
-          { label: "Costo", value: cop(derived?.cost?.[side]) },
+          ...(seesCost ? [{ label: "Costo", value: cop(derived?.cost?.[side]) }] : []),
           { label: "Lista", value: cop(derived?.list_price?.[side]) },
           {
-            label: price === supported ? "Apoyado JDH" : "Sugerido",
-            value: cop(price?.[side]),
-            strong: true,
-            title: price === supported ? "Precio apoyado: el costo neto al margen apoyado por JDH" : undefined,
+            label: "Sugerido",
+            value: cop(suggested?.[side]),
+            strong: !has(minimum, side),
+            title: "Precio Apoyado Sugerido: precio lista − $ Apoyo",
+          },
+          {
+            label: "Mínimo",
+            value: cop(minimum?.[side]),
+            strong: has(minimum, side),
+            title: "Precio Apoyado Mínimo: (costo − apoyo) / (1 − margen mínimo autorizado JDH)",
           },
           {
             label: "Dcto. cliente",
             value: pct(derived?.customer_discount_pct),
-            title: "Descuento al cliente frente al precio lista si se vende al precio apoyado: 1 − precio apoyado / precio lista",
+            title: "Descuento al cliente frente al precio lista si se vende al precio apoyado mínimo",
           },
         ]}
       />
@@ -238,7 +283,7 @@ export const COLUMNS: Column[] = [
     label: "Precio",
     hideable: true,
     width: "17%",
-    cell: (s) => <PriceCell support={s} />,
+    cell: (s, { seesCost }) => <PriceCell support={s} seesCost={seesCost} />,
   },
   {
     key: "validity",

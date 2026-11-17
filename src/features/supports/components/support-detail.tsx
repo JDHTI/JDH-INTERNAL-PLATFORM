@@ -6,7 +6,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 
-import { useCalcMethodLabel, useSupport, useSupportConflicts } from "../hooks/use-supports";
+import { useCalcMethodLabel, useKindLabel, useSupport, useSupportConflicts, useSupportPermissions } from "../hooks/use-supports";
 import {
   choiceLabel,
   formatCop,
@@ -16,7 +16,9 @@ import {
   formatSupplierValue,
   formatWhen,
   humanize,
+  marginListLabel,
   originLabel,
+  SUPPORTED_MARGIN_LABEL,
 } from "../lib/format";
 import type {
   SupplierSupport,
@@ -108,6 +110,9 @@ function Body({
   const derived = support.derived;
   const jdhPctLabel = formatPct(support.jdh_pct);
   const calcMethodLabel = useCalcMethodLabel();
+  const kindLabel = useKindLabel();
+  // The cost is BI's: Comercial gets it empty from the API, so those rows are left out, not dashed.
+  const seesCost = useSupportPermissions().data?.can_manage === true;
 
   return (
     <div className="space-y-5 text-sm">
@@ -120,7 +125,7 @@ function Body({
 
       <Section title="Apoyo">
         <Row label="Tipo de apoyo">{calcMethodLabel(support.calc_method)}</Row>
-        <Row label="Clase de apoyo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
+        <Row label="Clase de apoyo">{kindLabel(support.kind)}</Row>
         <Row label="Financia">{support.funding ? choiceLabel("funding", support.funding) : "—"}</Row>
         <Row label="Programa">{support.program ?? "—"}</Row>
         <Row label="Referencia externa" mono>{support.external_ref ?? "—"}</Row>
@@ -128,10 +133,16 @@ function Body({
           {formatSupplierValue(support.calc_method, support.supplier_value)}
           {support.value_unit ? ` (${support.value_unit})` : ""}
         </Row>
-        {support.calc_method === "costo_neto" && <Row label="Costo pactado JDH" tabular>{formatCop(support.jdh_net_cost)}</Row>}
-        <Row label="Margen apoyado" tabular>{formatPct(support.supported_margin_pct)}</Row>
-        {toNumber(support.jdh_pct) ? <Row label="% apoyo JDH" tabular>{jdhPctLabel}</Row> : null}
+        <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(support.supported_margin_pct)}</Row>
+        {/* Kept as history: since rules v2 they no longer move the figures. */}
+        {seesCost && support.calc_method === "costo_neto" && toNumber(support.jdh_net_cost) !== null && (
+          <Row label="Costo pactado JDH (histórico)" tabular>{formatCop(support.jdh_net_cost)}</Row>
+        )}
+        {toNumber(support.jdh_pct) ? <Row label="% apoyo JDH (histórico)" tabular>{jdhPctLabel}</Row> : null}
         <Row label="Unidades por caja" tabular>{formatNumber(support.pack_factor)}</Row>
+        {support.promo_warehouses !== undefined && (
+          <Row label="Bodegas promocionales (grupo 23)">{support.promo_warehouses ? "Sí aplica" : "No aplica"}</Row>
+        )}
         <Row label="Vigencia" tabular>
           {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
         </Row>
@@ -160,7 +171,8 @@ function Body({
           {support.customer_name ?? "Todos"}
           {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
         </Row>
-        <Row label="Grupo de clientes">{support.customer_group ?? "—"}</Row>
+        <Row label="Grupo empresarial">{support.customer_group ?? support.business_group ?? "—"}</Row>
+        {support.margin_list !== undefined && <Row label="Lista de márgenes">{marginListLabel(support.margin_list) ?? "—"}</Row>}
         <Row label="Referencia (SKU)" mono>{support.product_sku ?? "Todas"}</Row>
         <Row label="Marca">{support.product_brand ?? support.brand ?? "—"}</Row>
         <Row label="Regional">{list(support.regionals)}</Row>
@@ -173,29 +185,29 @@ function Body({
         <Row label="Margen objetivo" tabular>{formatPct(support.target_margin_pct)}</Row>
         <Row label="Margen mínimo" tabular>{formatPct(support.min_margin_pct)}</Row>
         <Row label="Margen de lista" tabular>{formatPct(support.list_margin_pct)}</Row>
-        <Row label="Costo de referencia" tabular>{formatCop(support.reference_cost)}</Row>
+        {seesCost && <Row label="Costo de referencia" tabular>{formatCop(support.reference_cost)}</Row>}
         <Row label="Precio de lista de referencia" tabular>{formatCop(support.reference_list_price)}</Row>
       </Section>
 
-      {support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
+      {seesCost && support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
 
       {derived && (
-        <Section title="Cifras calculadas">
-          <Row label="Aporte del proveedor" tabular>{formatCop(derived.supplier_amount)}</Row>
-          <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>
+        <Section title="Cifras calculadas, por unidad de inventario">
+          <Row label="$ Apoyo" tabular>{formatCop(derived.supplier_amount)}</Row>
+          {seesCost && <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>}
           <Row label="% sobre costo" tabular>{formatPct(derived.pct_on_cost)}</Row>
           <Row label="% sobre lista" tabular>{formatPct(derived.pct_on_list)}</Row>
+          <Row label="Precio Apoyado Sugerido" tabular>{formatCop(derived.suggested_price)}</Row>
           {derived.product_margin_pct !== undefined && (
             <>
               <Row label="Margen del producto" tabular>{formatPct(derived.product_margin_pct)}</Row>
               <Row label="Margen recompuesto a precio lista" tabular>{formatPct(derived.recomposed_list_margin)}</Row>
-              <Row label="Margen apoyado" tabular>{formatPct(derived.supported_margin_pct)}</Row>
-              <Row label="Precio apoyado" tabular>{formatCop(derived.supported_price)}</Row>
+              <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(derived.supported_margin_pct)}</Row>
+              <Row label="Precio Apoyado Mínimo" tabular>{formatCop(derived.supported_price)}</Row>
               <Row label="Descuento al cliente" tabular>{formatPct(derived.customer_discount_pct)}</Row>
             </>
           )}
-          <Row label="Precio sugerido" tabular>{formatCop(derived.suggested_price)}</Row>
-          <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>
+          {seesCost && <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>}
           <Row label="Margen recompuesto" tabular>{formatPct(derived.margin_recomposed)}</Row>
           <Row label="Margen mínimo" tabular>{formatPct(derived.min_margin_pct)}</Row>
         </Section>
@@ -206,9 +218,9 @@ function Body({
           <h3 className="font-semibold">Por unidad y por caja</h3>
           <p className="text-text-secondary">
             {support.value_unit
-              ? `El costo del apoyo está en ${support.value_unit === "caja" ? "caja" : "unidad"} (${BASIS_LABELS[support.unit_basis_source ?? "desconocido"]}). `
+              ? `El valor del apoyo está en ${support.value_unit === "caja" ? "caja" : "unidad"} (${BASIS_LABELS[support.unit_basis_source ?? "desconocido"]}). `
               : "El apoyo no tiene base de unidad: sin ella no hay conversión. "}
-            Los importes los convierte el API.
+            La caja es la unidad por el empaque del maestro de productos.
           </p>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-left text-sm">
@@ -220,7 +232,7 @@ function Body({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {PER_UNIT_ROWS.map(([key, label]) => (
+                {PER_UNIT_ROWS.filter(([key]) => seesCost || !COST_ROWS.includes(key)).map(([key, label]) => (
                   <tr key={key}>
                     <td className="px-3 py-2">{label}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCop(derived[key]?.unit)}</td>
@@ -298,11 +310,14 @@ const BASIS_LABELS: Record<NonNullable<SupplierSupport["unit_basis_source"]>, st
 const PER_UNIT_ROWS: [PerUnitKey, string][] = [
   ["cost", "Costo"],
   ["list_price", "Precio de lista"],
-  ["supplier_amount_per", "Apoyo del proveedor"],
+  ["supplier_amount_per", "$ Apoyo"],
   ["net_cost_per", "Costo neto"],
-  ["supported_price_per", "Precio apoyado"],
-  ["suggested_price_per", "Precio sugerido"],
+  ["suggested_price_per", "Precio Apoyado Sugerido"],
+  ["supported_price_per", "Precio Apoyado Mínimo"],
 ];
+
+/** Per-unit rows Comercial does not get. */
+const COST_ROWS: PerUnitKey[] = ["cost", "net_cost_per"];
 
 type PerUnitKey =
   | "cost"

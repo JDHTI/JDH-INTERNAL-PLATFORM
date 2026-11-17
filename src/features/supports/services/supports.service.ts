@@ -11,7 +11,11 @@ import type {
   SelectionPreview,
   SupportAttachment,
   BulkReport,
+  BusinessGroup,
   FilterField,
+  ReplacementAlert,
+  RetireBody,
+  RetireResult,
   SpecialCase,
   SpecialCaseInput,
   SpecialCasePage,
@@ -75,8 +79,41 @@ export async function getFormSchema(): Promise<SupportFormSchema> {
   return apiFetch<SupportFormSchema>("/supplier-supports/form-schema");
 }
 
+/** 409 with `overlaps` when it crosses a live support of the same class and scope. */
 export async function createSupport(body: SupportCreateBody): Promise<SupplierSupport> {
   return apiFetch<SupplierSupport>("/supplier-supports", { method: "POST", body });
+}
+
+/** The figures a support would have, from the create body; nothing is saved. 422 like creating. */
+export async function previewSupport(body: SupportCreateBody): Promise<SupplierSupport> {
+  return apiFetch<SupplierSupport>("/supplier-supports/preview", { method: "POST", body });
+}
+
+/** Programmed supports that will replace one in force. Managers only (403 for the rest). */
+export async function listReplacementAlerts(): Promise<ReplacementAlert[]> {
+  return apiFetch<ReplacementAlert[]>("/supplier-supports/alerts");
+}
+
+/** The supplier's supports in force or programmed, with a «Validación» column to upload back. */
+export async function downloadBulkExport(supplierCode: string): Promise<void> {
+  return apiDownload("/supplier-supports/bulk/export", {
+    query: { supplier_code: supplierCode },
+    fallbackName: `apoyos-${supplierCode}.xlsx`,
+  });
+}
+
+/** One support per active customer of `customer_group` (no NIT). All or none; same 409 as one. */
+export async function createSupportsByGroup(body: SupportCreateBody): Promise<SupplierSupport[]> {
+  return apiFetch<SupplierSupport[]>("/supplier-supports/by-group", { method: "POST", body });
+}
+
+export async function listBusinessGroups(q: string): Promise<BusinessGroup[]> {
+  return apiFetch<BusinessGroup[]>("/supplier-supports/business-groups", { query: { q } });
+}
+
+/** Voids or expires up to 2.000 supports at once. All or none: 409 if one changed or is voided. */
+export async function retireSupports(body: RetireBody): Promise<RetireResult> {
+  return apiFetch<RetireResult>("/supplier-supports/retire", { method: "POST", body });
 }
 
 /** A commercial supplier by its code ("Cod. Proveedor"); 404 if the masters do not have it. */
@@ -110,13 +147,17 @@ export async function deleteProfile(supplierCode: string): Promise<void> {
 }
 
 /**
- * The short general template by default; `full` brings every field. With a
+ * The short general template by default, in BI's order with dropdowns; `full`
+ * brings every field and `groups` is the business-group upload's. With a
  * supplier, it follows its profile: its headers, without the fixed columns.
  */
-export async function downloadBulkTemplate(supplierCode: string | null, full = false): Promise<void> {
-  const name = ["carga-apoyos", supplierCode, full ? "completa" : null].filter(Boolean).join("-");
+export async function downloadBulkTemplate(
+  supplierCode: string | null,
+  { full = false, groups = false }: { full?: boolean; groups?: boolean } = {}
+): Promise<void> {
+  const name = ["carga-apoyos", supplierCode, groups ? "grupos" : null, full ? "completa" : null].filter(Boolean).join("-");
   return apiDownload("/supplier-supports/bulk/template", {
-    query: { supplier_code: supplierCode, full },
+    query: { supplier_code: supplierCode, full, groups },
     fallbackName: `${name}.xlsx`,
   });
 }
@@ -129,14 +170,23 @@ export async function runBulkLoad({
   defaults,
   columnMap,
   expireMissing,
+  onOverlap,
+  groups,
 }: BulkLoadInput): Promise<BulkReport> {
   const form = new FormData();
   form.append("file", file);
   if (Object.keys(defaults).length > 0) form.append("defaults", JSON.stringify(defaults));
   if (Object.keys(columnMap).length > 0) form.append("column_map", JSON.stringify(columnMap));
-  return apiFetch<BulkReport>("/supplier-supports/bulk", {
+  return apiFetch<BulkReport>(groups ? "/supplier-supports/bulk/groups" : "/supplier-supports/bulk", {
     method: "POST",
-    query: { apply, supplier_code: supplierCode, sheet, expire_missing: expireMissing },
+    query: {
+      apply,
+      supplier_code: supplierCode,
+      sheet,
+      // The group upload has no "close the missing ones".
+      expire_missing: groups ? undefined : expireMissing,
+      on_overlap: onOverlap,
+    },
     body: form,
   });
 }

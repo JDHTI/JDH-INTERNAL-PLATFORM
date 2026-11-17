@@ -13,9 +13,12 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCalcMethodLabel, useUpdateSupport } from "../hooks/use-supports";
-import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP } from "../lib/format";
+import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP, SUPPORTED_MARGIN_LABEL } from "../lib/format";
 import { toDecimal, toInput } from "../lib/form-values";
-import type { SupplierSupport, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
+import { overlapsOf } from "../lib/overlaps";
+import type { SupplierSupport, SupportOverlap, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
+import OverlapDialog from "./overlap-dialog";
+import PromoCheck from "./promo-check";
 
 const NO_UNIT = "";
 
@@ -45,6 +48,7 @@ interface Draft {
   program: string;
   authorized_by: string;
   notes: string;
+  promo_warehouses: boolean;
   tiers: TierDraft[];
 }
 
@@ -63,6 +67,7 @@ function draftOf(support: SupplierSupport): Draft {
     program: support.program ?? "",
     authorized_by: support.authorized_by ?? "",
     notes: support.notes ?? "",
+    promo_warehouses: support.promo_warehouses ?? false,
     tiers: support.tiers.map((tier) => ({
       threshold_type: tier.threshold_type,
       from_value: toInput(tier.from_value, false),
@@ -91,6 +96,7 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
   if (changed("program")) patch.program = draft.program.trim() || null;
   if (changed("authorized_by")) patch.authorized_by = draft.authorized_by.trim() || null;
   if (changed("notes")) patch.notes = draft.notes.trim() || null;
+  if (changed("promo_warehouses")) patch.promo_warehouses = draft.promo_warehouses;
   if (changed("tiers")) {
     patch.tiers = draft.tiers.map((tier) => ({
       threshold_type: tier.threshold_type,
@@ -149,6 +155,7 @@ function EditForm({
   const [initial] = useState(() => draftOf(support));
   const [draft, setDraft] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [crossing, setCrossing] = useState<{ overlaps: SupportOverlap[]; error: string | null } | null>(null);
 
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
@@ -158,16 +165,22 @@ function EditForm({
   const patch = buildPatch(support, initial, draft);
   const dirty = Object.keys(patch).length > 1;
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const save = async (body: SupportPatch) => {
     setError(null);
     // mutateAsync, not mutate's callbacks: the refetch after saving brings a new
     // version, which remounts this form (its key), and mutate drops the
     // callbacks of an unmounted form, so the dialog never closed.
     try {
-      await update.mutateAsync({ id: support.id, patch });
+      await update.mutateAsync({ id: support.id, patch: body });
       onClose();
     } catch (failure) {
+      const overlaps = overlapsOf(failure);
+      if (overlaps) {
+        // New dates crossed a live support: ask what happens to it, then send the same changes.
+        setCrossing({ overlaps, error: crossing ? errorMessage(failure) : null });
+        return;
+      }
+      setCrossing(null);
       if (failure instanceof ApiError && failure.status === 403) {
         onForbidden();
         onClose();
@@ -179,13 +192,26 @@ function EditForm({
     }
   };
 
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void save(patch);
+  };
+
   return (
+    <>
+    <OverlapDialog
+      overlaps={crossing?.overlaps ?? null}
+      pending={update.isPending}
+      error={crossing?.error ?? null}
+      onCancel={() => setCrossing(null)}
+      onResolve={(choice) => void save({ ...patch, ...choice })}
+    />
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
           <Input id={`${id}-value`} inputMode="decimal" value={draft.supplier_value} onChange={(e) => set("supplier_value", e.target.value)} />
         </Field>
-        <Field label="Margen apoyado (%)" htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
+        <Field label={`${SUPPORTED_MARGIN_LABEL} (%)`} htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
           <Input
             id={`${id}-supported`}
             inputMode="decimal"
@@ -235,6 +261,10 @@ function EditForm({
       <Field label="Notas" htmlFor={`${id}-notes`} optional>
         <Textarea id={`${id}-notes`} rows={3} value={draft.notes} onChange={(e) => set("notes", e.target.value)} />
       </Field>
+
+      {support.promo_warehouses !== undefined && (
+        <PromoCheck checked={draft.promo_warehouses} onChange={(value) => set("promo_warehouses", value)} />
+      )}
 
       <section className="space-y-2" aria-labelledby={`${id}-tiers`}>
         <div className="flex items-center justify-between gap-2">
@@ -294,5 +324,6 @@ function EditForm({
         </Button>
       </div>
     </form>
+    </>
   );
 }

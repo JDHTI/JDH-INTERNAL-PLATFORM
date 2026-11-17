@@ -19,6 +19,7 @@ export type CalcMethod =
   | "pct_costo"
   | "pct_precio_lista"
   | "valor_unidad"
+  | "valor_precio_lista"
   | "costo_neto"
   | "precio_neto"
   | "puntos_margen"
@@ -159,6 +160,85 @@ export interface SupplierSupport {
   last_origin?: SupportOrigin | string | null;
   /** The bulk load that wrote the current version, when one did. */
   last_load_id?: string | null;
+  /** The support's business group, else the customer's in the master; null, none. */
+  business_group?: string | null;
+  /** The margin list its prices use: margin_list, margin_wholesale, margin_mass_food or margin_market. */
+  margin_list?: string | null;
+  /** Also applies in the promotional warehouses (SIESA group 23). Missing on older API builds. */
+  promo_warehouses?: boolean;
+}
+
+/** A support as a replacement alert shows it. */
+export interface AlertSupport {
+  id: string;
+  version: number;
+  kind: string;
+  calc_method: string;
+  customer_nit: string | null;
+  customer_name: string | null;
+  product_sku: string | null;
+  supplier_sku: string | null;
+  supplier_value: Decimal | null;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
+/** `GET /supplier-supports/alerts`: a programmed support and the one in force it replaces. */
+export interface ReplacementAlert {
+  programmed: AlertSupport;
+  previous: AlertSupport;
+  /** The previous one's last day when the programmed one starts. */
+  previous_ends: string;
+  /** The previous one already ends that day; false, the daily job will cut it. */
+  chained: boolean;
+}
+
+/** What to do with the live supports a new one crosses (same class and scope, dates that touch). */
+export type OnOverlap = "vencer_anterior" | "anular_anterior";
+
+/** A live support a write crosses, as the 409 lists it in `overlaps`. */
+export interface SupportOverlap {
+  id: string;
+  version: number;
+  kind: string | null;
+  calc_method: string | null;
+  customer_nit: string | null;
+  customer_branch_id: string | null;
+  product_sku: string | null;
+  supplier_sku: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  program: string | null;
+}
+
+/** How a write resolves the crossings: sent again with the same body. */
+export interface OverlapChoice {
+  on_overlap: OnOverlap;
+  overlap_reason?: string;
+}
+
+export type RetireAction = "anular" | "vencer";
+
+/** `POST /supplier-supports/retire`: the chosen supports, or every one the filter finds. All or nothing. */
+export interface RetireBody {
+  action: RetireAction;
+  reason: string;
+  /** Last day in force of an expiry; the API defaults to yesterday. */
+  last_day?: string;
+  items: { id: string; version?: number }[];
+  filter?: SupportSearchFilters;
+}
+
+export interface RetireResult {
+  action: RetireAction;
+  voided: string[];
+  expired: string[];
+}
+
+/** A business group of the customer master and how many active customers it has. */
+export interface BusinessGroup {
+  name: string;
+  customers: number;
 }
 
 export interface SupportConflict {
@@ -242,6 +322,13 @@ export interface SupportSearchBody {
 export type VocabularyEntry = string | { value?: string; code?: string; label?: string; name?: string };
 
 export interface SupportCatalogs {
+  /** The only classes that can be created or loaded (rules v2). Missing on older API builds. */
+  active_kinds?: string[];
+  kind_labels?: Record<string, string>;
+  calc_method_labels?: Record<string, string>;
+  /** The types ("Tipo apoyo") each class admits. */
+  methods_by_kind?: Record<string, string[]>;
+  /** Every stored class, for reading and filtering. */
   kinds?: VocabularyEntry[];
   calc_methods?: VocabularyEntry[];
   states?: VocabularyEntry[];
@@ -271,6 +358,10 @@ export interface SupportPatch {
   notes?: string | null;
   authorized_by?: string | null;
   tiers?: SupportTier[];
+  promo_warehouses?: boolean;
+  /** Only when a change of scope, dates or switch crossed another support (409 with `overlaps`). */
+  on_overlap?: OnOverlap;
+  overlap_reason?: string;
 }
 
 export type SpecialCaseStatus =
@@ -369,7 +460,7 @@ export type SupportCreateBody = {
   kind: string;
   calc_method: string;
   supplier_code: string;
-} & Record<string, string | number | string[]>;
+} & Record<string, string | number | boolean | string[]>;
 
 /**
  * Values of a profile as the API stores them: fractions as text ("0.05"),
@@ -474,6 +565,15 @@ export interface BulkReport {
   load_id: string | null;
   /** A big load reaches the DWH from this moment (its quiet hours); null, right away. */
   publish_not_before: string | null;
+  /*
+   * Rules v2; missing on older API builds. Stored supports expired or voided
+   * (crossed with `on_overlap`, or «Validación» = No), rows a blank
+   * «Validación» skipped, and supports born from business groups.
+   */
+  to_retire?: number;
+  retired?: string[];
+  skipped?: number;
+  group_supports?: number;
 }
 
 /** A document of the document manager backing a support. */
@@ -545,6 +645,10 @@ export interface BulkLoadInput {
   sheet: string | null;
   defaults: ProfileDefaults;
   columnMap: ColumnMap;
-  /** Close the stored supports the file no longer brings. */
+  /** Close the stored supports the file no longer brings. Not on the group upload. */
   expireMissing: boolean;
+  /** What a row does to a stored support it crosses; null makes the crossing an error. */
+  onOverlap: OnOverlap | null;
+  /** The business-group upload: each row names a group and becomes one support per customer. */
+  groups: boolean;
 }

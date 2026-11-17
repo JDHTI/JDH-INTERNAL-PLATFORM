@@ -1,21 +1,42 @@
-/** UI percentages use points; the API stores fractions with at most six decimals. */
-export function requestValue(input: string, netCost: boolean): number | null {
+import type { RequestMode } from "../types/request.types";
+import type { SupplierSupport } from "../types/support.types";
+
+/** What a JDH request asks for. Every new one asks for the margin; the other two are earlier requests. */
+export const REQUEST_MODE_LABELS: Record<RequestMode, string> = {
+  margen_minimo: "Margen mínimo autorizado JDH",
+  porcentaje: "% JDH",
+  costo_neto: "Costo JDH",
+};
+
+/**
+ * Reads what a person typed into the API's value. Percentages are typed as
+ * points and sent as fractions with at most six decimals: the margin must be
+ * 0 ≤ v < 100 %, the JDH % between -100 and 100 %, the JDH cost a peso amount.
+ */
+export function requestValue(input: string, mode: RequestMode): number | null {
   const text = input.trim().replace(",", ".");
   if (!/^-?\d+(?:\.\d+)?$/.test(text)) return null;
   const decimals = text.split(".")[1]?.length ?? 0;
-  if (decimals > (netCost ? 6 : 4)) return null;
+  if (decimals > (mode === "costo_neto" ? 6 : 4)) return null;
   const number = Number(text);
   if (!Number.isFinite(number)) return null;
-  if (netCost) return number >= 0 && number < 1e12 ? number : null;
+  if (mode === "costo_neto") return number >= 0 && number < 1e12 ? number : null;
+  if (mode === "margen_minimo") return number >= 0 && number < 100 ? Number((number / 100).toFixed(6)) : null;
   return number >= -100 && number <= 100 ? Number((number / 100).toFixed(6)) : null;
 }
 
-/** Keep the full contract precision when a reviewer confirms a proposal. */
-export function formatRequestValue(value: string | number | null | undefined, netCost: boolean): string {
+/** Keeps the full contract precision when a reviewer confirms a proposal. */
+export function formatRequestValue(value: string | number | null | undefined, mode: RequestMode): string {
   if (value === null || value === undefined || value === "") return "—";
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  return new Intl.NumberFormat("es-CO", netCost
+  return new Intl.NumberFormat("es-CO", mode === "costo_neto"
     ? { style: "currency", currency: "COP", maximumFractionDigits: 6 }
     : { style: "percent", maximumFractionDigits: 4 }).format(number);
+}
+
+/** The support's value in force for what the request asks. */
+export function currentJdhValue(support: Partial<SupplierSupport>, mode: RequestMode) {
+  if (mode === "margen_minimo") return support.supported_margin_pct;
+  return mode === "costo_neto" ? support.jdh_net_cost : support.jdh_pct;
 }

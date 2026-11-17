@@ -7,7 +7,7 @@ import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
-import { useQuotationPermissions } from "../hooks/use-quotations";
+import { useQuotationPermissions, useSeesQuotationRules } from "../hooks/use-quotations";
 import { KIND_COPY, useQuotationKind } from "../lib/kind";
 import type { QuotationKind } from "../types/quotations.types";
 
@@ -112,14 +112,16 @@ export function QuotationLoadError({
   );
 }
 
-/** The way into the rules, from the list and from each quotation. Open to everyone. */
+/** The way into the rules (BI) or the operating manual (Comercial), from the list and from each quotation. */
 export function QuotationRulesLink({ basePath, label = "Reglas del cotizador" }: { basePath: string; label?: string }) {
+  const seesRules = useSeesQuotationRules();
+  const text = seesRules === false ? "Manual del cotizador" : label;
   return (
     <Link
       href={`${basePath}/reglas`}
       className="inline-flex min-h-8 items-center gap-1.5 rounded-sm text-sm font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
     >
-      <BookOpen className="size-4" aria-hidden="true" /> {label}
+      <BookOpen className="size-4" aria-hidden="true" /> {text}
     </Link>
   );
 }

@@ -60,20 +60,45 @@ export const PRIORITY_LABELS: Record<string, string> = {
 export const PERCENT_METHODS = ["pct_costo", "pct_precio_lista", "pct_ventas", "puntos_margen", "margen_minimo"];
 
 /**
- * Names of the calc methods ("Tipo de apoyo"), the same the API publishes in
- * `form-schema.calc_method_labels`. Screens prefer the API's (useCalcMethodLabel);
+ * Names of the calc methods ("Tipo apoyo"), the same the API publishes in
+ * `catalogs.calc_method_labels`. Screens prefer the API's (useCalcMethodLabel);
  * these cover the time before it loads and the modules that do not read it.
  */
 export const CALC_METHOD_LABELS: Record<string, string> = {
-  pct_costo: "% sobre costo",
-  pct_precio_lista: "% sobre precio lista",
-  costo_neto: "Costo apoyado",
-  precio_neto: "Precio apoyado sin IVA",
-  valor_unidad: "$ por unidad",
-  margen_minimo: "Margen mínimo",
+  pct_costo: "% Apoyo en Costo",
+  pct_precio_lista: "% Apoyo en Precio Lista",
+  valor_unidad: "$ Apoyo en Costo",
+  valor_precio_lista: "$ Apoyo en Precio Lista",
+  costo_neto: "$ Costo Apoyado",
+  precio_neto: "% Margen Garantizado",
+  margen_minimo: "Margen mínimo autorizado",
   puntos_margen: "Puntos de margen",
   pct_ventas: "% sobre ventas",
 };
+
+/** Names of the support classes ("Clase apoyo"), as `catalogs.kind_labels` publishes them. */
+export const KIND_LABELS: Record<string, string> = {
+  tactico_cliente: "Apoyo táctico",
+  actividad_temporal: "Actividad descuento temporal",
+  excepcion_margen: "Excepción margen JDH",
+  lista_especial: "Lista especial",
+  rebate: "Rebate",
+  recuperacion_cliente: "Recuperación de cliente",
+  liquidacion_inventario: "Liquidación de inventario",
+  presupuesto: "Presupuesto",
+};
+
+/** The margin list a support's prices use (`margin_list`). */
+export const MARGIN_LIST_LABELS: Record<string, string> = {
+  margin_list: "Food Service",
+  margin_wholesale: "Mayoristas",
+  margin_mass_food: "Masivo Food",
+  margin_market: "Market Apartadó",
+  margin_salsamentarias: "Salsamentarias",
+};
+
+export const marginListLabel = (code: string | null | undefined) =>
+  code ? (MARGIN_LIST_LABELS[code] ?? humanize(code.replace(/^margin_/, ""))) : null;
 
 /** "no_vigente" -> "No vigente": a readable fallback for codes the UI does not know. */
 export function humanize(code: string | null | undefined): string {
@@ -88,16 +113,7 @@ export const calcMethodLabel = (code: string | null | undefined, labels?: Record
 /** Readable names for the codes of the closed fields; unknown codes are humanized. */
 const CHOICE_LABELS: Record<string, Record<string, string>> = {
   calc_method: CALC_METHOD_LABELS,
-  kind: {
-    tactico_cliente: "Táctico por cliente",
-    actividad_temporal: "Actividad temporal",
-    lista_especial: "Lista especial",
-    rebate: "Rebate",
-    recuperacion_cliente: "Recuperación de cliente",
-    liquidacion_inventario: "Liquidación de inventario",
-    presupuesto: "Presupuesto",
-    excepcion_margen: "Excepción de margen",
-  },
+  kind: KIND_LABELS,
   funding: { proveedor: "Proveedor", jdh: "JDH", mixto: "Mixto" },
   settlement_method: {
     nota_credito: "Nota crédito",
@@ -112,9 +128,12 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
 export const choiceLabel = (field: string, code: string, labels?: Record<string, string>) =>
   labels?.[code] ?? CHOICE_LABELS[field]?.[code] ?? humanize(code);
 
-/** What "Margen apoyado" means, for the edit dialog and the detail. */
+/** The name of `supported_margin_pct` in rules v2, the same the form schema gives it. */
+export const SUPPORTED_MARGIN_LABEL = "Excepción margen mínimo autorizado JDH";
+
+/** What it means, for the edit dialog. */
 export const SUPPORTED_MARGIN_HELP =
-  "Hasta qué margen se autoriza bajar el producto sobre el margen que deja el apoyo del proveedor, con base en el margen general del producto.";
+  "El margen mínimo que JDH autoriza para este apoyo. Con él se calcula el precio apoyado mínimo: (costo − apoyo) / (1 − margen).";
 
 /** What wrote a support's current version (`last_origin`). */
 export const ORIGIN_LABELS: Record<string, string> = {
@@ -173,6 +192,7 @@ export function formatSupplierValue(
     case "puntos_margen":
       return `${plain.format(value * 100)} pp`;
     case "valor_unidad":
+    case "valor_precio_lista":
     case "costo_neto":
     case "precio_neto":
       return formatCop(value);
