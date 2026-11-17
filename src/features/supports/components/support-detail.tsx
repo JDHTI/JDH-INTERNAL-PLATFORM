@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Alert } from "@/shared/components/ui/alert";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
@@ -30,7 +31,7 @@ import type {
 import SupportAttachments from "./support-attachments";
 import JdhSupport from "./jdh-support";
 import DiscardDialog from "./discard-dialog";
-import { FlagBadges, StateBadge } from "./support-badges";
+import { FlagBadges, NO_EFFECT_HELP, StateBadge } from "./support-badges";
 
 /**
  * Detail of one support: its terms, derived figures, issues, tiers, conflicts
@@ -192,7 +193,14 @@ function Body({
       {seesCost && support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
 
       {derived && (
-        <Section title="Cifras calculadas, por unidad de inventario">
+        <Section
+          title="Cifras calculadas, por unidad de inventario"
+          note={
+            derived.support_above_cost
+              ? `${NO_EFFECT_HELP} Cuenta como 0: el costo neto es el costo y el precio sugerido es el precio lista.`
+              : undefined
+          }
+        >
           <Row label="$ Apoyo" tabular>{formatCop(derived.supplier_amount)}</Row>
           {seesCost && <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>}
           <Row label="% sobre costo" tabular>{formatPct(derived.pct_on_cost)}</Row>
@@ -204,7 +212,6 @@ function Body({
               <Row label="Margen recompuesto a precio lista" tabular>{formatPct(derived.recomposed_list_margin)}</Row>
               <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(derived.supported_margin_pct)}</Row>
               <Row label="Precio Apoyado Mínimo" tabular>{formatCop(derived.supported_price)}</Row>
-              <Row label="Descuento al cliente" tabular>{formatPct(derived.customer_discount_pct)}</Row>
             </>
           )}
           {seesCost && <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>}
@@ -431,10 +438,11 @@ function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1">
       <h3 className="font-semibold">{title}</h3>
+      {note && <Alert severity="warning">{note}</Alert>}
       <dl className="divide-y divide-border">{children}</dl>
     </section>
   );

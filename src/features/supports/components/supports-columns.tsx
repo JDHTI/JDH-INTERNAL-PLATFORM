@@ -204,11 +204,6 @@ function PriceCell({ support, seesCost }: { support: SupplierSupport; seesCost: 
             strong: has(minimum, side),
             title: "Precio Apoyado Mínimo: (costo − apoyo) / (1 − margen mínimo autorizado JDH)",
           },
-          {
-            label: "Dcto. cliente",
-            value: pct(derived?.customer_discount_pct),
-            title: "Descuento al cliente frente al precio lista si se vende al precio apoyado mínimo",
-          },
         ]}
       />
       {/*

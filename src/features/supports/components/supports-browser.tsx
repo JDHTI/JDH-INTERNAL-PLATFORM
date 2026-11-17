@@ -345,8 +345,9 @@ export default function SupportsBrowser({
         />
       </div>
 
-      <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="relative flex-1">
+      {/* Text, state and class on the left; the table's own tools on the right, in the same row. */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="relative lg:w-72">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
@@ -355,25 +356,67 @@ export default function SupportsBrowser({
             type="search"
             value={text}
             onChange={(event) => reset(() => setText(event.target.value))}
-            placeholder="Buscar por texto: programa, marca, referencia externa"
-            aria-label="Buscar apoyos por texto"
+            placeholder="Programa, marca o ref. externa"
+            aria-label="Buscar apoyos por programa, marca o referencia externa"
             className="pl-9"
           />
         </div>
         <Dropdown
-          className="lg:w-48"
+          className="lg:w-44"
           value={state}
           onValueChange={(value) => reset(() => setState(value))}
           options={stateOptions}
           aria-label="Filtrar por estado"
         />
         <Dropdown
-          className="lg:w-52"
+          className="lg:w-56"
           value={kind}
           onValueChange={(value) => reset(() => setKind(value))}
           options={kindOptions}
           aria-label="Filtrar por clase de apoyo"
         />
+        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+          {canWrite && (
+            <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
+              <Paperclip aria-hidden="true" />
+              Adjuntar soporte
+            </Button>
+          )}
+          <Menu
+            align="end"
+            trigger={
+              <>
+                <Columns3 aria-hidden="true" />
+                Columnas
+                {hiddenColumns.length === 1 ? " (1 oculta)" : hiddenColumns.length > 1 ? ` (${hiddenColumns.length} ocultas)` : ""}
+              </>
+            }
+            triggerClassName={buttonVariants({ variant: "outline", size: "sm", className: "max-md:hidden" })}
+          >
+            <MenuLabel>Columnas de la tabla</MenuLabel>
+            {COLUMNS.filter((column) => column.hideable).map((column) => (
+              <MenuCheckboxItem
+                key={column.key}
+                checked={!hiddenColumns.includes(column.key)}
+                onCheckedChange={(shown) => toggleColumn(column.key, shown)}
+              >
+                {column.label}
+              </MenuCheckboxItem>
+            ))}
+          </Menu>
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-md:h-11"
+            onClick={() => setShowAdvanced((value) => !value)}
+            aria-expanded={showAdvanced}
+            aria-controls="supports-advanced"
+            disabled={fieldsQuery.isError}
+          >
+            <SlidersHorizontal aria-hidden="true" />
+            Filtros avanzados{advanced.conditions.length > 0 ? ` (${advanced.conditions.length})` : ""}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -410,12 +453,8 @@ export default function SupportsBrowser({
             </button>
           </span>
         )}
-        {canWrite && (
-          <Button variant="outline" size="sm" className="ml-auto max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
-            <Paperclip aria-hidden="true" />
-            Adjuntar soporte
-          </Button>
-        )}
+        {/* Actions that depend on what is listed or ticked stay with the quick filters. */}
+        <span className="flex flex-wrap items-center gap-2 md:ml-auto">
         {canWrite && (alerts.data?.length ?? 0) > 0 && (
           <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setAlertsOpen(true)}>
             <CalendarClock aria-hidden="true" />
@@ -429,49 +468,12 @@ export default function SupportsBrowser({
             Anular o vencer
           </Button>
         )}
-        <Menu
-          align="end"
-          trigger={
-            <>
-              <Columns3 aria-hidden="true" />
-              Columnas
-              {hiddenColumns.length === 1 ? " (1 oculta)" : hiddenColumns.length > 1 ? ` (${hiddenColumns.length} ocultas)` : ""}
-            </>
-          }
-          triggerClassName={buttonVariants({
-            variant: "outline",
-            size: "sm",
-            className: cn("max-md:hidden", !canWrite && "ml-auto"),
-          })}
-        >
-          <MenuLabel>Columnas de la tabla</MenuLabel>
-          {COLUMNS.filter((column) => column.hideable).map((column) => (
-            <MenuCheckboxItem
-              key={column.key}
-              checked={!hiddenColumns.includes(column.key)}
-              onCheckedChange={(shown) => toggleColumn(column.key, shown)}
-            >
-              {column.label}
-            </MenuCheckboxItem>
-          ))}
-        </Menu>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(!canWrite && "max-md:ml-auto")}
-          onClick={() => setShowAdvanced((value) => !value)}
-          aria-expanded={showAdvanced}
-          aria-controls="supports-advanced"
-          disabled={fieldsQuery.isError}
-        >
-          <SlidersHorizontal aria-hidden="true" />
-          Filtros avanzados{advanced.conditions.length > 0 ? ` (${advanced.conditions.length})` : ""}
-        </Button>
         {filtered && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Limpiar filtros
           </Button>
         )}
+        </span>
       </div>
 
       {/* Kept mounted while hidden so a half-built query survives closing the panel. */}
