@@ -23,12 +23,13 @@ import {
   useZone,
   useZones,
 } from "../hooks/use-commercial-map";
-import { mainRing, useCategoryColors, useProspectLayer, useZoneLayer } from "../hooks/use-map-layers";
+import { useCategoryColors, useProspectLayer, useZoneLayer } from "../hooks/use-map-layers";
 import { useZoneDraw } from "../hooks/use-zone-draw";
 import { formatCount } from "../lib/format";
 import { LAYER } from "../lib/map-layers";
 import { moveDuration } from "../lib/motion";
 import { boundsOf } from "../lib/prospect-features";
+import { mainRing } from "../lib/zone-geometry";
 import type { PaletteKey, ZoneFeature } from "../types/commercial-map.types";
 import ColorSwatches from "./color-swatches";
 import { ColorDot } from "./prospect-marks";

@@ -358,6 +358,8 @@ Los tokens `--map-*` son opacos, así que estos pares son los que se ven. El ró
 | Borde del chip y del cluster: `--map-label` sobre `--map-chip` (3:1) | #6a6a68 / #ffffff · **5.42** ✅ | #aeaead / #2f2f2d · **6.04** ✅ |
 | Contorno de la marca: `--map-label` sobre la tierra (3:1) | **4.84** ✅ | **7.60** ✅ |
 | Nombre de zona sobre su tinte (peor caso de la paleta) | #1d1d1b / rosado al 14% #ebdbe3 · **12.68** ✅ | #ffffff / amarillo al 24% #473b26 · **10.93** ✅ |
+| Línea de comuna y contorno de marca: `--map-label` sobre la tierra teñida por la segmentación (3:1, peor caso) | #6a6a68 / morado al 14% #e4dee9 · **4.11** ✅ | #aeaead / amarillo al 18% #3c3323 · **5.60** ✅ |
+| Nombre de comuna o municipio sobre la tierra teñida (peor caso) | #1d1d1b / morado al 14% #e4dee9 · **12.80** ✅ | #ffffff / amarillo al 18% #3c3323 · **12.43** ✅ |
 | Relleno de categoría solo, sin contorno, sobre la tierra | amarillo #cb912f · **2.46** ❌, naranja **2.93** ❌ | el más bajo, morado · **4.30** ✅ |
 
 La última fila es la razón del contorno: en claro, dos tonos de la paleta no llegan a 3:1 contra
@@ -1028,7 +1030,7 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 | Anillo grueso | `--map-label-strong`, 2,5 px | El prospecto seleccionado |
 | Polígono teñido | Color de la zona al 14% (claro) o 24% (oscuro), borde sólido, nombre | Zona comercial |
 | Contorno grueso sin relleno | `--map-label-strong`, 3 px, con nombre y conteo | La comuna o el municipio que está filtrando el mapa |
-| Contornos finos sin relleno | `--map-label`; 2 px municipio, 1,25 px comuna; nombre y conteo | La segmentación del territorio, cuando se enciende |
+| Mosaico teñido | Comuna: un tono de `--project-*` al 14% (claro) o 18% (oscuro), línea `--map-label` de 1 px. Municipio: gris, línea `--map-label-strong` de 2,5 px. Nombre y conteo | La segmentación del territorio, cuando se enciende |
 | Línea continua | `--map-label-strong`, 3,5 px | Ruta trazada por calles |
 | Línea punteada | `--map-label-strong`, 2 px | Ruta en línea recta o sin calcular |
 | Círculo numerado | Vacío: parada pendiente. Relleno: visitada | Parada de una ruta |
@@ -1039,9 +1041,15 @@ para el tema en pantalla. Al cambiar el tema se repinta capa por capa, sin recar
 - **Ex-cliente y ubicación aproximada son formas**, no colores: se leen en escala de grises.
 - **Comunas y municipios son filtros.** Por defecto solo se pinta el perímetro de la zona que
   está filtrando, sin color ni relleno, para que el mapa diga qué está mostrando. «Ver
-  segmentación» pinta todos: los municipios con línea de 2 px y las comunas de Medellín con
-  1,25 px, cada parte con su nombre y su conteo. Viene apagada para no cargar el mapa de líneas.
-  El color sigue siendo de las zonas comerciales.
+  segmentación» pinta todos, cada parte con su nombre y su conteo, y viene apagada para no
+  cargar el mapa.
+- **En la segmentación el color no significa nada: solo separa.** Es la única excepción a «el
+  color solo dice la categoría», y por eso va tan suave (`--map-segment-tint`) y solo mientras
+  está encendida. Cada comuna toma un tono de `--project-*` que no repite ni se parece al de
+  sus vecinas, como en un mapa político (`segmentColors` en `lib/zone-geometry.ts`). Los
+  municipios van todos en gris y con la línea gruesa y oscura, para que se lean como otro
+  nivel; el que está partido en comunas no lleva relleno, porque ellas ya lo cubren. Los
+  nombres de cada nivel se pueden apagar por separado.
 - **Toda marca lleva contorno `--map-label`** (4.84:1 en claro, 7.60:1 en oscuro). Dos tonos
   de la paleta no llegan a 3:1 contra la tierra por sí solos (§3.5).
 - **La leyenda va debajo del mapa**, con las mismas marcas, no encima tapándolo.

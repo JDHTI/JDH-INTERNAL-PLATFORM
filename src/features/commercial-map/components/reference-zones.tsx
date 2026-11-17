@@ -11,11 +11,12 @@ import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useZones } from "../hooks/use-commercial-map";
-import { mainRing, shortZoneName, useReferenceLayer } from "../hooks/use-map-layers";
+import { shortZoneName, useReferenceLayer } from "../hooks/use-map-layers";
 import { formatCount } from "../lib/format";
 import { LAYER, PROSPECT_HIT_LAYERS } from "../lib/map-layers";
 import { moveDuration } from "../lib/motion";
 import { boundsOf } from "../lib/prospect-features";
+import { holds, mainRing, segmentColors } from "../lib/zone-geometry";
 import type { ZoneCollection, ZoneFeature } from "../types/commercial-map.types";
 import ZoneAdoptDialog from "./zone-adopt-dialog";
 
@@ -57,6 +58,8 @@ export default function ReferenceZones({
 }) {
   const [adopting, setAdopting] = useState(false);
   const [segmented, setSegmented] = useState(false);
+  const [communeNames, setCommuneNames] = useState(true);
+  const [municipalityNames, setMunicipalityNames] = useState(true);
   const communeQuery = useZones("official", true, "commune");
   const municipalityQuery = useZones("official", true, "municipality");
   const communes = useMemo(() => byName(communeQuery.data?.features), [communeQuery.data]);
@@ -71,7 +74,21 @@ export default function ReferenceZones({
     const features = segmented ? [...municipalities, ...communes] : selected ? [selected] : [];
     return features.length > 0 ? { type: "FeatureCollection", features } : undefined;
   }, [segmented, municipalities, communes, selected]);
-  useReferenceLayer(map, outline, selected?.properties.id ?? null);
+  // Each commune gets a hue of its own. A municipality is one gray, unless it
+  // is the one split into communes: theirs already cover it.
+  const tints = useMemo(() => {
+    if (!segmented) return null;
+    const colors = segmentColors(communes);
+    for (const municipality of municipalities) {
+      if (!communes.some((commune) => holds(municipality, commune))) colors.set(municipality.properties.id, "gray");
+    }
+    return colors;
+  }, [segmented, communes, municipalities]);
+  useReferenceLayer(map, outline, selected?.properties.id ?? null, {
+    tints,
+    communeNames: segmented && communeNames,
+    municipalityNames: segmented && municipalityNames,
+  });
 
   // One zone filters at a time: picking a municipality replaces the commune, and the other way round.
   const choose = (zone: ZoneFeature | null) => {
@@ -175,10 +192,28 @@ export default function ReferenceZones({
         <ToggleChip
           active={segmented}
           onClick={() => setSegmented((current) => !current)}
-          title="Muestra cómo se divide el territorio en municipios y comunas, con los prospectos de cada parte"
+          title="Muestra cómo se divide el territorio en municipios y comunas, con los prospectos de cada parte. El color solo distingue una comuna de la vecina."
         >
           Ver segmentación
         </ToggleChip>
+      )}
+
+      {segmented && (
+        <div role="group" aria-labelledby="segment-names-title" className="flex flex-wrap items-center gap-2">
+          <span id="segment-names-title" className="text-[13px] text-text-secondary">
+            Nombres
+          </span>
+          {communes.length > 0 && (
+            <ToggleChip active={communeNames} onClick={() => setCommuneNames((current) => !current)}>
+              Comunas
+            </ToggleChip>
+          )}
+          {municipalities.length > 0 && (
+            <ToggleChip active={municipalityNames} onClick={() => setMunicipalityNames((current) => !current)}>
+              Municipios
+            </ToggleChip>
+          )}
+        </div>
       )}
 
       {selected && canManage && (

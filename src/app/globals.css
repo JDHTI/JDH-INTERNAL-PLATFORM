@@ -138,6 +138,9 @@
   --map-chip: var(--neutral-0);
   /* Tinte de zona sobre la tierra: 14% claro, 24% oscuro (§7.7). */
   --map-zone-tint: 0.14;
+  /* Tinte de la segmentación (comunas, municipios): cubre toda la ciudad bajo
+     los prospectos, así que en oscuro va más suave que el de una zona. */
+  --map-segment-tint: 0.14;
 
   /* Modales (§7.4): backdrop sin blur y elevación 3 (§6.2). En oscuro la
      sombra no se ve y la elevación la da --surface con su borde. */
@@ -235,6 +238,7 @@
   --map-halo: var(--neutral-900);
   --map-chip: color-mix(in srgb, var(--neutral-0) 8%, var(--neutral-900));
   --map-zone-tint: 0.24;
+  --map-segment-tint: 0.18;
 }
 
 /* ── Puente hacia Tailwind ─────────────────────────────────────────────────── */
