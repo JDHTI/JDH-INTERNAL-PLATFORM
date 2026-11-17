@@ -6,7 +6,9 @@ import { Check, ChevronsUpDown, LayoutGrid } from "lucide-react";
 
 import { useActiveArea } from "@/features/areas/hooks/use-areas";
 import type { Area } from "@/features/areas/types/area.types";
+import { ScrollCue } from "@/shared/components/ui/scroll-cue";
 import { useIsDrawer, useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
+import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -55,6 +57,7 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
   const containerRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const scroll = useScrollHints<HTMLUListElement>();
 
   const {
     setSidebarCollapsed,
@@ -243,7 +246,11 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
             )}
           >
             <ul
-              ref={listRef}
+              ref={(element) => {
+                listRef.current = element;
+                scroll.attach(element);
+              }}
+              style={scroll.style}
               aria-label="Áreas"
               // 21rem is seven 48px rows: the list shows at most seven areas
               // and snaps row by row, so the edge never cuts one in half.
@@ -255,6 +262,8 @@ function AreaSwitcherCard({ activeArea, areas }: { activeArea?: Area; areas: Are
                 </li>
               ))}
             </ul>
+            {/* Seven rows show at a time; past that, the faded edge and the chevron say there is more. */}
+            <ScrollCue hints={scroll.hints} onScroll={scroll.scrollPage} tone="sidebar" />
           </div>
         )}
       </div>

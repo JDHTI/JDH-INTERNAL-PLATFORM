@@ -19,8 +19,10 @@ import { Button } from "@/shared/components/ui/button";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
+import { ScrollCue } from "@/shared/components/ui/scroll-cue";
 import { ViewTab } from "@/shared/components/ui/view-tab";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
@@ -72,6 +74,8 @@ export default function MastersBrowser({ area }: { area?: string }) {
   const mastersQuery = useMasters(area);
   const [selectedSlug, setSelectedSlug] = useState<string>();
   const masters = mastersQuery.data ?? [];
+  // Six rows show at a time; the list hides its scrollbar, the faded edge and chevron say there is more.
+  const { attach, hints, style, scrollPage } = useScrollHints<HTMLUListElement>();
   const active = masters.find((master) => master.slug === selectedSlug) ?? masters[0];
 
   if (mastersQuery.isPending) return <Skeleton label="Cargando maestros" className="h-96" />;
@@ -101,7 +105,8 @@ export default function MastersBrowser({ area }: { area?: string }) {
         </div>
         {/* Top separators, as in the areas list: six rows fit and the sixth
             never draws a line against the card edge. */}
-        <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
+        <div className="relative">
+        <ul ref={attach} style={style} className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
           {masters.map((master) => (
             <li key={master.slug} className="h-16 snap-start border-t border-border first:border-t-0">
               <button
@@ -127,6 +132,8 @@ export default function MastersBrowser({ area }: { area?: string }) {
             </li>
           ))}
         </ul>
+        <ScrollCue hints={hints} onScroll={scrollPage} />
+        </div>
       </section>
 
       {active && <MasterPanel key={active.slug} summary={active} />}
