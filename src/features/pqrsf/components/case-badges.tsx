@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, MailPlus } from "lucide-react";
+import { AlertTriangle, Clock, FileCheck, MailPlus } from "lucide-react";
 
 import { Badge } from "@/shared/components/ui/badge";
 import { cn } from "@/shared/lib/utils";
@@ -40,6 +40,33 @@ function NewsBadgeLabel({ newsAt, className }: { newsAt: string; className?: str
       <MailPlus aria-hidden="true" />
       Novedad
       <span className="tabular font-normal text-text-secondary">· {formatRelativeShort(newsAt, now)}</span>
+    </Badge>
+  );
+}
+
+/**
+ * The improvement opportunity went to the supplier. A mark apart from the
+ * status, outlined like the news mark so it does not take a hue from the status
+ * or the due date; the word, the icon and the date carry it.
+ */
+export function OmBadge({
+  sentAt,
+  className,
+}: {
+  sentAt: string | null | undefined;
+  className?: string;
+}) {
+  if (!sentAt) return null;
+  const day = formatDateTime(sentAt).split(",")[0];
+  return (
+    <Badge
+      tone="neutral"
+      className={cn("border border-border-control bg-surface", className)}
+      title={`OM enviada al proveedor el ${formatDateTime(sentAt)}`}
+    >
+      <FileCheck aria-hidden="true" />
+      OM enviada
+      <span className="tabular font-normal text-text-secondary">· {day}</span>
     </Badge>
   );
 }

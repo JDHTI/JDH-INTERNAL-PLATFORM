@@ -23,8 +23,18 @@ import {
   deleteCase,
   forwardToCustomer,
   getCase,
+  generateOm,
   getCaseOpenings,
   getCatalog,
+  getOmSettings,
+  listOmTemplates,
+  listOms,
+  listPqrsfSites,
+  retryOmPdf,
+  setOmNextNumber,
+  updatePqrsfSite,
+  uploadEditedOm,
+  uploadOmTemplate,
   getClientReplies,
   getFeedback,
   getFeedbackSummary,
@@ -70,7 +80,10 @@ import type {
   CreateCaseInput,
   FeedbackListParams,
   ItemInput,
+  OmInput,
   PqrsfCase,
+  PqrsfSiteAdmin,
+  StatusChangeInput,
   SubjectUpdate,
   SuggestionField,
   SupplierMessageInput,
@@ -275,9 +288,7 @@ export function useAssignCase(id: string) {
 }
 
 export function useChangeStatus(id: string) {
-  return useCaseMutation(id, (input: { status_id: string; note?: string | null }) =>
-    changeStatus(id, input)
-  );
+  return useCaseMutation(id, (input: StatusChangeInput) => changeStatus(id, input));
 }
 
 export function useAddItem(id: string) {
@@ -356,6 +367,83 @@ export function useRetryClientReply(id: string) {
   });
 }
 
+const omKeys = {
+  list: (id: string) => [...pqrsfKeys.detail(id), "oms"] as const,
+  templates: () => [...pqrsfKeys.all, "om-templates"] as const,
+  settings: () => [...pqrsfKeys.all, "om-settings"] as const,
+};
+
+export function useCaseOms(id: string, enabled = true) {
+  return useQuery({ queryKey: omKeys.list(id), queryFn: () => listOms(id), enabled });
+}
+
+/** Filling the OM is work on the case: it may move it to En curso and adds a timeline entry. */
+function useOmMutation<TInput, TResult>(id: string, mutationFn: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: omKeys.list(id) });
+      refreshCase(queryClient, id);
+    },
+  });
+}
+
+export function useGenerateOm(id: string) {
+  return useOmMutation(id, (input: OmInput) => generateOm(id, input));
+}
+
+export function useUploadEditedOm(id: string) {
+  return useOmMutation(id, ({ omId, file }: { omId: string; file: File }) =>
+    uploadEditedOm(id, omId, file)
+  );
+}
+
+export function useRetryOmPdf(id: string) {
+  return useOmMutation(id, (omId: string) => retryOmPdf(id, omId));
+}
+
+export function useOmTemplates() {
+  return useQuery({ queryKey: omKeys.templates(), queryFn: listOmTemplates });
+}
+
+export function useUploadOmTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, versionLabel }: { file: File; versionLabel: string }) =>
+      uploadOmTemplate(file, versionLabel),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: omKeys.templates() }),
+  });
+}
+
+export function useOmSettings() {
+  return useQuery({ queryKey: omKeys.settings(), queryFn: getOmSettings });
+}
+
+export function useSetOmNextNumber() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setOmNextNumber,
+    onSuccess: (saved) => queryClient.setQueryData(omKeys.settings(), saved),
+  });
+}
+
+export function usePqrsfSites() {
+  return useQuery({ queryKey: [...pqrsfKeys.all, "sites-admin"] as const, queryFn: listPqrsfSites });
+}
+
+export function useUpdatePqrsfSite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<Pick<PqrsfSiteAdmin, "city" | "address" | "om_code">> }) =>
+      updatePqrsfSite(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.all, "sites-admin"] });
+      queryClient.invalidateQueries({ queryKey: pqrsfKeys.catalogs() });
+    },
+  });
+}
+
 /** Asked for only when the popover opens, never with the case. */
 export function useCaseOpenings(id: string, enabled: boolean) {
   return useQuery({
@@ -408,6 +496,8 @@ export function useSendSupplierMessage(id: string) {
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.detail(id), "files"] });
       queryClient.invalidateQueries({ queryKey: pqrsfKeys.supplierEmails(id) });
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.all, "supplier-contacts"] });
+      // An improvement opportunity sent with it turns «sent» and the case gets its mark.
+      queryClient.invalidateQueries({ queryKey: omKeys.list(id) });
       refreshCase(queryClient, id);
     },
   });

@@ -31,15 +31,17 @@ import {
   stripCid,
 } from "../lib/format";
 import { inboxHref } from "../lib/inbox-state";
+import { RESOLUTION_LABELS } from "../lib/resolution";
 import type {
   IntakeRequest,
   PqrsfCase,
   SalesExecutive,
   TrackingCatalog,
 } from "../types/pqrsf.types";
-import { DueLabel, NewsBadge } from "./case-badges";
+import { DueLabel, NewsBadge, OmBadge } from "./case-badges";
 import CaseClassification from "./case-classification";
 import { AssignDialog, DeleteCaseDialog, EditCaseDialog, StatusDialog } from "./case-dialogs";
+import CaseImprovement from "./case-improvement";
 import CaseItems from "./case-items";
 import CaseOpenings from "./case-openings";
 import CaseProducts from "./case-products";
@@ -161,6 +163,7 @@ export default function CaseDetailScreen({ area, caseId }: { area: string; caseI
           {showsDocuments && <CaseItems item={item} catalog={catalog.data} />}
           {request && <IntakeRequestSection caseId={item.id} request={request} />}
           <CaseFiles caseId={item.id} />
+          <CaseImprovement item={item} request={request} />
           <CaseTimeline item={item} events={events} />
         </div>
       </div>
@@ -225,6 +228,7 @@ function CaseHeader({
               }}
             />
             <NewsBadge newsAt={item.news_at} />
+            <OmBadge sentAt={item.om_sent_at} />
           </div>
           <p className="text-sm text-text-secondary">
             {item.request_type.name} · {originLabel(item.origin)} · Recibido el{" "}
@@ -289,6 +293,16 @@ function CaseHeader({
           </time>
           . El caso queda de solo lectura: se puede comentar
           {canWork ? " o reabrir desde su estado" : ""}.
+          {item.resolution && (
+            <>
+              {" "}Resultado: <strong className="font-semibold">{RESOLUTION_LABELS[item.resolution]}</strong>
+              {item.internal_failure ? ", con fallo en un proceso de JDH" : ""}.
+            </>
+          )}
+          {!item.resolution && item.internal_failure && <> Hubo fallo en un proceso de JDH.</>}
+          {item.resolution_note && (
+            <span className="mt-1 block whitespace-pre-wrap">{item.resolution_note}</span>
+          )}
         </p>
       )}
       {!canWork && !isClosed && (

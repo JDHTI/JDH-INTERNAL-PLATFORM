@@ -220,6 +220,14 @@ export interface PqrsfCase {
    * or a manager opens the case. Absent on an API that does not send it.
    */
   news_at?: string | null;
+  /** How a complaint or a claim ended; set when it is finalized (API #80). */
+  resolution?: CaseResolution | null;
+  /** A JDH process failed: the case may call for a corrective action. */
+  internal_failure?: boolean;
+  resolution_note?: string | null;
+  resolved_at?: string | null;
+  /** When an improvement opportunity went to the supplier; a mark apart from the status. */
+  om_sent_at?: string | null;
   closed_at: string | null;
   legacy: {
     responsable?: string;
@@ -242,6 +250,88 @@ export interface PqrsfCase {
   classification?: CaseClassification | null;
   /** What the customer sent; never edited. With lines, the supplier comes from them. */
   products?: CaseProduct[];
+}
+
+/** `procede`: JDH answers for the product; `no_procede`: it does not. */
+export type CaseResolution = "procede" | "no_procede";
+
+export interface StatusChangeInput {
+  status_id: string;
+  note?: string | null;
+  resolution?: CaseResolution | null;
+  internal_failure?: boolean;
+  resolution_note?: string | null;
+}
+
+export interface OmSigner {
+  name: string | null;
+  position: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+/** The improvement opportunity (P.06.F.04) of a case for one supplier. */
+export interface ImprovementOpportunity {
+  id: string;
+  case_id: string;
+  number: number;
+  /** «1181BOG»: the number and the site's OM code. */
+  code: string;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  immediate_actions: string | null;
+  request_note: string | null;
+  document_number: string | null;
+  /** AAAA-MM-DD. */
+  document_date: string | null;
+  evidence_ids: string[];
+  signer: OmSigner | null;
+  has_docx: boolean;
+  /** False when the converter was down: the PDF can be made again. */
+  has_pdf: boolean;
+  /** The Word was uploaded by hand. */
+  edited: boolean;
+  status: "draft" | "sent";
+  generated_at: string | null;
+  sent_at: string | null;
+  created_at: string | null;
+}
+
+export interface OmInput {
+  supplier_code?: string | null;
+  supplier_name?: string | null;
+  immediate_actions?: string | null;
+  request_note?: string | null;
+  /** Up to 6 photos of the client's request. */
+  evidence_ids: string[];
+  document_number?: string | null;
+  document_date?: string | null;
+}
+
+/** A version of the OM Word template; `is_active` marks the one in use. */
+export interface OmTemplate {
+  id: string;
+  kind: string;
+  version_label: string;
+  filename: string;
+  size_bytes: number;
+  checksum_sha256: string;
+  is_active: boolean;
+  uploaded_by: string | null;
+  created_at: string | null;
+}
+
+/** A site of the PQRSF catalog, with what the OM prints of it. */
+export interface PqrsfSiteAdmin {
+  id: string;
+  code: string;
+  name: string;
+  abbreviation: string;
+  city: string | null;
+  address: string | null;
+  /** Three letters (BOG): the site's part of the OM code. */
+  om_code: string | null;
+  is_active: boolean;
 }
 
 export type PickupOrderAnswer = "yes" | "no" | "unknown";
@@ -309,6 +399,8 @@ export interface SupplierMessageInput {
   files: File[];
   /** Colleagues copied on every email of the message. */
   cc?: string[];
+  /** With `kind: "improvement"`: the OM whose PDF goes attached; the API marks it as sent. */
+  omId?: string;
 }
 
 export interface SupplierMessageResult extends CaseEvent {
@@ -330,6 +422,10 @@ export interface CaseEvent {
     | "email_received"
     /** The team passed a supplier's answer on to the client; `note` is what the manager added. */
     | "forwarded_to_customer"
+    /** The team filled the OM (P.06) for a supplier, filled it again or uploaded an edited Word. */
+    | "om_generated"
+    /** The OM went to the supplier by email. */
+    | "om_sent"
     | "item_added"
     | "item_updated"
     | "item_removed"
@@ -532,6 +628,8 @@ export interface CaseSummary {
   unassigned: number;
   /** Open cases with an unseen email answer. Absent on an API that does not send it. */
   with_news?: number;
+  /** Cases whose improvement opportunity went to the supplier. Absent on an API that does not send it. */
+  om_sent?: number;
   by_status: CountBucket[];
   by_type: CountBucket[];
 }
@@ -558,6 +656,9 @@ export interface CaseFilters {
   overdue?: boolean;
   due_today?: boolean;
   with_news?: boolean;
+  om_sent?: boolean;
+  resolution?: CaseResolution;
+  internal_failure?: boolean;
   received_from?: string;
   received_to?: string;
   q?: string;

@@ -8,14 +8,16 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useChangeStatus } from "../hooks/use-pqrsf";
+import { requiresResolution } from "../lib/resolution";
 import type { PqrsfCase, TrackingCatalog } from "../types/pqrsf.types";
 import { StatusBadge } from "./case-badges";
 
 /**
  * The status badge is where the status changes: it opens the active statuses
  * with the current one checked. A plain move saves at once; reopening a
- * closed case needs the reason, and «Cambiar con nota» leaves one on any
- * change, so both go through the status dialog (`onNeedsDialog`). Without
+ * closed case needs the reason, finalizing a complaint or a claim needs its
+ * result, and «Cambiar con nota» leaves a note on any change, so all of them
+ * go through the status dialog (`onNeedsDialog`). Without
  * permission to work the case, the badge is just a badge.
  */
 export function StatusMenu({
@@ -39,6 +41,8 @@ export function StatusMenu({
     const target = statuses.find((status) => status.id === statusId);
     if (!target) return;
     if (item.closed_at && !target.is_terminal) return onNeedsDialog(statusId);
+    // A complaint or a claim says how it ended when it is finalized: that is asked in the dialog.
+    if (target.is_terminal && requiresResolution(item)) return onNeedsDialog(statusId);
     mutation.mutate(
       { status_id: statusId },
       {

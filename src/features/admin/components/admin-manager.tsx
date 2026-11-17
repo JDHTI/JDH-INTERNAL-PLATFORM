@@ -51,6 +51,7 @@ import type {
 import { areaToDraft } from "@/features/admin/types/admin.types";
 import DirectoryAdmin from "@/features/directory/components/admin/directory-admin";
 import SitesAdmin from "@/features/directory/components/admin/sites-admin";
+import PqrsfSitesAdmin from "@/features/pqrsf/components/pqrsf-sites-admin";
 import JobsPanel from "@/features/jobs/components/jobs-panel";
 import MastersBrowser from "@/features/masters/components/masters-browser";
 import SalespeopleAdmin from "@/features/salespeople/components/salespeople-admin";
@@ -348,7 +349,20 @@ export default function AdminManager({ section }: { section: AdminSection }) {
       ) : section === "directorio" ? (
         <DirectoryAdmin />
       ) : section === "sedes" ? (
-        <SitesAdmin />
+        <div className="space-y-10">
+          <section aria-labelledby="sites-company-heading" className="space-y-3">
+            <h2 id="sites-company-heading" className="text-base font-semibold">
+              Sedes de la empresa
+            </h2>
+            <SitesAdmin />
+          </section>
+          <section aria-labelledby="sites-pqrsf-heading" className="space-y-3">
+            <h2 id="sites-pqrsf-heading" className="text-base font-semibold">
+              Sedes de PQRSF
+            </h2>
+            <PqrsfSitesAdmin />
+          </section>
+        </div>
       ) : section === "vendedores" ? (
         <SalespeopleAdmin />
       ) : (
