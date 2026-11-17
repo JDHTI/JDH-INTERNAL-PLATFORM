@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, CircleCheck, CircleX, Download, TriangleAlert, Upload } from "lucide-react";
+import { ChevronDown, CircleCheck, CircleX, Download as DownloadIcon, TriangleAlert, Upload } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
@@ -27,7 +27,10 @@ import {
 } from "../hooks/use-supports";
 import { formatDay, formatPublishFrom, formatSupplierValue } from "../lib/format";
 import { PROFILE_DEFAULT_FIELDS, readDraft, withoutKey, type Draft } from "../lib/form-values";
-import { downloadBulkTemplate } from "../services/supports.service";
+import { downloadBulkExport, downloadBulkTemplate } from "../services/supports.service";
+
+/** The files offered: the template, by group, every field, or the supplier's supports to validate. */
+type Download = "corta" | "grupos" | "completa" | "datos";
 import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import SchemaFields from "./schema-fields";
@@ -82,7 +85,7 @@ export default function BulkLoad({ area }: { area: string }) {
   const [reportKey, setReportKey] = useState<string | null>(null);
   const [applied, setApplied] = useState<BulkReport | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [template, setTemplate] = useState<{ pending: "corta" | "completa" | null; error: string | null }>({
+  const [template, setTemplate] = useState<{ pending: Download | null; error: string | null }>({
     pending: null,
     error: null,
   });
@@ -162,10 +165,11 @@ export default function BulkLoad({ area }: { area: string }) {
     setRequestError(null);
   };
 
-  const download = async (kind: "corta" | "completa") => {
+  const download = async (kind: Download) => {
     setTemplate({ pending: kind, error: null });
     try {
-      await downloadBulkTemplate(supplier?.value ?? null, kind === "completa");
+      if (kind === "datos") await downloadBulkExport(supplier!.value);
+      else await downloadBulkTemplate(supplier?.value ?? null, { full: kind === "completa", groups: kind === "grupos" });
       setTemplate({ pending: null, error: null });
     } catch (failure) {
       setTemplate({ pending: null, error: errorMessage(failure) });
@@ -237,8 +241,20 @@ export default function BulkLoad({ area }: { area: string }) {
             <span className="block text-[13px] font-medium">Plantilla</span>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => download("corta")} disabled={template.pending !== null} className="max-sm:h-11">
-                <Download aria-hidden="true" />
-                {template.pending === "corta" ? "Descargando" : supplier ? `Plantilla de ${supplier.label}` : "Descargar plantilla"}
+                <DownloadIcon aria-hidden="true" />
+                {template.pending === "corta" ? "Descargando" : "Plantilla"}
+              </Button>
+              <Button variant="outline" onClick={() => download("grupos")} disabled={template.pending !== null} className="max-sm:h-11">
+                {template.pending === "grupos" ? "Descargando" : "Plantilla por grupo"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => download("datos")}
+                disabled={template.pending !== null || !supplier}
+                title={supplier ? undefined : "Elige el proveedor primero"}
+                className="max-sm:h-11"
+              >
+                {template.pending === "datos" ? "Descargando" : "Descargar con datos"}
               </Button>
               <Button variant="ghost" onClick={() => download("completa")} disabled={template.pending !== null} className="max-sm:h-11">
                 {template.pending === "completa" ? "Descargando" : "Plantilla completa"}
@@ -248,9 +264,11 @@ export default function BulkLoad({ area }: { area: string }) {
               <p role="alert" className="text-[13px] text-danger">{template.error}</p>
             ) : (
               <p className="text-[13px] text-text-secondary">
+                {supplier ? "La plantilla sigue el perfil del proveedor. " : "La plantilla viene en el orden de BI, con listas para clase, tipo y unidad. "}
+                Por grupo cambia el cliente por el grupo empresarial.{" "}
                 {supplier
-                  ? "Con los encabezados de su perfil, sin las columnas de valor fijo. La completa trae todos los campos."
-                  : "La corta trae cliente, SKU, tipo y valor del apoyo, margen mínimo autorizado JDH, vigencia y observaciones; solo el tipo de apoyo es obligatorio. La completa agrega regional, canal, n.º de acuerdo, unidad del valor y los demás campos opcionales."}
+                  ? `Con datos trae los apoyos vigentes y programados de ${supplier.label} con la columna Validación: márcala y vuelve a subir el archivo aquí.`
+                  : "Con datos necesita un proveedor elegido."}
               </p>
             )}
           </div>

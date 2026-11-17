@@ -15,6 +15,7 @@ import type {
   QuotationKind,
   QuotationPage,
   QuotationPermissions,
+  QuotationManualSection,
   QuotationRuleSection,
   QuotationWithImport,
   ReviewStatus,
@@ -99,9 +100,14 @@ export function listLoads(kind: ListKind): Promise<PriceListLoad[]> {
   return apiFetch<PriceListLoad[]>(`${UPDATES}/loads`, { query: { kind } });
 }
 
-/** Open to every signed-in user, like the validator's rules. */
+/** BI only (`can_see_rules`); Comercial gets a 403 and reads the manual. */
 export function getQuotationRules(): Promise<QuotationRuleSection[]> {
   return apiFetch<QuotationRuleSection[]>(`${BASE}/rules`);
+}
+
+/** How to use the quoter, without the calculation rules. */
+export function getQuotationManual(): Promise<QuotationManualSection[]> {
+  return apiFetch<QuotationManualSection[]>(`${BASE}/manual`);
 }
 
 /** The operation centers a quotation can be priced from, from the platform's master. */

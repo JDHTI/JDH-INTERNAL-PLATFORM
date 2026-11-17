@@ -27,7 +27,7 @@ export default function BatchRequestDialog({ records, onClose, onSuccess }: { re
   const loading = queries.some(query => query.isPending || query.isFetching);
   const failed = queries.some(query => query.isError);
   const scopeError = requestSelectionError(current);
-  const items = current.map(record => ({ support_id: record.id, version: record.version, value: requestValue(drafts[record.id].value, record.calc_method === "costo_neto"), reason: drafts[record.id].reason.trim() }));
+  const items = current.map(record => ({ support_id: record.id, version: record.version, value: requestValue(drafts[record.id].value, "margen_minimo"), reason: drafts[record.id].reason.trim() }));
   const valid = !scopeError && items.every(item => item.value !== null && item.reason.length >= 3 && item.reason.length <= 2000);
   const dirty = Object.values(drafts).some(draft => draft.value || draft.reason);
   const close = () => { if (mutation.isPending) return; if (dirty) setDiscard(true); else onClose(); };
@@ -43,14 +43,14 @@ export default function BatchRequestDialog({ records, onClose, onSuccess }: { re
       if (error instanceof ApiError && error.status === 409) { setConflict(true); await Promise.all(queries.map(query => query.refetch())); }
     }
   }
-  return <><Dialog open title={`Solicitar apoyo JDH (${records.length})`} description="Cada registro conserva su valor, unidad y solicitud independiente. Se envían todos juntos; si uno falla, no se crea ninguna solicitud." onOpenChange={open => { if (!open) close(); }} isForm wide>
+  return <><Dialog open title={`Solicitar margen JDH (${records.length})`} description="Pide el margen mínimo autorizado JDH de cada registro; cada uno conserva su solicitud independiente. Se envían todos juntos; si uno falla, no se crea ninguna solicitud." onOpenChange={open => { if (!open) close(); }} isForm wide>
     <form onSubmit={submit} className="space-y-4">
       <p className="text-sm">Proveedor: {current[0]?.supplier_name ?? current[0]?.supplier_code} · Cliente: {current[0]?.customer_name ?? current[0]?.customer_group ?? "Todos los clientes"} · NIT {current[0]?.customer_nit ?? "sin NIT"}</p>
       {current.map((record, index) => <fieldset key={record.id} className="space-y-3 rounded-lg border border-border p-4" disabled={mutation.isPending}>
         <legend className="px-1 font-semibold">{record.product_sku ?? "Todos los productos"}</legend>
-        <p className="text-sm">JDH vigente: <strong className="tabular-nums"><CurrentJdh support={record} /></strong></p>
+        <p className="text-sm">Margen mínimo autorizado JDH vigente: <strong className="tabular-nums"><CurrentJdh support={record} /></strong></p>
         {queries[index].isError && <p role="alert" className="text-danger">{errorMessage(queries[index].error)} <Button type="button" variant="outline" onClick={() => void queries[index].refetch()}>Recargar</Button></p>}
-        <label className="block text-sm">{record.calc_method === "costo_neto" ? `Costo pactado JDH (${record.value_unit ?? "sin unidad"})` : "Porcentaje JDH (%)"}<Input type="number" required min={record.calc_method === "costo_neto" ? 0 : -100} max={record.calc_method === "costo_neto" ? undefined : 100} step="any" value={drafts[record.id].value} onChange={event => update(record.id, "value", event.target.value)} /><span className="text-xs text-text-secondary">{record.calc_method === "costo_neto" ? "Importe menor a 10¹², hasta 6 decimales." : "Entre -100 y 100 %, hasta 4 decimales. 5 equivale a 5 %."}</span></label>
+        <label className="block text-sm">Margen mínimo autorizado JDH (%)<Input required inputMode="decimal" value={drafts[record.id].value} onChange={event => update(record.id, "value", event.target.value)} /><span className="text-xs text-text-secondary">Desde 0 y menor que 100 %, hasta 4 decimales. 12 equivale a 12 %.</span></label>
         {drafts[record.id].value && items[index].value === null && <p role="alert" className="text-sm text-danger">Revisa el rango y los decimales del valor.</p>}
         <label className="block text-sm">Justificación<Textarea required minLength={3} maxLength={2000} value={drafts[record.id].reason} onChange={event => update(record.id, "reason", event.target.value)} /></label>
       </fieldset>)}

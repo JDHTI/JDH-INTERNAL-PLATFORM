@@ -9,7 +9,7 @@ import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 import { humanize } from "@/features/supports/lib/format";
 
-import { useQuotationRules } from "../hooks/use-quotations";
+import { useQuotationManual, useQuotationRules, useSeesQuotationRules } from "../hooks/use-quotations";
 import { useQuotationKind } from "../lib/kind";
 import type { QuotationRule, QuotationRuleSection } from "../types/quotations.types";
 import { QuotationLoadError } from "./quotations-gate";
@@ -30,14 +30,21 @@ const PARAMETER_LABELS: Record<string, string> = {
 /**
  * How the cotizador computes margins and what it lets through, with the values
  * in force. Everything comes from the API, so the page never states a number
- * the system no longer uses. Open to everyone, not only the commercial area.
+ * the system no longer uses. The rules are BI's: Comercial gets the operating
+ * manual on the same page instead.
  */
 export default function QuotationRulesView({ basePath }: { basePath: string }) {
-  const rules = useQuotationRules();
+  const seesRules = useSeesQuotationRules();
+  const rules = useQuotationRules(seesRules === true);
   // The list updates price with the same engine, so they show the same rules.
   const kind = useQuotationKind();
   const isList = kind !== "cotizacion";
-  useBreadcrumbLabel(`${basePath}/reglas`, "Reglas");
+  useBreadcrumbLabel(`${basePath}/reglas`, seesRules === false ? "Manual" : "Reglas");
+
+  if (seesRules === undefined) {
+    return <div className="h-64 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando" />;
+  }
+  if (!seesRules) return <ManualView basePath={basePath} />;
 
   return (
     <div className="space-y-8">
@@ -73,6 +80,58 @@ export default function QuotationRulesView({ basePath }: { basePath: string }) {
         </StatePanel>
       ) : (
         rules.data.map((section) => <Section key={section.code} section={section} />)
+      )}
+    </div>
+  );
+}
+
+/** How to use the quoter, step by step, for whoever does not read the calculation rules. */
+function ManualView({ basePath }: { basePath: string }) {
+  const manual = useQuotationManual();
+  return (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Link
+          href={basePath}
+          className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" /> Cotizador
+        </Link>
+        <PageHeader
+          title="Manual del cotizador"
+          description="Cómo crear una cotización, qué significa cada número de la línea, cómo aparecen y se piden los apoyos, y qué pasa al confirmar."
+        />
+      </div>
+
+      {manual.isPending ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Cargando el manual">
+          {[0, 1, 2].map((key) => (
+            <div key={key} className="h-32 animate-pulse rounded-lg bg-canvas-subtle" />
+          ))}
+        </div>
+      ) : manual.isError ? (
+        <QuotationLoadError error={manual.error} onRetry={() => void manual.refetch()} subject="el manual" />
+      ) : manual.data.length === 0 ? (
+        <StatePanel icon={BookX} title="El manual aún no tiene contenido">
+          Cuando el servicio lo publique, aparecerá aquí.
+        </StatePanel>
+      ) : (
+        manual.data.map((section) => (
+          <section key={section.code} aria-labelledby={`manual-${section.code}`} className="max-w-3xl space-y-3">
+            <h2 id={`manual-${section.code}`} className="text-xl font-semibold tracking-tight">{section.title}</h2>
+            <ol className="space-y-3">
+              {section.steps.map((step, index) => (
+                <li key={step.title} className="flex gap-3">
+                  <span className="w-5 shrink-0 pt-0.5 text-right text-sm tabular-nums text-text-secondary" aria-hidden="true">{index + 1}.</span>
+                  <div className="space-y-0.5">
+                    <h3 className="text-base font-semibold">{step.title}</h3>
+                    <p className="max-w-prose text-sm">{step.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ))
       )}
     </div>
   );

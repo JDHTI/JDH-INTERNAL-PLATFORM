@@ -13,6 +13,7 @@ import type {
   BulkReport,
   BusinessGroup,
   FilterField,
+  ReplacementAlert,
   RetireBody,
   RetireResult,
   SpecialCase,
@@ -83,6 +84,24 @@ export async function createSupport(body: SupportCreateBody): Promise<SupplierSu
   return apiFetch<SupplierSupport>("/supplier-supports", { method: "POST", body });
 }
 
+/** The figures a support would have, from the create body; nothing is saved. 422 like creating. */
+export async function previewSupport(body: SupportCreateBody): Promise<SupplierSupport> {
+  return apiFetch<SupplierSupport>("/supplier-supports/preview", { method: "POST", body });
+}
+
+/** Programmed supports that will replace one in force. Managers only (403 for the rest). */
+export async function listReplacementAlerts(): Promise<ReplacementAlert[]> {
+  return apiFetch<ReplacementAlert[]>("/supplier-supports/alerts");
+}
+
+/** The supplier's supports in force or programmed, with a «Validación» column to upload back. */
+export async function downloadBulkExport(supplierCode: string): Promise<void> {
+  return apiDownload("/supplier-supports/bulk/export", {
+    query: { supplier_code: supplierCode },
+    fallbackName: `apoyos-${supplierCode}.xlsx`,
+  });
+}
+
 /** One support per active customer of `customer_group` (no NIT). All or none; same 409 as one. */
 export async function createSupportsByGroup(body: SupportCreateBody): Promise<SupplierSupport[]> {
   return apiFetch<SupplierSupport[]>("/supplier-supports/by-group", { method: "POST", body });
@@ -128,13 +147,17 @@ export async function deleteProfile(supplierCode: string): Promise<void> {
 }
 
 /**
- * The short general template by default; `full` brings every field. With a
+ * The short general template by default, in BI's order with dropdowns; `full`
+ * brings every field and `groups` is the business-group upload's. With a
  * supplier, it follows its profile: its headers, without the fixed columns.
  */
-export async function downloadBulkTemplate(supplierCode: string | null, full = false): Promise<void> {
-  const name = ["carga-apoyos", supplierCode, full ? "completa" : null].filter(Boolean).join("-");
+export async function downloadBulkTemplate(
+  supplierCode: string | null,
+  { full = false, groups = false }: { full?: boolean; groups?: boolean } = {}
+): Promise<void> {
+  const name = ["carga-apoyos", supplierCode, groups ? "grupos" : null, full ? "completa" : null].filter(Boolean).join("-");
   return apiDownload("/supplier-supports/bulk/template", {
-    query: { supplier_code: supplierCode, full },
+    query: { supplier_code: supplierCode, full, groups },
     fallbackName: `${name}.xlsx`,
   });
 }

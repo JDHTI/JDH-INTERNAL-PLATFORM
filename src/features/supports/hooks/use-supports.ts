@@ -11,7 +11,9 @@ import {
   attachToSupport,
   listAttachments,
   listBusinessGroups,
+  listReplacementAlerts,
   previewSelection,
+  previewSupport,
   retireSupports,
   unlinkAttachment,
   viewAttachment,
@@ -152,6 +154,29 @@ export function useBusinessGroups(q: string) {
     staleTime: 5 * 60_000,
     retry: retryTransient,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The create form's figures for `body`; null waits until the form has enough to price. */
+export function useSupportPreview(body: SupportCreateBody | null) {
+  return useQuery({
+    queryKey: [...supportKeys.all, "preview", body],
+    queryFn: () => previewSupport(body!),
+    enabled: body !== null,
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+}
+
+/** Managers only: `enabled` stays off for the rest, who would get a 403. */
+export function useReplacementAlerts(enabled: boolean) {
+  return useQuery({
+    queryKey: [...supportKeys.all, "alerts"],
+    queryFn: listReplacementAlerts,
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: retryTransient,
   });
 }
 

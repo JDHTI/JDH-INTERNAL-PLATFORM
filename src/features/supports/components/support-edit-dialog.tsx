@@ -18,6 +18,7 @@ import { toDecimal, toInput } from "../lib/form-values";
 import { overlapsOf } from "../lib/overlaps";
 import type { SupplierSupport, SupportOverlap, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
 import OverlapDialog from "./overlap-dialog";
+import PromoCheck from "./promo-check";
 
 const NO_UNIT = "";
 
@@ -47,6 +48,7 @@ interface Draft {
   program: string;
   authorized_by: string;
   notes: string;
+  promo_warehouses: boolean;
   tiers: TierDraft[];
 }
 
@@ -65,6 +67,7 @@ function draftOf(support: SupplierSupport): Draft {
     program: support.program ?? "",
     authorized_by: support.authorized_by ?? "",
     notes: support.notes ?? "",
+    promo_warehouses: support.promo_warehouses ?? false,
     tiers: support.tiers.map((tier) => ({
       threshold_type: tier.threshold_type,
       from_value: toInput(tier.from_value, false),
@@ -93,6 +96,7 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
   if (changed("program")) patch.program = draft.program.trim() || null;
   if (changed("authorized_by")) patch.authorized_by = draft.authorized_by.trim() || null;
   if (changed("notes")) patch.notes = draft.notes.trim() || null;
+  if (changed("promo_warehouses")) patch.promo_warehouses = draft.promo_warehouses;
   if (changed("tiers")) {
     patch.tiers = draft.tiers.map((tier) => ({
       threshold_type: tier.threshold_type,
@@ -257,6 +261,10 @@ function EditForm({
       <Field label="Notas" htmlFor={`${id}-notes`} optional>
         <Textarea id={`${id}-notes`} rows={3} value={draft.notes} onChange={(e) => set("notes", e.target.value)} />
       </Field>
+
+      {support.promo_warehouses !== undefined && (
+        <PromoCheck checked={draft.promo_warehouses} onChange={(value) => set("promo_warehouses", value)} />
+      )}
 
       <section className="space-y-2" aria-labelledby={`${id}-tiers`}>
         <div className="flex items-center justify-between gap-2">

@@ -1,16 +1,20 @@
-import { formatRequestValue } from "../lib/request-values";
-import type { RequestDetail } from "../types/request.types";
+import { currentJdhValue, formatRequestValue, REQUEST_MODE_LABELS } from "../lib/request-values";
+import type { RequestDetail, RequestMode } from "../types/request.types";
 import type { SupplierSupport } from "../types/support.types";
 
-export function CurrentJdh({ support }: { support: Partial<SupplierSupport> }) {
-  const net = support.calc_method === "costo_neto";
-  return <span>{formatRequestValue(net ? support.jdh_net_cost : support.jdh_pct, net)}{net && support.value_unit ? ` / ${support.value_unit}` : ""}</span>;
+/** The support's JDH value for what is asked; a new request asks for the authorized minimum margin. */
+export function CurrentJdh({ support, mode = "margen_minimo" }: { support: Partial<SupplierSupport>; mode?: RequestMode }) {
+  return <span>{formatRequestValue(currentJdhValue(support, mode), mode)}{mode === "costo_neto" && support.value_unit ? ` / ${support.value_unit}` : ""}</span>;
 }
 
 export default function RequestJdhValues({ request }: { request: RequestDetail }) {
-  return <dl className="grid gap-4 rounded-lg bg-canvas-subtle p-4 sm:grid-cols-3">
-    <div><dt className="text-sm text-text-secondary">JDH al solicitar</dt><dd className="mt-1 font-semibold tabular-nums"><CurrentJdh support={request.snapshot} /></dd></div>
-    <div><dt className="text-sm text-text-secondary">JDH vigente</dt><dd className="mt-1 font-semibold tabular-nums"><CurrentJdh support={request.support} /></dd></div>
-    <div><dt className="text-sm text-text-secondary">JDH propuesto</dt><dd className="mt-1 font-semibold tabular-nums">{formatRequestValue(request.value, request.mode === "costo_neto")}{request.mode === "costo_neto" && request.snapshot.value_unit ? ` / ${request.snapshot.value_unit}` : ""}</dd></div>
-  </dl>;
+  const label = REQUEST_MODE_LABELS[request.mode] ?? "JDH";
+  return <div className="space-y-2">
+    <p className="text-sm text-text-secondary">Se pide: {label}</p>
+    <dl className="grid gap-4 rounded-lg bg-canvas-subtle p-4 sm:grid-cols-3">
+      <div><dt className="text-sm text-text-secondary">Al solicitar</dt><dd className="mt-1 font-semibold tabular-nums"><CurrentJdh support={request.snapshot} mode={request.mode} /></dd></div>
+      <div><dt className="text-sm text-text-secondary">Vigente</dt><dd className="mt-1 font-semibold tabular-nums"><CurrentJdh support={request.support} mode={request.mode} /></dd></div>
+      <div><dt className="text-sm text-text-secondary">Propuesto</dt><dd className="mt-1 font-semibold tabular-nums">{formatRequestValue(request.value, request.mode)}{request.mode === "costo_neto" && request.snapshot.value_unit ? ` / ${request.snapshot.value_unit}` : ""}</dd></div>
+    </dl>
+  </div>;
 }

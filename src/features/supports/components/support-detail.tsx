@@ -6,7 +6,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 
-import { useCalcMethodLabel, useKindLabel, useSupport, useSupportConflicts } from "../hooks/use-supports";
+import { useCalcMethodLabel, useKindLabel, useSupport, useSupportConflicts, useSupportPermissions } from "../hooks/use-supports";
 import {
   choiceLabel,
   formatCop,
@@ -111,6 +111,8 @@ function Body({
   const jdhPctLabel = formatPct(support.jdh_pct);
   const calcMethodLabel = useCalcMethodLabel();
   const kindLabel = useKindLabel();
+  // The cost is BI's: Comercial gets it empty from the API, so those rows are left out, not dashed.
+  const seesCost = useSupportPermissions().data?.can_manage === true;
 
   return (
     <div className="space-y-5 text-sm">
@@ -133,11 +135,14 @@ function Body({
         </Row>
         <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(support.supported_margin_pct)}</Row>
         {/* Kept as history: since rules v2 they no longer move the figures. */}
-        {support.calc_method === "costo_neto" && toNumber(support.jdh_net_cost) !== null && (
+        {seesCost && support.calc_method === "costo_neto" && toNumber(support.jdh_net_cost) !== null && (
           <Row label="Costo pactado JDH (histórico)" tabular>{formatCop(support.jdh_net_cost)}</Row>
         )}
         {toNumber(support.jdh_pct) ? <Row label="% apoyo JDH (histórico)" tabular>{jdhPctLabel}</Row> : null}
         <Row label="Unidades por caja" tabular>{formatNumber(support.pack_factor)}</Row>
+        {support.promo_warehouses !== undefined && (
+          <Row label="Bodegas promocionales (grupo 23)">{support.promo_warehouses ? "Sí aplica" : "No aplica"}</Row>
+        )}
         <Row label="Vigencia" tabular>
           {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
         </Row>
@@ -180,16 +185,16 @@ function Body({
         <Row label="Margen objetivo" tabular>{formatPct(support.target_margin_pct)}</Row>
         <Row label="Margen mínimo" tabular>{formatPct(support.min_margin_pct)}</Row>
         <Row label="Margen de lista" tabular>{formatPct(support.list_margin_pct)}</Row>
-        <Row label="Costo de referencia" tabular>{formatCop(support.reference_cost)}</Row>
+        {seesCost && <Row label="Costo de referencia" tabular>{formatCop(support.reference_cost)}</Row>}
         <Row label="Precio de lista de referencia" tabular>{formatCop(support.reference_list_price)}</Row>
       </Section>
 
-      {support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
+      {seesCost && support.dwh_cost !== undefined && <CostSource cost={support.dwh_cost} />}
 
       {derived && (
         <Section title="Cifras calculadas, por unidad de inventario">
           <Row label="$ Apoyo" tabular>{formatCop(derived.supplier_amount)}</Row>
-          <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>
+          {seesCost && <Row label="Costo neto" tabular>{formatCop(derived.net_cost)}</Row>}
           <Row label="% sobre costo" tabular>{formatPct(derived.pct_on_cost)}</Row>
           <Row label="% sobre lista" tabular>{formatPct(derived.pct_on_list)}</Row>
           <Row label="Precio Apoyado Sugerido" tabular>{formatCop(derived.suggested_price)}</Row>
@@ -202,7 +207,7 @@ function Body({
               <Row label="Descuento al cliente" tabular>{formatPct(derived.customer_discount_pct)}</Row>
             </>
           )}
-          <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>
+          {seesCost && <Row label="Margen del pedido" tabular>{formatPct(derived.margin_order)}</Row>}
           <Row label="Margen recompuesto" tabular>{formatPct(derived.margin_recomposed)}</Row>
           <Row label="Margen mínimo" tabular>{formatPct(derived.min_margin_pct)}</Row>
         </Section>
@@ -227,7 +232,7 @@ function Body({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {PER_UNIT_ROWS.map(([key, label]) => (
+                {PER_UNIT_ROWS.filter(([key]) => seesCost || !COST_ROWS.includes(key)).map(([key, label]) => (
                   <tr key={key}>
                     <td className="px-3 py-2">{label}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCop(derived[key]?.unit)}</td>
@@ -310,6 +315,9 @@ const PER_UNIT_ROWS: [PerUnitKey, string][] = [
   ["suggested_price_per", "Precio Apoyado Sugerido"],
   ["supported_price_per", "Precio Apoyado Mínimo"],
 ];
+
+/** Per-unit rows Comercial does not get. */
+const COST_ROWS: PerUnitKey[] = ["cost", "net_cost_per"];
 
 type PerUnitKey =
   | "cost"

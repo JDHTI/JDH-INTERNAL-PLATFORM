@@ -17,6 +17,7 @@ import {
   deleteQuotation,
   getQuotation,
   getQuotationPermissions,
+  getQuotationManual,
   getQuotationRules,
   listBillingCenters,
   listQuotations,
@@ -78,13 +79,35 @@ export function useCreateListUpdate() {
   });
 }
 
-export function useQuotationRules() {
+export function useQuotationRules(enabled = true) {
   return useQuery({
     queryKey: quotationKeys.rules(),
     queryFn: getQuotationRules,
+    enabled,
     staleTime: 10 * 60_000,
     retry: retryTransient,
   });
+}
+
+/** The operating manual: what Comercial reads instead of the rules. */
+export function useQuotationManual(enabled = true) {
+  return useQuery({
+    queryKey: [...quotationKeys.all, "manual"] as const,
+    queryFn: getQuotationManual,
+    enabled,
+    staleTime: 60 * 60_000,
+    retry: retryTransient,
+  });
+}
+
+/**
+ * Whether the person reads the calculation rules (BI) or the manual
+ * (Comercial). An API older than the split says nothing: the rules, as before.
+ */
+export function useSeesQuotationRules(): boolean | undefined {
+  const permissions = useQuotationPermissions();
+  if (permissions.isPending) return undefined;
+  return permissions.data?.can_see_rules !== false;
 }
 
 export function useQuotations(params: QuotationListParams) {

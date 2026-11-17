@@ -164,6 +164,33 @@ export interface SupplierSupport {
   business_group?: string | null;
   /** The margin list its prices use: margin_list, margin_wholesale, margin_mass_food or margin_market. */
   margin_list?: string | null;
+  /** Also applies in the promotional warehouses (SIESA group 23). Missing on older API builds. */
+  promo_warehouses?: boolean;
+}
+
+/** A support as a replacement alert shows it. */
+export interface AlertSupport {
+  id: string;
+  version: number;
+  kind: string;
+  calc_method: string;
+  customer_nit: string | null;
+  customer_name: string | null;
+  product_sku: string | null;
+  supplier_sku: string | null;
+  supplier_value: Decimal | null;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
+/** `GET /supplier-supports/alerts`: a programmed support and the one in force it replaces. */
+export interface ReplacementAlert {
+  programmed: AlertSupport;
+  previous: AlertSupport;
+  /** The previous one's last day when the programmed one starts. */
+  previous_ends: string;
+  /** The previous one already ends that day; false, the daily job will cut it. */
+  chained: boolean;
 }
 
 /** What to do with the live supports a new one crosses (same class and scope, dates that touch). */
@@ -331,6 +358,7 @@ export interface SupportPatch {
   notes?: string | null;
   authorized_by?: string | null;
   tiers?: SupportTier[];
+  promo_warehouses?: boolean;
   /** Only when a change of scope, dates or switch crossed another support (409 with `overlaps`). */
   on_overlap?: OnOverlap;
   overlap_reason?: string;
@@ -432,7 +460,7 @@ export type SupportCreateBody = {
   kind: string;
   calc_method: string;
   supplier_code: string;
-} & Record<string, string | number | string[]>;
+} & Record<string, string | number | boolean | string[]>;
 
 /**
  * Values of a profile as the API stores them: fractions as text ("0.05"),

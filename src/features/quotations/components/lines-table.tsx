@@ -558,6 +558,7 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, 
         >
           {meta}
         </p>
+        <Stock line={line} />
         {listMeta && <ListItemMeta line={line} meta={listMeta} onOpenDetail={onOpenDetail} />}
       </div>
       {editable && removable(line) && (
@@ -573,6 +574,29 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, 
         </button>
       )}
     </div>
+  );
+}
+
+const units = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
+
+/**
+ * Units on hand and available in the warehouses that cost the line, for both
+ * BI and Comercial. Nothing when the API does not know them; "sin disponible"
+ * in words, so quoting what cannot be shipped stands out without color.
+ */
+export function Stock({ line }: { line: QuotationLine }) {
+  const onHand = toNumber(line.stock_on_hand);
+  const available = toNumber(line.stock_available);
+  if (onHand === null && available === null) return null;
+  const empty = available !== null && available <= 0;
+  return (
+    <p
+      className="truncate text-[13px] tabular-nums text-text-secondary"
+      title="Existencia y disponible en las bodegas que dan el costo de la línea"
+    >
+      Existencia {onHand === null ? "—" : units.format(onHand)} ·{" "}
+      {empty ? <span className="font-medium text-text-primary">sin disponible</span> : `Disponible ${available === null ? "—" : units.format(available)}`}
+    </p>
   );
 }
 

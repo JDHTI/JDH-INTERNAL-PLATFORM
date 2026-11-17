@@ -22,6 +22,8 @@ import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
 export interface CellContext {
   open: () => void;
   methodLabel: (code: string | null | undefined) => string;
+  /** BI sees the cost; Comercial gets it empty from the API, so its rows are left out. */
+  seesCost: boolean;
 }
 
 export interface Column {
@@ -173,7 +175,7 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
  * (the box when it is per box), and the customer's discount against the list
  * price. Rules v2: everything per inventory unit, the box is unit × pack.
  */
-function PriceCell({ support }: { support: SupplierSupport }) {
+function PriceCell({ support, seesCost }: { support: SupplierSupport; seesCost: boolean }) {
   const derived = support.derived;
   const preferred: keyof PerUnit = support.value_unit === "caja" ? "box" : "unit";
   const other: keyof PerUnit = preferred === "box" ? "unit" : "box";
@@ -188,7 +190,7 @@ function PriceCell({ support }: { support: SupplierSupport }) {
     <div className="space-y-0.5">
       <Figures
         rows={[
-          { label: "Costo", value: cop(derived?.cost?.[side]) },
+          ...(seesCost ? [{ label: "Costo", value: cop(derived?.cost?.[side]) }] : []),
           { label: "Lista", value: cop(derived?.list_price?.[side]) },
           {
             label: "Sugerido",
@@ -281,7 +283,7 @@ export const COLUMNS: Column[] = [
     label: "Precio",
     hideable: true,
     width: "17%",
-    cell: (s) => <PriceCell support={s} />,
+    cell: (s, { seesCost }) => <PriceCell support={s} seesCost={seesCost} />,
   },
   {
     key: "validity",

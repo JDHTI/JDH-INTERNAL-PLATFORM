@@ -32,7 +32,9 @@ import type {
 } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import OverlapDialog from "./overlap-dialog";
+import PromoCheck from "./promo-check";
 import SchemaFields from "./schema-fields";
+import SupportPreview from "./support-preview";
 
 interface FormState {
   draft: Draft;
@@ -88,6 +90,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<SupplierSupport[] | null>(null);
+  const [promo, setPromo] = useState(false);
   // A create the API refused for crossing live supports, kept to send again with the choice.
   const [crossing, setCrossing] = useState<{
     body: SupportCreateBody;
@@ -136,6 +139,25 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
       return spec;
     });
   const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
+
+  // What the preview needs to price it: supplier, a reference, class, type and the value.
+  const typed = readDraft(specs, form.draft, rule);
+  const missing = [
+    !supplier && "el proveedor",
+    !typed.values.product_sku && !typed.values.supplier_sku && "la referencia (SKU JDH o SKU proveedor)",
+    (!kind || !method) && "la clase y el tipo",
+    rule && rule.value_kind !== "none" && typed.values.supplier_value === undefined && "el valor",
+  ].filter((part): part is string => Boolean(part));
+  const previewBody: SupportCreateBody | null =
+    supplier && missing.length === 0 && Object.keys(typed.errors).length === 0
+      ? { ...(typed.values as SupportCreateBody), supplier_code: supplier.value, promo_warehouses: promo }
+      : null;
+  const missingText =
+    Object.keys(typed.errors).length > 0
+      ? "Corrige los números marcados para ver las cifras."
+      : missing.length > 0
+        ? `Para ver las cifras falta ${missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(", ")} y ${missing[missing.length - 1]}`}.`
+        : null;
 
   const setValue = (name: string, value: string | string[]) => {
     setForm((current) => {
@@ -188,6 +210,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
     setFormError(null);
     setCreated(null);
     setCrossing(null);
+    setPromo(false);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -209,7 +232,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
       return;
     }
     const byGroup = typeof values.customer_group === "string" && !values.customer_nit;
-    send({ ...values, supplier_code: supplier.value } as SupportCreateBody, byGroup);
+    send({ ...(values as SupportCreateBody), supplier_code: supplier.value, promo_warehouses: promo }, byGroup);
   };
 
   if (created) {
@@ -243,9 +266,11 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
             required={required}
             catalogs={catalogs}
           />
+          <PromoCheck checked={promo} onChange={setPromo} />
           <p className="text-[13px] text-text-secondary">
             Las escalas por volumen se agregan después, desde Editar en el maestro de apoyos.
           </p>
+          <SupportPreview body={previewBody} missing={missingText} />
         </>
       )}
 

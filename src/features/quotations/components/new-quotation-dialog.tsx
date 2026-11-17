@@ -31,7 +31,7 @@ const MAX_TEXT = 120;
 function customerPicker(scope: CustomerScope): BasePickerConfig {
   return {
     label: "Cliente",
-    placeholder: scope === "mine" ? "Elige o escribe nombre o NIT" : "Nombre o NIT",
+    placeholder: scope === "mine" ? "Elige o escribe nombre, NIT o grupo" : "Nombre, NIT o grupo empresarial",
     endpoint: `${QUOTATIONS_BASE}/customers`,
     query: { scope },
     minChars: scope === "mine" ? 0 : 2,
@@ -42,11 +42,13 @@ function customerPicker(scope: CustomerScope): BasePickerConfig {
     toOption: (row) => {
       const channel = text(row.channel);
       const seller = text(row.salesperson_name);
+      // The search also finds by business group, so the group says why a row came up.
+      const group = text(row.business_group);
       const inactive = row.is_active === false ? " · inactivo" : "";
       return {
         value: text(row.nit),
         label: text(row.name) || text(row.nit),
-        hint: [`NIT ${text(row.nit)}`, channel, seller].filter(Boolean).join(" · ") + inactive,
+        hint: [`NIT ${text(row.nit)}`, group && `Grupo ${group}`, channel, seller].filter(Boolean).join(" · ") + inactive,
       };
     },
   };
