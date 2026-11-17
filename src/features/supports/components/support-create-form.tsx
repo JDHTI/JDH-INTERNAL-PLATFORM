@@ -6,9 +6,9 @@ import { CircleCheck, CloudOff, RefreshCw, TriangleAlert } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
-import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
+import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
-import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
 
 import { useCreateSupport, useFormSchema, useKindLabel, useProfile, useSupportCatalogs } from "../hooks/use-supports";
 import { formatSupplierValue } from "../lib/format";
@@ -31,8 +31,8 @@ import type {
   SupportOverlap,
 } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
+import DiscardDialog from "./discard-dialog";
 import OverlapDialog from "./overlap-dialog";
-import PromoCheck from "./promo-check";
 import SchemaFields from "./schema-fields";
 import SupportPreview from "./support-preview";
 
@@ -46,17 +46,102 @@ interface FormState {
 
 const EMPTY: FormState = { draft: {}, touched: [], fromProfile: [] };
 
-/** Chosen above the form (the supplier) or typed elsewhere (the JDH percentage, in the requests panel). */
-const HIDDEN_FIELDS = ["supplier_code", "jdh_pct"];
+/**
+ * The only fields the form asks, in BI's order (the template's): everything
+ * else the schema describes is left to the API's defaults or to editing.
+ * Each field still shows only when the chosen type uses it.
+ */
+const CREATE_FIELDS: { name: string; section: "Apoyo" | "Alcance"; label?: string }[] = [
+  { name: "kind", section: "Apoyo" },
+  { name: "calc_method", section: "Apoyo" },
+  { name: "supplier_value", section: "Apoyo" },
+  // Only «% Margen Garantizado» asks for it: its value is the price and this is the margin.
+  { name: "target_margin_pct", section: "Apoyo" },
+  { name: "value_unit", section: "Apoyo" },
+  { name: "supported_margin_pct", section: "Apoyo" },
+  { name: "valid_from", section: "Apoyo" },
+  { name: "valid_to", section: "Apoyo" },
+  { name: "customer_nit", section: "Alcance", label: "NIT y cliente" },
+  { name: "customer_branch_id", section: "Alcance" },
+  { name: "customer_group", section: "Alcance" },
+  { name: "product_sku", section: "Alcance" },
+  { name: "supplier_sku", section: "Alcance" },
+  { name: "regionals", section: "Alcance" },
+  { name: "business_units", section: "Alcance" },
+  { name: "channels", section: "Alcance" },
+  { name: "warehouse", section: "Alcance" },
+];
+
+/** The value goes per unit or per box; the box is turned into units with the product master's UM Emp. factor. */
+const VALUE_UNITS = ["unidad", "caja"];
 
 /**
- * New support, rendered from `form-schema`. The supplier comes first: its
- * profile pre-fills the rest, and the calc method then decides which fields
- * apply and whether the value is typed as a percentage or in pesos.
+ * The schema's help speaks about the bulk file (date formats, codes, what a
+ * blank column means). Here only what helps to fill the field is said; the
+ * type's own help still shows under «Tipo apoyo», and the value says % or $.
  */
-export default function SupportCreateForm({ area }: { area: string }) {
+const HELP: Record<string, string> = {
+  value_unit: "La caja se lleva a unidad con el factor UM Emp. del maestro de productos.",
+  supported_margin_pct: "Con él sale el precio apoyado mínimo: (costo − apoyo) / (1 − margen).",
+  valid_to: "Vacía, sin fecha de fin.",
+  customer_nit: "Vacío, todos los clientes.",
+  customer_group: "Crea un apoyo por cada cliente activo del grupo.",
+  product_sku: "Vacío, el SKU del proveedor lo identifica.",
+};
+
+/**
+ * New support, in a modal over the master. The supplier comes first: its
+ * profile pre-fills the fields, and the type then decides which apply and
+ * whether the value is typed as a percentage or in pesos.
+ */
+export default function SupportCreateDialog({ area, open, onClose }: { area: string; open: boolean; onClose: () => void }) {
+  // A new key per opening: closing and opening again starts an empty form.
+  const [session, setSession] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const close = () => {
+    setSession((value) => value + 1);
+    setDirty(false);
+    onClose();
+  };
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (next) return;
+          if (dirty) setConfirmClose(true);
+          else close();
+        }}
+        title="Nuevo apoyo"
+        description="A qué proveedor, cliente y referencia aplica, cuánto da y por cuánto tiempo."
+        isForm
+        wide
+      >
+        {open && <SupportCreateForm key={session} area={area} onClose={close} onDirtyChange={setDirty} />}
+      </Dialog>
+      <DiscardDialog
+        open={confirmClose}
+        onCancel={() => setConfirmClose(false)}
+        onDiscard={() => {
+          setConfirmClose(false);
+          close();
+        }}
+      />
+    </>
+  );
+}
+
+function SupportCreateForm({
+  area,
+  onClose,
+  onDirtyChange,
+}: {
+  area: string;
+  onClose: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const schemaQuery = useFormSchema();
-  useBreadcrumbLabel(`/${area}/apoyos/nuevo`, "Nuevo apoyo");
 
   if (schemaQuery.isPending) {
     return <div className="h-96 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando el formulario" />;
@@ -77,10 +162,20 @@ export default function SupportCreateForm({ area }: { area: string }) {
       </StatePanel>
     );
   }
-  return <CreateForm area={area} schema={schemaQuery.data} />;
+  return <CreateForm area={area} schema={schemaQuery.data} onClose={onClose} onDirtyChange={onDirtyChange} />;
 }
 
-function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema }) {
+function CreateForm({
+  area,
+  schema,
+  onClose,
+  onDirtyChange,
+}: {
+  area: string;
+  schema: SupportFormSchema;
+  onClose: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const catalogs = useSupportCatalogs().data;
   const create = useCreateSupport();
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
@@ -90,7 +185,6 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<SupplierSupport[] | null>(null);
-  const [promo, setPromo] = useState(false);
   // A create the API refused for crossing live supports, kept to send again with the choice.
   const [crossing, setCrossing] = useState<{
     body: SupportCreateBody;
@@ -122,22 +216,20 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
   const methodsFor = (code: string) => methodsOfKind(catalogs, code);
   const hasGroup = !isEmptyValue(form.draft.customer_group);
   const hasCustomer = !isEmptyValue(form.draft.customer_nit);
-  // The JDH percentage is requested through the JDH panel; the supported margin replaces it here.
-  // A business group and a customer exclude each other: the group creates one support per customer.
-  const specs = schema.fields
-    .filter(
-      (spec) =>
-        !HIDDEN_FIELDS.includes(spec.name) &&
-        isFieldVisible(spec.name, rule, gated) &&
-        !(hasGroup && CUSTOMER_FIELDS.includes(spec.name)) &&
-        !(hasCustomer && spec.name === "customer_group")
-    )
-    .map((spec) => {
-      // Only the rules v2 classes are created, each with its own types.
-      if (spec.name === "kind" && catalogs?.active_kinds) return { ...spec, choices: catalogs.active_kinds };
-      if (spec.name === "calc_method") return { ...spec, choices: methodsFor(kind) ?? spec.choices };
-      return spec;
-    });
+  // Only the template's fields, in its order. A business group and a customer exclude each
+  // other: the group creates one support per customer.
+  const specs = CREATE_FIELDS.flatMap(({ name, section, label }) => {
+    const spec = schema.fields.find((candidate) => candidate.name === name);
+    if (!spec || !isFieldVisible(name, rule, gated)) return [];
+    if (hasGroup && CUSTOMER_FIELDS.includes(name)) return [];
+    if (hasCustomer && name === "customer_group") return [];
+    const shown = { ...spec, group: section, label: label ?? spec.label, help: HELP[name] ?? "" };
+    // Only the rules v2 classes are created, each with its own types.
+    if (name === "kind" && catalogs?.active_kinds) return [{ ...shown, choices: catalogs.active_kinds }];
+    if (name === "calc_method") return [{ ...shown, choices: methodsFor(kind) ?? spec.choices }];
+    if (name === "value_unit") return [{ ...shown, choices: spec.choices.filter((code) => VALUE_UNITS.includes(code)) }];
+    return [shown];
+  });
   const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
 
   // What the preview needs to price it: supplier, a reference, class, type and the value.
@@ -150,7 +242,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
   ].filter((part): part is string => Boolean(part));
   const previewBody: SupportCreateBody | null =
     supplier && missing.length === 0 && Object.keys(typed.errors).length === 0
-      ? { ...(typed.values as SupportCreateBody), supplier_code: supplier.value, promo_warehouses: promo }
+      ? { ...(typed.values as SupportCreateBody), supplier_code: supplier.value }
       : null;
   const missingText =
     Object.keys(typed.errors).length > 0
@@ -160,6 +252,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
         : null;
 
   const setValue = (name: string, value: string | string[]) => {
+    onDirtyChange(true);
     setForm((current) => {
       const draft = { ...current.draft, [name]: value };
       // A type the new class does not admit is dropped, so it never reaches the API as a 422.
@@ -183,6 +276,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
         onSuccess: (supports) => {
           setCrossing(null);
           setCreated(supports);
+          onDirtyChange(false);
         },
         onError: (failure) => {
           const overlaps = overlapsOf(failure);
@@ -210,7 +304,6 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
     setFormError(null);
     setCreated(null);
     setCrossing(null);
-    setPromo(false);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -232,27 +325,33 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
       return;
     }
     const byGroup = typeof values.customer_group === "string" && !values.customer_nit;
-    send({ ...(values as SupportCreateBody), supplier_code: supplier.value, promo_warehouses: promo }, byGroup);
+    send({ ...(values as SupportCreateBody), supplier_code: supplier.value }, byGroup);
   };
 
   if (created) {
-    return <Created area={area} supports={created} supplierName={supplier?.label ?? ""} onAnother={restart} />;
+    return <Created supports={created} supplierName={supplier?.label ?? ""} onAnother={restart} onClose={onClose} />;
   }
+
+  // Only the profile values that landed in a field the form shows count as pre-filled.
+  const filled = form.fromProfile.filter((name) => specs.some((spec) => spec.name === name)).length;
 
   return (
     <>
-    <form onSubmit={submit} noValidate className="max-w-4xl space-y-6">
-      <div className="space-y-2 rounded-lg border border-border p-4">
+    <form onSubmit={submit} noValidate className="space-y-6">
+      <div className="space-y-2">
         <BasePicker
           config={SUPPLIER_PICKER}
           selected={supplier}
-          onSelect={setSupplier}
+          onSelect={(option) => {
+            onDirtyChange(true);
+            setSupplier(option);
+          }}
           onClear={() => {
             setSupplier(null);
             setAppliedKey(null);
           }}
         />
-        <ProfileNote area={area} supplier={supplier} isPending={profile.isFetching} isError={profile.isError} hasProfile={Boolean(profile.data)} filled={form.fromProfile.length} />
+        <ProfileNote area={area} supplier={supplier} isPending={profile.isFetching} isError={profile.isError} hasProfile={Boolean(profile.data)} filled={filled} />
       </div>
 
       {profileReady && (
@@ -266,10 +365,6 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
             required={required}
             catalogs={catalogs}
           />
-          <PromoCheck checked={promo} onChange={setPromo} />
-          <p className="text-[13px] text-text-secondary">
-            Las escalas por volumen se agregan después, desde Editar en el maestro de apoyos.
-          </p>
           <SupportPreview body={previewBody} missing={missingText} />
         </>
       )}
@@ -280,14 +375,14 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
         </p>
       )}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Link href={`/${area}/apoyos`} className={buttonVariants({ variant: "outline", className: "max-sm:h-11" })}>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} disabled={create.isPending}>
           Cancelar
-        </Link>
-        <Button type="submit" disabled={!profileReady || create.isPending} className="max-sm:h-11">
+        </Button>
+        <Button type="submit" disabled={!profileReady || create.isPending}>
           {create.isPending ? "Creando" : hasGroup ? "Crear un apoyo por cliente del grupo" : "Crear apoyo"}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
     <OverlapDialog
       overlaps={crossing?.overlaps ?? null}
@@ -301,7 +396,7 @@ function CreateForm({ area, schema }: { area: string; schema: SupportFormSchema 
 }
 
 /** Customer fields a business group replaces. */
-const CUSTOMER_FIELDS = ["customer_nit", "customer_name", "customer_branch_id"];
+const CUSTOMER_FIELDS = ["customer_nit", "customer_branch_id"];
 
 /** The types a class admits; null when the API does not say (older builds), so nothing is narrowed. */
 function methodsOfKind(catalogs: SupportCatalogs | undefined, kind: string): string[] | null {
@@ -347,16 +442,16 @@ function ProfileNote({
 }
 
 function Created({
-  area,
   supports,
   supplierName,
   onAnother,
+  onClose,
 }: {
-  area: string;
   /** One, or one per customer of a business group. */
   supports: SupplierSupport[];
   supplierName: string;
   onAnother: () => void;
+  onClose: () => void;
 }) {
   const kindLabel = useKindLabel();
   const support = supports[0];
@@ -376,9 +471,9 @@ function Created({
       title={many ? `${supports.length} apoyos creados${conflicts ? ", con conflictos" : ""}` : conflicts ? "Apoyo creado, con conflictos" : "Apoyo creado"}
       action={
         <div className="flex flex-wrap gap-2">
-          <Link href={`/${area}/apoyos`} className={buttonVariants({ variant: "primary", className: "max-sm:h-11" })}>
-            Ir al maestro de apoyos
-          </Link>
+          <Button onClick={onClose} className="max-sm:h-11">
+            Volver al maestro
+          </Button>
           <Button variant="outline" onClick={onAnother} className="max-sm:h-11">
             Crear otro apoyo
           </Button>

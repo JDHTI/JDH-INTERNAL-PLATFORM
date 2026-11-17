@@ -1,23 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { FileSliders, Plus, Upload } from "lucide-react";
 
 import { useArea } from "@/features/areas/hooks/use-areas";
 import { canUseModule } from "@/features/areas/types/area.types";
-import { buttonVariants } from "@/shared/components/ui/button";
+import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { SUPPORT_REQUESTS_SEGMENT } from "@/shared/config/areas.config";
 
 import { useSupportPermissions } from "../hooks/use-supports";
+import SupportCreateDialog from "./support-create-form";
 
 /**
  * The ways to write supports, for whoever manages them: the screens behind
  * them only write. Whoever does not, gets the way to their own requests. The
- * requests link shows only when the area has that module on.
+ * requests link shows only when the area has that module on. A new support is
+ * created in a modal over the master; `?nuevo=1` (the old /apoyos/nuevo) opens it.
  */
-export default function SupportsToolbar({ area }: { area: string }) {
+export default function SupportsToolbar({ area, openNew = false }: { area: string; openNew?: boolean }) {
   const permissions = useSupportPermissions().data;
   const current = useArea(area).data;
+  const router = useRouter();
+  const pathname = usePathname();
+  const asked = openNew;
+  const [creating, setCreating] = useState(false);
   const requests = current && canUseModule(current, "solicitudes-apoyos") ? `/${area}/${SUPPORT_REQUESTS_SEGMENT}` : null;
 
   if (permissions?.can_manage !== true) {
@@ -40,9 +48,17 @@ export default function SupportsToolbar({ area }: { area: string }) {
       <Link href={`${base}/carga`} className={buttonVariants({ variant: "outline", className: "max-sm:h-11" })}>
         <Upload aria-hidden="true" /> Carga masiva
       </Link>
-      <Link href={`${base}/nuevo`} className={buttonVariants({ variant: "primary", className: "max-sm:h-11" })}>
+      <Button onClick={() => setCreating(true)} className="max-sm:h-11">
         <Plus aria-hidden="true" /> Nuevo apoyo
-      </Link>
+      </Button>
+      <SupportCreateDialog
+        area={area}
+        open={creating || asked}
+        onClose={() => {
+          setCreating(false);
+          if (asked) router.replace(pathname, { scroll: false });
+        }}
+      />
     </div>
   );
 }
