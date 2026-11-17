@@ -60,13 +60,18 @@ export interface Customer {
   is_active: boolean;
 }
 
-/** The five margins a product carries, one per sales channel. Fractions: 0.18 is 18%. */
+/**
+ * The margins a product carries, fractions: 0.18 is 18%. The first five are one
+ * per sales channel; `margin_employee` prices the employee catalog and is not a
+ * channel, so the API leaves it out of `has_margin` and the margin filter.
+ */
 export const MARGIN_FIELDS = [
   "margin_list",
   "margin_wholesale",
   "margin_salsamentarias",
   "margin_mass_food",
   "margin_market",
+  "margin_employee",
 ] as const;
 
 export type MarginField = (typeof MARGIN_FIELDS)[number];
@@ -96,6 +101,7 @@ export interface CommercialProduct {
   margin_mass_food: Decimal | null;
   margin_market: Decimal | null;
   margin_salsamentarias: Decimal | null;
+  margin_employee: Decimal | null;
   margin_notes: string | null;
   margin_source: MarginSource | null;
   margin_updated_by: string | null;
@@ -130,6 +136,7 @@ export type ProductPatch = Partial<
     | "margin_mass_food"
     | "margin_market"
     | "margin_salsamentarias"
+    | "margin_employee"
     | "margin_notes"
     | "liquor_tax"
     | "liquor_tax_coast"
@@ -138,10 +145,11 @@ export type ProductPatch = Partial<
 >;
 
 /**
- * PUT /commercial/products/{sku}/margins: every field is required. Margins are
- * fractions above 0 and below 1; `notes` null or empty clears them; `liquor_tax`
- * null means the product does not pay it, which a product that already pays
- * it cannot send.
+ * PUT /commercial/products/{sku}/margins: every field is required but
+ * `margin_employee`, which the API keeps as is when it does not arrive. Margins
+ * are fractions above 0 and below 1; `notes` null or empty clears them;
+ * `liquor_tax` null means the product does not pay it, which a product that
+ * already pays it cannot send.
  */
 export interface ProductMarginsInput {
   margin_list: string;
@@ -149,6 +157,7 @@ export interface ProductMarginsInput {
   margin_mass_food: string;
   margin_market: string;
   margin_salsamentarias: string;
+  margin_employee?: string;
   notes: string | null;
   liquor_tax: { national: string; coast: string; group: string } | null;
 }

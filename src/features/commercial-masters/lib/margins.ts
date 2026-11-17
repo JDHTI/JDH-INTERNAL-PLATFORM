@@ -8,6 +8,7 @@ export const MARGIN_LABELS: Record<MarginField, string> = {
   margin_salsamentarias: "Salsamentarias",
   margin_mass_food: "Masivo Food",
   margin_market: "Market Apartadó",
+  margin_employee: "Empleado JDH",
 };
 
 export const MARGIN_SOURCE_LABELS: Record<MarginSource, string> = {

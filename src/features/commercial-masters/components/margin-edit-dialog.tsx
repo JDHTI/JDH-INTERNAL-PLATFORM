@@ -26,7 +26,7 @@ const TAX_GROUPS = [
 ];
 
 /**
- * The five margins of one product, its notes and its liquor tax, set by hand.
+ * The margins of one product, its notes and its liquor tax, set by hand.
  * Sends everything every time (PUT): a margin cannot be left empty, and a
  * product that already pays liquor tax cannot stop paying it here.
  */
@@ -133,7 +133,7 @@ function MarginForm({ product, onClose }: { product: CommercialProduct; onClose:
         <section className="space-y-3">
           <div className="space-y-1">
             <h3 className="text-sm font-semibold">Márgenes</h3>
-            <p className="text-[13px] text-text-secondary">En porcentaje, por ejemplo 18 o 18,5. Los cinco son obligatorios.</p>
+            <p className="text-[13px] text-text-secondary">En porcentaje, por ejemplo 18 o 18,5. Todos son obligatorios.</p>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
             {MARGIN_FIELDS.map((field) => (
