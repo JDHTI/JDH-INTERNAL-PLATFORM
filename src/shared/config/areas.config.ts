@@ -3,6 +3,7 @@ import {
   AppWindow,
   ArrowLeftRight,
   Banknote,
+  BarChart3,
   Blocks,
   BookOpen,
   BriefcaseBusiness,
@@ -63,6 +64,9 @@ export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
 
 /** Prospects on the map, commercial zones and visit routes (features/commercial-map). */
 export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
+
+/** The P.04.F.02 action plan matrix. A responsible from another area reaches theirs by /mis-planes-de-accion. */
+export const ACTION_PLANS_SEGMENT = "planes-accion";
 
 /** Where the typed commercial masters (margins, product edits) live, besides the generic ones. */
 export const COMMERCIAL_MASTERS_AREA_SLUG = "bi";
@@ -455,6 +459,17 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
       },
       { id: `${slug}-pqrsf-historial`, name: "Historial", path: `${base}/historial`, icon: History, managerOnly: true },
       { id: `${slug}-pqrsf-configuracion`, name: "Configuración", path: `${base}/configuracion`, icon: Settings, managerOnly: true },
+    ],
+  },
+  {
+    key: ACTION_PLANS_SEGMENT,
+    name: "Planes de acción",
+    category: "Operación",
+    icon: ListChecks,
+    available: true,
+    permission: "planes-accion",
+    subItems: (base, slug) => [
+      { id: `${slug}-planes-accion-indicadores`, name: "Indicadores", path: `${base}/indicadores`, icon: BarChart3 },
     ],
   },
   {
