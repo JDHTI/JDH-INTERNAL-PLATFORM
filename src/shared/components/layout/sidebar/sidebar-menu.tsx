@@ -12,7 +12,9 @@ import {
   moduleHref,
   visibleModules,
 } from "@/shared/config/areas.config";
+import { ScrollCue } from "@/shared/components/ui/scroll-cue";
 import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
+import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarModuleGroup from "./sidebar-module-group";
 import SidebarRow from "./sidebar-row";
@@ -24,6 +26,7 @@ export default function SidebarMenu() {
   const { area: activeArea, areas, isPending } = useActiveArea();
   const { data: user } = useSession();
   const isAdmin = isPlatformAdmin(user?.role);
+  const { attach, hints, style, scrollPage } = useScrollHints<HTMLElement>();
 
   // No area in the URL (the guide): say where the modules will appear.
   if (!activeArea) {
@@ -57,9 +60,13 @@ export default function SidebarMenu() {
   const closeDrawer = () => setMobileMenuOpen(false);
 
   return (
+    // The list hides its scrollbar; the faded edge and the chevron say there is more.
+    <div className="relative flex min-h-0 flex-1 flex-col">
     <nav
+      ref={attach}
+      style={style}
       aria-label={`Módulos de ${activeArea.name}`}
-      className="flex-1 space-y-4 overflow-y-auto no-scrollbar px-3 py-2"
+      className="min-h-0 flex-1 space-y-4 overflow-y-auto no-scrollbar px-3 py-2"
     >
       {/* The area overview is always the first stop, above the module groups. */}
       <ul className="space-y-0.5">
@@ -105,5 +112,7 @@ export default function SidebarMenu() {
           </div>
         ))}
     </nav>
+    <ScrollCue hints={hints} onScroll={scrollPage} tone="sidebar" />
+    </div>
   );
 }

@@ -96,6 +96,14 @@ export function Dropdown({
       return;
     }
 
+    // Closes the list without also closing the dialog around it, as the Autocomplete does.
+    if (event.key === "Escape" && isOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      return;
+    }
+
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!isOpen) {

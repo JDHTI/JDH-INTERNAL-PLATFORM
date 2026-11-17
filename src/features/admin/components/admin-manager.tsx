@@ -68,6 +68,8 @@ import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { ScrollCue } from "@/shared/components/ui/scroll-cue";
+import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
 import { roleLabel } from "@/features/session/types/session.types";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -112,6 +114,8 @@ export default function AdminManager({ section }: { section: AdminSection }) {
   const [userOffset, setUserOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The areas list hides its scrollbar; the faded edge and chevron say there is more.
+  const { attach: attachAreas, hints: areaHints, style: areaFade, scrollPage: scrollAreas } = useScrollHints<HTMLUListElement>();
 
   // Each section loads only what it shows.
   const areasQuery = useAdminAreas(section === "areas");
@@ -286,7 +290,8 @@ export default function AdminManager({ section }: { section: AdminSection }) {
                 {/* The list shows exactly six 64px rows. Separators go on top of
                     each row: a bottom border on the sixth would sit against the
                     card edge whenever the list scrolls. */}
-                <ul className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
+                <div className="relative">
+                <ul ref={attachAreas} style={areaFade} className="max-h-96 snap-y snap-mandatory overflow-y-auto overscroll-contain no-scrollbar">
                   {areas.map((area) => (
                       <li
                         key={area.id}
@@ -318,6 +323,8 @@ export default function AdminManager({ section }: { section: AdminSection }) {
                       </li>
                   ))}
                 </ul>
+                <ScrollCue hints={areaHints} onScroll={scrollAreas} />
+                </div>
               </section>
 
               {activeArea && (
