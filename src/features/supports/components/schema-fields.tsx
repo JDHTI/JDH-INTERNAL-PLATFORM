@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 
 import { Autocomplete, type AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { DatePicker } from "@/shared/components/ui/date-picker";
@@ -39,6 +39,7 @@ export default function SchemaFields({
   rule,
   required,
   catalogs,
+  after = {},
 }: {
   specs: FormFieldSpec[];
   draft: Draft;
@@ -48,6 +49,8 @@ export default function SchemaFields({
   rule: CalcMethodRule | undefined;
   required: Set<string>;
   catalogs: SupportCatalogs | undefined;
+  /** Something that belongs with a field and is not in the schema, shown right after it, full width. */
+  after?: Record<string, React.ReactNode>;
 }) {
   const groups: { name: string; specs: FormFieldSpec[] }[] = [];
   for (const spec of specs) {
@@ -63,16 +66,18 @@ export default function SchemaFields({
           <legend className="mb-4 text-base font-semibold">{group.name}</legend>
           <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
             {group.specs.map((spec) => (
-              <SchemaField
-                key={spec.name}
-                spec={spec}
-                value={draft[spec.name]}
-                onChange={(value) => onChange(spec.name, value)}
-                error={errors[spec.name]}
-                rule={rule}
-                isRequired={required.has(spec.name)}
-                catalogs={catalogs}
-              />
+              <Fragment key={spec.name}>
+                <SchemaField
+                  spec={spec}
+                  value={draft[spec.name]}
+                  onChange={(value) => onChange(spec.name, value)}
+                  error={errors[spec.name]}
+                  rule={rule}
+                  isRequired={required.has(spec.name)}
+                  catalogs={catalogs}
+                />
+                {after[spec.name] && <div className="sm:col-span-2">{after[spec.name]}</div>}
+              </Fragment>
             ))}
           </div>
         </fieldset>

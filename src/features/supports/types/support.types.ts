@@ -579,6 +579,9 @@ export interface BulkReport {
   retired?: string[];
   skipped?: number;
   group_supports?: number;
+  /** An applied load reads each support's DWH cost itself: how many got one, and how many the DWH did not have. */
+  costs_assigned?: number;
+  costs_missing?: number;
 }
 
 /** A document of the document manager backing a support. */

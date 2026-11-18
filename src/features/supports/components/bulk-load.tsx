@@ -33,6 +33,7 @@ import { downloadBulkExport, downloadBulkTemplate } from "../services/supports.s
 type Download = "corta" | "grupos" | "completa" | "datos";
 import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
+import PromoCheck from "./promo-check";
 import SchemaFields from "./schema-fields";
 
 const NOT_USED = "";
@@ -79,6 +80,8 @@ export default function BulkLoad({ area }: { area: string }) {
   const [sheet, setSheet] = useState("");
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaults, setDefaults] = useState<Draft>({});
+  // null follows the supplier's profile.
+  const [promo, setPromo] = useState<boolean | null>(null);
   const [defaultErrors, setDefaultErrors] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [report, setReport] = useState<BulkReport | null>(null);
@@ -104,6 +107,11 @@ export default function BulkLoad({ area }: { area: string }) {
 
   // What a request would send right now; the report is only valid for this exact input.
   const read = readDraft(defaultSpecs, defaults, defaultRule, { fractionsAsText: true });
+  // Promotional warehouses (group 23): the profile's choice until the person ticks or unticks it.
+  // Sent only when it says something the API would not assume (its default is «no»).
+  const profilePromo = profile.data?.defaults?.promo_warehouses === "true";
+  const promoValue = promo ?? profilePromo;
+  if (promoValue || profilePromo) read.values.promo_warehouses = String(promoValue);
   const columnMap = invert(extra);
   // The group upload has no "close the missing ones": its rows fan out to customers.
   const closeMissing = expireMissing && !groups;
@@ -165,11 +173,13 @@ export default function BulkLoad({ area }: { area: string }) {
     setRequestError(null);
   };
 
+  // Every file is the supplier's: no template, of any kind, is handed out without one.
   const download = async (kind: Download) => {
+    if (!supplier) return;
     setTemplate({ pending: kind, error: null });
     try {
-      if (kind === "datos") await downloadBulkExport(supplier!.value);
-      else await downloadBulkTemplate(supplier?.value ?? null, { full: kind === "completa", groups: kind === "grupos" });
+      if (kind === "datos") await downloadBulkExport(supplier.value);
+      else await downloadBulkTemplate(supplier.value, { full: kind === "completa", groups: kind === "grupos" });
       setTemplate({ pending: null, error: null });
     } catch (failure) {
       setTemplate({ pending: null, error: errorMessage(failure) });
@@ -199,6 +209,13 @@ export default function BulkLoad({ area }: { area: string }) {
             lleva en su trazabilidad.
           </p>
         )}
+        {applied.costs_assigned !== undefined && (
+          <p className="mt-1">
+            {(applied.costs_missing ?? 0) > 0
+              ? `${count(applied.costs_assigned, "apoyo quedó", "apoyos quedaron")} con su costo del DWH; ${count(applied.costs_missing ?? 0, "no tiene", "no tienen")} costo en el DWH y ${(applied.costs_missing ?? 0) === 1 ? "queda" : "quedan"} sin cifras hasta que lo tenga.`
+              : `${count(applied.costs_assigned, "apoyo quedó", "apoyos quedaron")} con su costo del DWH.`}
+          </p>
+        )}
         <p className="mt-1">
           {applied.publish_not_before
             ? `Es una carga grande: se publicará en el DWH desde ${formatPublishFrom(applied.publish_not_before)}, fuera de las horas del ETL.`
@@ -215,7 +232,7 @@ export default function BulkLoad({ area }: { area: string }) {
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       <section className="space-y-5 rounded-lg border border-border p-4" aria-labelledby={`${id}-file`}>
         <h2 id={`${id}-file`} className="text-base font-semibold">Archivo</h2>
 
@@ -229,7 +246,7 @@ export default function BulkLoad({ area }: { area: string }) {
             />
             <p className="text-[13px] text-text-secondary" aria-live="polite">
               {!supplier
-                ? "Elígelo si el archivo no trae la columna Cod. Proveedor, como la plantilla corta. Si tiene perfil, el archivo se lee con él."
+                ? "Elígelo para descargar las plantillas, y si el archivo no trae la columna Cod. Proveedor. Si tiene perfil, el archivo se lee con él."
                 : profile.isFetching
                   ? "Buscando el perfil del proveedor."
                   : profile.data
@@ -238,37 +255,29 @@ export default function BulkLoad({ area }: { area: string }) {
             </p>
           </div>
           <div className="space-y-1.5">
-            <span className="block text-[13px] font-medium">Plantilla</span>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => download("corta")} disabled={template.pending !== null} className="max-sm:h-11">
+            <span id={`${id}-templates`} className="block text-[13px] font-medium">Plantilla</span>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${id}-templates`} aria-describedby={`${id}-templates-hint`}>
+              <Button variant="outline" onClick={() => download("corta")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 <DownloadIcon aria-hidden="true" />
                 {template.pending === "corta" ? "Descargando" : "Plantilla"}
               </Button>
-              <Button variant="outline" onClick={() => download("grupos")} disabled={template.pending !== null} className="max-sm:h-11">
+              <Button variant="outline" onClick={() => download("grupos")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "grupos" ? "Descargando" : "Plantilla por grupo"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => download("datos")}
-                disabled={template.pending !== null || !supplier}
-                title={supplier ? undefined : "Elige el proveedor primero"}
-                className="max-sm:h-11"
-              >
+              <Button variant="outline" onClick={() => download("datos")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "datos" ? "Descargando" : "Descargar con datos"}
               </Button>
-              <Button variant="ghost" onClick={() => download("completa")} disabled={template.pending !== null} className="max-sm:h-11">
+              <Button variant="ghost" onClick={() => download("completa")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "completa" ? "Descargando" : "Plantilla completa"}
               </Button>
             </div>
             {template.error ? (
               <p role="alert" className="text-[13px] text-danger">{template.error}</p>
             ) : (
-              <p className="text-[13px] text-text-secondary">
-                {supplier ? "La plantilla sigue el perfil del proveedor. " : "La plantilla viene en el orden de BI, con listas para clase, tipo y unidad. "}
-                Por grupo cambia el cliente por el grupo empresarial.{" "}
+              <p id={`${id}-templates-hint`} className="text-[13px] text-text-secondary">
                 {supplier
-                  ? `Con datos trae los apoyos vigentes y programados de ${supplier.label} con la columna Validación: márcala y vuelve a subir el archivo aquí.`
-                  : "Con datos necesita un proveedor elegido."}
+                  ? `La plantilla sigue el perfil del proveedor, con listas para clase, tipo y unidad, y fechas dd/mm/aaaa. Por grupo cambia el cliente por el grupo empresarial. Con datos trae los apoyos vigentes y programados de ${supplier.label} con las columnas Observaciones y Validación: marca Sí o No (el motivo de un No va en Observaciones) y vuelve a subir el archivo aquí.`
+                  : "Elige el proveedor para descargar cualquier plantilla."}
               </p>
             )}
           </div>
@@ -332,6 +341,16 @@ export default function BulkLoad({ area }: { area: string }) {
                 rule={defaultRule}
                 required={new Set()}
                 catalogs={catalogs}
+                after={{
+                  warehouse: (
+                    <PromoCheck
+                      checked={promoValue}
+                      onChange={setPromo}
+                      label="Incluir bodegas promocionales (grupo 23)"
+                      hint="Marcado, los apoyos del archivo también aplican en pedidos desde las bodegas promocionales. Sin marcar, esos pedidos van al costo de la bodega, sin el apoyo: para clientes o proveedores que no admiten doble apoyo (promoción y apoyo a la vez)."
+                    />
+                  ),
+                }}
               />
             )}
           </div>
@@ -340,10 +359,11 @@ export default function BulkLoad({ area }: { area: string }) {
         <div className="space-y-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">Cómo actualiza el maestro</h3>
           <p className="max-w-prose text-[13px] text-text-secondary">
-            Cada fila se busca por su llave (proveedor, clase, NIT, SKU, referencia externa y fecha de inicio): crea el
-            apoyo si no existe y, si existe, cambia solo las columnas que trae el archivo. Una columna que no venga
-            conserva lo guardado. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el apoyo
-            guardado con la observación de la fila, y vacío deja la fila sin tocar.
+            Cada fila se busca por su llave (proveedor, NIT, SKU JDH y fecha de inicio): crea el apoyo si no existe y
+            lo actualiza si ya existe, cambiando solo las columnas que trae el archivo. Una columna que no venga
+            conserva lo guardado. El SKU Proveedor se toma del maestro de productos; solo sirve para encontrar el SKU
+            JDH cuando la fila no lo trae. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el
+            apoyo guardado con la observación de la fila, y vacío deja la fila sin tocar.
           </p>
 
           <fieldset className="space-y-2">
@@ -353,7 +373,10 @@ export default function BulkLoad({ area }: { area: string }) {
                 <input type="radio" name={`${id}-groups`} checked={!groups} onChange={() => setGroups(false)} className={radio} />
                 <span>
                   <span className="block font-medium">Por cliente</span>
-                  <span className="text-text-secondary">Cada fila es un apoyo, con su NIT o para todos los clientes.</span>
+                  <span className="text-text-secondary">
+                    Cada fila es un apoyo, con su NIT o para todos los clientes. Una fila con Grupo Empresarial y sin NIT
+                    crea uno por cada cliente activo del grupo.
+                  </span>
                 </span>
               </label>
               <label className={choiceCard}>
