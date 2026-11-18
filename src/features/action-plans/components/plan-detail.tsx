@@ -399,12 +399,17 @@ function Rows({
   );
 }
 
+/** The free text of the old Excel, then the platform people by name (or counted, on an API that sends no names). */
 function responsibles(row: Correction | Activity): string | null {
-  const people = row.responsible_user_ids.length;
-  const parts = [
-    row.responsible_text,
-    people > 0 ? `${people} ${people === 1 ? "persona" : "personas"} de la plataforma` : null,
-  ].filter(Boolean);
+  const count = row.responsible_user_ids.length;
+  const named = row.responsible_users?.map((person) => person.display_name ?? "Usuario que ya no existe") ?? [];
+  const people =
+    named.length > 0
+      ? named.join(", ")
+      : count > 0
+        ? `${count} ${count === 1 ? "persona" : "personas"} de la plataforma`
+        : null;
+  const parts = [row.responsible_text, people].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 

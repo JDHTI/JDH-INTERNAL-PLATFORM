@@ -451,6 +451,21 @@ const draftOf = (row: Correction | Activity): RowDraft => ({
   follow_up_due_on: "follow_up_due_on" in row ? (row.follow_up_due_on ?? "") : "",
 });
 
+/**
+ * The responsibles the API already named (API #88), as the people the picker
+ * shows. A user that no longer exists says so; against an API that sends no
+ * names the chip reads «Persona asignada».
+ */
+function namedPeople(rows: (Correction | Activity)[]): Record<string, Person> {
+  const people: Record<string, Person> = {};
+  for (const row of rows) {
+    for (const user of row.responsible_users ?? []) {
+      people[user.id] = { id: user.id, display_name: user.display_name ?? "Usuario que ya no existe", email: null };
+    }
+  }
+  return people;
+}
+
 function RowsDialog({
   title,
   description,
@@ -474,7 +489,8 @@ function RowsDialog({
 }) {
   const id = useId();
   const [drafts, setDrafts] = useState<RowDraft[]>(() => (rows.length > 0 ? rows.map(draftOf) : [newDraft()]));
-  const [named, setNamed] = useState<Record<string, Person>>({});
+  // The people already named on the rows keep their names; the ones picked here add theirs.
+  const [named, setNamed] = useState<Record<string, Person>>(() => namedPeople(rows));
   const [problem, setProblem] = useState<string | null>(null);
 
   const patch = (key: string, change: Partial<RowDraft>) =>
