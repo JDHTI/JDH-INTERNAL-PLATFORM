@@ -17,6 +17,7 @@ import {
   FilterX,
   HandCoins,
   Hourglass,
+  ListPlus,
   Loader2,
   MessageSquareWarning,
   MoreHorizontal,
@@ -59,6 +60,7 @@ import {
   useQuotationPermissions,
   useRefreshQuotation,
   useRemoveLine,
+  useSendQuotation,
 } from "../hooks/use-quotations";
 import { useLineNote, useReviewLines, useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
@@ -261,6 +263,16 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   };
 
   const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
+  const sending = useSendQuotation(quotation.id);
+  const sendToCustomer = async () => {
+    try {
+      await sending.mutateAsync(quotation.version);
+      toast.success("Cotización enviada al cliente. Sigue editable: si cambias algo, vuelve a borrador.");
+    } catch (failure) {
+      // 422 without lines in the offer, 409 if it changed or went to validation meanwhile.
+      toast.error(errorMessage(failure), { duration: Infinity });
+    }
+  };
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
@@ -535,15 +547,23 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <CloudUpload aria-hidden="true" /> Por cargar
             </Link>
           )}
-          {canManage && !isList && quotation.status === "borrador" && (
-            <Button
-              onClick={() => setDialog("confirm")}
-              disabled={busy || pricedCount === 0}
-              title={pricedCount === 0 ? "Escribe al menos un precio nuevo para confirmar." : undefined}
-              className="max-md:h-11"
-            >
-              <Send aria-hidden="true" /> Confirmar
-            </Button>
+          {/* Sending the offer never waits on BI; only a price list does (it goes to validation). */}
+          {canManage && !isList && (quotation.status === "borrador" || quotation.status === "enviada") && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setDialog("confirm")}
+                disabled={busy || pricedCount === 0}
+                title={pricedCount === 0 ? "Escribe al menos un precio nuevo para pedir la lista." : "Va a validación de BI y, mientras tanto, no se edita."}
+                className="max-md:h-11"
+              >
+                <ListPlus aria-hidden="true" /> Solicitar actualización / creación de lista
+              </Button>
+              <Button onClick={() => void sendToCustomer()} disabled={busy || sending.isPending} className="max-md:h-11">
+                {sending.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
+                {quotation.status === "enviada" ? "Enviar de nuevo" : "Enviar al cliente"}
+              </Button>
+            </>
           )}
           {canManage && (
             <Menu
@@ -567,8 +587,8 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
 
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
-      {/* The offer is put together while confirming; once confirmed it is here to preview and export. */}
-      {!isList && quotation.status !== "borrador" && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
+      {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
+      {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && !isList && (
@@ -651,7 +671,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               {!isList && <QuantitiesToggle quotation={quotation} disabled={busy} />}
               {supportCandidates > 0 && (
                 <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
-                  <HandCoins aria-hidden="true" /> Solicitar apoyo interno
+                  <HandCoins aria-hidden="true" /> Solicitar margen autorizado
                 </Button>
               )}
               {editable && (
@@ -1065,8 +1085,11 @@ function QuotationHistory({ quotation }: { quotation: Quotation }) {
   const events: [string, string][] = [
     ["Armada", formatDateTime(quotation.built_at)],
     ...(quotation.cost_cut_date ? [["Costo al corte", formatDay(quotation.cost_cut_date)] as [string, string]] : []),
+    ...(quotation.sent_at
+      ? [["Enviada al cliente", `${formatDateTime(quotation.sent_at)}${by(quotation.sent_by ?? null)}`] as [string, string]]
+      : []),
     ...(quotation.confirmed_at
-      ? [["Confirmada", `${formatDateTime(quotation.confirmed_at)}${by(quotation.confirmed_by)}`] as [string, string]]
+      ? [["Lista solicitada", `${formatDateTime(quotation.confirmed_at)}${by(quotation.confirmed_by)}`] as [string, string]]
       : []),
     ...(quotation.validated_at
       ? [["Validada", `${formatDateTime(quotation.validated_at)}${by(quotation.validated_by)}`] as [string, string]]
@@ -1111,6 +1134,34 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
         <MessageSquareWarning className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
         <p>
           <strong>Devuelta a borrador:</strong> {quotation.review_note}
+        </p>
+      </div>
+    );
+  }
+  if (quotation.status === "enviada") {
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-info-surface px-4 py-3 text-sm">
+        <Send className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
+        <p>
+          <strong>
+            Enviada al cliente{quotation.sent_at ? ` el ${formatDateTime(quotation.sent_at)}` : ""}
+            {quotation.sent_by ? ` por ${quotation.sent_by}` : ""}.
+          </strong>{" "}
+          {canManage
+            ? "Sigue editable: si cambias algo, vuelve a borrador. Para llevarla a una lista de precios, solicita la actualización o creación de la lista: ese paso va a validación de BI."
+            : "No pasa por validación: la validación de BI es solo para llevarla a una lista de precios."}
+        </p>
+      </div>
+    );
+  }
+  if (quotation.status === "borrador" && quotation.sent_at) {
+    return (
+      <div role="status" className="flex items-start gap-2 rounded-lg bg-canvas-subtle px-4 py-3 text-sm">
+        <Send className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
+        <p>
+          Se envió al cliente el {formatDateTime(quotation.sent_at)}
+          {quotation.sent_by ? ` por ${quotation.sent_by}` : ""} y cambió desde entonces. Envíala de nuevo si el cliente debe ver los
+          cambios.
         </p>
       </div>
     );

@@ -176,7 +176,7 @@ function RequestSummary({ request }: { request: InternalSupportRequest }) {
     <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
       <div><dt className="text-text-secondary">Cliente</dt><dd>{request.customer_name ?? "Sin nombre"} · NIT {request.customer_nit}</dd></div>
       <div><dt className="text-text-secondary">Proveedor</dt><dd>{request.supplier_name ?? request.supplier_code}</dd></div>
-      <div><dt className="text-text-secondary">Cotización</dt><dd>{request.quotation_label ?? request.quotation_id}</dd></div>
+      <div><dt className="text-text-secondary">Cotización</dt><dd>{request.quotation_label ?? request.quotation_id ?? "Sin cotización: pedida desde el panel"}</dd></div>
       <div><dt className="text-text-secondary">Fecha del pedido</dt><dd>{formatDay(request.requested_for)}</dd></div>
       <div><dt className="text-text-secondary">Solicitó</dt><dd>{request.requested_by} · {dateTime(request.created_at)}</dd></div>
       <div><dt className="text-text-secondary">Acordado con</dt><dd>{request.agreed_with}</dd></div>

@@ -162,6 +162,7 @@ export function samePrice(a: string | null | undefined, b: string | null | undef
 /** Labels for the status filter; the badge itself uses the API's `status_label`. */
 export const STATUS_LABELS: Record<QuotationStatus, string> = {
   borrador: "Borrador",
+  enviada: "Enviada al cliente",
   pendiente_validacion: "Pendiente de validación",
   pendiente_carga: "Pendiente de carga",
   cargada: "Cargada",

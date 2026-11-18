@@ -25,6 +25,8 @@ export interface InternalRequestItem {
   /** The minimum the rule asks for the product. */
   min_margin_pct: Decimal | null;
   requested_margin_pct: Decimal;
+  /** The current margin it had to be under: the product's on the customer's margin list. */
+  target_margin_pct?: Decimal | null;
   /** Null while pending, or when BI left this reference out. */
   approved_margin_pct: Decimal | null;
   /** The support the approval registered. */
@@ -36,7 +38,8 @@ export interface InternalSupportRequest {
   number: number;
   status: RequestStatus;
   decision: InternalDecision | null;
-  quotation_id: string;
+  /** Null when it was asked from the requests panel, by customer and SKU. */
+  quotation_id: string | null;
   quotation_label: string | null;
   customer_nit: string;
   customer_name: string | null;
@@ -80,6 +83,35 @@ export interface InternalRequestInput {
   agreed_with: string;
   reason: string;
   items: { sku: string; requested_margin_pct: Decimal }[];
+}
+
+/** `POST /internal-support-requests`: by customer and SKU, from the requests panel. */
+export interface DirectRequestInput {
+  customer_nit: string;
+  requested_for?: string;
+  agreed_with: string;
+  reason: string;
+  items: { sku: string; requested_margin_pct: Decimal }[];
+}
+
+/**
+ * `GET /internal-support-requests/target-margins`: the current margin of each SKU for a
+ * customer (the product's optimal margin on the customer's list). A request asks less.
+ */
+export interface TargetMargin {
+  sku: string;
+  description: string | null;
+  supplier_code: string | null;
+  margin_field: string;
+  margin_label: string;
+  margin_pct: Decimal | null;
+}
+
+export interface TargetMargins {
+  customer_nit: string;
+  customer_name: string | null;
+  /** Unknown SKUs are left out. */
+  items: TargetMargin[];
 }
 
 /** `POST /internal-support-requests/{id}/approve`. References left out are not approved. */

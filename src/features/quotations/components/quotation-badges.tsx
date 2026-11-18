@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, FileUp, Hourglass, PencilLine, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, FileUp, Hourglass, PencilLine, Send, TrendingDown } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 
@@ -8,6 +8,8 @@ import type { Compliance, QuotationStatus } from "../types/quotations.types";
 const STATUS_LOOK: Record<QuotationStatus, { tone: BadgeTone; icon: typeof CheckCircle2 }> = {
   // Nothing wrong with a draft: neutral.
   borrador: { tone: "neutral", icon: PencilLine },
+  // With the customer, still editable and nothing pending on BI: informative, not done.
+  enviada: { tone: "info", icon: Send },
   // Waiting on someone else: amber, like the validator's pending orders.
   pendiente_validacion: { tone: "warning", icon: Hourglass },
   // Validated, the files have to go into SIESA: still a step left, so not green yet.

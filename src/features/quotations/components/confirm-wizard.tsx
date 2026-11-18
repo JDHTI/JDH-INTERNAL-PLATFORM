@@ -51,8 +51,8 @@ export function ConfirmDialog({ quotation, open, onOpenChange }: { quotation: Qu
       onOpenChange={onOpenChange}
       isForm
       wide
-      title="Confirmar la cotización"
-      description="Arma la oferta para el cliente y decide qué se hace en SIESA. Al enviarla pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan."
+      title="Solicitar actualización o creación de lista"
+      description="Lleva los precios a una lista de SIESA: actualiza la del cliente o crea una nueva. Pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan. Para mandarle la oferta al cliente no hace falta: usa «Enviar al cliente»."
     >
       {open && <ConfirmWizard quotation={quotation} onClose={() => onOpenChange(false)} />}
     </Dialog>
@@ -128,7 +128,7 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
     <form onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
       <Stepper current={step} />
 
-      {step === 0 && blocked && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de confirmar.</Alert>}
+      {step === 0 && blocked && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de pedir la lista.</Alert>}
       {step === 0 && failing > 0 && (
         <Alert severity="warning">
           {failing === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(failing)} referencias con precio nuevo quedan`} bajo la regla
@@ -197,7 +197,7 @@ function ListConfirm({ quotation, onClose }: { quotation: Quotation; onClose: ()
 
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
-      {priced === 0 && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de confirmar.</Alert>}
+      {priced === 0 && <Alert severity="danger">No hay precios nuevos. Escribe al menos uno antes de pedir la lista.</Alert>}
       {failing > 0 && (
         <Alert severity="warning">
           {failing === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(failing)} referencias con precio nuevo quedan`} bajo la regla

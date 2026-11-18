@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 
+import { HandCoins } from "lucide-react";
+
 import PageHeader from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
 import { ViewTab } from "@/shared/components/ui/view-tab";
 
 import { useSupportPermissions } from "../hooks/use-supports";
 import InternalRequestsBrowser from "./internal-requests-browser";
+import MarginRequestDialog from "./margin-request-dialog";
 import RequestsBrowser from "./requests-browser";
 
 type View = "internal" | "jdh";
@@ -25,6 +29,9 @@ export default function RequestsPage() {
   const jdh = reviewJdh || data?.can_request === true;
   const [chosen, setChosen] = useState<View>("internal");
   const view: View = internal && jdh ? chosen : internal ? "internal" : "jdh";
+  // Whoever quotes asks (BI, who approves, does not): by customer and reference, with no quotation.
+  const canAskMargin = data?.can_request_internal === true && !reviewInternal;
+  const [asking, setAsking] = useState(false);
 
   if (permissions.isPending) {
     return <div className="h-8 w-64 animate-pulse rounded-md bg-canvas-subtle" aria-busy="true" aria-label="Validando permisos" />;
@@ -39,7 +46,15 @@ export default function RequestsPage() {
             ? "Revisa los apoyos que piden desde las cotizaciones, decide y consulta su historial."
             : "Consulta el estado y las decisiones de los apoyos que pediste."
         }
+        aside={
+          canAskMargin ? (
+            <Button onClick={() => setAsking(true)} className="max-sm:h-11">
+              <HandCoins aria-hidden="true" /> Pedir margen autorizado
+            </Button>
+          ) : undefined
+        }
       />
+      <MarginRequestDialog open={asking} onClose={() => setAsking(false)} />
       {internal && jdh && (
         <div role="tablist" aria-label="Tipo de solicitud" className="flex gap-1 border-b border-border">
           <ViewTab selected={view === "internal"} onSelect={() => setChosen("internal")} controls="requests-internal">
