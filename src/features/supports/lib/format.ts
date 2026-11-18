@@ -143,6 +143,20 @@ export const PRICE_LABELS = {
 export const RECOMPOSED_HELP =
   "Margen que deja el apoyo al precio apoyado mínimo, o al sugerido si no hay margen mínimo JDH.";
 
+/**
+ * JDH's authorized minimum margin of a support: `supported_margin_pct`, or for a margin
+ * exception (`margen_minimo`) its `min_margin_pct`, where the quoter and the validator read it.
+ */
+export function authorizedMargin(support: {
+  calc_method: string | null;
+  supported_margin_pct?: Decimal | null;
+  min_margin_pct: Decimal | null;
+  derived: { supported_margin_pct?: Decimal | null } | null;
+}): Decimal | null {
+  if (support.calc_method === "margen_minimo") return support.min_margin_pct;
+  return support.derived?.supported_margin_pct ?? support.supported_margin_pct ?? null;
+}
+
 /** The name of `supported_margin_pct` in rules v2, the same the form schema gives it. */
 export const SUPPORTED_MARGIN_LABEL = "Excepción margen mínimo autorizado JDH";
 

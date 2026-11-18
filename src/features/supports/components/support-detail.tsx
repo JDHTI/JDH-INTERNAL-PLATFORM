@@ -9,6 +9,7 @@ import { toNumber } from "@/shared/lib/format";
 
 import { useCalcMethodLabel, useKindLabel, useSupport, useSupportConflicts, useSupportPermissions } from "../hooks/use-supports";
 import {
+  authorizedMargin,
   choiceLabel,
   formatCop,
   formatDay,
@@ -136,7 +137,7 @@ function Body({
           {formatSupplierValue(support.calc_method, support.supplier_value)}
           {support.value_unit ? ` (${support.value_unit})` : ""}
         </Row>
-        <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(support.supported_margin_pct)}</Row>
+        <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(authorizedMargin(support))}</Row>
         {/* Kept as history: since rules v2 they no longer move the figures. */}
         {seesCost && support.calc_method === "costo_neto" && toNumber(support.jdh_net_cost) !== null && (
           <Row label="Costo pactado JDH (histórico)" tabular>{formatCop(support.jdh_net_cost)}</Row>
@@ -216,7 +217,7 @@ function Body({
           {derived.product_margin_pct !== undefined && (
             <>
               <Row label="Margen del producto" numeric>{formatPct(derived.product_margin_pct)}</Row>
-              <Row label={SUPPORTED_MARGIN_LABEL} numeric>{formatPct(derived.supported_margin_pct)}</Row>
+              <Row label={SUPPORTED_MARGIN_LABEL} numeric>{formatPct(authorizedMargin(support))}</Row>
             </>
           )}
           <Row label="Margen recompuesto" numeric hint={RECOMPOSED_HELP}>{formatPct(derived.margin_recomposed)}</Row>

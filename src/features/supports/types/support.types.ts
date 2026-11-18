@@ -359,6 +359,8 @@ export interface SupportPatch {
   reference_list_price?: Decimal | null;
   target_margin_pct?: Decimal | null;
   supported_margin_pct?: Decimal | null;
+  /** A margin exception's authorized minimum (margen_minimo keeps it here). */
+  min_margin_pct?: Decimal | null;
   program?: string | null;
   notes?: string | null;
   authorized_by?: string | null;

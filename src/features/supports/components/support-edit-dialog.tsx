@@ -52,11 +52,15 @@ interface Draft {
   tiers: TierDraft[];
 }
 
+/** «Excepción margen JDH»: no supplier money, only the authorized minimum margin. */
+const isException = (support: SupplierSupport) => support.calc_method === "margen_minimo";
+
 function draftOf(support: SupplierSupport): Draft {
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
   return {
     supplier_value: toInput(support.supplier_value, valuePercent),
-    supported_margin_pct: toInput(support.supported_margin_pct, true),
+    // A margin exception keeps its margin in min_margin_pct (what the quoter and the validator read).
+    supported_margin_pct: toInput(isException(support) ? support.min_margin_pct : support.supported_margin_pct, true),
     valid_from: support.valid_from ?? "",
     valid_to: support.valid_to ?? "",
     value_unit: support.value_unit ?? NO_UNIT,
@@ -85,7 +89,11 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
 
   if (changed("supplier_value")) patch.supplier_value = toDecimal(draft.supplier_value, valuePercent);
   // The JDH percentage is not edited here: it changes through the JDH requests panel.
-  if (changed("supported_margin_pct")) patch.supported_margin_pct = toDecimal(draft.supported_margin_pct, true);
+  if (changed("supported_margin_pct")) {
+    const margin = toDecimal(draft.supported_margin_pct, true);
+    if (isException(support)) patch.min_margin_pct = margin;
+    else patch.supported_margin_pct = margin;
+  }
   if (changed("valid_from")) patch.valid_from = draft.valid_from || null;
   if (changed("valid_to")) patch.valid_to = draft.valid_to || null;
   if (changed("value_unit")) patch.value_unit = draft.value_unit === NO_UNIT ? null : (draft.value_unit as ValueUnit);

@@ -7,6 +7,7 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import {
+  authorizedMargin,
   choiceLabel,
   formatCop,
   formatDay,
@@ -171,7 +172,7 @@ function MarginsCell({ support }: { support: SupplierSupport }) {
         { label: "Recompuesto", value: pct(derived?.margin_recomposed), title: RECOMPOSED_HELP },
         {
           label: "Mínimo JDH",
-          value: pct(derived?.supported_margin_pct ?? support.supported_margin_pct),
+          value: pct(authorizedMargin(support)),
           strong: true,
           title: SUPPORTED_MARGIN_LABEL,
         },
