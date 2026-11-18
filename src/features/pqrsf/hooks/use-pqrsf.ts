@@ -27,6 +27,7 @@ import {
   getCaseOpenings,
   getCatalog,
   getOmSettings,
+  listOmHistory,
   listOmTemplates,
   listOms,
   listPqrsfSites,
@@ -80,6 +81,7 @@ import type {
   CreateCaseInput,
   FeedbackListParams,
   ItemInput,
+  OmHistoryFilters,
   OmInput,
   PqrsfCase,
   PqrsfSiteAdmin,
@@ -369,6 +371,7 @@ export function useRetryClientReply(id: string) {
 
 const omKeys = {
   list: (id: string) => [...pqrsfKeys.detail(id), "oms"] as const,
+  history: () => [...pqrsfKeys.all, "om-history"] as const,
   templates: () => [...pqrsfKeys.all, "om-templates"] as const,
   settings: () => [...pqrsfKeys.all, "om-settings"] as const,
 };
@@ -384,6 +387,7 @@ function useOmMutation<TInput, TResult>(id: string, mutationFn: (input: TInput) 
     mutationFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: omKeys.list(id) });
+      queryClient.invalidateQueries({ queryKey: omKeys.history() });
       refreshCase(queryClient, id);
     },
   });
@@ -401,6 +405,15 @@ export function useUploadEditedOm(id: string) {
 
 export function useRetryOmPdf(id: string) {
   return useOmMutation(id, (omId: string) => retryOmPdf(id, omId));
+}
+
+/** The follow-up list of every OM; a new send or generation makes it stale. */
+export function useOmHistory(filters: OmHistoryFilters, page: number, size: number) {
+  return useQuery({
+    queryKey: [...omKeys.history(), filters, page, size] as const,
+    queryFn: () => listOmHistory(filters, page, size),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useOmTemplates() {
@@ -498,6 +511,7 @@ export function useSendSupplierMessage(id: string) {
       queryClient.invalidateQueries({ queryKey: [...pqrsfKeys.all, "supplier-contacts"] });
       // An improvement opportunity sent with it turns «sent» and the case gets its mark.
       queryClient.invalidateQueries({ queryKey: omKeys.list(id) });
+      queryClient.invalidateQueries({ queryKey: omKeys.history() });
       refreshCase(queryClient, id);
     },
   });

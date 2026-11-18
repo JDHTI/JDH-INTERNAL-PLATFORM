@@ -32,6 +32,8 @@ import type {
   LastSeen,
   NotificationSettings,
   NotificationSettingsInput,
+  OmHistoryFilters,
+  OmHistoryPage,
   OmInput,
   OmTemplate,
   Person,
@@ -465,6 +467,27 @@ export function uploadEditedOm(id: string, omId: string, file: File): Promise<Im
 export function retryOmPdf(id: string, omId: string): Promise<ImprovementOpportunity> {
   return apiFetch<ImprovementOpportunity>(`${omPath(id)}/${encodeURIComponent(omId)}/pdf`, {
     method: "POST",
+  });
+}
+
+/**
+ * Every OM of every case, to follow up the suppliers. `replied: false` lists
+ * the sent ones still waiting; `false` is dropped from a query by the client,
+ * so it is sent as the word the API reads.
+ */
+export function listOmHistory(filters: OmHistoryFilters, page: number, size: number): Promise<OmHistoryPage> {
+  return apiFetch<OmHistoryPage>("/pqrsf/improvement-opportunities", {
+    query: {
+      status: filters.status,
+      replied: filters.replied === undefined ? undefined : String(filters.replied),
+      site_id: filters.site_id,
+      supplier: filters.supplier,
+      q: filters.q,
+      sent_from: filters.sent_from,
+      sent_to: filters.sent_to,
+      page,
+      size,
+    },
   });
 }
 
