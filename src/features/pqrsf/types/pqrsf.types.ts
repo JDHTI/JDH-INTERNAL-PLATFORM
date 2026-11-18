@@ -321,6 +321,44 @@ export interface OmTemplate {
   created_at: string | null;
 }
 
+/** An OM of the follow-up list: its case, who it went to and whether the supplier answered. */
+export interface OmHistoryItem extends ImprovementOpportunity {
+  case_code: string;
+  /** The name of the case's status. */
+  case_status: string;
+  case_closed: boolean;
+  customer_name: string | null;
+  site_name: string | null;
+  /** The addresses the OM was sent to. */
+  sent_to: string[];
+  /** The first email on the case from those addresses after the OM went out. */
+  replied_at: string | null;
+  /** Days since it was sent with no answer; null once answered or while it is a draft. */
+  days_waiting: number | null;
+}
+
+export interface OmHistoryPage {
+  items: OmHistoryItem[];
+  total: number;
+  page: number;
+  size: number;
+  drafts: number;
+  awaiting_reply: number;
+  replied: number;
+}
+
+export interface OmHistoryFilters {
+  status?: "draft" | "sent";
+  /** `false`: sent and still waiting for the supplier. */
+  replied?: boolean;
+  site_id?: string;
+  supplier?: string;
+  q?: string;
+  /** AAAA-MM-DD. */
+  sent_from?: string;
+  sent_to?: string;
+}
+
 /** A site of the PQRSF catalog, with what the OM prints of it. */
 export interface PqrsfSiteAdmin {
   id: string;
