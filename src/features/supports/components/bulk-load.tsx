@@ -165,11 +165,13 @@ export default function BulkLoad({ area }: { area: string }) {
     setRequestError(null);
   };
 
+  // Every file is the supplier's: no template, of any kind, is handed out without one.
   const download = async (kind: Download) => {
+    if (!supplier) return;
     setTemplate({ pending: kind, error: null });
     try {
-      if (kind === "datos") await downloadBulkExport(supplier!.value);
-      else await downloadBulkTemplate(supplier?.value ?? null, { full: kind === "completa", groups: kind === "grupos" });
+      if (kind === "datos") await downloadBulkExport(supplier.value);
+      else await downloadBulkTemplate(supplier.value, { full: kind === "completa", groups: kind === "grupos" });
       setTemplate({ pending: null, error: null });
     } catch (failure) {
       setTemplate({ pending: null, error: errorMessage(failure) });
@@ -229,7 +231,7 @@ export default function BulkLoad({ area }: { area: string }) {
             />
             <p className="text-[13px] text-text-secondary" aria-live="polite">
               {!supplier
-                ? "Elígelo si el archivo no trae la columna Cod. Proveedor, como la plantilla corta. Si tiene perfil, el archivo se lee con él."
+                ? "Elígelo para descargar las plantillas, y si el archivo no trae la columna Cod. Proveedor. Si tiene perfil, el archivo se lee con él."
                 : profile.isFetching
                   ? "Buscando el perfil del proveedor."
                   : profile.data
@@ -238,39 +240,29 @@ export default function BulkLoad({ area }: { area: string }) {
             </p>
           </div>
           <div className="space-y-1.5">
-            <span className="block text-[13px] font-medium">Plantilla</span>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => download("corta")} disabled={template.pending !== null} className="max-sm:h-11">
+            <span id={`${id}-templates`} className="block text-[13px] font-medium">Plantilla</span>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${id}-templates`} aria-describedby={`${id}-templates-hint`}>
+              <Button variant="outline" onClick={() => download("corta")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 <DownloadIcon aria-hidden="true" />
                 {template.pending === "corta" ? "Descargando" : "Plantilla"}
               </Button>
-              <Button variant="outline" onClick={() => download("grupos")} disabled={template.pending !== null} className="max-sm:h-11">
+              <Button variant="outline" onClick={() => download("grupos")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "grupos" ? "Descargando" : "Plantilla por grupo"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => download("datos")}
-                disabled={template.pending !== null || !supplier}
-                title={supplier ? undefined : "Elige el proveedor primero"}
-                className="max-sm:h-11"
-              >
+              <Button variant="outline" onClick={() => download("datos")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "datos" ? "Descargando" : "Descargar con datos"}
               </Button>
-              <Button variant="ghost" onClick={() => download("completa")} disabled={template.pending !== null} className="max-sm:h-11">
+              <Button variant="ghost" onClick={() => download("completa")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "completa" ? "Descargando" : "Plantilla completa"}
               </Button>
             </div>
             {template.error ? (
               <p role="alert" className="text-[13px] text-danger">{template.error}</p>
             ) : (
-              <p className="text-[13px] text-text-secondary">
+              <p id={`${id}-templates-hint`} className="text-[13px] text-text-secondary">
                 {supplier
-                  ? "La plantilla sigue el perfil del proveedor. "
-                  : "La plantilla viene en el orden de BI, con listas para clase, tipo y unidad, y fechas dd/mm/aaaa. "}
-                Por grupo cambia el cliente por el grupo empresarial.{" "}
-                {supplier
-                  ? `Con datos trae los apoyos vigentes y programados de ${supplier.label} con las columnas Observaciones y Validación: marca Sí o No (el motivo de un No va en Observaciones) y vuelve a subir el archivo aquí.`
-                  : "Con datos necesita un proveedor elegido."}
+                  ? `La plantilla sigue el perfil del proveedor, con listas para clase, tipo y unidad, y fechas dd/mm/aaaa. Por grupo cambia el cliente por el grupo empresarial. Con datos trae los apoyos vigentes y programados de ${supplier.label} con las columnas Observaciones y Validación: marca Sí o No (el motivo de un No va en Observaciones) y vuelve a subir el archivo aquí.`
+                  : "Elige el proveedor para descargar cualquier plantilla."}
               </p>
             )}
           </div>
