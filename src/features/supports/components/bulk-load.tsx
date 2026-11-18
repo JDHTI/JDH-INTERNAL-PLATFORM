@@ -209,6 +209,13 @@ export default function BulkLoad({ area }: { area: string }) {
             lleva en su trazabilidad.
           </p>
         )}
+        {applied.costs_assigned !== undefined && (
+          <p className="mt-1">
+            {(applied.costs_missing ?? 0) > 0
+              ? `${count(applied.costs_assigned, "apoyo quedó", "apoyos quedaron")} con su costo del DWH; ${count(applied.costs_missing ?? 0, "no tiene", "no tienen")} costo en el DWH y ${(applied.costs_missing ?? 0) === 1 ? "queda" : "quedan"} sin cifras hasta que lo tenga.`
+              : `${count(applied.costs_assigned, "apoyo quedó", "apoyos quedaron")} con su costo del DWH.`}
+          </p>
+        )}
         <p className="mt-1">
           {applied.publish_not_before
             ? `Es una carga grande: se publicará en el DWH desde ${formatPublishFrom(applied.publish_not_before)}, fuera de las horas del ETL.`
