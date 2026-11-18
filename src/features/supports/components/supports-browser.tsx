@@ -629,7 +629,7 @@ export default function SupportsBrowser({
                       </td>
                     )}
                     {columns.map((column) => (
-                      <td key={column.key} className={cn(td, column.align === "right" && "text-right", column.tight && "px-1.5")}>
+                      <td key={column.key} className={cn(td, column.align === "right" && "text-right", column.tight && "px-1.5", column.middle && "align-middle")}>
                         {column.cell(support, { open: () => setOpenId(support.id), methodLabel, seesCost: !readOnly })}
                       </td>
                     ))}

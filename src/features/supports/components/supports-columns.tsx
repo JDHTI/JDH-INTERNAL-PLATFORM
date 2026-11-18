@@ -50,6 +50,8 @@ export interface Column {
   costOnly?: boolean;
   /** Less side padding, for a narrow column of figures that sits next to others like it. */
   tight?: boolean;
+  /** A one-line figure, centered on the row's height instead of at its top. */
+  middle?: boolean;
   cell: (support: SupplierSupport, context: CellContext) => React.ReactNode;
 }
 
@@ -201,7 +203,7 @@ export function priceSide(support: SupplierSupport): { side: keyof PerUnit; note
 }
 
 /**
- * One price of the row, right-aligned and never truncated; a dash when the API
+ * One price of the row, never truncated; a dash when the API
  * has none (the minimum only exists with a JDH margin). The list price carries
  * the unit when it is not the support's own.
  */
@@ -212,7 +214,7 @@ export function PriceValue({
 }: {
   support: SupplierSupport;
   field: PriceKey;
-  /** Left in the mobile stack, under its label. */
+  /** Left in the desktop table and in the mobile stack, under its label. */
   align?: "left" | "right";
 }) {
   const { side, noted } = priceSide(support);
@@ -295,40 +297,40 @@ export const COLUMNS: Column[] = [
     title: "Costo por unidad de inventario (solo BI)",
     group: PRICE_GROUP,
     costOnly: true,
-    align: "right",
     tight: true,
+    middle: true,
     width: "8.5%",
-    cell: (s) => <PriceValue support={s} field="cost" />,
+    cell: (s) => <PriceValue support={s} field="cost" align="left" />,
   },
   {
     key: "price-list",
     label: PRICE_LABELS.list.short,
     title: PRICE_LABELS.list.full,
     group: PRICE_GROUP,
-    align: "right",
     tight: true,
+    middle: true,
     width: "9%",
-    cell: (s) => <PriceValue support={s} field="list_price" />,
+    cell: (s) => <PriceValue support={s} field="list_price" align="left" />,
   },
   {
     key: "price-suggested",
     label: PRICE_LABELS.suggested.short,
     title: `${PRICE_LABELS.suggested.full}: precio de lista − $ Apoyo`,
     group: PRICE_GROUP,
-    align: "right",
     tight: true,
+    middle: true,
     width: "9%",
-    cell: (s) => <PriceValue support={s} field="suggested_price_per" />,
+    cell: (s) => <PriceValue support={s} field="suggested_price_per" align="left" />,
   },
   {
     key: "price-minimum",
     label: PRICE_LABELS.minimum.short,
     title: `${PRICE_LABELS.minimum.full}: (costo − apoyo) / (1 − margen mínimo autorizado JDH)`,
     group: PRICE_GROUP,
-    align: "right",
     tight: true,
+    middle: true,
     width: "9%",
-    cell: (s) => <PriceValue support={s} field="supported_price_per" />,
+    cell: (s) => <PriceValue support={s} field="supported_price_per" align="left" />,
   },
   {
     key: "validity",

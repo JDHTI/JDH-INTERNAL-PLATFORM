@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, CircleCheck, CircleX, Download as DownloadIcon, TriangleAlert, Upload } from "lucide-react";
+import { CircleCheck, CircleX, Download as DownloadIcon, TriangleAlert, Upload } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
@@ -23,10 +23,8 @@ import {
   useFormSchema,
   useKindLabel,
   useProfile,
-  useSupportCatalogs,
 } from "../hooks/use-supports";
 import { formatDay, formatPublishFrom, formatSupplierValue } from "../lib/format";
-import { PROFILE_DEFAULT_FIELDS, readDraft, withoutKey, type Draft } from "../lib/form-values";
 import { downloadBulkExport, downloadBulkTemplate } from "../services/supports.service";
 
 /** The files offered: the template, by group, every field, or the supplier's supports to validate. */
@@ -34,7 +32,6 @@ type Download = "corta" | "grupos" | "completa" | "datos";
 import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import PromoCheck from "./promo-check";
-import SchemaFields from "./schema-fields";
 
 const NOT_USED = "";
 /** No `on_overlap`: a row that crosses a stored support is an error. */
@@ -68,7 +65,6 @@ export default function BulkLoad({ area }: { area: string }) {
   const id = useId();
   useBreadcrumbLabel(`/${area}/apoyos/carga`, "Carga masiva");
   const schema = useFormSchema().data;
-  const catalogs = useSupportCatalogs().data;
   const bulk = useBulkLoad();
   const keepMapping = useAddColumnsToProfile();
 
@@ -78,11 +74,8 @@ export default function BulkLoad({ area }: { area: string }) {
   const [fileInputKey, setFileInputKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [sheet, setSheet] = useState("");
-  const [showDefaults, setShowDefaults] = useState(false);
-  const [defaults, setDefaults] = useState<Draft>({});
   // null follows the supplier's profile.
   const [promo, setPromo] = useState<boolean | null>(null);
-  const [defaultErrors, setDefaultErrors] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [report, setReport] = useState<BulkReport | null>(null);
   const [reportKey, setReportKey] = useState<string | null>(null);
@@ -97,27 +90,22 @@ export default function BulkLoad({ area }: { area: string }) {
   const [onOverlap, setOnOverlap] = useState<OnOverlap | typeof CROSSING_ERROR>(CROSSING_ERROR);
   const [groups, setGroups] = useState(false);
 
-  const defaultSpecs = useMemo(
-    () => (schema?.fields ?? []).filter((spec) => PROFILE_DEFAULT_FIELDS.includes(spec.name)),
-    [schema]
-  );
-  const defaultRule = schema?.methods[typeof defaults.calc_method === "string" ? defaults.calc_method : ""];
   const labelOf = (field: string | null) =>
     field ? (schema?.fields.find((spec) => spec.name === field)?.label ?? field) : "Fila completa";
 
-  // What a request would send right now; the report is only valid for this exact input.
-  const read = readDraft(defaultSpecs, defaults, defaultRule, { fractionsAsText: true });
-  // Promotional warehouses (group 23): the profile's choice until the person ticks or unticks it.
-  // Sent only when it says something the API would not assume (its default is «no»).
+  // Class, type, value, scope and dates come in each row of the template (or from the
+  // supplier's profile); the only value asked for the whole load is the promotional warehouses
+  // (group 23): the profile's choice until the person ticks or unticks it. Sent only when it says
+  // something the API would not assume (its default is «no»).
   const profilePromo = profile.data?.defaults?.promo_warehouses === "true";
   const promoValue = promo ?? profilePromo;
-  if (promoValue || profilePromo) read.values.promo_warehouses = String(promoValue);
+  const loadDefaults: Record<string, string> = promoValue || profilePromo ? { promo_warehouses: String(promoValue) } : {};
   const columnMap = invert(extra);
   // The group upload has no "close the missing ones": its rows fan out to customers.
   const closeMissing = expireMissing && !groups;
   const overlapChoice = onOverlap === CROSSING_ERROR ? null : onOverlap;
   const inputKey = file
-    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, sheet.trim(), read.values, columnMap, closeMissing, overlapChoice, groups])
+    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, sheet.trim(), loadDefaults, columnMap, closeMissing, overlapChoice, groups])
     : null;
   const fresh = report !== null && inputKey === reportKey;
   const changes = report ? changesOf(report) : 0;
@@ -128,7 +116,7 @@ export default function BulkLoad({ area }: { area: string }) {
     apply,
     supplierCode: supplier?.value ?? null,
     sheet: sheet.trim() || null,
-    defaults: read.values as Record<string, string | string[]>,
+    defaults: loadDefaults,
     columnMap,
     expireMissing: closeMissing,
     onOverlap: overlapChoice,
@@ -138,12 +126,6 @@ export default function BulkLoad({ area }: { area: string }) {
   const run = (apply: boolean) => {
     if (!file) return;
     setRequestError(null);
-    setDefaultErrors(read.errors);
-    if (Object.keys(read.errors).length > 0) {
-      setShowDefaults(true);
-      setRequestError("Revisa los valores para esta carga: hay números que no se pueden leer.");
-      return;
-    }
     const key = inputKey;
     bulk.mutate(input(apply), {
       onSuccess: (result) => {
@@ -310,51 +292,12 @@ export default function BulkLoad({ area }: { area: string }) {
           </Field>
         </div>
 
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowDefaults((value) => !value)}
-            aria-expanded={showDefaults}
-            aria-controls={`${id}-defaults`}
-            className="flex min-h-9 items-center gap-1.5 rounded-sm text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-sm:min-h-11"
-          >
-            <ChevronDown className={cn("size-4 transition-transform", showDefaults && "rotate-180")} aria-hidden="true" />
-            Valores para esta carga
-            {Object.keys(read.values).length > 0 && (
-              <span className="font-normal text-text-secondary">({Object.keys(read.values).length})</span>
-            )}
-          </button>
-          <div id={`${id}-defaults`} hidden={!showDefaults} className="space-y-4">
-            <p className="text-[13px] text-text-secondary">
-              Se aplican a las filas que no traen esa columna y prevalecen sobre el perfil solo en esta carga.
-              Para dejarlos fijos, guárdalos en el perfil del proveedor.
-            </p>
-            {schema && (
-              <SchemaFields
-                specs={defaultSpecs}
-                draft={defaults}
-                onChange={(name, value) => {
-                  setDefaults((current) => ({ ...current, [name]: value }));
-                  setDefaultErrors((current) => withoutKey(current, name));
-                }}
-                errors={defaultErrors}
-                rule={defaultRule}
-                required={new Set()}
-                catalogs={catalogs}
-                after={{
-                  warehouse: (
-                    <PromoCheck
-                      checked={promoValue}
-                      onChange={setPromo}
-                      label="Incluir bodegas promocionales (grupo 23)"
-                      hint="Marcado, los apoyos del archivo también aplican en pedidos desde las bodegas promocionales. Sin marcar, esos pedidos van al costo de la bodega, sin el apoyo: para clientes o proveedores que no admiten doble apoyo (promoción y apoyo a la vez)."
-                    />
-                  ),
-                }}
-              />
-            )}
-          </div>
-        </div>
+        <PromoCheck
+          checked={promoValue}
+          onChange={setPromo}
+          label="Incluir bodegas promocionales (grupo 23)"
+          hint="Marcado, los apoyos del archivo también aplican en pedidos desde las bodegas promocionales. Sin marcar, esos pedidos van al costo de la bodega, sin el apoyo: para clientes o proveedores que no admiten doble apoyo (promoción y apoyo a la vez)."
+        />
 
         <div className="space-y-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">Cómo actualiza el maestro</h3>
