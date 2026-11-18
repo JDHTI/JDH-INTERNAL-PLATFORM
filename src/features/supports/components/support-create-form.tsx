@@ -33,6 +33,7 @@ import type {
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import DiscardDialog from "./discard-dialog";
 import OverlapDialog from "./overlap-dialog";
+import PromoCheck from "./promo-check";
 import SchemaFields from "./schema-fields";
 import SupportPreview from "./support-preview";
 
@@ -239,8 +240,11 @@ function CreateForm({
     required.delete("min_margin_pct");
     required.add("supported_margin_pct");
   }
+  // Promotional warehouses (group 23): off unless ticked here or in the supplier's profile.
+  const promo = form.draft.promo_warehouses === "true";
   const toBody = (values: Record<string, string | number | string[]>, supplierCode: string): SupportCreateBody => {
     const body: SupportCreateBody = { ...(values as SupportCreateBody), supplier_code: supplierCode };
+    if (promo) body.promo_warehouses = true;
     if (isException && body.supported_margin_pct !== undefined) {
       body.min_margin_pct = body.supported_margin_pct;
       delete body.supported_margin_pct;
@@ -381,6 +385,11 @@ function CreateForm({
             rule={rule}
             required={required}
             catalogs={catalogs}
+            after={{
+              warehouse: (
+                <PromoCheck checked={promo} onChange={(checked) => setValue("promo_warehouses", String(checked))} />
+              ),
+            }}
           />
           <SupportPreview body={previewBody} missing={missingText} />
         </>
