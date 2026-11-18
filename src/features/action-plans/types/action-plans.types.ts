@@ -70,11 +70,19 @@ export interface PlanSummary {
   overdue: number;
 }
 
+/** A responsible with their name; `display_name` is null when the user no longer exists. */
+export interface ResponsibleUser {
+  id: string;
+  display_name: string | null;
+}
+
 export interface Correction {
   id: string;
   description: string;
   responsible_text: string | null;
   responsible_user_ids: string[];
+  /** The same people as `responsible_user_ids`, named. Absent on an API that does not send it (before API #88). */
+  responsible_users?: ResponsibleUser[];
   due_on: string | null;
   evidence_note: string | null;
   done: boolean;
@@ -92,6 +100,7 @@ export interface Activity {
   description: string;
   responsible_text: string | null;
   responsible_user_ids: string[];
+  responsible_users?: ResponsibleUser[];
   due_on: string | null;
   evidence_note: string | null;
   follow_up_text: string | null;
