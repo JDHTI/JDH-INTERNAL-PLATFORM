@@ -1,6 +1,8 @@
 import { apiFetch } from "@/shared/lib/api-client";
 
 import type {
+  DirectRequestInput,
+  TargetMargins,
   InternalApproval,
   InternalRequestInput,
   InternalRequestPage,
@@ -22,7 +24,15 @@ export const createInternalRequest = (quotationId: string, body: InternalRequest
     body,
   });
 
-export const approveInternalRequest = (id: string, body: InternalApproval) =>
+/** No quotation: one customer and SKUs of one supplier, each under its current margin. */
+export const createDirectRequest = (body: DirectRequestInput) =>
+  apiFetch<InternalSupportRequest>("/internal-support-requests", { method: "POST", body });
+
+/** 422 for an unknown customer (the NIT may carry its check digit); unknown SKUs are left out. */
+export const getTargetMargins = (customerNit: string, skus: string[]) =>
+  apiFetch<TargetMargins>("/internal-support-requests/target-margins", { query: { customer_nit: customerNit, sku: skus } });
+
+export const approveInternalRequest =(id: string, body: InternalApproval) =>
   apiFetch<InternalSupportRequest>(`${path(id)}/approve`, { method: "POST", body });
 
 export const rejectInternalRequest = (id: string, body: { version: number; reason: string }) =>

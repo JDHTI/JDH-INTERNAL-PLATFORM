@@ -14,7 +14,11 @@ export type DecimalText = string;
  * it is loaded. Any edit goes back to borrador. `list_action` says whether the
  * customer's list is written over or a new one created.
  */
-export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+/**
+ * `enviada`: the offer went to the customer with no validation; it stays editable and an
+ * edit takes it back to `borrador`. Only asking for a price list goes to BI's validation.
+ */
+export type QuotationStatus = "borrador" | "enviada" | "pendiente_validacion" | "pendiente_carga" | "cargada";
 
 /**
  * `cotizacion`: a customer quotation (module `cotizador`). `lista`: the update of
@@ -330,6 +334,9 @@ export interface QuotationSummary {
   created_at: string;
   updated_at: string;
   confirmed_at: string | null;
+  /** The last time the offer went to the customer, kept as history after an edit. Missing on older API builds. */
+  sent_at?: string | null;
+  sent_by?: string | null;
   validated_at: string | null;
   version: number;
   /** How many days the prices hold for the customer, counted from `valid_from`. */

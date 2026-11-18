@@ -4,12 +4,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import {
   approveInternalRequest,
+  createDirectRequest,
   createInternalRequest,
   getInternalRequest,
+  getTargetMargins,
   listInternalRequests,
   rejectInternalRequest,
 } from "../services/internal-requests.service";
-import type { InternalApproval, InternalRequestInput, InternalRequestParams } from "../types/internal-request.types";
+import type {
+  DirectRequestInput,
+  InternalApproval,
+  InternalRequestInput,
+  InternalRequestParams,
+} from "../types/internal-request.types";
 import { supportKeys } from "./use-supports";
 
 export const internalRequestKeys = {
@@ -47,7 +54,30 @@ export function useCreateInternalRequest(quotationId: string) {
   });
 }
 
-type Decision = { kind: "approve"; id: string; body: InternalApproval } | { kind: "reject"; id: string; body: { version: number; reason: string } };
+/** Asked from the requests panel, with no quotation behind it. */
+export function useCreateDirectRequest() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DirectRequestInput) => createDirectRequest(input),
+    retry: false,
+    onSettled: () => client.invalidateQueries({ queryKey: internalRequestKeys.all }),
+  });
+}
+
+/** The current margin of each SKU for the customer; waits for a NIT and at least one SKU. */
+export function useTargetMargins(customerNit: string | null, skus: string[]) {
+  const sorted = [...new Set(skus)].sort();
+  return useQuery({
+    queryKey: [...internalRequestKeys.all, "target-margins", customerNit, sorted],
+    queryFn: () => getTargetMargins(customerNit!, sorted),
+    enabled: Boolean(customerNit) && sorted.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+type Decision ={ kind: "approve"; id: string; body: InternalApproval } | { kind: "reject"; id: string; body: { version: number; reason: string } };
 
 /** An approval writes supports to the master, so the master's queries refresh too. */
 export function useDecideInternalRequest() {

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { useCreateInternalRequest } from "@/features/supports/hooks/use-internal-requests";
+import { useCreateInternalRequest, useTargetMargins } from "@/features/supports/hooks/use-internal-requests";
 import { marginPointsText, todayInBogota } from "@/features/supports/lib/internal-requests";
 import { Alert } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
@@ -24,15 +24,18 @@ const td = "px-3 py-2.5 align-top";
 export const quotedMargin = (line: QuotationLine) => line.new_margin_with_support_pct ?? line.current_margin_with_support_pct;
 
 /**
- * A reference that can ask for an internal support: from SIESA, with a supplier,
- * quoted under its minimum, and without a request still pending or approved.
+ * A reference that can ask for an authorized margin: any line from SIESA with a supplier
+ * (not only one under its minimum), without a request still pending or approved.
  */
 export function canAskSupport(line: QuotationLine): boolean {
   if (line.origin === "local" || !line.is_active || !line.supplier_code) return false;
   const asked = line.support_request;
   // Pending, or approved for this reference; one BI left out of an approved request can be asked again.
-  if (asked && (asked.status === "pendiente" || (asked.status === "aprobada" && asked.approved_margin_pct !== null))) return false;
-  // With a new price, the rule's verdict on it; without one, whether the last price stays under the minimum.
+  return !(asked && (asked.status === "pendiente" || (asked.status === "aprobada" && asked.approved_margin_pct !== null)));
+}
+
+/** Quoted under its own minimum: its quoted margin is the natural start of the request. */
+function belowMinimum(line: QuotationLine): boolean {
   if (line.new_price !== null) return line.compliance === "bajo_minimo";
   const margin = quotedMargin(line);
   return line.below_target || (margin !== null && line.min_margin_pct !== null && Number(margin) < Number(line.min_margin_pct));
@@ -60,8 +63,8 @@ export default function SupportRequestDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Solicitar apoyo interno"
-      description={`Para ${quotation.customer_name}. BI decide si lo registra como apoyo o si vale solo para este pedido.`}
+      title="Solicitar margen autorizado"
+      description={`Para ${quotation.customer_name}: un margen menor que el actual de cada referencia. BI decide si lo registra como apoyo o si vale solo para este pedido.`}
       wide
       isForm
     >
@@ -69,7 +72,7 @@ export default function SupportRequestDialog({
         (candidates.length === 0 ? (
           <div className="space-y-4">
             <p className="text-sm">
-              Ninguna referencia queda bajo su margen mínimo, o todas ya tienen una solicitud pendiente o aprobada.
+              Ninguna referencia de SIESA con proveedor queda para pedir: todas tienen una solicitud pendiente o aprobada.
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
@@ -108,9 +111,13 @@ function RequestForm({
     const picked = candidates.filter((line) => preselected.has(line.sku) && line.supplier_code === supplier).map((line) => line.sku);
     return new Set(picked.length > 0 ? picked : lines.length === 1 ? [lines[0].sku] : []);
   });
+  // A line quoted under its minimum starts at its quoted margin; the rest start empty.
   const [margins, setMargins] = useState<Record<string, string>>(() =>
-    Object.fromEntries(candidates.map((line) => [line.sku, marginPointsText(quotedMargin(line))]))
+    Object.fromEntries(candidates.map((line) => [line.sku, belowMinimum(line) ? marginPointsText(quotedMargin(line)) : ""]))
   );
+  // The current margin of each reference (the product's on the customer's list): the request must ask less.
+  const targets = useTargetMargins(quotation.customer_nit, lines.map((line) => line.sku));
+  const targetOf = (sku: string) => targets.data?.items.find((item) => item.sku === sku);
   const [requestedFor, setRequestedFor] = useState(todayInBogota());
   const [agreedWith, setAgreedWith] = useState("");
   const [reason, setReason] = useState("");
@@ -118,12 +125,18 @@ function RequestForm({
   const chosen = lines.filter((line) => ticked.has(line.sku));
   const parsed = chosen.map((line) => ({ sku: line.sku, result: parseMarginInput(margins[line.sku] ?? "") }));
   const badMargin = parsed.find((item) => "error" in item.result);
+  const notLower = parsed.find((item) => {
+    const current = targetOf(item.sku)?.margin_pct;
+    return "value" in item.result && current != null && Number(item.result.value) >= Number(current);
+  });
   const problem =
     chosen.length === 0
       ? "Marca al menos una referencia."
       : badMargin && "error" in badMargin.result
         ? `${badMargin.sku}: ${badMargin.result.error}`
-        : !requestedFor
+        : notLower
+          ? `${notLower.sku}: el margen pedido debe ser menor que su margen actual (${formatMargin(targetOf(notLower.sku)?.margin_pct)}).`
+          : !requestedFor
           ? "Elige la fecha del pedido."
           : agreedWith.trim().length < 3
             ? "Escribe con quién se acordó."
@@ -170,11 +183,13 @@ function RequestForm({
 
       <fieldset className="space-y-2" disabled={mutation.isPending}>
         <legend className="text-sm font-medium">
-          Referencias bajo el mínimo{suppliers.length === 1 ? ` de ${suppliers[0].label}` : ""}
+          Referencias{suppliers.length === 1 ? ` de ${suppliers[0].label}` : ""}
         </legend>
         <p className="text-[13px] text-text-secondary">
-          El margen pedido arranca en el margen cotizado. Cámbialo si se acordó otro.
+          Pide un margen menor que el actual, el del producto en la lista del cliente. Las que se cotizan bajo su mínimo arrancan en
+          el margen cotizado.
         </p>
+        {targets.isError && <Alert severity="warning">No se pudo leer el margen actual: {errorMessage(targets.error)}</Alert>}
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full min-w-[680px] text-sm">
             <caption className="sr-only">Referencias para la solicitud</caption>
@@ -184,7 +199,7 @@ function RequestForm({
                 <th scope="col" className={th}>Referencia</th>
                 <th scope="col" className={`${th} text-right`}>Precio</th>
                 <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
-                <th scope="col" className={`${th} text-right`}>Mínimo</th>
+                <th scope="col" className={`${th} text-right`}>Margen actual</th>
                 <th scope="col" className={`${th} w-32`}>Margen pedido (%)</th>
               </tr>
             </thead>
@@ -213,7 +228,10 @@ function RequestForm({
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatMoney(line.offer_price)}</td>
                     <td className={`${td} text-right tabular-nums`}>{formatMargin(quotedMargin(line))}</td>
-                    <td className={`${td} text-right tabular-nums`}>{formatMargin(line.min_margin_pct)}</td>
+                    <td className={`${td} text-right tabular-nums`} title={targetOf(line.sku)?.margin_label}>
+                      {targets.isPending ? "…" : formatMargin(targetOf(line.sku)?.margin_pct)}
+                      {targetOf(line.sku) && <span className="block text-xs text-text-secondary">{targetOf(line.sku)?.margin_label}</span>}
+                    </td>
                     <td className={td}>
                       <Input
                         inputMode="decimal"

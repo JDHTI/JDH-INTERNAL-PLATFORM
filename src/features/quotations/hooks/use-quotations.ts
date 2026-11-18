@@ -11,6 +11,7 @@ import {
   addLocalLine,
   compareCostCenters,
   confirmQuotation,
+  sendQuotation,
   createListUpdate,
   createQuotation,
   createTemporaryQuotation,
@@ -248,6 +249,14 @@ export function useConfirmQuotation(id: string) {
   const store = useStoreQuotation();
   return useMutation({
     mutationFn: ({ version, options }: { version: number; options: ConfirmOptions }) => confirmQuotation(id, version, options),
+    onSuccess: store,
+  });
+}
+
+export function useSendQuotation(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: (version: number) => sendQuotation(id, version),
     onSuccess: store,
   });
 }
