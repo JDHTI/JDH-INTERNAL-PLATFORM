@@ -420,6 +420,8 @@ export interface LineSupport {
   authorized_margin_pct?: DecimalText | null;
   /** «% Margen Garantizado»: the margin the supplier guarantees at any price; `amount` is then at the line's price. */
   guaranteed_margin_pct?: DecimalText | null;
+  /** The support at the list price; `amount` is at the line's price. Equal except with a guaranteed margin. */
+  list_amount?: DecimalText | null;
 }
 
 /** A support that would cover the line and was not applied, with the reason. */
