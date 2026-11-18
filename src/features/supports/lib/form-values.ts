@@ -93,7 +93,10 @@ export function isEmptyValue(value: string | string[] | undefined): boolean {
   return value === undefined || (Array.isArray(value) ? value.length === 0 : value.trim() === "");
 }
 
-/** A 422 names its fields as ["body", "<field>", ...]; those land beside the field. */
+/**
+ * A 422 names its fields as ["body", "<field>", ...]; those land beside the field. A rule the
+ * API checks itself (not the request's shape) answers `{field, detail}`: that one too.
+ */
 export function fieldErrorsFrom(error: unknown): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!(error instanceof ApiError)) return errors;
@@ -101,6 +104,8 @@ export function fieldErrorsFrom(error: unknown): Record<string, string> {
     const [where, field] = issue.loc ?? [];
     if (where === "body" && typeof field === "string" && issue.msg && !errors[field]) errors[field] = issue.msg;
   }
+  const named = (error.body as { field?: unknown } | null)?.field;
+  if (typeof named === "string" && named && !errors[named]) errors[named] = error.detail;
   return errors;
 }
 
