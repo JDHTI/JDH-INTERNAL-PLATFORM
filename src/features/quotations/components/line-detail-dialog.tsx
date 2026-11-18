@@ -432,7 +432,11 @@ function Detail({
             <Row label="Tipo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
             <Row label="Programa">{support.program ?? "—"}</Row>
             <Row label="Cálculo">{calcMethodLabel(support.calc_method)}</Row>
-            <Row label="Por unidad">{formatMoney(support.amount)}</Row>
+            <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>{formatMoney(support.amount)}</Row>
+            {/* With a guaranteed margin the support depends on the price: say what it is at the list price too. */}
+            {support.list_amount != null && support.list_amount !== support.amount && (
+              <Row label="Al precio de lista">{formatMoney(support.list_amount)}</Row>
+            )}
             <Row label="Sobre el costo">{formatMargin(support.share_of_cost)}</Row>
             {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
             {support.guaranteed_margin_pct != null && (
