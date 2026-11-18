@@ -6,7 +6,17 @@ import { useId } from "react";
  * «Aplica en bodegas promocionales (grupo 23)». Off by default: an order from
  * one of those warehouses then goes at that warehouse's cost, without the support.
  */
-export default function PromoCheck({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+export default function PromoCheck({
+  checked,
+  onChange,
+  label = "Aplica en bodegas promocionales (grupo 23)",
+  hint = "Sin marcar, un pedido desde una bodega promocional va al costo de esa bodega, sin este apoyo.",
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label?: string;
+  hint?: string;
+}) {
   const id = useId();
   return (
     <div className="flex items-start gap-3">
@@ -20,10 +30,10 @@ export default function PromoCheck({ checked, onChange }: { checked: boolean; on
       />
       <div className="space-y-0.5">
         <label htmlFor={id} className="block cursor-pointer text-sm font-medium">
-          Aplica en bodegas promocionales (grupo 23)
+          {label}
         </label>
         <p id={`${id}-hint`} className="text-[13px] text-text-secondary">
-          Sin marcar, un pedido desde una bodega promocional va al costo de esa bodega, sin este apoyo.
+          {hint}
         </p>
       </div>
     </div>

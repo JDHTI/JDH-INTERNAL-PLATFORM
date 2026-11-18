@@ -33,6 +33,7 @@ import { downloadBulkExport, downloadBulkTemplate } from "../services/supports.s
 type Download = "corta" | "grupos" | "completa" | "datos";
 import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
+import PromoCheck from "./promo-check";
 import SchemaFields from "./schema-fields";
 
 const NOT_USED = "";
@@ -79,6 +80,8 @@ export default function BulkLoad({ area }: { area: string }) {
   const [sheet, setSheet] = useState("");
   const [showDefaults, setShowDefaults] = useState(false);
   const [defaults, setDefaults] = useState<Draft>({});
+  // null follows the supplier's profile.
+  const [promo, setPromo] = useState<boolean | null>(null);
   const [defaultErrors, setDefaultErrors] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [report, setReport] = useState<BulkReport | null>(null);
@@ -104,6 +107,11 @@ export default function BulkLoad({ area }: { area: string }) {
 
   // What a request would send right now; the report is only valid for this exact input.
   const read = readDraft(defaultSpecs, defaults, defaultRule, { fractionsAsText: true });
+  // Promotional warehouses (group 23): the profile's choice until the person ticks or unticks it.
+  // Sent only when it says something the API would not assume (its default is «no»).
+  const profilePromo = profile.data?.defaults?.promo_warehouses === "true";
+  const promoValue = promo ?? profilePromo;
+  if (promoValue || profilePromo) read.values.promo_warehouses = String(promoValue);
   const columnMap = invert(extra);
   // The group upload has no "close the missing ones": its rows fan out to customers.
   const closeMissing = expireMissing && !groups;
@@ -326,6 +334,16 @@ export default function BulkLoad({ area }: { area: string }) {
                 rule={defaultRule}
                 required={new Set()}
                 catalogs={catalogs}
+                after={{
+                  warehouse: (
+                    <PromoCheck
+                      checked={promoValue}
+                      onChange={setPromo}
+                      label="Incluir bodegas promocionales (grupo 23)"
+                      hint="Marcado, los apoyos del archivo también aplican en pedidos desde las bodegas promocionales. Sin marcar, esos pedidos van al costo de la bodega, sin el apoyo: para clientes o proveedores que no admiten doble apoyo (promoción y apoyo a la vez)."
+                    />
+                  ),
+                }}
               />
             )}
           </div>
