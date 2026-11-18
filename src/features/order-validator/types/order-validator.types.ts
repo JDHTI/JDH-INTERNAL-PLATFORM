@@ -95,6 +95,8 @@ export interface SupportCheck {
   detail: string | null;
   effective_margin_pct: Decimal | null;
   required_margin_pct: Decimal | null;
+  /** The support brings $0 here (supported cost above the cost, or a guarantee the line already meets): never the reason a line is released. */
+  no_effect?: boolean;
 }
 
 export type ReleaseBasis = "lineas" | "manual" | "margen" | "tolerancia";

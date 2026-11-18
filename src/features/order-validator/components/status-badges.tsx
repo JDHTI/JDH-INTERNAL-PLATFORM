@@ -5,7 +5,7 @@ import { toNumber, type Decimal } from "@/shared/lib/format";
 import { formatCop } from "@/features/supports/lib/format";
 
 import { OUTCOME_LABELS, RULE_EFFECT_LABELS, formatPointsGap } from "../lib/format";
-import type { AlertCode, CheckOutcome, OrderAlert, RuleEffect, ValidationStatus } from "../types/order-validator.types";
+import type { AlertCode, CheckOutcome, OrderAlert, RuleEffect, SupportCheck, ValidationStatus } from "../types/order-validator.types";
 
 const STATUS_TONE: Record<ValidationStatus, BadgeTone> = {
   listo_para_liberar: "success",
@@ -198,4 +198,16 @@ const OUTCOME_TONE: Record<CheckOutcome, BadgeTone> = {
 
 export function OutcomeBadge({ outcome }: { outcome: CheckOutcome }) {
   return <Badge tone={OUTCOME_TONE[outcome] ?? "neutral"}>{OUTCOME_LABELS[outcome] ?? outcome}</Badge>;
+}
+
+const NO_EFFECT_HELP = "El apoyo aporta $0 en esta línea: no es lo que la libera ni la retiene.";
+
+/** A support evaluated that brings no money here; the line stands on its own margin. */
+export function NoEffectBadge({ check }: { check: SupportCheck }) {
+  if (!check.no_effect) return null;
+  return (
+    <Badge tone="neutral" title={NO_EFFECT_HELP}>
+      <Ban aria-hidden="true" /> Sin efecto<span className="sr-only">: {NO_EFFECT_HELP}</span>
+    </Badge>
+  );
 }

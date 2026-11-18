@@ -11,7 +11,7 @@ import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@
 
 import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
 import type { OrderLine, SupportCheck } from "../types/order-validator.types";
-import { LineAlertBadges, LiquorTaxBadge, OutcomeBadge, StatusBadge } from "./status-badges";
+import { LineAlertBadges, LiquorTaxBadge, NoEffectBadge, OutcomeBadge, StatusBadge } from "./status-badges";
 
 /**
  * The lines of one order, each with its decision. A line is a block rather
@@ -157,6 +157,7 @@ function CheckRow({ check, onOpenSupport }: { check: SupportCheck; onOpenSupport
       <div className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={check.outcome} />
         {check.needs_review && <Badge tone="warning">Por revisar</Badge>}
+        <NoEffectBadge check={check} />
         <span className="font-medium">{check.program ?? humanize(check.kind)}</span>
         <span className="text-text-secondary">{calcMethodLabel(check.calc_method)}</span>
         <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onOpenSupport(check.support_id)}>

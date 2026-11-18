@@ -12,7 +12,7 @@ import {
   formatCop,
   formatDay,
   formatPct,
-  formatSupplierValue,
+  supportValueText,
   marginListLabel,
   PERCENT_METHODS,
   PRICE_LABELS,
@@ -130,7 +130,8 @@ const chip = "max-w-full truncate rounded-sm border border-border px-1.5 text-xs
 
 /** Type of support with its value, and the class under it. */
 function SupportCell({ support, methodLabel }: { support: SupplierSupport; methodLabel: CellContext["methodLabel"] }) {
-  const value = toNumber(support.supplier_value) === null ? null : formatSupplierValue(support.calc_method, support.supplier_value);
+  const text = supportValueText(support);
+  const value = text === "—" ? null : text;
   // The unit only reads a value in pesos; on a percentage it says nothing.
   const inPesos = !PERCENT_METHODS.includes(support.calc_method ?? "");
   const meta = [support.kind ? choiceLabel("kind", support.kind) : null, inPesos && support.value_unit ? `por ${support.value_unit}` : null]

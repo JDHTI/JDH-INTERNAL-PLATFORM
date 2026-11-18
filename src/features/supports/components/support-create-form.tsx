@@ -11,7 +11,7 @@ import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCreateSupport, useFormSchema, useKindLabel, useProfile, useSupportCatalogs } from "../hooks/use-supports";
-import { formatSupplierValue } from "../lib/format";
+import { supportValueText } from "../lib/format";
 import {
   draftFromDefaults,
   fieldErrorsFrom,
@@ -499,7 +499,7 @@ function Created({
     >
       <p>
         {support.supplier_name ?? supplierName} · {kindLabel(support.kind)} ·{" "}
-        {formatSupplierValue(support.calc_method, support.supplier_value)}
+        {supportValueText(support)}
       </p>
       {many && (
         <p className="mt-1">

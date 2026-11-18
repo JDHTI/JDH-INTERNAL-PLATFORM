@@ -418,6 +418,8 @@ export interface LineSupport {
   valid_to: string | null;
   /** JDH's authorized minimum margin (rules v2): when set, the line's minimum price uses it. Fraction. */
   authorized_margin_pct?: DecimalText | null;
+  /** «% Margen Garantizado»: the margin the supplier guarantees at any price; `amount` is then at the line's price. */
+  guaranteed_margin_pct?: DecimalText | null;
 }
 
 /** A support that would cover the line and was not applied, with the reason. */

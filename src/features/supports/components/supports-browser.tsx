@@ -28,7 +28,7 @@ import {
 } from "../hooks/use-supports";
 import { requestEligible, requestSelectionError, sameRequestScope } from "../lib/request-selection";
 import BatchRequestDialog from "./batch-request-dialog";
-import { formatSupplierValue, PRICE_LABELS, STATE_LABELS, toOptions } from "../lib/format";
+import { PRICE_LABELS, STATE_LABELS, supportValueText, toOptions } from "../lib/format";
 import type {
   FilterCondition,
   RetireResult,
@@ -541,7 +541,7 @@ export default function SupportsBrowser({
                       <span className="block truncate text-xs text-text-secondary">{subject(support)}</span>
                     </span>
                     <span className="shrink-0 text-sm font-medium tabular-nums">
-                      {formatSupplierValue(support.calc_method, support.supplier_value)}
+                      {supportValueText(support)}
                     </span>
                   </span>
                   {/* The three prices, full label above each value: the phone has no room for them side by side in a line. */}

@@ -230,6 +230,21 @@ export function formatSupplierValue(
   }
 }
 
+/**
+ * A support's value as people read it. «% Margen Garantizado» has no supplier
+ * value: the supplier guarantees a margin at any selling price, so that margin is its value.
+ */
+export function supportValueText(support: {
+  calc_method: string | null;
+  supplier_value: Decimal | null;
+  target_margin_pct: Decimal | null;
+}): string {
+  if (support.calc_method === "precio_neto") {
+    return toNumber(support.target_margin_pct) === null ? "—" : `${formatPct(support.target_margin_pct)} garantizado`;
+  }
+  return formatSupplierValue(support.calc_method, support.supplier_value);
+}
+
 function entryValue(entry: VocabularyEntry): string {
   return typeof entry === "string" ? entry : (entry.value ?? entry.code ?? entry.name ?? "");
 }

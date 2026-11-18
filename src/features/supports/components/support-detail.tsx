@@ -16,6 +16,7 @@ import {
   formatNumber,
   formatPct,
   formatSupplierValue,
+  supportValueText,
   formatWhen,
   humanize,
   marginListLabel,
@@ -133,9 +134,9 @@ function Body({
         <Row label="Financia">{support.funding ? choiceLabel("funding", support.funding) : "—"}</Row>
         <Row label="Programa">{support.program ?? "—"}</Row>
         <Row label="Referencia externa" mono>{support.external_ref ?? "—"}</Row>
-        <Row label="Valor del proveedor" tabular>
-          {formatSupplierValue(support.calc_method, support.supplier_value)}
-          {support.value_unit ? ` (${support.value_unit})` : ""}
+        <Row label={support.calc_method === "precio_neto" ? "Margen garantizado" : "Valor del proveedor"} tabular>
+          {supportValueText(support)}
+          {support.value_unit && support.calc_method !== "precio_neto" ? ` (${support.value_unit})` : ""}
         </Row>
         <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(authorizedMargin(support))}</Row>
         {/* Kept as history: since rules v2 they no longer move the figures. */}
