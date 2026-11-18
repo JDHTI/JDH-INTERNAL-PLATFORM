@@ -11,7 +11,7 @@ import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@
 
 import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
 import type { OrderLine } from "../types/order-validator.types";
-import { LineAlertBadges, LiquorTaxBadge, OutcomeBadge } from "./status-badges";
+import { LineAlertBadges, LiquorTaxBadge, NoEffectBadge, OutcomeBadge } from "./status-badges";
 
 /**
  * The lines of one order as a dense table, in the order the API sends them.
@@ -71,6 +71,7 @@ export default function OrderLinesTable({
                       <li key={`${check.support_id}-${index}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
                         <OutcomeBadge outcome={check.outcome} />
                         {check.needs_review && <Badge tone="warning">Por revisar</Badge>}
+                        <NoEffectBadge check={check} />
                         <span className="font-medium">{check.program ?? humanize(check.kind)}</span>
                         <span className="text-text-secondary">{calcMethodLabel(check.calc_method)}</span>
                         <span className="tabular-nums text-text-secondary">

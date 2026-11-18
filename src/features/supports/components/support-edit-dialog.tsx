@@ -52,11 +52,15 @@ interface Draft {
   tiers: TierDraft[];
 }
 
+/** «Excepción margen JDH»: no supplier money, only the authorized minimum margin. */
+const isException = (support: SupplierSupport) => support.calc_method === "margen_minimo";
+
 function draftOf(support: SupplierSupport): Draft {
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
   return {
     supplier_value: toInput(support.supplier_value, valuePercent),
-    supported_margin_pct: toInput(support.supported_margin_pct, true),
+    // A margin exception keeps its margin in min_margin_pct (what the quoter and the validator read).
+    supported_margin_pct: toInput(isException(support) ? support.min_margin_pct : support.supported_margin_pct, true),
     valid_from: support.valid_from ?? "",
     valid_to: support.valid_to ?? "",
     value_unit: support.value_unit ?? NO_UNIT,
@@ -85,7 +89,11 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
 
   if (changed("supplier_value")) patch.supplier_value = toDecimal(draft.supplier_value, valuePercent);
   // The JDH percentage is not edited here: it changes through the JDH requests panel.
-  if (changed("supported_margin_pct")) patch.supported_margin_pct = toDecimal(draft.supported_margin_pct, true);
+  if (changed("supported_margin_pct")) {
+    const margin = toDecimal(draft.supported_margin_pct, true);
+    if (isException(support)) patch.min_margin_pct = margin;
+    else patch.supported_margin_pct = margin;
+  }
   if (changed("valid_from")) patch.valid_from = draft.valid_from || null;
   if (changed("valid_to")) patch.valid_to = draft.valid_to || null;
   if (changed("value_unit")) patch.value_unit = draft.value_unit === NO_UNIT ? null : (draft.value_unit as ValueUnit);
@@ -158,6 +166,8 @@ function EditForm({
   const [crossing, setCrossing] = useState<{ overlaps: SupportOverlap[]; error: string | null } | null>(null);
 
   const valuePercent = PERCENT_METHODS.includes(support.calc_method ?? "");
+  // «% Margen Garantizado»: the guaranteed margin (target_margin_pct) is the support itself.
+  const guaranteed = support.calc_method === "precio_neto";
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const setTier = (index: number, patch: Partial<TierDraft>) =>
     set("tiers", draft.tiers.map((tier, i) => (i === index ? { ...tier, ...patch } : tier)));
@@ -208,9 +218,18 @@ function EditForm({
     />
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
-          <Input id={`${id}-value`} inputMode="decimal" value={draft.supplier_value} onChange={(e) => set("supplier_value", e.target.value)} />
-        </Field>
+        {guaranteed ? (
+          // The supplier guarantees a margin at any selling price: that margin is the support, there is no value.
+          <Field label="Margen garantizado (%)" htmlFor={`${id}-target`} hint="El proveedor pone lo que falte para llegar a este margen, se venda al precio que se venda.">
+            <Input id={`${id}-target`} inputMode="decimal" value={draft.target_margin_pct} onChange={(e) => set("target_margin_pct", e.target.value)} />
+          </Field>
+        ) : (
+          !isException(support) && (
+            <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
+              <Input id={`${id}-value`} inputMode="decimal" value={draft.supplier_value} onChange={(e) => set("supplier_value", e.target.value)} />
+            </Field>
+          )
+        )}
         <Field label={`${SUPPORTED_MARGIN_LABEL} (%)`} htmlFor={`${id}-supported`} hint={SUPPORTED_MARGIN_HELP} optional>
           <Input
             id={`${id}-supported`}
@@ -247,9 +266,11 @@ function EditForm({
         <Field label="Precio de lista de referencia ($)" htmlFor={`${id}-list`} optional>
           <Input id={`${id}-list`} inputMode="decimal" value={draft.reference_list_price} onChange={(e) => set("reference_list_price", e.target.value)} />
         </Field>
-        <Field label="Margen objetivo (%)" htmlFor={`${id}-target`} optional>
-          <Input id={`${id}-target`} inputMode="decimal" value={draft.target_margin_pct} onChange={(e) => set("target_margin_pct", e.target.value)} />
-        </Field>
+        {!guaranteed && (
+          <Field label="Margen objetivo (%)" htmlFor={`${id}-target`} optional>
+            <Input id={`${id}-target`} inputMode="decimal" value={draft.target_margin_pct} onChange={(e) => set("target_margin_pct", e.target.value)} />
+          </Field>
+        )}
         <Field label="Programa" htmlFor={`${id}-program`} optional>
           <Input id={`${id}-program`} value={draft.program} onChange={(e) => set("program", e.target.value)} />
         </Field>

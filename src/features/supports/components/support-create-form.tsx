@@ -11,7 +11,7 @@ import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCreateSupport, useFormSchema, useKindLabel, useProfile, useSupportCatalogs } from "../hooks/use-supports";
-import { formatSupplierValue } from "../lib/format";
+import { supportValueText } from "../lib/format";
 import {
   draftFromDefaults,
   fieldErrorsFrom,
@@ -231,6 +231,22 @@ function CreateForm({
     return [shown];
   });
   const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
+  // A margin exception (margen_minimo) keeps its margin in `min_margin_pct`: the API requires
+  // it there and the quoter and the order validator read it there. The form asks it as the one
+  // field BI knows, «Excepción margen mínimo autorizado JDH», and sends it where it belongs.
+  const isException = method === "margen_minimo";
+  if (isException) {
+    required.delete("min_margin_pct");
+    required.add("supported_margin_pct");
+  }
+  const toBody = (values: Record<string, string | number | string[]>, supplierCode: string): SupportCreateBody => {
+    const body: SupportCreateBody = { ...(values as SupportCreateBody), supplier_code: supplierCode };
+    if (isException && body.supported_margin_pct !== undefined) {
+      body.min_margin_pct = body.supported_margin_pct;
+      delete body.supported_margin_pct;
+    }
+    return body;
+  };
 
   // What the preview needs to price it: supplier, a reference, class, type and the value.
   const typed = readDraft(specs, form.draft, rule);
@@ -239,11 +255,10 @@ function CreateForm({
     !typed.values.product_sku && !typed.values.supplier_sku && "la referencia (SKU JDH o SKU proveedor)",
     (!kind || !method) && "la clase y el tipo",
     rule && rule.value_kind !== "none" && typed.values.supplier_value === undefined && "el valor",
+    isException && typed.values.supported_margin_pct === undefined && "el margen mínimo autorizado",
   ].filter((part): part is string => Boolean(part));
   const previewBody: SupportCreateBody | null =
-    supplier && missing.length === 0 && Object.keys(typed.errors).length === 0
-      ? { ...(typed.values as SupportCreateBody), supplier_code: supplier.value }
-      : null;
+    supplier && missing.length === 0 && Object.keys(typed.errors).length === 0 ? toBody(typed.values, supplier.value) : null;
   const missingText =
     Object.keys(typed.errors).length > 0
       ? "Corrige los números marcados para ver las cifras."
@@ -286,6 +301,8 @@ function CreateForm({
           }
           setCrossing(null);
           const byField = fieldErrorsFrom(failure);
+          // The exception's margin is typed in the «Excepción…» field: its error goes there.
+          if (byField.min_margin_pct && !byField.supported_margin_pct) byField.supported_margin_pct = byField.min_margin_pct;
           setErrors(byField);
           if (failure instanceof ApiError && failure.status === 403) {
             setFormError("Tu usuario puede consultar los apoyos, pero no crearlos.");
@@ -325,7 +342,7 @@ function CreateForm({
       return;
     }
     const byGroup = typeof values.customer_group === "string" && !values.customer_nit;
-    send({ ...(values as SupportCreateBody), supplier_code: supplier.value }, byGroup);
+    send(toBody(values, supplier.value), byGroup);
   };
 
   if (created) {
@@ -482,7 +499,7 @@ function Created({
     >
       <p>
         {support.supplier_name ?? supplierName} · {kindLabel(support.kind)} ·{" "}
-        {formatSupplierValue(support.calc_method, support.supplier_value)}
+        {supportValueText(support)}
       </p>
       {many && (
         <p className="mt-1">
