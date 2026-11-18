@@ -215,7 +215,7 @@ export default function BulkLoad({ area }: { area: string }) {
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       <section className="space-y-5 rounded-lg border border-border p-4" aria-labelledby={`${id}-file`}>
         <h2 id={`${id}-file`} className="text-base font-semibold">Archivo</h2>
 
@@ -264,10 +264,12 @@ export default function BulkLoad({ area }: { area: string }) {
               <p role="alert" className="text-[13px] text-danger">{template.error}</p>
             ) : (
               <p className="text-[13px] text-text-secondary">
-                {supplier ? "La plantilla sigue el perfil del proveedor. " : "La plantilla viene en el orden de BI, con listas para clase, tipo y unidad. "}
+                {supplier
+                  ? "La plantilla sigue el perfil del proveedor. "
+                  : "La plantilla viene en el orden de BI, con listas para clase, tipo y unidad, y fechas dd/mm/aaaa. "}
                 Por grupo cambia el cliente por el grupo empresarial.{" "}
                 {supplier
-                  ? `Con datos trae los apoyos vigentes y programados de ${supplier.label} con la columna Validación: márcala y vuelve a subir el archivo aquí.`
+                  ? `Con datos trae los apoyos vigentes y programados de ${supplier.label} con las columnas Observaciones y Validación: marca Sí o No (el motivo de un No va en Observaciones) y vuelve a subir el archivo aquí.`
                   : "Con datos necesita un proveedor elegido."}
               </p>
             )}
@@ -340,10 +342,11 @@ export default function BulkLoad({ area }: { area: string }) {
         <div className="space-y-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">Cómo actualiza el maestro</h3>
           <p className="max-w-prose text-[13px] text-text-secondary">
-            Cada fila se busca por su llave (proveedor, clase, NIT, SKU, referencia externa y fecha de inicio): crea el
-            apoyo si no existe y, si existe, cambia solo las columnas que trae el archivo. Una columna que no venga
-            conserva lo guardado. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el apoyo
-            guardado con la observación de la fila, y vacío deja la fila sin tocar.
+            Cada fila se busca por su llave (proveedor, NIT, SKU JDH y fecha de inicio): crea el apoyo si no existe y
+            lo actualiza si ya existe, cambiando solo las columnas que trae el archivo. Una columna que no venga
+            conserva lo guardado. El SKU Proveedor se toma del maestro de productos; solo sirve para encontrar el SKU
+            JDH cuando la fila no lo trae. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el
+            apoyo guardado con la observación de la fila, y vacío deja la fila sin tocar.
           </p>
 
           <fieldset className="space-y-2">
@@ -353,7 +356,10 @@ export default function BulkLoad({ area }: { area: string }) {
                 <input type="radio" name={`${id}-groups`} checked={!groups} onChange={() => setGroups(false)} className={radio} />
                 <span>
                   <span className="block font-medium">Por cliente</span>
-                  <span className="text-text-secondary">Cada fila es un apoyo, con su NIT o para todos los clientes.</span>
+                  <span className="text-text-secondary">
+                    Cada fila es un apoyo, con su NIT o para todos los clientes. Una fila con Grupo Empresarial y sin NIT
+                    crea uno por cada cliente activo del grupo.
+                  </span>
                 </span>
               </label>
               <label className={choiceCard}>

@@ -8,7 +8,8 @@ export default async function CargaApoyosPage({ params }: { params: Promise<{ ar
   await requireModule(area, "apoyos");
 
   return (
-    <div className="space-y-6">
+    // Centered at the form's width, header and result included, like the quoter.
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <PageHeader
         title="Carga masiva de apoyos"
         description="Sube el archivo del proveedor, revisa la simulación y aplícala: crea los apoyos nuevos y actualiza los que ya existen. Si una sola fila tiene un error, no se guarda ninguna."
