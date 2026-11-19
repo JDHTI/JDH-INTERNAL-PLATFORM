@@ -118,6 +118,10 @@ const removable = (line: QuotationLine) => (line.origin !== "historico" && line.
  */
 const th = "h-12 px-2.5 py-1.5 align-middle leading-tight";
 const td = "px-2.5 py-2 align-top";
+const CHECK_WIDTH = 40;
+/** The row tints as a layer over the pinned cells' opaque surface. */
+const TINT_INFO = "bg-[image:linear-gradient(var(--info-surface),var(--info-surface))]";
+const TINT_HOVER = "group-hover:bg-[image:linear-gradient(var(--primary-subtle),var(--primary-subtle))]";
 /** An explicit line between columns, from "Último" on; the header's divider can be moved. */
 const divided = "relative border-l border-border";
 
@@ -167,7 +171,8 @@ function ColumnDivider({
  * editable cell; the mark beside each margin (color, icon and words) says
  * where it stands against the rule. It is a table once its container (not the
  * window: the sidebar may be open or collapsed) leaves the product block about
- * 11rem for its name (68rem, 75rem with quantities); below that, cards.
+ * 11rem for its name (70rem); below that, cards. With quantities it never turns
+ * into cards: it scrolls sideways under 77rem, the product pinned.
  */
 export function LinesTable(props: LinesProps) {
   const { lines, selection, sort, onSort, withQuantities } = props;
@@ -196,13 +201,19 @@ export function LinesTable(props: LinesProps) {
   );
   const at = (key: ColumnKey) => columns.indexOf(key);
   const baseHeader = `${props.basePriceLabel ?? "Último precio"} sin IVA`;
+  // With quantities it is always a table: narrower than it needs, it scrolls sideways with the
+  // checkbox and the product pinned on the left.
+  const scrolls = withQuantities;
+  const pinned = (offset: number) => (scrolls ? { className: "sticky z-[1]", style: { left: offset } } : { className: "", style: undefined });
+  const pinCheck = pinned(0);
+  const pinProduct = pinned(selection ? CHECK_WIDTH : 0);
 
   return (
-    <div className={cn("hidden rounded-lg border border-border bg-surface", withQuantities ? "@min-[77rem]:block" : "@min-[70rem]:block")}>
-      <table ref={tableRef} className="w-full table-fixed text-left text-sm">
+    <div className={cn("rounded-lg border border-border bg-surface", scrolls ? "overflow-x-auto" : "hidden @min-[70rem]:block")}>
+      <table ref={tableRef} className={cn("w-full table-fixed text-left text-sm", scrolls && "min-w-[77rem]")}>
         <caption className="sr-only">Referencias de la cotización</caption>
         <colgroup>
-          {selection && <col style={{ width: 40 }} />}
+          {selection && <col style={{ width: CHECK_WIDTH }} />}
           <col />
           {/* Widths are the person's own (dividers), so they come from state, not from classes. */}
           {columns.map((key) => (
@@ -212,7 +223,7 @@ export function LinesTable(props: LinesProps) {
         <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
             {selection && (
-              <th scope="col" className={cn(th, "rounded-tl-lg pr-0")}>
+              <th scope="col" className={cn(th, "rounded-tl-lg bg-canvas-subtle pr-0", pinCheck.className)} style={pinCheck.style}>
                 <input
                   type="checkbox"
                   checked={allTicked}
@@ -226,7 +237,13 @@ export function LinesTable(props: LinesProps) {
                 />
               </th>
             )}
-            <th scope="col" className={cn(th, !selection && "rounded-tl-lg")}>Producto</th>
+            <th
+              scope="col"
+              className={cn(th, !selection && "rounded-tl-lg", pinProduct.className, scrolls && "border-r border-border bg-canvas-subtle")}
+              style={pinProduct.style}
+            >
+              Producto
+            </th>
             {/* The headers say what each figure is, in full; they wrap to two lines rather than abbreviate. */}
             <SortHeader
               label={baseHeader}
@@ -288,14 +305,18 @@ export function LinesTable(props: LinesProps) {
         <tbody className="divide-y divide-border">
           {lines.map((line) => {
             const highlighted = props.highlight?.has(line.sku) ?? false;
+            // A pinned cell is opaque, so the row's tint is laid over the surface instead of seen through.
+            const pinnedFill = scrolls && cn("bg-surface transition-[background-image] duration-300", highlighted ? TINT_INFO : TINT_HOVER);
             return (
-              <tr key={line.sku} className={cn("transition-colors duration-300", highlighted ? "bg-info-surface" : "hover:bg-primary-subtle")}>
+              <tr key={line.sku} className={cn("group transition-colors duration-300", highlighted ? "bg-info-surface" : "hover:bg-primary-subtle")}>
                 {selection && (
-                  <td className={cn(td, "pr-0")}>
+                  <td className={cn(td, "pr-0", pinCheck.className, pinnedFill)} style={pinCheck.style}>
                     <RowCheckbox line={line} selection={selection} />
                   </td>
                 )}
-                <td className={td}><Product line={line} {...props} /></td>
+                <td className={cn(td, pinProduct.className, pinnedFill, scrolls && "border-r border-border")} style={pinProduct.style}>
+                  <Product line={line} {...props} />
+                </td>
                 <td className={cn(td, divided, "text-right")}>
                   <LastSale line={line} forList={props.showLastSale} />
                 </td>
@@ -318,8 +339,8 @@ export function LinesTable(props: LinesProps) {
           })}
           {(props.pending ?? []).map((sku) => (
             <tr key={`pending-${sku}`} aria-busy="true">
-              {selection && <td className={td} />}
-              <td className={td}>
+              {selection && <td className={cn(td, pinCheck.className, scrolls && "bg-surface")} style={pinCheck.style} />}
+              <td className={cn(td, pinProduct.className, scrolls && "border-r border-border bg-surface")} style={pinProduct.style}>
                 <span className="block font-mono text-[13px]">{sku}</span>
                 <PendingLabel />
               </td>
@@ -339,8 +360,10 @@ export function LinesTable(props: LinesProps) {
  */
 export function LinesList(props: LinesProps) {
   const { lines, editor, editable, selection, withQuantities } = props;
+  // Quoting with quantities is always the table: the quantities are compared down a column.
+  if (withQuantities) return null;
   return (
-    <ul className={cn("grid grid-cols-1 gap-2 @2xl:grid-cols-2", withQuantities ? "@min-[77rem]:hidden" : "@min-[70rem]:hidden")}>
+    <ul className="grid grid-cols-1 gap-2 @2xl:grid-cols-2 @min-[70rem]:hidden">
       {lines.map((line) => (
         <li
           key={line.sku}
