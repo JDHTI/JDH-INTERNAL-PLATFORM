@@ -11,29 +11,26 @@ import { Switch } from "@/shared/components/ui/switch";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
+import { InfoPopover } from "@/shared/components/ui/info-popover";
+
 import { useUpdateOffer } from "../hooks/use-quotations";
-import { formatCount, formatLongDay, formatMoney, quantityInputText } from "../lib/format";
-import { offerAmounts, offerConditions, offerLines, offerTotals } from "../lib/offer";
+import { formatCount, formatLongDay } from "../lib/format";
+import { offerConditions, offerLines } from "../lib/offer";
 import { downloadOfferExcel } from "../services/quotations.service";
 import type { Quotation } from "../types/quotations.types";
-import { TotalsTable } from "./offer-document";
 import { ConditionsStep, OfferSettingsStep, type OfferDraft, draftFrom, draftToSettings, draftValidityText } from "./offer-steps";
 
-/** Lines shown in the section; the full list is the preview's job. */
-const PREVIEW_LINES = 6;
-
 /**
- * The customer's offer once the quotation is confirmed: what it says at a
- * glance (the first lines, the totals, the conditions) and its three exits,
- * the preview and the PDF in their own tab and the workbook from the API.
- * Always open: it is the result of confirming, not a setting to tuck away.
+ * The customer's offer: one line with its validity, items and seller, the
+ * conditions behind «Ver condiciones», and its exits (the preview and the PDF
+ * in their own tab, the workbook from the API). The items themselves are in
+ * those exits, not repeated here.
  */
 export default function OfferSection({ quotation, basePath, canEdit }: { quotation: Quotation; basePath: string; canEdit: boolean }) {
   const id = useId();
   const [editing, setEditing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const lines = offerLines(quotation);
-  const totals = offerTotals(quotation);
   const previewHref = `${basePath}/${quotation.id}/oferta`;
   const seller = quotation.include_seller ? quotation.seller_contact : null;
 
@@ -55,9 +52,19 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <h2 id={`${id}-title`} className="text-base font-semibold">Oferta para el cliente</h2>
-          <p className="text-[13px] text-text-secondary">
-            Válida hasta el {formatLongDay(quotation.valid_until)} · {formatCount(lines.length)} {lines.length === 1 ? "ítem" : "ítems"}
-            {seller ? ` · asesor: ${seller.name ?? seller.code}` : " · sin datos del vendedor"}
+          <p className="flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
+            <span>
+              Válida hasta el {formatLongDay(quotation.valid_until)} · {formatCount(lines.length)} {lines.length === 1 ? "ítem" : "ítems"}
+              {seller ? ` · asesor: ${seller.name ?? seller.code}` : " · sin datos del vendedor"}
+            </span>
+            {/* The items are in the preview, the PDF and the Excel; only the conditions are a hover away. */}
+            <InfoPopover label="Ver condiciones" title="Condiciones de la oferta">
+              <ul className="list-disc space-y-1 pl-5">
+                {offerConditions(quotation).map((condition, index) => (
+                  <li key={`${index}-${condition}`}>{condition}</li>
+                ))}
+              </ul>
+            </InfoPopover>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -85,64 +92,6 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
       </div>
 
       <VariationSwitch quotation={quotation} canEdit={canEdit} />
-
-      <div className="grid gap-x-6 gap-y-4 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="min-w-0 space-y-3">
-          {lines.length === 0 ? (
-            <p className="rounded-md bg-canvas-subtle px-3 py-4 text-sm text-text-secondary">
-              La oferta no tiene ítems: ninguna línea tiene precio nuevo. «Editar oferta» permite incluir todas las que tienen precio.
-            </p>
-          ) : (
-            <table className="w-full table-fixed text-left text-sm tabular-nums">
-              <caption className="sr-only">Primeros ítems de la oferta</caption>
-              <thead className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
-                <tr className="border-b border-border">
-                  <th scope="col" className="py-1.5 pr-2">Ítem</th>
-                  <th scope="col" className="w-28 py-1.5 pl-2 text-right">Con IVA</th>
-                  {quotation.quote_quantities && (
-                    <>
-                      <th scope="col" className="w-16 py-1.5 pl-2 text-right">Cant.</th>
-                      <th scope="col" className="w-28 py-1.5 pl-2 text-right">Total</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {lines.slice(0, PREVIEW_LINES).map((line) => {
-                  const amounts = offerAmounts(line);
-                  return (
-                    <tr key={line.sku}>
-                      <td className="truncate py-1.5 pr-2" title={line.description ?? line.sku}>{line.description ?? line.sku}</td>
-                      <td className="py-1.5 pl-2 text-right">{amounts ? formatMoney(amounts.priceWithVat) : "—"}</td>
-                      {quotation.quote_quantities && (
-                        <>
-                          <td className="py-1.5 pl-2 text-right">{line.quantity ? quantityInputText(line.quantity) : "—"}</td>
-                          <td className="py-1.5 pl-2 text-right">{amounts?.total != null ? formatMoney(amounts.total) : "—"}</td>
-                        </>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          {lines.length > PREVIEW_LINES && (
-            <p className="text-[13px] text-text-secondary">
-              Y {formatCount(lines.length - PREVIEW_LINES)} {lines.length - PREVIEW_LINES === 1 ? "ítem más" : "ítems más"} en la vista previa.
-            </p>
-          )}
-          {totals && <TotalsTable totals={totals} className="ml-0 max-w-none" />}
-        </div>
-
-        <div className="min-w-0 space-y-2">
-          <h3 className="text-sm font-semibold">Condiciones de la oferta</h3>
-          <ul className="list-disc space-y-1 pl-5 text-sm">
-            {offerConditions(quotation).map((condition, index) => (
-              <li key={`${index}-${condition}`}>{condition}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
 
       <OfferEditDialog quotation={quotation} open={editing} onOpenChange={setEditing} />
     </section>

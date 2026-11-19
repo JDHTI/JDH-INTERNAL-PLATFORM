@@ -544,7 +544,9 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
 
   return (
     // A container: the cards, indicators and toolbar adapt to the room the sidebar leaves.
-    <div className="@container mx-auto w-full max-w-[1600px] space-y-4">
+    // Fills the content area up to 2K (FullHD with the rail folded left an empty margin at 1600px);
+    // past 2560px it centers, so an ultrawide screen does not stretch the table's rows.
+    <div className="@container mx-auto w-full max-w-[2560px] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <Link
           href={basePath}

@@ -37,7 +37,8 @@ export function useStockBreakdown(quotationId: string, version: number, sku: str
 export function StockSource({ data, className }: { data: Breakdown; className?: string }) {
   return (
     <p className={cn("text-xs text-text-secondary", className)}>
-      {data.national ? "Nacional: " : ""}
+      {/* The API's label already says «Nacional: …» when it is. */}
+      {data.national && !/^nacional/i.test(data.label) ? "Nacional: " : ""}
       {data.label}
       {data.stock_at ? ` · foto de SIESA del ${formatDateTime(data.stock_at)}` : ""}
     </p>
@@ -124,10 +125,11 @@ export function StockBreakdownPopover({ quotationId, version, sku }: { quotation
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
-          <Popover.Popup className="w-96 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border border-border bg-surface-raised p-3 text-sm text-text-primary shadow-modal outline-none">
-            <Popover.Title className="text-sm font-semibold">Existencias de {sku}</Popover.Title>
-            {query.data && <StockSource data={query.data} />}
-            <div className="max-h-80 overflow-y-auto">
+          <Popover.Popup className="w-[26rem] max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border border-border bg-surface-raised p-3 pr-1 text-sm text-text-primary shadow-modal outline-none">
+            <Popover.Title className="pr-2 text-sm font-semibold">Existencias de {sku}</Popover.Title>
+            {query.data && <StockSource data={query.data} className="pr-2" />}
+            {/* A thin, quiet scrollbar on the popup's right edge, clear of the figures. */}
+            <div className="max-h-80 overflow-y-auto overscroll-contain pr-2 [scrollbar-color:var(--border-control)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]">
               <BreakdownBody query={query} sku={sku} />
             </div>
           </Popover.Popup>
