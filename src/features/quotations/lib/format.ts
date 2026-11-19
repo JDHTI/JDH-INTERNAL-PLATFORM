@@ -91,23 +91,23 @@ export function priceInputText(value: Value): string {
 
 /**
  * A price typed in the cell, as the whole-peso string the API takes. Prices
- * have no decimals, so a dot or comma followed by three digits is always a
- * thousands separator ("3.323" and "3,323" are 3323), and a trailing ",00" or
- * ".0" (what Excel pastes) is dropped. Anything else after a separator is a
- * decimal and is refused before it reaches the API. Empty is null (remove the
- * new price).
+ * have no decimals, so every dot or comma is a thousands separator wherever it
+ * sits: "3.323" and "3,323" are 3323, and digits typed on top of a formatted
+ * price still read ("10.0000" is 100000). A trailing ",00" or ".0" (what Excel
+ * pastes) is empty cents and is dropped; one or two other digits after the last
+ * separator ("12,5") are a decimal, refused before it reaches the API. Empty is
+ * null (remove the new price).
  */
 export function parsePriceInput(text: string): { value: string | null } | { error: string } {
   const clean = text.replace(/\s|\$/g, "");
   if (clean === "") return { value: null };
   if (!/^[\d.,]+$/.test(clean)) return { error: "Escribe solo números, en pesos enteros." };
 
-  // One or two zeros are empty cents ("3323,00"); three are thousands ("12.000").
+  // One or two zeros are empty cents ("3323,00"); three or more are thousands ("12.000").
   const withoutZeroCents = clean.replace(/[.,]0{1,2}$/, "");
-  let digits: string;
-  if (/^\d+$/.test(withoutZeroCents)) digits = withoutZeroCents;
-  else if (/^\d{1,3}([.,]\d{3})+$/.test(withoutZeroCents)) digits = withoutZeroCents.replace(/[.,]/g, "");
-  else return { error: "El precio va en pesos enteros, sin decimales." };
+  if (/[.,]\d{1,2}$/.test(withoutZeroCents)) return { error: "El precio va en pesos enteros, sin decimales." };
+  const digits = withoutZeroCents.replace(/[.,]/g, "");
+  if (digits === "") return { error: "Escribe solo números, en pesos enteros." };
 
   return { value: digits.replace(/^0+(?=\d)/, "") };
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { useQuery } from "@tanstack/react-query";
-import { Warehouse } from "lucide-react";
+import { Info, Warehouse } from "lucide-react";
 
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
@@ -103,19 +103,24 @@ function BreakdownBody({ query, sku }: { query: ReturnType<typeof useStockBreakd
   return <BreakdownTable item={item} />;
 }
 
-/** «Ver desglose» beside a line's stock: asks only when opened. */
+/** The «i» beside a line's stock: asks for the breakdown only when it opens. */
 export function StockBreakdownPopover({ quotationId, version, sku }: { quotationId: string; version: number; sku: string }) {
   const [open, setOpen] = useState(false);
   const query = useStockBreakdown(quotationId, version, sku, open);
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
+      {/* An «i» beside the figures: hover shows the breakdown, and a click or tap opens it too. */}
       <Popover.Trigger
+        openOnHover
+        delay={150}
+        title="Desglose por C.O. y bodega"
         className={cn(
-          "rounded-sm text-[13px] text-text-secondary underline decoration-dotted underline-offset-4 hover:text-text-primary",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
+          "inline-flex size-5 shrink-0 items-center justify-center self-center rounded-sm text-text-secondary hover:text-text-primary",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:size-11"
         )}
       >
-        Ver desglose<span className="sr-only"> de la existencia de {sku}</span>
+        <Info className="size-3.5" aria-hidden="true" />
+        <span className="sr-only">Desglose de la existencia de {sku} por C.O. y bodega</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
