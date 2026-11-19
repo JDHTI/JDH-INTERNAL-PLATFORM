@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { CalendarClock, CalendarX2, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { CalendarClock, CalendarX2, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, UserX, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -324,9 +324,18 @@ export default function SupportsBrowser({
     />
   );
 
+  // A seller sees the supports of their portfolio's NITs plus the general ones; with no customers, none.
+  if (permissions.data?.customer_scope === "none") {
+    return (
+      <StatePanel icon={UserX} title="No tienes clientes asignados">
+        No hay apoyos para mostrar. Pide a un administrador que te vincule a tu código de vendedor.
+      </StatePanel>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {canRequest && <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
+      {canRequest &&<div className="space-y-2 rounded-lg border border-border bg-surface p-3">
         <p className="text-sm">Marca los apoyos para pedir a BI un margen mínimo autorizado JDH. Puedes seleccionar hasta 100 del mismo proveedor y cliente; cada registro tendrá su propuesta.</p>
         {requestSelected.length > 0 && <><p className="text-sm font-medium">{requestSelected.length} seleccionados · {requestSelected[0].supplier_name ?? requestSelected[0].supplier_code} · {requestSelected[0].customer_name ?? requestSelected[0].customer_group ?? "Todos los clientes"} · NIT {requestSelected[0].customer_nit ?? "sin NIT"}</p>
           <div className="flex flex-wrap gap-2"><Button onClick={() => setBatchOpen(true)}>Solicitar margen JDH ({requestSelected.length})</Button><Button variant="outline" onClick={() => setRequestSelected([])}>Quitar selección</Button></div>
