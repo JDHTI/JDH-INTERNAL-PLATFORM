@@ -515,6 +515,12 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             {!isList && <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
+            {quotation.business_group && (
+              <span className="font-medium text-text-primary">
+                Grupo empresarial: {quotation.business_group}
+                {quotation.group_customers ? ` (${formatCount(quotation.group_customers)} ${quotation.group_customers === 1 ? "cliente" : "clientes"})` : ""}
+              </span>
+            )}
             <span>Creada por {quotation.created_by}</span>
             <QuotationHistory quotation={quotation} />
           </div>
@@ -997,14 +1003,24 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
             ["NIT", temporary.nit ? <span key="nit" className="font-mono">{temporary.nit}</span> : "Sin NIT"],
           ],
         }
-      : {
-          title: "Cliente",
-          facts: [
-            ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
-            ["Canal", quotation.channel ?? "Sin canal"],
-            ["Vendedor", quotation.salesperson_name ?? "—"],
-          ],
-        },
+      : quotation.business_group
+        ? {
+            title: "Grupo empresarial",
+            // The channel and the list are the ones most of the group's branches have.
+            facts: [
+              ["Grupo", quotation.business_group],
+              ["Clientes", quotation.group_customers ? formatCount(quotation.group_customers) : "—"],
+              ["Canal", quotation.channel ?? "Sin canal"],
+            ],
+          }
+        : {
+            title: "Cliente",
+            facts: [
+              ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
+              ["Canal", quotation.channel ?? "Sin canal"],
+              ["Vendedor", quotation.salesperson_name ?? "—"],
+            ],
+          },
     {
       title: "Lista de precios",
       facts: temporary

@@ -303,6 +303,13 @@ function CustomerSubline({ item }: { item: QuotationSummary }) {
       </span>
     );
   }
+  if (item.business_group) {
+    return (
+      <span className="block text-[13px] text-text-secondary">
+        Grupo empresarial{item.group_customers ? ` · ${formatCount(item.group_customers)} ${item.group_customers === 1 ? "cliente" : "clientes"}` : ""}
+      </span>
+    );
+  }
   return <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>;
 }
 

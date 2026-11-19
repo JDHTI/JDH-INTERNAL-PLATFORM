@@ -345,6 +345,13 @@ export interface QuotationSummary {
   /** When and by whom the validator confirmed it is loaded in SIESA (`cargada`). */
   uploaded_at: string | null;
   uploaded_by: string | null;
+  /**
+   * Quoted for a whole business group: `customer_name` is the group's name, sales come from every
+   * customer in it, and the offer goes out in its name. Null for one customer.
+   */
+  business_group?: string | null;
+  /** How many customers the group had when it was built. */
+  group_customers?: number;
   is_temporary_customer: boolean;
   temporary_customer: TemporaryCustomer | null;
   kind: QuotationKind;

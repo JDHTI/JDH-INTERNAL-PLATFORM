@@ -135,6 +135,17 @@ export function createQuotation(customerNit: string, windowMonths: WindowMonths,
   return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths, with_history: !empty } });
 }
 
+/**
+ * A whole business group: sales of every customer in it, and the list, channel and center most
+ * of its branches have. The quotation and its offer carry the group's name.
+ */
+export function createGroupQuotation(businessGroup: string, windowMonths: WindowMonths, empty = false): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, {
+    method: "POST",
+    body: { business_group: businessGroup, window_months: windowMonths, with_history: !empty },
+  });
+}
+
 /** A customer SIESA does not have: an empty quotation, priced from the chosen operation center. */
 export function createTemporaryQuotation(input: TemporaryQuotationInput): Promise<Quotation> {
   return apiFetch<Quotation>(BASE, { method: "POST", body: input });

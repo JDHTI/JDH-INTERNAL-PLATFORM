@@ -12,6 +12,7 @@ import {
   compareCostCenters,
   confirmQuotation,
   createListUpdate,
+  createGroupQuotation,
   createQuotation,
   createTemporaryQuotation,
   deleteQuotation,
@@ -146,11 +147,14 @@ export function useCreateQuotation() {
     mutationFn: (
       input:
         | { kind: "existing"; customerNit: string; windowMonths: WindowMonths; empty: boolean }
+        | { kind: "group"; businessGroup: string; windowMonths: WindowMonths; empty: boolean }
         | ({ kind: "temporary" } & TemporaryQuotationInput)
     ) =>
       input.kind === "existing"
         ? createQuotation(input.customerNit, input.windowMonths, input.empty)
-        : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
+        : input.kind === "group"
+          ? createGroupQuotation(input.businessGroup, input.windowMonths, input.empty)
+          : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
     onSuccess: store,
   });
 }

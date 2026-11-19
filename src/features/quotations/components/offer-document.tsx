@@ -215,11 +215,18 @@ function Parties({ quotation }: { quotation: Quotation }) {
                 ["Nombre comercial", quotation.temporary_customer.trade_name],
                 ["NIT", quotation.temporary_customer.nit],
               ]
-            : [
-                ["Nombre", quotation.customer_name],
-                ["NIT", quotation.customer_nit],
-                ["Canal", quotation.channel],
-              ]
+            : quotation.business_group
+              ? [
+                  // The offer goes out in the group's name, for all its customers.
+                  ["Grupo empresarial", quotation.business_group],
+                  ["Clientes", quotation.group_customers ? String(quotation.group_customers) : null],
+                  ["Canal", quotation.channel],
+                ]
+              : [
+                  ["Nombre", quotation.customer_name],
+                  ["NIT", quotation.customer_nit],
+                  ["Canal", quotation.channel],
+                ]
         }
       />
       {seller && (
