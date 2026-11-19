@@ -537,6 +537,8 @@ export interface QuotationLine {
    * cost, no rule, never exported.
    */
   origin: LineOrigin;
+  /** Order in the quotation; a line added later has a higher one. */
+  position?: number;
   origin_label: string;
   /** Inventory units the customer would take; only used when the quotation quotes with quantities. */
   quantity: DecimalText | null;

@@ -69,6 +69,7 @@ import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isClosed, isListKind } from "../types/quotations.types";
 import { ListFilters } from "./list-review-controls";
+import MoreFilters from "./more-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
@@ -98,11 +99,31 @@ const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
  * The indicators are the main filters; "inactive" and "imported" (what the
  * last paste added or revalidated) are chips that appear only when they apply.
  */
-type LineFilter = Indicator | "inactive" | "imported";
+type LineFilter = Indicator | "inactive" | "imported" | "nuevos";
 
 const inactive = (line: QuotationLine) => !line.is_active;
+/** Added by hand, from SIESA or created only to quote: not from the sales history or the list. */
+const isNew = (line: QuotationLine) => line.origin === "agregado" || line.origin === "local";
+
+/** The quick filters of the toolbar; the same filter as the indicator of the same name above. */
+const QUICK_FILTERS: { key: "all" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean }[] = [
+  { key: "all", label: "Todos", help: "Todas las referencias.", forLists: true },
+  { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
+  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
+  { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
+];
+
+/**
+ * The new items first, the latest added on top, then the rest in the order the API gives;
+ * a column sort, when chosen, orders everything.
+ */
+function newFirst(lines: QuotationLine[]): QuotationLine[] {
+  const added = lines.filter(isNew).sort((a, b) => (b.position ?? 0) - (a.position ?? 0));
+  return added.length === 0 ? lines : [...added, ...lines.filter((line) => !isNew(line))];
+}
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
+  nuevos: "Aún no agregaste referencias ni creaste productos para cotizar.",
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
   rango: "Ninguna línea queda entre el mínimo y el objetivo.",
   minimo: "Ninguna línea queda bajo el mínimo.",
@@ -239,14 +260,31 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     const bySupplier = new Set(suppliers);
     const matching = quotation.lines.filter(
       (line) =>
-        (filter === "imported" ? imported.has(line.sku) : filter === "inactive" ? inactive(line) : INDICATORS[filter](line)) &&
+        (filter === "imported"
+          ? imported.has(line.sku)
+          : filter === "inactive"
+            ? inactive(line)
+            : filter === "nuevos"
+              ? isNew(line)
+              : INDICATORS[filter](line)) &&
         (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
         (bySupplier.size === 0 || bySupplier.has(supplierOf(line)?.trim() ?? ""))
     );
-    return sortLines(matching, sort);
+    return sort ? sortLines(matching, sort) : newFirst(matching);
   }, [quotation.lines, filter, listFilter, q, imported, categories, suppliers, sort]);
+  const quickCounts = useMemo(
+    () => ({
+      nuevos: quotation.lines.filter(isNew).length,
+      minimo: quotation.lines.filter(INDICATORS.minimo).length,
+      apoyo: quotation.lines.filter(INDICATORS.apoyo).length,
+    }),
+    [quotation.lines]
+  );
+  // What «Más filtros» has on: categories, suppliers, and the inactive or last-import chip.
+  const moreActive =
+    (categories.length > 0 ? 1 : 0) + (suppliers.length > 0 ? 1 : 0) + (filter === "inactive" || filter === "imported" ? 1 : 0);
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -579,7 +617,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {quotation.lines.length > 0 && !isList && (
         <QuotationIndicators
           lines={quotation.lines}
-          active={filter === "inactive" || filter === "imported" ? null : filter}
+          active={filter === "inactive" || filter === "imported" || filter === "nuevos" ? null : filter}
           onSelect={chooseFilter}
         />
       )}
@@ -601,13 +639,12 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
-        Laid out by the width the content really has, not the window's: with the sidebar
-        open a laptop leaves the content as narrow as a tablet. One column, then filters
-        two by two, then a single row.
+        One toolbar: search, the quick filters, «Más filtros» and, on the right, the actions on
+        the references. In a narrow container it wraps, but never into a row per kind of filter.
       */}
-      <div className={cn("space-y-2", !hasRows && "hidden")}>
-        <div className="grid grid-cols-1 gap-2 @xl:grid-cols-2 @6xl:flex @6xl:flex-wrap @6xl:items-center">
-          <div className="relative w-full @xl:col-span-2 @6xl:w-72">
+      <div className={cn(!hasRows && "hidden")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full @xl:w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -621,38 +658,74 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               className="pl-9 max-md:h-11"
             />
           </div>
-          {categoryOptions.length > 0 && (
-            <MultiSelect
-              label="Categorías"
-              allLabel="Todas las categorías"
-              options={categoryOptions}
-              value={categories}
-              onValueChange={(next) => {
-                setCategories(next);
-                setPage(1);
-              }}
-              className="w-full @6xl:w-56"
-            />
-          )}
-          {supplierOptions.length > 0 && (
-            <MultiSelect
-              label="Proveedores"
-              allLabel="Todos los proveedores"
-              options={supplierOptions}
-              value={suppliers}
-              onValueChange={(next) => {
-                setSuppliers(next);
-                setPage(1);
-              }}
-              className="w-full @6xl:w-56"
-            />
-          )}
-          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="justify-self-start max-md:h-11">
+          <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap gap-2">
+            {QUICK_FILTERS.filter((quick) => !isList || quick.forLists).map((quick) => (
+              <ToggleChip
+                key={quick.key}
+                active={filter === quick.key}
+                onClick={() => chooseFilter(filter === quick.key && quick.key !== "all" ? "all" : quick.key)}
+                count={quick.key === "all" ? undefined : quickCounts[quick.key]}
+                title={quick.help}
+              >
+                {quick.label}
+              </ToggleChip>
+            ))}
+          </div>
+          <MoreFilters active={moreActive}>
+            {categoryOptions.length > 0 && (
+              <MultiSelect
+                label="Categorías"
+                allLabel="Todas las categorías"
+                options={categoryOptions}
+                value={categories}
+                onValueChange={(next) => {
+                  setCategories(next);
+                  setPage(1);
+                }}
+                className="w-full"
+              />
+            )}
+            {supplierOptions.length > 0 && (
+              <MultiSelect
+                label="Proveedores"
+                allLabel="Todos los proveedores"
+                options={supplierOptions}
+                value={suppliers}
+                onValueChange={(next) => {
+                  setSuppliers(next);
+                  setPage(1);
+                }}
+                className="w-full"
+              />
+            )}
+            {(inactiveCount > 0 || importer.lastImport) && (
+              <div role="group" aria-label="Estado de la línea" className="flex flex-wrap gap-2">
+                {inactiveCount > 0 && (
+                  <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
+                    Inactivas
+                  </ToggleChip>
+                )}
+                {importer.lastImport && (
+                  <ToggleChip
+                    active={filter === "imported"}
+                    onClick={() => chooseFilter(filter === "imported" ? "all" : "imported")}
+                    count={importer.isPending ? null : importer.lastImport.length}
+                  >
+                    Última importación
+                  </ToggleChip>
+                )}
+              </div>
+            )}
+            {categoryOptions.length === 0 && supplierOptions.length === 0 && inactiveCount === 0 && !importer.lastImport && (
+              <p className="text-[13px] text-text-secondary">Esta cotización no tiene categorías ni proveedores para filtrar.</p>
+            )}
+          </MoreFilters>
+          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
             <FilterX aria-hidden="true" /> Borrar filtros
           </Button>
           {canManage && (
             // Next to the references they work on, not among the quotation's own actions.
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @6xl:ml-auto">
               {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
               {supportCandidates > 0 && (
                 <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
@@ -674,24 +747,6 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             </div>
           )}
         </div>
-        {(inactiveCount > 0 || importer.lastImport) && (
-          <div role="group" aria-label="Más filtros" className="flex flex-wrap gap-2">
-            {inactiveCount > 0 && (
-              <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
-                Inactivas
-              </ToggleChip>
-            )}
-            {importer.lastImport && (
-              <ToggleChip
-                active={filter === "imported"}
-                onClick={() => chooseFilter(filter === "imported" ? "all" : "imported")}
-                count={importer.isPending ? null : importer.lastImport.length}
-              >
-                Última importación
-              </ToggleChip>
-            )}
-          </div>
-        )}
       </div>
 
       {!hasRows && isList ? (
