@@ -137,6 +137,42 @@ export interface StockTotals {
   items: Record<string, StockTotal>;
 }
 
+/** One warehouse of an operation center, with its units. */
+export interface StockWarehouse {
+  warehouse: string;
+  name: string | null;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+}
+
+export interface StockCenter {
+  code: string;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+  warehouses: StockWarehouse[];
+}
+
+export interface StockBreakdownItem {
+  sku: string;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+  centers: StockCenter[];
+}
+
+/**
+ * `GET /quotations/{id}/stock-breakdown`: a line's stock is the sum of the saleable warehouses of
+ * the chosen centers (Nacional: the 17 main ones). `label` names them, `stock_at` is the morning
+ * snapshot from SIESA.
+ */
+export interface StockBreakdown {
+  national: boolean;
+  label: string;
+  warehouses: string[];
+  centers: string[];
+  stock_at: string | null;
+  items: StockBreakdownItem[];
+}
+
 /** The chips of a list update's table: the item's review and where its price leaves the margin. */
 export type BoardChip = "sin_marcar" | "por_validar" | "validada" | "cargada" | "alza" | "objetivo" | "encima" | "alerta";
 
@@ -470,7 +506,10 @@ export interface SupportOption {
 export type CostSource = "cotizacion" | "inventario" | "alza";
 
 export interface QuotationLine {
-  /** Units on hand and available in the warehouses that cost the line; null, unknown. */
+  /**
+   * Units on hand and available, summed over the saleable warehouses of the chosen centers
+   * (Nacional: the 17 main ones); null, unknown. `GET /{id}/stock-breakdown` splits them.
+   */
   stock_on_hand?: DecimalText | null;
   stock_available?: DecimalText | null;
   sku: string;

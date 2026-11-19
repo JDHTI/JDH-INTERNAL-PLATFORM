@@ -477,6 +477,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       setSort(next);
       setPage(1);
     },
+    stockOf: { quotationId: quotation.id, version: quotation.version },
     withQuantities: !isList && quotation.quote_quantities,
     quantitiesEditable: offerEditable,
     // Only BI, who validates, sees the cost behind the suggested prices.
@@ -883,6 +884,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             : undefined
         }
         forList={isList}
+        stockOf={{ quotationId: quotation.id, version: quotation.version }}
         showCost={canValidate}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {

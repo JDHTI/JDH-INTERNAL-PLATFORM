@@ -50,6 +50,7 @@ import { REVIEW_HELP, REVIEW_LABELS, type ReviewView, reviewOf } from "../lib/li
 import { offerAmounts } from "../lib/offer";
 import type { QuotationLine, ReviewStatus, StockTotal } from "../types/quotations.types";
 import { ComplianceBadge } from "./quotation-badges";
+import { StockBreakdownPopover } from "./stock-breakdown";
 
 /** Row selection for the bulk actions; absent when the quotation cannot be edited. */
 export interface LineSelection {
@@ -91,6 +92,8 @@ interface LinesProps {
   showLastSale?: boolean;
   /** A list update: each item's review chip, its stock and its observation under the product. */
   listMeta?: ListMeta;
+  /** The quotation each line's stock breakdown is asked for (`GET /{id}/stock-breakdown`). */
+  stockOf?: { quotationId: string; version: number };
 }
 
 export interface ListMeta {
@@ -541,7 +544,7 @@ const dash = <span className="text-text-secondary">—</span>;
  * supplier and unit. An added, local or inactive one says so, and can be taken
  * out; an active one from the sales history cannot (emptying its price is enough).
  */
-function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, listMeta }: { line: QuotationLine } & LinesProps) {
+function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, listMeta, stockOf }: { line: QuotationLine } & LinesProps) {
   const isRemoving = removing === line.sku;
   const local = isLocal(line);
   const meta = [local ? "Sin SKU en SIESA" : `SKU ${line.sku}`, supplierOf(line), line.unit].filter(Boolean).join(" · ");
@@ -581,7 +584,7 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, 
         >
           {meta}
         </p>
-        <Stock line={line} />
+        <Stock line={line} stockOf={stockOf} />
         {listMeta && <ListItemMeta line={line} meta={listMeta} onOpenDetail={onOpenDetail} />}
       </div>
       {editable && removable(line) && (
@@ -603,22 +606,24 @@ function Product({ line, onOpenDetail, onRemove, removing, canRemove, editable, 
 const units = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
 
 /**
- * Units on hand and available in the warehouses that cost the line, for both
- * BI and Comercial. Nothing when the API does not know them; "sin disponible"
- * in words, so quoting what cannot be shipped stands out without color.
+ * Units on hand and available, summed over the saleable warehouses of the
+ * chosen centers (Nacional: the main ones), for both BI and Comercial, with
+ * «Ver desglose» by center and warehouse. Nothing when the API does not know
+ * them; "sin disponible" in words, so quoting what cannot be shipped stands
+ * out without color.
  */
-export function Stock({ line }: { line: QuotationLine }) {
+export function Stock({ line, stockOf }: { line: QuotationLine; stockOf?: LinesProps["stockOf"] }) {
   const onHand = toNumber(line.stock_on_hand);
   const available = toNumber(line.stock_available);
   if (onHand === null && available === null) return null;
   const empty = available !== null && available <= 0;
   return (
-    <p
-      className="truncate text-[13px] tabular-nums text-text-secondary"
-      title="Existencia y disponible en las bodegas que dan el costo de la línea"
-    >
-      Existencia {onHand === null ? "—" : units.format(onHand)} ·{" "}
-      {empty ? <span className="font-medium text-text-primary">sin disponible</span> : `Disponible ${available === null ? "—" : units.format(available)}`}
+    <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] tabular-nums text-text-secondary">
+      <span className="truncate" title="Existencia y disponible en las bodegas vendibles de los C.O. elegidos">
+        Existencia {onHand === null ? "—" : units.format(onHand)} ·{" "}
+        {empty ? <span className="font-medium text-text-primary">sin disponible</span> : `Disponible ${available === null ? "—" : units.format(available)}`}
+      </span>
+      {stockOf && !isLocal(line) && <StockBreakdownPopover quotationId={stockOf.quotationId} version={stockOf.version} sku={line.sku} />}
     </p>
   );
 }
@@ -844,10 +849,10 @@ function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta:
           : `Existencia ${quantityFormat.format(onHand)}`;
   const stockTitle =
     onHand !== null
-      ? `${quantityFormat.format(onHand)} en ${stock?.warehouses ?? 0} ${stock?.warehouses === 1 ? "bodega" : "bodegas"} de la lista${
+      ? `${quantityFormat.format(onHand)} en ${stock?.warehouses ?? 0} ${stock?.warehouses === 1 ? "bodega" : "bodegas"} de los C.O. elegidos${
           available !== null ? `, ${quantityFormat.format(available)} disponibles` : ""
-        }. El detalle trae cada bodega.`
-      : "Sin existencia en las bodegas de la lista (foto de SIESA de esta mañana).";
+        }. «Ver desglose» y el detalle traen cada C.O. y bodega.`
+      : "Sin existencia en las bodegas de los C.O. elegidos (foto de SIESA de esta mañana).";
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
       <ReviewSelect line={line} control={meta.review} />

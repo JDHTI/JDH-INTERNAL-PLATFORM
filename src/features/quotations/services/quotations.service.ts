@@ -20,6 +20,7 @@ import type {
   QuotationWithImport,
   ReviewStatus,
   StagedList,
+  StockBreakdown,
   StockTotals,
   TemporaryQuotationInput,
   ValidateOptions,
@@ -71,6 +72,11 @@ export function getLineInsight(id: string, sku: string): Promise<LineInsight> {
 }
 
 /** Stock of every item in the list's sellable warehouses, summed per reference. */
+/** The stock of the given references by center and warehouse; any kind of quotation. */
+export function getStockBreakdown(id: string, skus: string[]): Promise<StockBreakdown> {
+  return apiFetch<StockBreakdown>(`${one(id)}/stock-breakdown`, { query: { sku: skus } });
+}
+
 export function getStockTotals(id: string): Promise<StockTotals> {
   return apiFetch<StockTotals>(`${update(id)}/stock`);
 }
