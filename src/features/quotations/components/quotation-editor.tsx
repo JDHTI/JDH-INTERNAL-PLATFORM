@@ -115,11 +115,17 @@ const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>>
   sin_cambios: (line) => !isModified(line),
 };
 
-/** The quick filters of the toolbar; the same filter as the indicator of the same name above. */
-const QUICK_FILTERS: { key: "all" | "modificados" | "sin_cambios" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean }[] = [
+type ChipFilter = { key: "all" | "modificados" | "sin_cambios" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean };
+
+/** The chips always in the toolbar: what was changed apart from what keeps its price. */
+const QUICK_FILTERS: ChipFilter[] = [
   { key: "all", label: "Todos", help: "Todas las referencias.", forLists: true },
   { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
   { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
+];
+
+/** The ones used less, inside «Más filtros»; the same filter as the indicator of the same name above. */
+const MORE_FILTERS: ChipFilter[] = [
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
   { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
   { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
@@ -293,8 +299,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     [quotation.lines]
   );
   // What «Más filtros» has on: categories, suppliers, and the inactive or last-import chip.
-  const moreActive =
-    (categories.length > 0 ? 1 : 0) + (suppliers.length > 0 ? 1 : 0) + (filter === "inactive" || filter === "imported" ? 1 : 0);
+  // Whether the chip on is one inside «Más filtros», so its trigger says a filter is on.
+  const moreActive = MORE_FILTERS.some((chip) => chip.key === filter) || filter === "inactive" || filter === "imported" ? 1 : 0;
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -528,10 +534,17 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       </div>
 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            {!isList && <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />}
+        <div className="min-w-0 flex-1 space-y-1">
+          {/* A long legal name stays on one line, cut with an ellipsis; the whole name is its tooltip. */}
+          <div className="flex min-w-0 items-center gap-x-3">
+            <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight" title={title ?? undefined}>
+              {title}
+            </h1>
+            {!isList && (
+              <span className="shrink-0">
+                <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
             {quotation.business_group && (
@@ -545,7 +558,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* The actions keep their row; the name gives up its width instead. */}
+        <div className="flex flex-wrap items-center gap-2 xl:shrink-0 xl:justify-end">
           {editable && (
             <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
               <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
@@ -664,12 +678,13 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
-        One toolbar: search, the quick filters, «Más filtros» and, on the right, the actions on
-        the references. In a narrow container it wraps, but never into a row per kind of filter.
+        Two rows across the whole container: the filters (the search takes the room the rest
+        leaves) and, under them on the right, the actions on the references. The filters used
+        less live in «Más filtros».
       */}
-      <div className={cn(!hasRows && "hidden")}>
+      <div className={cn("space-y-2", !hasRows && "hidden")}>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full @xl:w-64">
+          <div className="relative w-full min-w-56 @xl:w-auto @xl:flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -696,33 +711,46 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               </ToggleChip>
             ))}
           </div>
+          {categoryOptions.length > 0 && (
+            <MultiSelect
+              label="Categorías"
+              allLabel="Todas las categorías"
+              options={categoryOptions}
+              value={categories}
+              onValueChange={(next) => {
+                setCategories(next);
+                setPage(1);
+              }}
+              className="w-full @xl:w-52"
+            />
+          )}
+          {supplierOptions.length > 0 && (
+            <MultiSelect
+              label="Proveedores"
+              allLabel="Todos los proveedores"
+              options={supplierOptions}
+              value={suppliers}
+              onValueChange={(next) => {
+                setSuppliers(next);
+                setPage(1);
+              }}
+              className="w-full @xl:w-52"
+            />
+          )}
           <MoreFilters active={moreActive}>
-            {categoryOptions.length > 0 && (
-              <MultiSelect
-                label="Categorías"
-                allLabel="Todas las categorías"
-                options={categoryOptions}
-                value={categories}
-                onValueChange={(next) => {
-                  setCategories(next);
-                  setPage(1);
-                }}
-                className="w-full"
-              />
-            )}
-            {supplierOptions.length > 0 && (
-              <MultiSelect
-                label="Proveedores"
-                allLabel="Todos los proveedores"
-                options={supplierOptions}
-                value={suppliers}
-                onValueChange={(next) => {
-                  setSuppliers(next);
-                  setPage(1);
-                }}
-                className="w-full"
-              />
-            )}
+            <div role="group" aria-label="Filtros de la línea" className="flex flex-wrap gap-2">
+              {MORE_FILTERS.filter((chip) => !isList || chip.forLists).map((chip) => (
+                <ToggleChip
+                  key={chip.key}
+                  active={filter === chip.key}
+                  onClick={() => chooseFilter(filter === chip.key ? "all" : chip.key)}
+                  count={quickCounts[chip.key as keyof typeof quickCounts]}
+                  title={chip.help}
+                >
+                  {chip.label}
+                </ToggleChip>
+              ))}
+            </div>
             {(inactiveCount > 0 || importer.lastImport) && (
               <div role="group" aria-label="Estado de la línea" className="flex flex-wrap gap-2">
                 {inactiveCount > 0 && (
@@ -741,37 +769,36 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
                 )}
               </div>
             )}
-            {categoryOptions.length === 0 && supplierOptions.length === 0 && inactiveCount === 0 && !importer.lastImport && (
-              <p className="text-[13px] text-text-secondary">Esta cotización no tiene categorías ni proveedores para filtrar.</p>
-            )}
           </MoreFilters>
           <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
             <FilterX aria-hidden="true" /> Borrar filtros
           </Button>
-          {canManage && (
-            // Next to the references they work on, not among the quotation's own actions.
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @6xl:ml-auto">
-              {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
-              {supportCandidates > 0 && (
-                <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
-                  <HandCoins aria-hidden="true" /> Solicitar margen autorizado
-                </Button>
-              )}
-              {editable && (
-                <>
-                  {!isList && (
-                    <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
-                      <PackageOpen aria-hidden="true" /> Crear producto
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={openImport} disabled={busy} className="max-md:h-11">
-                    <PackagePlus aria-hidden="true" /> Agregar productos
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
         </div>
+        {canManage && (
+          // Next to the references they work on, not among the quotation's own actions. Adding
+          // products is the usual step, so it leads and is the solid one; a product only to
+          // quote is the exception.
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
+            {supportCandidates > 0 && (
+              <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
+                <HandCoins aria-hidden="true" /> Solicitar margen autorizado
+              </Button>
+            )}
+            {editable && (
+              <>
+                <Button onClick={openImport} disabled={busy} className="max-md:h-11">
+                  <PackagePlus aria-hidden="true" /> Agregar productos
+                </Button>
+                {!isList && (
+                  <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                    <PackageOpen aria-hidden="true" /> Crear producto
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {!hasRows && isList ? (

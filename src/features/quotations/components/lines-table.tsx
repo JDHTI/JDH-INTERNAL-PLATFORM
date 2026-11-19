@@ -608,9 +608,9 @@ const units = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
 /**
  * Units on hand and available, summed over the saleable warehouses of the
  * chosen centers (Nacional: the main ones), for both BI and Comercial, with
- * «Ver desglose» by center and warehouse. Nothing when the API does not know
- * them; "sin disponible" in words, so quoting what cannot be shipped stands
- * out without color.
+ * an «i» that shows them by center and warehouse. Nothing when the API does
+ * not know them; "sin disponible" in words, so quoting what cannot be shipped
+ * stands out without color.
  */
 export function Stock({ line, stockOf }: { line: QuotationLine; stockOf?: LinesProps["stockOf"] }) {
   const onHand = toNumber(line.stock_on_hand);
@@ -618,7 +618,7 @@ export function Stock({ line, stockOf }: { line: QuotationLine; stockOf?: LinesP
   if (onHand === null && available === null) return null;
   const empty = available !== null && available <= 0;
   return (
-    <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] tabular-nums text-text-secondary">
+    <p className="flex min-w-0 items-center gap-x-1 text-[13px] tabular-nums text-text-secondary">
       <span className="truncate" title="Existencia y disponible en las bodegas vendibles de los C.O. elegidos">
         Existencia {onHand === null ? "—" : units.format(onHand)} ·{" "}
         {empty ? <span className="font-medium text-text-primary">sin disponible</span> : `Disponible ${available === null ? "—" : units.format(available)}`}
@@ -851,7 +851,7 @@ function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta:
     onHand !== null
       ? `${quantityFormat.format(onHand)} en ${stock?.warehouses ?? 0} ${stock?.warehouses === 1 ? "bodega" : "bodegas"} de los C.O. elegidos${
           available !== null ? `, ${quantityFormat.format(available)} disponibles` : ""
-        }. «Ver desglose» y el detalle traen cada C.O. y bodega.`
+        }. La «i» y el detalle traen cada C.O. y bodega.`
       : "Sin existencia en las bodegas de los C.O. elegidos (foto de SIESA de esta mañana).";
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
