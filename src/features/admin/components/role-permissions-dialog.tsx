@@ -32,9 +32,9 @@ function toLevels(grants: RoleGrantDto[]): { area: Level; modules: Record<string
 
 /**
  * Back to grants, without the module rows the whole-area level already covers, and only for
- * the modules switched on in the area (`active`). The API keeps a role's grant on a module the
- * area switched off, and refuses it on save ("no está activo en el área"): sending it back made
- * every save of a per-module role fail, while the whole-area level, a bare `*`, went through.
+ * the modules switched on in the area (`active`). A grant on a module the area switched off is
+ * not sent: the API keeps it as it is (it counts again when the module is switched back on),
+ * and builds before that refused it on save with «no está activo en el área».
  */
 function toGrants(area: Level, modules: Record<string, Level>, active: Set<string>): RoleGrantDto[] {
   const grants: RoleGrantDto[] = [];
