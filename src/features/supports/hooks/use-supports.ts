@@ -17,7 +17,6 @@ import {
   retireSupports,
   unlinkAttachment,
   viewAttachment,
-  createSpecialCase,
   createSupport,
   createSupportsByGroup,
   deleteProfile,
@@ -29,12 +28,10 @@ import {
   getSupportPermissions,
   listFilterFields,
   listProfiles,
-  listSpecialCases,
   listSupportConflicts,
   runBulkLoad,
   saveProfile,
   searchSupports,
-  updateSpecialCase,
   updateSupport,
   voidSupport,
 } from "../services/supports.service";
@@ -44,9 +41,6 @@ import type {
   BulkLoadInput,
   ColumnMap,
   RetireBody,
-  SpecialCaseInput,
-  SpecialCaseParams,
-  SpecialCasePatch,
   SupportCreateBody,
   SupportPatch,
   SupportProfileBody,
@@ -62,7 +56,6 @@ export const supportKeys = {
   detail: (id: string) => [...supportKeys.all, "detail", id] as const,
   conflicts: (id: string) => [...supportKeys.all, "conflicts", id] as const,
   attachments: (id: string) => [...supportKeys.all, "attachments", id] as const,
-  cases: (params: SpecialCaseParams) => ["supplier-special-cases", params] as const,
   profiles: ["supplier-support-profiles"] as const,
   profile: (code: string) => [...supportKeys.profiles, code] as const,
 };
@@ -378,30 +371,5 @@ export function useVoidSupport() {
     mutationFn: ({ id, version, reason }: { id: string; version: number; reason: string }) =>
       voidSupport(id, { version, reason }),
     onSettled: () => client.invalidateQueries({ queryKey: supportKeys.all }),
-  });
-}
-
-export function useSpecialCases(params: SpecialCaseParams) {
-  return useQuery({
-    queryKey: supportKeys.cases(params),
-    queryFn: () => listSpecialCases(params),
-    retry: retryTransient,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useCreateSpecialCase() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: SpecialCaseInput) => createSpecialCase(input),
-    onSettled: () => client.invalidateQueries({ queryKey: ["supplier-special-cases"] }),
-  });
-}
-
-export function useUpdateSpecialCase() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: SpecialCasePatch }) => updateSpecialCase(id, patch),
-    onSettled: () => client.invalidateQueries({ queryKey: ["supplier-special-cases"] }),
   });
 }

@@ -9,8 +9,6 @@ import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -27,18 +25,15 @@ import {
 import { formatDay, formatPublishFrom, formatSupplierValue } from "../lib/format";
 import { downloadBulkExport, downloadBulkTemplate } from "../services/supports.service";
 
-/** The files offered: the template, by group, every field, or the supplier's supports to validate. */
-type Download = "corta" | "grupos" | "completa" | "datos";
-import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec, OnOverlap } from "../types/support.types";
+import type { BulkLoadInput, BulkReport, BulkRowAction, ColumnMap, FormFieldSpec } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import PromoCheck from "./promo-check";
 
+/** The files offered: the template, by group, or the supplier's supports to validate. */
+type Download = "corta" | "grupos" | "datos";
+
 const NOT_USED = "";
-/** No `on_overlap`: a row that crosses a stored support is an error. */
-const CROSSING_ERROR = "error";
 const count = (n: number, one: string, many: string) => `${n.toLocaleString("es-CO")} ${n === 1 ? one : many}`;
-const radio = "mt-0.5 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
-const choiceCard = "flex gap-3 rounded-lg border border-border p-3 text-sm has-[:checked]:border-primary";
 
 /** Everything the load writes: created, updated, expired as missing, and retired (crossed or Validación No). */
 const changesOf = (report: BulkReport) => report.to_create + report.to_update + report.to_expire + (report.to_retire ?? 0);
@@ -73,7 +68,6 @@ export default function BulkLoad({ area }: { area: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [sheet, setSheet] = useState("");
   // null follows the supplier's profile.
   const [promo, setPromo] = useState<boolean | null>(null);
   const [extra, setExtra] = useState<Record<string, string>>({});
@@ -87,8 +81,6 @@ export default function BulkLoad({ area }: { area: string }) {
   });
   const [mappingSaved, setMappingSaved] = useState(false);
   const [expireMissing, setExpireMissing] = useState(false);
-  const [onOverlap, setOnOverlap] = useState<OnOverlap | typeof CROSSING_ERROR>(CROSSING_ERROR);
-  const [groups, setGroups] = useState(false);
 
   const labelOf = (field: string | null) =>
     field ? (schema?.fields.find((spec) => spec.name === field)?.label ?? field) : "Fila completa";
@@ -101,11 +93,11 @@ export default function BulkLoad({ area }: { area: string }) {
   const promoValue = promo ?? profilePromo;
   const loadDefaults: Record<string, string> = promoValue || profilePromo ? { promo_warehouses: String(promoValue) } : {};
   const columnMap = invert(extra);
-  // The group upload has no "close the missing ones": its rows fan out to customers.
-  const closeMissing = expireMissing && !groups;
-  const overlapChoice = onOverlap === CROSSING_ERROR ? null : onOverlap;
+  // The sheet (the profile's or the first with headers), a row crossing a stored support (an
+  // error) and the per-customer upload are left to the API's defaults: the only choice is closing
+  // the missing ones.
   const inputKey = file
-    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, sheet.trim(), loadDefaults, columnMap, closeMissing, overlapChoice, groups])
+    ? JSON.stringify([file.name, file.size, file.lastModified, supplier?.value ?? null, loadDefaults, columnMap, expireMissing])
     : null;
   const fresh = report !== null && inputKey === reportKey;
   const changes = report ? changesOf(report) : 0;
@@ -115,12 +107,12 @@ export default function BulkLoad({ area }: { area: string }) {
     file: file!,
     apply,
     supplierCode: supplier?.value ?? null,
-    sheet: sheet.trim() || null,
+    sheet: null,
     defaults: loadDefaults,
     columnMap,
-    expireMissing: closeMissing,
-    onOverlap: overlapChoice,
-    groups,
+    expireMissing,
+    onOverlap: null,
+    groups: false,
   });
 
   const run = (apply: boolean) => {
@@ -150,8 +142,6 @@ export default function BulkLoad({ area }: { area: string }) {
     setApplied(null);
     setExtra({});
     setExpireMissing(false);
-    setOnOverlap(CROSSING_ERROR);
-    setGroups(false);
     setRequestError(null);
   };
 
@@ -161,7 +151,7 @@ export default function BulkLoad({ area }: { area: string }) {
     setTemplate({ pending: kind, error: null });
     try {
       if (kind === "datos") await downloadBulkExport(supplier.value);
-      else await downloadBulkTemplate(supplier.value, { full: kind === "completa", groups: kind === "grupos" });
+      else await downloadBulkTemplate(supplier.value, { full: false, groups: kind === "grupos" });
       setTemplate({ pending: null, error: null });
     } catch (failure) {
       setTemplate({ pending: null, error: errorMessage(failure) });
@@ -249,9 +239,6 @@ export default function BulkLoad({ area }: { area: string }) {
               <Button variant="outline" onClick={() => download("datos")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
                 {template.pending === "datos" ? "Descargando" : "Descargar con datos"}
               </Button>
-              <Button variant="ghost" onClick={() => download("completa")} disabled={!supplier || template.pending !== null} className="max-sm:h-11">
-                {template.pending === "completa" ? "Descargando" : "Plantilla completa"}
-              </Button>
             </div>
             {template.error ? (
               <p role="alert" className="text-[13px] text-danger">{template.error}</p>
@@ -287,9 +274,6 @@ export default function BulkLoad({ area }: { area: string }) {
             />
             <p className="text-[13px] text-text-secondary">Excel (.xlsx, .xlsm) o CSV, hasta 10 MB y 10.000 filas.</p>
           </div>
-          <Field label="Hoja" htmlFor={`${id}-sheet`} optional hint="Vacío: la del perfil o la primera con encabezados.">
-            <Input id={`${id}-sheet`} maxLength={100} value={sheet} onChange={(event) => setSheet(event.target.value)} />
-          </Field>
         </div>
 
         <PromoCheck
@@ -301,58 +285,17 @@ export default function BulkLoad({ area }: { area: string }) {
 
         <div className="space-y-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold">Cómo actualiza el maestro</h3>
-          <p className="max-w-prose text-[13px] text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             Cada fila se busca por su llave (proveedor, NIT, SKU JDH y fecha de inicio): crea el apoyo si no existe y
             lo actualiza si ya existe, cambiando solo las columnas que trae el archivo. Una columna que no venga
             conserva lo guardado. El SKU Proveedor se toma del maestro de productos; solo sirve para encontrar el SKU
-            JDH cuando la fila no lo trae. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el
-            apoyo guardado con la observación de la fila, y vacío deja la fila sin tocar.
+            JDH cuando la fila no lo trae. Una fila con Grupo Empresarial y sin NIT crea un apoyo por cada cliente
+            activo del grupo. Si el archivo trae la columna Validación, Sí carga la fila, No vence ayer el apoyo
+            guardado con la observación de la fila, y vacío deja la fila sin tocar. Una fila que se cruza con un apoyo
+            guardado de otra fecha de inicio sale como error.
           </p>
 
-          <fieldset className="space-y-2">
-            <legend className="mb-2 text-sm font-medium">Tipo de subida</legend>
-            <div className="grid gap-2 md:grid-cols-2">
-              <label className={choiceCard}>
-                <input type="radio" name={`${id}-groups`} checked={!groups} onChange={() => setGroups(false)} className={radio} />
-                <span>
-                  <span className="block font-medium">Por cliente</span>
-                  <span className="text-text-secondary">
-                    Cada fila es un apoyo, con su NIT o para todos los clientes. Una fila con Grupo Empresarial y sin NIT
-                    crea uno por cada cliente activo del grupo.
-                  </span>
-                </span>
-              </label>
-              <label className={choiceCard}>
-                <input type="radio" name={`${id}-groups`} checked={groups} onChange={() => setGroups(true)} className={radio} />
-                <span>
-                  <span className="block font-medium">Por grupo empresarial</span>
-                  <span className="text-text-secondary">
-                    Cada fila trae la columna Grupo Empresarial, sin NIT, y crea un apoyo por cada cliente activo del grupo.
-                  </span>
-                </span>
-              </label>
-            </div>
-          </fieldset>
-
-          <Field
-            label="Si una fila se cruza con un apoyo guardado"
-            htmlFor={`${id}-overlap`}
-            hint="Misma clase, proveedor, cliente y referencia, con vigencias que se tocan. Dos filas del archivo que se cruzan siempre son error."
-          >
-            <Dropdown
-              id={`${id}-overlap`}
-              value={onOverlap}
-              onValueChange={(value) => setOnOverlap(value as OnOverlap | typeof CROSSING_ERROR)}
-              options={[
-                { value: CROSSING_ERROR, label: "Marcarla como error" },
-                { value: "vencer_anterior", label: "Vencer el anterior el día antes del nuevo" },
-                { value: "anular_anterior", label: "Anular el anterior" },
-              ]}
-              className="md:max-w-md"
-            />
-          </Field>
-
-          {!groups && <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3">
             <Switch
               checked={expireMissing}
               onCheckedChange={setExpireMissing}
@@ -373,7 +316,7 @@ export default function BulkLoad({ area }: { area: string }) {
                 carga. Nada se borra. Los que aún no empiezan solo se reportan.
               </p>
             </div>
-          </div>}
+          </div>
         </div>
 
         {requestError && (
@@ -399,7 +342,7 @@ export default function BulkLoad({ area }: { area: string }) {
         <Report
           report={report}
           fresh={fresh}
-          expireMissing={closeMissing}
+          expireMissing={expireMissing}
           labelOf={labelOf}
           fields={schema?.fields ?? []}
           extra={extra}
@@ -484,8 +427,8 @@ function Report({
 
       {!fresh ? (
         <p role="status" className="rounded-md bg-canvas-subtle px-3 py-2 text-sm">
-          Cambiaste el archivo, el proveedor, la hoja, el mapeo, el tipo de subida o lo que se hace con los cruces o
-          los ausentes. Vuelve a simular antes de aplicar.
+          Cambiaste el archivo, el proveedor, el mapeo, las bodegas promocionales o lo que se hace con los ausentes.
+          Vuelve a simular antes de aplicar.
         </p>
       ) : report.blocked ? (
         <p role="alert" className="flex items-start gap-2 rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
@@ -520,7 +463,7 @@ function Report({
           )}
         >
           <Figure label="Nuevos" value={report.to_create} />
-          <Figure label="Se actualizan" value={report.to_update} />
+          <Figure label="Se actualizan" value={report.to_update} detail="Misma llave, con cambios" />
           <Figure label="Sin cambio" value={report.unchanged} />
           <Figure label="Ausentes" value={report.missing} detail="Guardados que el archivo no trae" />
           <Figure
@@ -709,7 +652,8 @@ function appliedSummary(report: BulkReport, projected = false): string {
   const retired = projected ? (report.to_retire ?? 0) : (report.retired?.length ?? 0);
   const parts = [
     created > 0 && count(created, "apoyo nuevo", "apoyos nuevos"),
-    updated > 0 && count(updated, projected ? "se actualiza" : "actualizado", projected ? "se actualizan" : "actualizados"),
+    updated > 0 &&
+      `${count(updated, projected ? "apoyo se actualiza" : "apoyo actualizado", projected ? "apoyos se actualizan" : "actualizados")} (misma llave, con cambios)`,
     expired > 0 && count(expired, projected ? "ausente se vence" : "ausente vencido", projected ? "ausentes se vencen" : "ausentes vencidos"),
     retired > 0 && count(retired, projected ? "guardado se retira" : "guardado retirado", projected ? "guardados se retiran" : "guardados retirados"),
   ].filter((part): part is string => Boolean(part));

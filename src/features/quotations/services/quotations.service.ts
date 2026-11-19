@@ -20,6 +20,7 @@ import type {
   QuotationWithImport,
   ReviewStatus,
   StagedList,
+  StockBreakdown,
   StockTotals,
   TemporaryQuotationInput,
   ValidateOptions,
@@ -71,6 +72,11 @@ export function getLineInsight(id: string, sku: string): Promise<LineInsight> {
 }
 
 /** Stock of every item in the list's sellable warehouses, summed per reference. */
+/** The stock of the given references by center and warehouse; any kind of quotation. */
+export function getStockBreakdown(id: string, skus: string[]): Promise<StockBreakdown> {
+  return apiFetch<StockBreakdown>(`${one(id)}/stock-breakdown`, { query: { sku: skus } });
+}
+
 export function getStockTotals(id: string): Promise<StockTotals> {
   return apiFetch<StockTotals>(`${update(id)}/stock`);
 }
@@ -133,6 +139,32 @@ export function getQuotation(id: string): Promise<Quotation> {
 /** `empty`: no lines from the sales history; the advisor adds the references, and a refresh never brings the history in. */
 export function createQuotation(customerNit: string, windowMonths: WindowMonths, empty = false): Promise<Quotation> {
   return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths, with_history: !empty } });
+}
+
+/**
+ * A whole business group: sales of every customer in it, and the list, channel and center most
+ * of its branches have. The quotation and its offer carry the group's name.
+ */
+export function createGroupQuotation(businessGroup: string, windowMonths: WindowMonths, empty = false): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, {
+    method: "POST",
+    body: { business_group: businessGroup, window_months: windowMonths, with_history: !empty },
+  });
+}
+
+/**
+ * The 3-character list codes (0-9, A-Z, in order) SIESA does not use yet, from the one after
+ * `after`. `free` and `used` count the whole space; `next_after` is null on the last page.
+ */
+export interface AvailableListCodes {
+  items: string[];
+  free: number;
+  used: number;
+  next_after: string | null;
+}
+
+export function getAvailableListCodes(after: string, size = 30): Promise<AvailableListCodes> {
+  return apiFetch<AvailableListCodes>(`${BASE}/list-codes/available`, { query: { after: after || undefined, size } });
 }
 
 /** A customer SIESA does not have: an empty quotation, priced from the chosen operation center. */
@@ -218,14 +250,6 @@ export function refreshQuotation(id: string, version: number): Promise<Quotation
  */
 export function confirmQuotation(id: string, version: number, options: ConfirmOptions): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/confirm`, { method: "POST", body: { version, ...options } });
-}
-
-/**
- * The offer goes to the customer with no validation, from a draft or a sent one. Needs one line
- * in the offer (422); the margin rule never blocks; 409 while it is pending validation.
- */
-export function sendQuotation(id: string, version: number): Promise<Quotation> {
-  return apiFetch<Quotation>(`${one(id)}/send`, { method: "POST", body: { version } });
 }
 
 /** Back to draft with a note; the validating area must write one, the advisor may not. */

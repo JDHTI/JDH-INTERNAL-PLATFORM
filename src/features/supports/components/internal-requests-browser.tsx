@@ -15,6 +15,9 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
+import { useSession } from "@/features/session/hooks/use-session";
+import type { SessionUser } from "@/features/session/types/session.types";
+
 import { useDecideInternalRequest, useInternalRequest, useInternalRequests } from "../hooks/use-internal-requests";
 import { internalStatusLabel, internalStatusTone, marginPointsText } from "../lib/internal-requests";
 import type { InternalSupportRequest } from "../types/internal-request.types";
@@ -38,6 +41,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
   const [status, setStatus] = useState(review ? "pendiente" : "");
   const [text, setText] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const me = useSession().data;
   const q = useDebouncedValue(text.trim());
   const query = useInternalRequests(
     { page, size: 25, status: (status || undefined) as RequestStatus | undefined, q: q || undefined, mine: !review },
@@ -120,7 +124,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
                     </td>
                     <td className={`${td} text-right`}>
                       <Button variant="outline" size="sm" onClick={() => setOpenId(item.id)} aria-label={`Ver solicitud ${item.number}`}>
-                        {review && item.status === "pendiente" ? "Revisar" : "Ver"}
+                        {review && item.status === "pendiente" && !askedBy(item, me) ? "Revisar" : "Ver"}
                       </Button>
                     </td>
                   </tr>
@@ -138,10 +142,23 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
 
 type Choice = "persistente" | "unica_vez" | "rechazar";
 
+/**
+ * Whether the person asked for it: nobody decides their own request (the API answers 403).
+ * By id when the API sends it, else by the email or name it records as the requester.
+ */
+function askedBy(request: InternalSupportRequest, me: SessionUser | undefined): boolean {
+  if (!me) return false;
+  if (request.requested_by_id) return request.requested_by_id === me.id;
+  const by = request.requested_by.trim().toLowerCase();
+  return by === me.email.toLowerCase() || by === me.displayName.trim().toLowerCase();
+}
+
 function InternalRequestDialog({ id, review, onClose }: { id: string; review: boolean; onClose: () => void }) {
   const query = useInternalRequest(id, !review);
+  const me = useSession().data;
   const data = query.data;
-  const canDecide = review && data?.status === "pendiente";
+  const own = data ? askedBy(data, me) : false;
+  const canDecide = review && data?.status === "pendiente" && !own;
 
   return (
     <Dialog
@@ -164,7 +181,11 @@ function InternalRequestDialog({ id, review, onClose }: { id: string; review: bo
         <div className="space-y-4">
           <RequestSummary request={data} />
           <ItemsTable request={data} />
-          <DecisionSummary request={data} />
+          {review && own && data.status === "pendiente" ? (
+            <p className="text-sm text-text-secondary">La pediste tú: la decide otra persona del área BI.</p>
+          ) : (
+            <DecisionSummary request={data} />
+          )}
         </div>
       )}
     </Dialog>
@@ -197,7 +218,7 @@ function ItemsTable({ request }: { request: InternalSupportRequest }) {
             <th scope="col" className={`${th} text-right`}>Precio cotizado</th>
             <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
             <th scope="col" className={`${th} text-right`}>Mínimo</th>
-            <th scope="col" className={`${th} text-right`}>Pedido</th>
+            <th scope="col" className={`${th} text-right`}>Margen mínimo autorizado</th>
             {decided && <th scope="col" className={`${th} text-right`}>Aprobado</th>}
           </tr>
         </thead>
@@ -327,7 +348,7 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
                     <th scope="col" className={th}>Referencia</th>
                     <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
                     <th scope="col" className={`${th} text-right`}>Mínimo</th>
-                    <th scope="col" className={`${th} text-right`}>Pedido</th>
+                    <th scope="col" className={`${th} text-right`}>Margen mínimo autorizado</th>
                     <th scope="col" className={`${th} w-32`}>Aprobado (%)</th>
                   </tr>
                 </thead>

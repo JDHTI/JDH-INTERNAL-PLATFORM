@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Check,
   CheckCircle2,
   CloudUpload,
@@ -17,7 +18,6 @@ import {
   FilterX,
   HandCoins,
   Hourglass,
-  ListPlus,
   Loader2,
   MessageSquareWarning,
   MoreHorizontal,
@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Send,
   Sheet,
   Trash2,
   Undo2,
@@ -60,7 +59,6 @@ import {
   useQuotationPermissions,
   useRefreshQuotation,
   useRemoveLine,
-  useSendQuotation,
 } from "../hooks/use-quotations";
 import { useLineNote, useReviewLines, useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
@@ -69,8 +67,9 @@ import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, suppl
 import { LIST_FILTERS, type ListFilter } from "../lib/list-review";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isListKind } from "../types/quotations.types";
+import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isClosed, isListKind } from "../types/quotations.types";
 import { ListFilters } from "./list-review-controls";
+import MoreFilters from "./more-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
@@ -82,7 +81,7 @@ import OfferSection from "./offer-section";
 import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
-import { ConfirmDialog } from "./confirm-wizard";
+import { ContinueDialog } from "./confirm-wizard";
 import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
 import SupportRequestDialog, { canAskSupport } from "./support-request-dialog";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
@@ -100,13 +99,45 @@ const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
  * The indicators are the main filters; "inactive" and "imported" (what the
  * last paste added or revalidated) are chips that appear only when they apply.
  */
-type LineFilter = Indicator | "inactive" | "imported";
+type LineFilter = Indicator | "inactive" | "imported" | "nuevos" | "modificados" | "sin_cambios";
 
 const inactive = (line: QuotationLine) => !line.is_active;
-/** What confirming needs at least one of: an active line with a new price, from SIESA or local. */
-const priced = (line: QuotationLine) => line.new_price !== null && line.is_active;
+/** Added by hand, from SIESA or created only to quote: not from the sales history or the list. */
+const isNew = (line: QuotationLine) => line.origin === "agregado" || line.origin === "local";
+/** A price was written for it (confirmed with Enter and saved). */
+const isModified = (line: QuotationLine) => line.new_price !== null;
+
+/** The toolbar's own filters, beside the ones the indicators above also are. */
+const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>> = {
+  inactive,
+  nuevos: isNew,
+  modificados: isModified,
+  sin_cambios: (line) => !isModified(line),
+};
+
+/** The quick filters of the toolbar; the same filter as the indicator of the same name above. */
+const QUICK_FILTERS: { key: "all" | "modificados" | "sin_cambios" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean }[] = [
+  { key: "all", label: "Todos", help: "Todas las referencias.", forLists: true },
+  { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
+  { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
+  { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
+  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
+  { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
+];
+
+/**
+ * The new items first, the latest added on top, then the rest in the order the API gives;
+ * a column sort, when chosen, orders everything.
+ */
+function newFirst(lines: QuotationLine[]): QuotationLine[] {
+  const added = lines.filter(isNew).sort((a, b) => (b.position ?? 0) - (a.position ?? 0));
+  return added.length === 0 ? lines : [...added, ...lines.filter((line) => !isNew(line))];
+}
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
+  nuevos: "Aún no agregaste referencias ni creaste productos para cotizar.",
+  modificados: "Aún no confirmaste ningún precio nuevo. Escribe el precio y presiona Enter.",
+  sin_cambios: "Todas las referencias tienen precio nuevo.",
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
   rango: "Ninguna línea queda entre el mínimo y el objetivo.",
   minimo: "Ninguna línea queda bajo el mínimo.",
@@ -116,7 +147,16 @@ const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
   apoyo: "Ninguna referencia tiene un apoyo aplicado.",
 };
 
-export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
+export default function QuotationEditor({
+  quotationId,
+  basePath,
+  rulesBasePath = basePath,
+}: {
+  quotationId: string;
+  basePath: string;
+  /** Where the rules link points, when the list it opens from has no rules page of its own. */
+  rulesBasePath?: string;
+}) {
   const quotation = useQuotation(quotationId);
   const data = quotation.data;
   useBreadcrumbLabel(
@@ -146,10 +186,10 @@ export default function QuotationEditor({ quotationId, basePath }: { quotationId
       />
     );
   }
-  return <Editor quotation={quotation.data} basePath={basePath} />;
+  return <Editor quotation={quotation.data} basePath={basePath} rulesBasePath={rulesBasePath} />;
 }
 
-function Editor({ quotation, basePath }: { quotation: Quotation; basePath: string }) {
+function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; basePath: string; rulesBasePath: string }) {
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions(quotation.kind).data;
@@ -162,7 +202,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
-  const editable = canManage && !pendingReview;
+  // Validated or loaded: nothing changes any more, the API answers 409 to every edit.
+  const closed = isClosed(quotation.status);
+  const editable = canManage && !pendingReview && !closed;
+  // Quantities and the offer still change while BI validates, never once it is validated.
+  const offerEditable = canManage && !closed;
 
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
@@ -212,15 +256,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [sort, setSort] = useState<Sort | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "uploaded" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"continue" | "return" | "validate" | "uploaded" | "delete" | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<Download | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
 
-  // Confirming needs one priced line, from SIESA or local: a temporary customer may have only local products.
-  const pricedCount = useMemo(() => quotation.lines.filter(priced).length, [quotation.lines]);
   const inactiveCount = useMemo(() => quotation.lines.filter(inactive).length, [quotation.lines]);
   // The options come from this quotation's own lines, so each one lists only what it has.
   const categoryOptions = useMemo(() => distinctValues(quotation.lines, (line) => line.category), [quotation.lines]);
@@ -232,14 +274,27 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     const bySupplier = new Set(suppliers);
     const matching = quotation.lines.filter(
       (line) =>
-        (filter === "imported" ? imported.has(line.sku) : filter === "inactive" ? inactive(line) : INDICATORS[filter](line)) &&
+        (filter === "imported" ? imported.has(line.sku) : (OWN_FILTERS[filter] ?? INDICATORS[filter as Indicator])(line)) &&
         (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
         (bySupplier.size === 0 || bySupplier.has(supplierOf(line)?.trim() ?? ""))
     );
-    return sortLines(matching, sort);
+    return sort ? sortLines(matching, sort) : newFirst(matching);
   }, [quotation.lines, filter, listFilter, q, imported, categories, suppliers, sort]);
+  const quickCounts = useMemo(
+    () => ({
+      modificados: quotation.lines.filter(isModified).length,
+      sin_cambios: quotation.lines.filter((line) => !isModified(line)).length,
+      nuevos: quotation.lines.filter(isNew).length,
+      minimo: quotation.lines.filter(INDICATORS.minimo).length,
+      apoyo: quotation.lines.filter(INDICATORS.apoyo).length,
+    }),
+    [quotation.lines]
+  );
+  // What «Más filtros» has on: categories, suppliers, and the inactive or last-import chip.
+  const moreActive =
+    (categories.length > 0 ? 1 : 0) + (suppliers.length > 0 ? 1 : 0) + (filter === "inactive" || filter === "imported" ? 1 : 0);
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -263,16 +318,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   };
 
   const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
-  const sending = useSendQuotation(quotation.id);
-  const sendToCustomer = async () => {
-    try {
-      await sending.mutateAsync(quotation.version);
-      toast.success("Cotización enviada al cliente. Sigue editable: si cambias algo, vuelve a borrador.");
-    } catch (failure) {
-      // 422 without lines in the offer, 409 if it changed or went to validation meanwhile.
-      toast.error(errorMessage(failure), { duration: Infinity });
-    }
-  };
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
@@ -389,6 +434,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setSavingDraft(true);
     const saved = await editor.saveNow();
     setSavingDraft(false);
+    // A typed price counts only once confirmed: the save never confirms it on the person's behalf.
+    if (saved && editor.unconfirmed.length > 0) {
+      toast.warning(
+        `${editor.unconfirmed.length === 1 ? "Un precio está escrito" : `${editor.unconfirmed.length} precios están escritos`} sin confirmar. Presiona Enter en cada uno para guardarlo.`,
+        { duration: Infinity }
+      );
+      return;
+    }
     if (saved) toast.success(hadChanges ? "Borrador guardado." : "Todo está guardado. El borrador también se guarda solo mientras escribes.");
     else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
   };
@@ -442,8 +495,9 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       setSort(next);
       setPage(1);
     },
+    stockOf: { quotationId: quotation.id, version: quotation.version },
     withQuantities: !isList && quotation.quote_quantities,
-    quantitiesEditable: canManage,
+    quantitiesEditable: offerEditable,
     // Only BI, who validates, sees the cost behind the suggested prices.
     showCost: canValidate,
     basePriceLabel: copy.basePrice,
@@ -470,7 +524,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> {isList ? "Actualizaciones" : "Cotizaciones"}
         </Link>
-        <QuotationRulesLink basePath={basePath} label={isList ? "Reglas de precios" : undefined} />
+        <QuotationRulesLink basePath={rulesBasePath} label={isList ? "Reglas de precios" : undefined} />
       </div>
 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -480,6 +534,12 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             {!isList && <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
+            {quotation.business_group && (
+              <span className="font-medium text-text-primary">
+                Grupo empresarial: {quotation.business_group}
+                {quotation.group_customers ? ` (${formatCount(quotation.group_customers)} ${quotation.group_customers === 1 ? "cliente" : "clientes"})` : ""}
+              </span>
+            )}
             <span>Creada por {quotation.created_by}</span>
             <QuotationHistory quotation={quotation} />
           </div>
@@ -536,7 +596,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <Undo2 aria-hidden="true" /> Retirar de validación
             </Button>
           )}
-          {(editable || (canManage && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
+          {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
           {editable && (
             <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
@@ -547,23 +607,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <CloudUpload aria-hidden="true" /> Por cargar
             </Link>
           )}
-          {/* Sending the offer never waits on BI; only a price list does (it goes to validation). */}
-          {canManage && !isList && (quotation.status === "borrador" || quotation.status === "enviada") && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setDialog("confirm")}
-                disabled={busy || pricedCount === 0}
-                title={pricedCount === 0 ? "Escribe al menos un precio nuevo para pedir la lista." : "Va a validación de BI y, mientras tanto, no se edita."}
-                className="max-md:h-11"
-              >
-                <ListPlus aria-hidden="true" /> Solicitar actualización / creación de lista
-              </Button>
-              <Button onClick={() => void sendToCustomer()} disabled={busy || sending.isPending} className="max-md:h-11">
-                {sending.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
-                {quotation.status === "enviada" ? "Enviar de nuevo" : "Enviar al cliente"}
-              </Button>
-            </>
+          {/* Ask for a list update or creation (BI validates); the offer goes out by hand from its PDF or Excel. */}
+          {canManage && !isList && (
+            <Button onClick={() => setDialog("continue")} disabled={busy} className="max-md:h-11">
+              <ArrowRight aria-hidden="true" /> Continuar proceso
+            </Button>
           )}
           {canManage && (
             <Menu
@@ -588,13 +636,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
-      {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
+      {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={offerEditable} />}
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && !isList && (
         <QuotationIndicators
           lines={quotation.lines}
-          active={filter === "inactive" || filter === "imported" ? null : filter}
+          active={filter in OWN_FILTERS || filter === "imported" ? null : (filter as Indicator)}
           onSelect={chooseFilter}
         />
       )}
@@ -613,16 +661,15 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       {/* Quantities save in every status, so the status shows whenever something can be typed. */}
-      {(editable || (canManage && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
+      {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
-        Laid out by the width the content really has, not the window's: with the sidebar
-        open a laptop leaves the content as narrow as a tablet. One column, then filters
-        two by two, then a single row.
+        One toolbar: search, the quick filters, «Más filtros» and, on the right, the actions on
+        the references. In a narrow container it wraps, but never into a row per kind of filter.
       */}
-      <div className={cn("space-y-2", !hasRows && "hidden")}>
-        <div className="grid grid-cols-1 gap-2 @xl:grid-cols-2 @6xl:flex @6xl:flex-wrap @6xl:items-center">
-          <div className="relative w-full @xl:col-span-2 @6xl:w-72">
+      <div className={cn(!hasRows && "hidden")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full @xl:w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -636,39 +683,75 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               className="pl-9 max-md:h-11"
             />
           </div>
-          {categoryOptions.length > 0 && (
-            <MultiSelect
-              label="Categorías"
-              allLabel="Todas las categorías"
-              options={categoryOptions}
-              value={categories}
-              onValueChange={(next) => {
-                setCategories(next);
-                setPage(1);
-              }}
-              className="w-full @6xl:w-56"
-            />
-          )}
-          {supplierOptions.length > 0 && (
-            <MultiSelect
-              label="Proveedores"
-              allLabel="Todos los proveedores"
-              options={supplierOptions}
-              value={suppliers}
-              onValueChange={(next) => {
-                setSuppliers(next);
-                setPage(1);
-              }}
-              className="w-full @6xl:w-56"
-            />
-          )}
-          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="justify-self-start max-md:h-11">
+          <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap gap-2">
+            {QUICK_FILTERS.filter((quick) => !isList || quick.forLists).map((quick) => (
+              <ToggleChip
+                key={quick.key}
+                active={filter === quick.key}
+                onClick={() => chooseFilter(filter === quick.key && quick.key !== "all" ? "all" : quick.key)}
+                count={quick.key === "all" ? undefined : quickCounts[quick.key]}
+                title={quick.help}
+              >
+                {quick.label}
+              </ToggleChip>
+            ))}
+          </div>
+          <MoreFilters active={moreActive}>
+            {categoryOptions.length > 0 && (
+              <MultiSelect
+                label="Categorías"
+                allLabel="Todas las categorías"
+                options={categoryOptions}
+                value={categories}
+                onValueChange={(next) => {
+                  setCategories(next);
+                  setPage(1);
+                }}
+                className="w-full"
+              />
+            )}
+            {supplierOptions.length > 0 && (
+              <MultiSelect
+                label="Proveedores"
+                allLabel="Todos los proveedores"
+                options={supplierOptions}
+                value={suppliers}
+                onValueChange={(next) => {
+                  setSuppliers(next);
+                  setPage(1);
+                }}
+                className="w-full"
+              />
+            )}
+            {(inactiveCount > 0 || importer.lastImport) && (
+              <div role="group" aria-label="Estado de la línea" className="flex flex-wrap gap-2">
+                {inactiveCount > 0 && (
+                  <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
+                    Inactivas
+                  </ToggleChip>
+                )}
+                {importer.lastImport && (
+                  <ToggleChip
+                    active={filter === "imported"}
+                    onClick={() => chooseFilter(filter === "imported" ? "all" : "imported")}
+                    count={importer.isPending ? null : importer.lastImport.length}
+                  >
+                    Última importación
+                  </ToggleChip>
+                )}
+              </div>
+            )}
+            {categoryOptions.length === 0 && supplierOptions.length === 0 && inactiveCount === 0 && !importer.lastImport && (
+              <p className="text-[13px] text-text-secondary">Esta cotización no tiene categorías ni proveedores para filtrar.</p>
+            )}
+          </MoreFilters>
+          <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
             <FilterX aria-hidden="true" /> Borrar filtros
           </Button>
           {canManage && (
             // Next to the references they work on, not among the quotation's own actions.
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
-              {!isList && <QuantitiesToggle quotation={quotation} disabled={busy} />}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @6xl:ml-auto">
+              {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
               {supportCandidates > 0 && (
                 <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
                   <HandCoins aria-hidden="true" /> Solicitar margen autorizado
@@ -689,24 +772,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             </div>
           )}
         </div>
-        {(inactiveCount > 0 || importer.lastImport) && (
-          <div role="group" aria-label="Más filtros" className="flex flex-wrap gap-2">
-            {inactiveCount > 0 && (
-              <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
-                Inactivas
-              </ToggleChip>
-            )}
-            {importer.lastImport && (
-              <ToggleChip
-                active={filter === "imported"}
-                onClick={() => chooseFilter(filter === "imported" ? "all" : "imported")}
-                count={importer.isPending ? null : importer.lastImport.length}
-              >
-                Última importación
-              </ToggleChip>
-            )}
-          </div>
-        )}
       </div>
 
       {!hasRows && isList ? (
@@ -782,7 +847,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       )}
 
-      <ConfirmDialog quotation={quotation} open={dialog === "confirm"} onOpenChange={(open) => !open && closeDialog()} />
+      {!isList && <ContinueDialog quotation={quotation} open={dialog === "continue"} onOpenChange={(open) => !open && closeDialog()} />}
       <ReturnDialog
         quotation={quotation}
         open={dialog === "return"}
@@ -837,6 +902,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             : undefined
         }
         forList={isList}
+        stockOf={{ quotationId: quotation.id, version: quotation.version }}
         showCost={canValidate}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
@@ -957,14 +1023,24 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
             ["NIT", temporary.nit ? <span key="nit" className="font-mono">{temporary.nit}</span> : "Sin NIT"],
           ],
         }
-      : {
-          title: "Cliente",
-          facts: [
-            ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
-            ["Canal", quotation.channel ?? "Sin canal"],
-            ["Vendedor", quotation.salesperson_name ?? "—"],
-          ],
-        },
+      : quotation.business_group
+        ? {
+            title: "Grupo empresarial",
+            // The channel and the list are the ones most of the group's branches have.
+            facts: [
+              ["Grupo", quotation.business_group],
+              ["Clientes", quotation.group_customers ? formatCount(quotation.group_customers) : "—"],
+              ["Canal", quotation.channel ?? "Sin canal"],
+            ],
+          }
+        : {
+            title: "Cliente",
+            facts: [
+              ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
+              ["Canal", quotation.channel ?? "Sin canal"],
+              ["Vendedor", quotation.salesperson_name ?? "—"],
+            ],
+          },
     {
       title: "Lista de precios",
       facts: temporary
@@ -1085,9 +1161,6 @@ function QuotationHistory({ quotation }: { quotation: Quotation }) {
   const events: [string, string][] = [
     ["Armada", formatDateTime(quotation.built_at)],
     ...(quotation.cost_cut_date ? [["Costo al corte", formatDay(quotation.cost_cut_date)] as [string, string]] : []),
-    ...(quotation.sent_at
-      ? [["Enviada al cliente", `${formatDateTime(quotation.sent_at)}${by(quotation.sent_by ?? null)}`] as [string, string]]
-      : []),
     ...(quotation.confirmed_at
       ? [["Lista solicitada", `${formatDateTime(quotation.confirmed_at)}${by(quotation.confirmed_by)}`] as [string, string]]
       : []),
@@ -1138,34 +1211,6 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
       </div>
     );
   }
-  if (quotation.status === "enviada") {
-    return (
-      <div role="status" className="flex items-start gap-2 rounded-lg bg-info-surface px-4 py-3 text-sm">
-        <Send className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-        <p>
-          <strong>
-            Enviada al cliente{quotation.sent_at ? ` el ${formatDateTime(quotation.sent_at)}` : ""}
-            {quotation.sent_by ? ` por ${quotation.sent_by}` : ""}.
-          </strong>{" "}
-          {canManage
-            ? "Sigue editable: si cambias algo, vuelve a borrador. Para llevarla a una lista de precios, solicita la actualización o creación de la lista: ese paso va a validación de BI."
-            : "No pasa por validación: la validación de BI es solo para llevarla a una lista de precios."}
-        </p>
-      </div>
-    );
-  }
-  if (quotation.status === "borrador" && quotation.sent_at) {
-    return (
-      <div role="status" className="flex items-start gap-2 rounded-lg bg-canvas-subtle px-4 py-3 text-sm">
-        <Send className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
-        <p>
-          Se envió al cliente el {formatDateTime(quotation.sent_at)}
-          {quotation.sent_by ? ` por ${quotation.sent_by}` : ""} y cambió desde entonces. Envíala de nuevo si el cliente debe ver los
-          cambios.
-        </p>
-      </div>
-    );
-  }
   if (quotation.status === "pendiente_validacion") {
     return (
       <div role="status" className="flex items-start gap-2 rounded-lg bg-warning-surface px-4 py-3 text-sm">
@@ -1201,7 +1246,7 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             ? "Descarga el Excel y el plano, cárgalos en SIESA y márcala como cargada."
             : "Falta que el área BI la cargue en SIESA."}
           {quotation.list_action === "creacion" && " Asignar la lista nueva al cliente se hace a mano en SIESA."}
-          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+          {canManage && " Ya no se edita: puedes descargar la oferta en PDF o Excel para el cliente."}
         </p>
       </div>
     );
@@ -1216,7 +1261,7 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             {quotation.uploaded_by ? ` por ${quotation.uploaded_by}` : ""}.
           </strong>{" "}
           {quotation.list_action === "creacion" ? `Lista ${target} creada${activation}.` : `Lista ${target} actualizada${activation}.`}
-          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+          {canManage && " Ya no se edita: para otros precios, arma una cotización nueva."}
         </p>
       </div>
     );
@@ -1262,13 +1307,15 @@ function AutosaveIndicator({ editor }: { editor: LineEditor }) {
       ? { icon: <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />, text: "Guardando…" }
       : editor.state === "conflict" || editor.state === "error" || editor.invalid.length > 0
         ? { icon: <AlertTriangle className="size-3.5 text-warning" aria-hidden="true" />, text: "Sin guardar" }
+        : editor.unconfirmed.length > 0
+          ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Precios por confirmar" }
         : editor.state === "waiting"
           ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Cambios por guardar" }
           : { icon: <Check className="size-3.5" aria-hidden="true" />, text: "Guardado" };
   return (
     <span
       aria-live="polite"
-      title="Se guarda solo al dejar de escribir, al cambiar de pestaña y al salir del editor."
+      title="Cada precio se guarda al confirmarlo con Enter; las cantidades, al dejar de escribir."
       className="inline-flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-text-secondary"
     >
       {look.icon}
@@ -1302,7 +1349,21 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
       </div>
     );
   }
-  if (editor.state !== "error" && editor.invalid.length === 0) return null;
+  if (editor.state !== "error" && editor.invalid.length === 0) {
+    if (editor.unconfirmed.length === 0) return null;
+    const count = editor.unconfirmed.length;
+    return (
+      <p role="status" className="flex items-start gap-1.5 text-[13px] text-text-secondary">
+        <Hourglass className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {count === 1
+            ? `El precio de ${editor.unconfirmed[0]} está escrito pero sin confirmar.`
+            : `${count} precios están escritos pero sin confirmar (${editor.unconfirmed.slice(0, 5).join(", ")}${count > 5 ? "…" : ""}).`}{" "}
+          Presiona Enter en cada uno para guardarlo y ver su margen; Escape lo deshace.
+        </span>
+      </p>
+    );
+  }
   return (
     <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

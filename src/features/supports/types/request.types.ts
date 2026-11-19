@@ -7,6 +7,11 @@ export interface SupportPermissions {
   can_review_internal?: boolean;
   /** Asked internal supports from the quoter: sees their own. */
   can_request_internal?: boolean;
+  /**
+   * Which supports the master lists: all (BI, Comercial's leaders, admins), team or mine (the
+   * NITs of the portfolio plus the general supports) or none (no customers assigned).
+   */
+  customer_scope?: "all" | "team" | "mine" | "none";
 }
 export type RequestStatus = "pendiente" | "aprobada" | "rechazada";
 export type RequestMode = "margen_minimo" | "porcentaje" | "costo_neto";

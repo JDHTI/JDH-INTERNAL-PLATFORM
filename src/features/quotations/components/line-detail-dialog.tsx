@@ -18,6 +18,7 @@ import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMarg
 import type { LineInsight, QuotationLine, SupportOption } from "../types/quotations.types";
 import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, type ReviewControl, ReviewSelect } from "./lines-table";
 import PriceHistoryChart from "./price-history-chart";
+import { StockBreakdownCard } from "./stock-breakdown";
 
 /**
  * Everything about one reference that does not fit on its row: the sale the
@@ -31,6 +32,7 @@ export default function LineDetailDialog({
   onOpenAgreement,
   forList = false,
   item,
+  stockOf,
 }: {
   line: QuotationLine | null;
   onClose: () => void;
@@ -39,8 +41,10 @@ export default function LineDetailDialog({
   forList?: boolean;
   /** Whoever validates sees the costs; the detail no longer shows the last sale's cost. */
   showCost?: boolean;
-  /** A list update: its review, observation, stock by warehouse and price history come with it. */
+  /** A list update: its review, observation and price history come with it. */
   item?: ItemContext;
+  /** The quotation whose centers the stock card splits (`GET /{id}/stock-breakdown`). */
+  stockOf?: { quotationId: string; version: number };
 }) {
   const local = line?.origin === "local";
   return (
@@ -57,6 +61,8 @@ export default function LineDetailDialog({
           <LocalDetail line={line} onClose={onClose} />
         ) : (
           <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList}>
+            {/* Every center the quotation draws from, with its warehouses: where Nacional or several centers split. */}
+            {stockOf && <StockBreakdownCard quotationId={stockOf.quotationId} version={stockOf.version} sku={line.sku} />}
             {item && <ListItemPanels item={item} line={line} />}
           </Detail>
         ))}
@@ -85,20 +91,7 @@ function ListItemPanels({ item, line }: { item: ItemContext; line: QuotationLine
     <>
       <NoteSection item={item} line={line} />
 
-      <section aria-labelledby="item-stock" className="space-y-2">
-        <h3 id="item-stock" className="text-base font-semibold">Existencias por bodega</h3>
-        {insight.isPending ? (
-          <div className="h-20 animate-pulse rounded-md bg-canvas-subtle" aria-label="Cargando existencias" />
-        ) : insight.isError ? (
-          <p role="alert" className="text-danger">{errorMessage(insight.error)}</p>
-        ) : data && data.stock.length === 0 ? (
-          <p className="text-text-secondary">
-            Sin existencia en las bodegas de la lista ({data.warehouses.join(", ")}), según la foto de SIESA de esta mañana.
-          </p>
-        ) : data ? (
-          <StockTable insight={data} />
-        ) : null}
-      </section>
+      {insight.isError && <p role="alert" className="text-danger">{errorMessage(insight.error)}</p>}
 
       <section aria-labelledby="item-history" className="space-y-2">
         <h3 id="item-history" className="text-base font-semibold">Cómo ha variado el precio</h3>
@@ -203,49 +196,6 @@ function HistoryTables({ insight }: { insight: LineInsight }) {
 
 const unitsFormat = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 const monthFormat = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric", timeZone: "UTC" });
-
-function StockTable({ insight }: { insight: LineInsight }) {
-  const cell = "px-2 py-1.5";
-  const total = insight.stock.reduce((sum, row) => sum + (toNumber(row.on_hand) ?? 0), 0);
-  return (
-    <div className="overflow-x-auto rounded-md border border-border">
-      <table className="w-full text-left text-[13px] tabular-nums">
-        <caption className="sr-only">Existencias por bodega de la lista</caption>
-        <thead className="bg-canvas-subtle text-xs text-text-secondary">
-          <tr>
-            <th scope="col" className={cell}>Bodega</th>
-            <th scope="col" className={cn(cell, "text-right")}>Existencia</th>
-            <th scope="col" className={cn(cell, "text-right")}>Disponible</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {insight.stock.map((row) => (
-            <tr key={row.warehouse}>
-              <td className={cell}>
-                <span className="font-mono">{row.warehouse}</span>
-                {row.warehouse_name && <span className="text-text-secondary"> · {row.warehouse_name}</span>}
-              </td>
-              <td className={cn(cell, "text-right")}>{unitsFormat.format(toNumber(row.on_hand) ?? 0)}</td>
-              <td className={cn(cell, "text-right")}>{row.available === null ? "—" : unitsFormat.format(toNumber(row.available) ?? 0)}</td>
-            </tr>
-          ))}
-        </tbody>
-        {insight.stock.length > 1 && (
-          <tfoot className="border-t border-border font-semibold">
-            <tr>
-              <td className={cell}>Total</td>
-              <td className={cn(cell, "text-right")}>{unitsFormat.format(total)}</td>
-              <td className={cell} />
-            </tr>
-          </tfoot>
-        )}
-      </table>
-      {insight.stock_at && (
-        <p className="border-t border-border px-2 py-1 text-xs text-text-secondary">Foto de SIESA del {formatDateTime(insight.stock_at)}</p>
-      )}
-    </div>
-  );
-}
 
 /** The item's review and the person's observation; it saves with the button, not on every key. */
 function NoteSection({ item, line }: { item: ItemContext; line: QuotationLine }) {

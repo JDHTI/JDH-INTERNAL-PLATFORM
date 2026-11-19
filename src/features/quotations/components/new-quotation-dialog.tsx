@@ -54,6 +54,39 @@ function customerPicker(scope: CustomerScope): BasePickerConfig {
   };
 }
 
+/**
+ * The business groups with at least one customer in the portfolio (BI and leaders: every group
+ * with `scope=all`). A group is quoted as one: sales of all its customers, the list, channel
+ * and center most of its branches have.
+ */
+function groupPicker(scope: CustomerScope): BasePickerConfig {
+  return {
+    label: "Grupo empresarial",
+    placeholder: scope === "mine" ? "Elige o escribe el nombre del grupo" : "Nombre del grupo empresarial",
+    endpoint: `${QUOTATIONS_BASE}/business-groups`,
+    query: { scope },
+    minChars: scope === "mine" ? 0 : 2,
+    emptyText: scope === "mine" ? "Ningún grupo de tu cartera coincide." : "Ningún grupo empresarial coincide.",
+    toOption: (row) => {
+      const customers = typeof row.customers === "number" ? row.customers : null;
+      const branches = typeof row.branches === "number" ? row.branches : null;
+      return {
+        value: text(row.name),
+        label: text(row.name),
+        hint: [
+          customers !== null && `${customers} ${customers === 1 ? "cliente" : "clientes"}`,
+          branches !== null && `${branches} ${branches === 1 ? "sucursal" : "sucursales"}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    },
+  };
+}
+
+/** Who the quotation is for: one customer or a whole business group. */
+type Target = "customer" | "group";
+
 const WINDOW_HINT: Record<WindowMonths, string> = {
   6: "Precios más recientes; deja fuera lo que no se vende hace medio año.",
   12: "Incluye referencias de temporada o de rotación lenta.",
@@ -116,6 +149,7 @@ function NewQuotationForm({
   const canChoose = salesScope === "all";
   const [modeChoice, setModeChoice] = useState<Mode | null>(null);
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
+  const [target, setTarget] = useState<Target>("customer");
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
   const [empty, setEmpty] = useState(false);
   const [temp, setTemp] = useState({ name: "", legalName: "", tradeName: "", nit: "" });
@@ -146,10 +180,15 @@ function NewQuotationForm({
     setError(null);
     if (kind === "existing") {
       if (!customer) {
-        setError("Elige el cliente que vas a cotizar.");
+        setError(target === "group" ? "Elige el grupo empresarial que vas a cotizar." : "Elige el cliente que vas a cotizar.");
         return;
       }
-      create.mutate({ kind: "existing", customerNit: customer.value, windowMonths, empty }, done);
+      create.mutate(
+        target === "group"
+          ? { kind: "group", businessGroup: customer.value, windowMonths, empty }
+          : { kind: "existing", customerNit: customer.value, windowMonths, empty },
+        done
+      );
       return;
     }
     const found: typeof errors = {};
@@ -216,9 +255,36 @@ function NewQuotationForm({
 
         {kind === "existing" ? (
           <>
+            <div role="group" aria-label="Cotizar a" className="inline-flex rounded-md border border-border-control p-0.5">
+              {(
+                [
+                  ["customer", "Cliente"],
+                  ["group", "Grupo empresarial"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={target === value}
+                  onClick={() => {
+                    setTarget(value);
+                    setCustomer(null);
+                    setError(null);
+                  }}
+                  className={cn(
+                    "min-h-8 rounded-sm px-3 text-sm font-medium transition-colors duration-150 max-md:min-h-11",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    target === value ? "bg-primary text-text-on-primary" : "text-text-secondary hover:bg-canvas-subtle hover:text-text-primary"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <BasePicker
-              key={scope}
-              config={customerPicker(scope)}
+              key={`${target}-${scope}`}
+              config={target === "group" ? groupPicker(scope) : customerPicker(scope)}
               selected={customer}
               onSelect={(option) => {
                 setCustomer(option);
