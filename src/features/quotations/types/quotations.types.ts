@@ -13,8 +13,7 @@ export type DecimalText = string;
  * the validator has to load them into SIESA. cargada: the validator confirmed
  * it is loaded. In pendiente_carga and cargada nothing changes any more (409).
  * `list_action` says whether the customer's list is written over or a new one
- * created. Sending the offer to the customer is not a status: it only stamps
- * `sent_at` and `sent_by`, from any status.
+ * created. The offer goes to the customer by hand, from its PDF or Excel.
  */
 export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
 
@@ -335,9 +334,6 @@ export interface QuotationSummary {
   created_at: string;
   updated_at: string;
   confirmed_at: string | null;
-  /** The last time the offer went to the customer, kept as history after an edit. Missing on older API builds. */
-  sent_at?: string | null;
-  sent_by?: string | null;
   validated_at: string | null;
   version: number;
   /** How many days the prices hold for the customer, counted from `valid_from`. */

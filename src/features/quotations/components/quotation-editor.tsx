@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Send,
   Sheet,
   Trash2,
   Undo2,
@@ -479,14 +478,6 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
             <span>Creada por {quotation.created_by}</span>
-            {/* Sending is not a status: when and who, beside it. */}
-            {!isList && quotation.sent_at && (
-              <span className="inline-flex items-center gap-1">
-                <Send className="size-3.5" aria-hidden="true" />
-                Enviada al cliente el {formatDateTime(quotation.sent_at)}
-                {quotation.sent_by ? ` por ${quotation.sent_by}` : ""}
-              </span>
-            )}
             <QuotationHistory quotation={quotation} />
           </div>
         </div>
@@ -553,7 +544,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               <CloudUpload aria-hidden="true" /> Por cargar
             </Link>
           )}
-          {/* Send to the customer (any status), or ask for a list update or creation (BI validates). */}
+          {/* Ask for a list update or creation (BI validates); the offer goes out by hand from its PDF or Excel. */}
           {canManage && !isList && (
             <Button onClick={() => setDialog("continue")} disabled={busy} className="max-md:h-11">
               <ArrowRight aria-hidden="true" /> Continuar proceso
@@ -1079,9 +1070,6 @@ function QuotationHistory({ quotation }: { quotation: Quotation }) {
   const events: [string, string][] = [
     ["Armada", formatDateTime(quotation.built_at)],
     ...(quotation.cost_cut_date ? [["Costo al corte", formatDay(quotation.cost_cut_date)] as [string, string]] : []),
-    ...(quotation.sent_at
-      ? [["Enviada al cliente", `${formatDateTime(quotation.sent_at)}${by(quotation.sent_by ?? null)}`] as [string, string]]
-      : []),
     ...(quotation.confirmed_at
       ? [["Lista solicitada", `${formatDateTime(quotation.confirmed_at)}${by(quotation.confirmed_by)}`] as [string, string]]
       : []),
@@ -1167,7 +1155,7 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             ? "Descarga el Excel y el plano, cárgalos en SIESA y márcala como cargada."
             : "Falta que el área BI la cargue en SIESA."}
           {quotation.list_action === "creacion" && " Asignar la lista nueva al cliente se hace a mano en SIESA."}
-          {canManage && " Ya no se edita: puedes descargar la oferta y enviarla al cliente."}
+          {canManage && " Ya no se edita: puedes descargar la oferta en PDF o Excel para el cliente."}
         </p>
       </div>
     );

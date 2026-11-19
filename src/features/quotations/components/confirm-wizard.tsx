@@ -13,8 +13,8 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
 
-import { useConfirmQuotation, useSendQuotation, useUpdateOffer } from "../hooks/use-quotations";
-import { formatCount, formatDateTime } from "../lib/format";
+import { useConfirmQuotation, useUpdateOffer } from "../hooks/use-quotations";
+import { formatCount } from "../lib/format";
 import type { ListAction, Quotation } from "../types/quotations.types";
 import { ConditionsStep, OfferSettingsStep, type OfferDraft, draftFrom, draftToSettings, draftValidityText } from "./offer-steps";
 import { tomorrow } from "./review-dialogs";
@@ -46,15 +46,13 @@ export function ConfirmDialog({ quotation, open, onOpenChange }: { quotation: Qu
   );
 }
 
-type NextStep = "enviar" | ListAction;
-
 const LIST_TITLES: Record<ListAction, string> = { actualizacion: "Actualización de lista", creacion: "Creación de lista" };
 
 /**
- * «Continuar proceso» of a customer quotation: send the offer to the customer,
- * or take its prices to a SIESA list (update the customer's or create one),
- * which goes to BI's validation. Sending only stamps when and who, from any
- * status; the list options open the confirmation wizard for that action.
+ * «Continuar proceso» of a customer quotation: take its prices to a SIESA list,
+ * updating the customer's or creating one, which goes to BI's validation. Each
+ * option opens the confirmation wizard for that action. The offer itself is
+ * downloaded and sent by hand.
  */
 export function ContinueDialog({ quotation, open, onOpenChange }: { quotation: Quotation; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [list, setList] = useState<ListAction | null>(null);
@@ -86,8 +84,6 @@ export function ContinueDialog({ quotation, open, onOpenChange }: { quotation: Q
 }
 
 function ChooseNext({ quotation, onList, onClose }: { quotation: Quotation; onList: (action: ListAction) => void; onClose: () => void }) {
-  const sending = useSendQuotation(quotation.id);
-  const [error, setError] = useState<string | null>(null);
   const priced = quotation.lines.filter((line) => line.is_active && line.new_price !== null).length;
 
   // Asking for a list is once per draft; the reason a list option is off, in the person's words.
@@ -106,41 +102,20 @@ function ChooseNext({ quotation, onList, onClose }: { quotation: Quotation; onLi
       : isGeneralList(quotation)
         ? "La lista 1 no se actualiza por este medio: crea una lista."
         : null);
-  const [choice, setChoice] = useState<NextStep>("enviar");
+  const [choice, setChoice] = useState<ListAction | null>(updateBlocked === null ? "actualizacion" : listBlocked === null ? "creacion" : null);
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (choice !== "enviar") {
-      onList(choice);
-      return;
-    }
-    setError(null);
-    try {
-      await sending.mutateAsync(quotation.version);
-      toast.success("Quedó registrado el envío al cliente. El estado de la cotización no cambia.");
-      onClose();
-    } catch (failure) {
-      // 422 without lines in the offer, 409 if it changed meanwhile.
-      setError(errorMessage(failure));
-    }
+    if (choice) onList(choice);
   };
 
-  const sentText = quotation.sent_at
-    ? ` La última vez fue el ${formatDateTime(quotation.sent_at)}${quotation.sent_by ? ` por ${quotation.sent_by}` : ""}.`
-    : "";
-
   return (
-    <form onSubmit={(event) => void submit(event)} className="space-y-5" noValidate>
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      <p className="text-[13px] text-text-secondary">
+        La oferta al cliente no pasa por aquí: descarga el PDF o el Excel en la sección «Oferta para el cliente» y envíaselo.
+      </p>
       <fieldset className="min-w-0 space-y-2">
-        <legend className="sr-only">Paso que sigue</legend>
-        <ActionOption
-          name="next-step"
-          value="enviar"
-          checked={choice === "enviar"}
-          onChange={setChoice}
-          title="Enviar al cliente"
-          hint={`Registra que la oferta salió al cliente: descárgala antes en la sección Oferta. No pasa por BI ni cambia el estado.${sentText}`}
-        />
+        <legend className="sr-only">Qué se hace en SIESA</legend>
         <ActionOption
           name="next-step"
           value="actualizacion"
@@ -161,19 +136,10 @@ function ChooseNext({ quotation, onList, onClose }: { quotation: Quotation; onLi
         />
       </fieldset>
 
-      <DialogError message={error} />
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={sending.isPending} className="max-md:h-11">Cancelar</Button>
-        <Button type="submit" disabled={sending.isPending} className="max-md:h-11">
-          {choice === "enviar" ? (
-            <>
-              {sending.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />} Enviar al cliente
-            </>
-          ) : (
-            <>
-              Siguiente <ArrowRight aria-hidden="true" />
-            </>
-          )}
+        <Button variant="outline" onClick={onClose} className="max-md:h-11">Cancelar</Button>
+        <Button type="submit" disabled={choice === null} className="max-md:h-11">
+          Siguiente <ArrowRight aria-hidden="true" />
         </Button>
       </DialogFooter>
     </form>
