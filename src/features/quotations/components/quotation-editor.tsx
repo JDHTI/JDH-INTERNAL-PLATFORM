@@ -113,7 +113,16 @@ const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
   apoyo: "Ninguna referencia tiene un apoyo aplicado.",
 };
 
-export default function QuotationEditor({ quotationId, basePath }: { quotationId: string; basePath: string }) {
+export default function QuotationEditor({
+  quotationId,
+  basePath,
+  rulesBasePath = basePath,
+}: {
+  quotationId: string;
+  basePath: string;
+  /** Where the rules link points, when the list it opens from has no rules page of its own. */
+  rulesBasePath?: string;
+}) {
   const quotation = useQuotation(quotationId);
   const data = quotation.data;
   useBreadcrumbLabel(
@@ -143,10 +152,10 @@ export default function QuotationEditor({ quotationId, basePath }: { quotationId
       />
     );
   }
-  return <Editor quotation={quotation.data} basePath={basePath} />;
+  return <Editor quotation={quotation.data} basePath={basePath} rulesBasePath={rulesBasePath} />;
 }
 
-function Editor({ quotation, basePath }: { quotation: Quotation; basePath: string }) {
+function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; basePath: string; rulesBasePath: string }) {
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions(quotation.kind).data;
@@ -459,7 +468,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> {isList ? "Actualizaciones" : "Cotizaciones"}
         </Link>
-        <QuotationRulesLink basePath={basePath} label={isList ? "Reglas de precios" : undefined} />
+        <QuotationRulesLink basePath={rulesBasePath} label={isList ? "Reglas de precios" : undefined} />
       </div>
 
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

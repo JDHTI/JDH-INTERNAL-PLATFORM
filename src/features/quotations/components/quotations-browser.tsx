@@ -190,7 +190,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
 }
 
 
-function QuotationTable({
+export function QuotationTable({
   items,
   basePath,
   showAuthor,
@@ -389,7 +389,7 @@ function ListUpdatesEmpty({
 }
 
 /** Phones: customer, status and the one number that needs action (DESIGN.md §10). */
-function QuotationCards({
+export function QuotationCards({
   items,
   basePath,
   showAuthor,
