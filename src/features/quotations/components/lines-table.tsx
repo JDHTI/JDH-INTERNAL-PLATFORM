@@ -856,7 +856,8 @@ function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta:
       : "Sin existencia en las bodegas de los C.O. elegidos (foto de SIESA de esta mañana).";
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
-      <ReviewSelect line={line} control={meta.review} />
+      {/* Only the main lists review item by item: a list update has no review chip. */}
+      {meta.review && <ReviewSelect line={line} control={meta.review} />}
       {stockText && (
         <span className="inline-flex items-center gap-1 tabular-nums" title={stockTitle}>
           <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />

@@ -17,13 +17,16 @@ export function listModuleViews(kind: ListKind, basePath: string): PageView[] {
       description:
         kind === "principal"
           ? undefined
-          : "Una lista de precios vigente de SIESA contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Cada ítem se marca y se valida por separado.",
+          : "Una lista de precios vigente de SIESA contra el costo de hoy, el margen objetivo, la última venta y los apoyos de sus clientes. Se envía completa a validación, como una cotización.",
     },
     {
       key: "por-cargar",
       label: "Por cargar",
       href: `${basePath}/por-cargar`,
-      description: "Los ítems validados que aún no se cargan en SIESA, por lista, con sus archivos y las últimas cargas.",
+      description:
+        kind === "principal"
+          ? "Los ítems validados que aún no se cargan en SIESA, por lista, con sus archivos y las últimas cargas."
+          : "Las actualizaciones validadas que aún no se cargan en SIESA, con su Excel y su plano para marcarlas como cargadas.",
     },
   ];
   if (kind === "lista") {
