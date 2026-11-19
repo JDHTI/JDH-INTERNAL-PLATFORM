@@ -115,7 +115,12 @@ const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>>
   sin_cambios: (line) => !isModified(line),
 };
 
-type ChipFilter = { key: "all" | "modificados" | "sin_cambios" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean };
+type ChipFilter = {
+  key: "all" | "modificados" | "sin_cambios" | "nuevos" | "objetivo" | "rango" | "minimo" | "apoyo" | "sin_referencia" | "local";
+  label: string;
+  help: string;
+  forLists: boolean;
+};
 
 /** The chips always in the toolbar: what was changed apart from what keeps its price. */
 const QUICK_FILTERS: ChipFilter[] = [
@@ -124,11 +129,18 @@ const QUICK_FILTERS: ChipFilter[] = [
   { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
 ];
 
-/** The ones used less, inside «Más filtros»; the same filter as the indicator of the same name above. */
+/**
+ * The ones used less, inside «Más filtros». The indicators above are only a summary, so every
+ * group they count can be filtered from here.
+ */
 const MORE_FILTERS: ChipFilter[] = [
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
+  { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: false },
+  { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: false },
   { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
   { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
+  { key: "sin_referencia", label: "Sin precio de referencia", help: "El cliente no la compró en la ventana.", forLists: false },
+  { key: "local", label: "Sin SKU en SIESA", help: "Productos creados solo para cotizar.", forLists: false },
 ];
 
 /**
@@ -293,12 +305,15 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       modificados: quotation.lines.filter(isModified).length,
       sin_cambios: quotation.lines.filter((line) => !isModified(line)).length,
       nuevos: quotation.lines.filter(isNew).length,
+      objetivo: quotation.lines.filter(INDICATORS.objetivo).length,
+      rango: quotation.lines.filter(INDICATORS.rango).length,
       minimo: quotation.lines.filter(INDICATORS.minimo).length,
       apoyo: quotation.lines.filter(INDICATORS.apoyo).length,
+      sin_referencia: quotation.lines.filter(INDICATORS.sin_referencia).length,
+      local: quotation.lines.filter(INDICATORS.local).length,
     }),
     [quotation.lines]
   );
-  // What «Más filtros» has on: categories, suppliers, and the inactive or last-import chip.
   // Whether the chip on is one inside «Más filtros», so its trigger says a filter is on.
   const moreActive = MORE_FILTERS.some((chip) => chip.key === filter) || filter === "inactive" || filter === "imported" ? 1 : 0;
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
@@ -654,11 +669,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && !isList && (
-        <QuotationIndicators
-          lines={quotation.lines}
-          active={filter in OWN_FILTERS || filter === "imported" ? null : (filter as Indicator)}
-          onSelect={chooseFilter}
-        />
+        <QuotationIndicators lines={quotation.lines} />
       )}
       {quotation.lines.length > 0 && isList && (
         <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} />
@@ -1376,21 +1387,8 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
       </div>
     );
   }
-  if (editor.state !== "error" && editor.invalid.length === 0) {
-    if (editor.unconfirmed.length === 0) return null;
-    const count = editor.unconfirmed.length;
-    return (
-      <p role="status" className="flex items-start gap-1.5 text-[13px] text-text-secondary">
-        <Hourglass className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        <span>
-          {count === 1
-            ? `El precio de ${editor.unconfirmed[0]} está escrito pero sin confirmar.`
-            : `${count} precios están escritos pero sin confirmar (${editor.unconfirmed.slice(0, 5).join(", ")}${count > 5 ? "…" : ""}).`}{" "}
-          Presiona Enter en cada uno para guardarlo y ver su margen; Escape lo deshace.
-        </span>
-      </p>
-    );
-  }
+  // Prices typed and not saved yet show their margin in the cell; the header's indicator counts them.
+  if (editor.state !== "error" && editor.invalid.length === 0) return null;
   return (
     <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

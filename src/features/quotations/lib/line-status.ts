@@ -1,6 +1,7 @@
 import { toNumber } from "@/shared/lib/format";
 
-import type { QuotationLine } from "../types/quotations.types";
+import type { Compliance, QuotationLine } from "../types/quotations.types";
+import { COMPLIANCE_LABELS } from "./format";
 import { offerAmounts } from "./offer";
 
 /**
@@ -27,6 +28,50 @@ export function newPriceStanding(line: QuotationLine): Standing | null {
   if (line.compliance === "bajo_minimo") return "minimo";
   if (line.compliance !== "cumple") return null;
   return standingOf(toNumber(line.new_margin_with_support_pct ?? line.new_margin_pct), toNumber(line.target_margin_pct), false) ?? "objetivo";
+}
+
+const roundRatio = (value: number) => Math.round(value * 10000) / 10000;
+
+/**
+ * The line as the API would return it with `price` as its new price, to preview the margin
+ * while the price is typed and before Enter saves it. Same arithmetic as the API's `reprice`:
+ * margin `(price − (cost − support)) / price`, where a «% Margen Garantizado» pays
+ * `max(0, cost − price × (1 − g))` at that price and any other support its fixed amount;
+ * compliance against the minimum. The API's answer replaces it once saved.
+ */
+export function previewLine(line: QuotationLine, price: number): QuotationLine {
+  const cost = toNumber(line.cost);
+  const text = String(price);
+  if (cost === null || price <= 0) {
+    const compliance = cost === null ? "sin_costo" : null;
+    return {
+      ...line,
+      new_price: text,
+      new_margin_pct: null,
+      new_margin_with_support_pct: null,
+      compliance,
+      compliance_label: compliance ? COMPLIANCE_LABELS[compliance] : null,
+    };
+  }
+  const guaranteed = toNumber(line.support?.guaranteed_margin_pct ?? null);
+  const support =
+    line.support === null
+      ? 0
+      : guaranteed !== null
+        ? Math.max(0, cost - price * (1 - guaranteed))
+        : (toNumber(line.support.amount) ?? 0);
+  const plain = roundRatio((price - cost) / price);
+  const withSupport = roundRatio((price - (cost - support)) / price);
+  const minimum = toNumber(line.min_margin_pct);
+  const compliance: Compliance = minimum === null ? "sin_objetivo" : withSupport >= roundRatio(minimum) ? "cumple" : "bajo_minimo";
+  return {
+    ...line,
+    new_price: text,
+    new_margin_pct: String(plain),
+    new_margin_with_support_pct: String(withSupport),
+    compliance,
+    compliance_label: COMPLIANCE_LABELS[compliance],
+  };
 }
 
 /** The last price's standing; null for a reference never sold in the window. */

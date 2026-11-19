@@ -35,7 +35,7 @@ import { choiceLabel } from "@/features/supports/lib/format";
 
 import { type ColumnKey, useColumnWidths } from "../hooks/use-column-widths";
 import type { LineEditor } from "../hooks/use-line-editor";
-import { formatDay, formatMargin, formatMoney, formatShortDay, formatVariation } from "../lib/format";
+import { formatDay, formatMargin, formatMoney, formatShortDay, formatVariation, parsePriceInput } from "../lib/format";
 import {
   type Sort,
   type SortKey,
@@ -43,6 +43,7 @@ import {
   isLocal,
   lastPriceStanding,
   newPriceStanding,
+  previewLine,
   priceWithVat,
   supplierOf,
 } from "../lib/line-status";
@@ -977,18 +978,22 @@ function CostParts({ line }: { line: QuotationLine }) {
 
 /**
  * The editable cell, in whole pesos before VAT, and under it the margin the
- * new price leaves. Nothing is saved while typing: Enter confirms the price,
- * one by one, and the margin shows with the API's answer; Escape puts the
- * saved one back. An unreadable number never leaves the cell: the border
+ * new price leaves. Nothing is saved while typing: the margin is previewed as
+ * each digit goes in, Enter saves the price (one by one) and the API's margin
+ * replaces the preview; Escape puts the saved one back. An unreadable number never leaves the cell: the border
  * turns red and the save status above the table names it. Read-only when the
  * quotation is locked, and for an inactive reference, which is never exported.
  */
 function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLine; editor: LineEditor; editable: boolean; wide?: boolean }) {
   const error = editor.errorFor(line.sku);
   const errorId = `price-error-${line.sku}-${wide ? "card" : "row"}`;
-  const hintId = `price-hint-${line.sku}-${wide ? "card" : "row"}`;
   const disabled = !editable || !line.is_active;
   const waiting = editor.unconfirmed.includes(line.sku);
+  // While a price is typed and not saved, its margin is previewed with the API's arithmetic, so
+  // it stays on screen (and follows each digit) instead of waiting for Enter.
+  const typed = waiting && !error ? parsePriceInput(editor.textFor(line.sku)) : null;
+  const typedPrice = typed && "value" in typed && typed.value !== null ? Number(typed.value) : null;
+  const shown = typedPrice !== null && !isLocal(line) ? previewLine(line, typedPrice) : line;
   return (
     <div className={cn("space-y-1", !wide && "text-right")}>
       <Input
@@ -1007,10 +1012,10 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         }}
         disabled={disabled}
         placeholder={disabled ? "" : "Sin cambio"}
-        title={error ?? (!line.is_active ? INACTIVE_HELP : "Escribe el precio y presiona Enter para confirmarlo")}
+        title={error ?? (!line.is_active ? INACTIVE_HELP : "Escribe el precio: el margen se ve mientras escribes y Enter lo guarda")}
         aria-label={`Precio nuevo de ${line.description ?? line.sku}, sin IVA. Enter confirma, Escape deshace`}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : waiting ? hintId : undefined}
+        aria-describedby={error ? errorId : undefined}
         className={cn(
           "bg-surface text-right tabular-nums",
           // The floor keeps a seven-digit price readable when the column is narrowed.
@@ -1020,14 +1025,9 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         )}
       />
       {error && <span id={errorId} className="sr-only">{error}</span>}
-      {waiting && !error && (
-        <span id={hintId} className="block text-xs text-text-secondary">
-          Enter para confirmar
-        </span>
-      )}
-      {line.new_price !== null && !isLocal(line) && (
-        <span className="block">
-          <NewMargin line={line} />
+      {shown.new_price !== null && !isLocal(line) && (
+        <span className={cn("block", shown !== line && "opacity-80")} title={shown !== line ? "Margen con el precio escrito; se guarda con Enter" : undefined}>
+          <NewMargin line={shown} />
         </span>
       )}
     </div>

@@ -36,73 +36,46 @@ const TONE_TEXT ={ success: "text-success", warning: "text-warning", danger: "te
 const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" } as const;
 
 /**
- * How the quotation stands at a glance, and the way into each group: every
- * figure is a filter for the table below (pressed reads as selected). The bar
- * splits the lines that the rule can judge into the three standings; its
- * labels are the figures under it, so it never carries meaning by color alone.
+ * How the quotation stands at a glance: a summary, not a control. Filtering is
+ * the toolbar's job (and «Más filtros»), so the figures do not click. The bar
+ * splits the lines the rule can judge into the three standings; the figures
+ * beside it are its labels, so it never carries meaning by color alone. One
+ * row on a wide container, two on a narrow one.
  */
-export default function QuotationIndicators({
-  lines,
-  active,
-  onSelect,
-}: {
-  lines: QuotationLine[];
-  active: Indicator | null;
-  onSelect: (indicator: Indicator) => void;
-}) {
-  const items = ITEMS;
+export default function QuotationIndicators({ lines }: { lines: QuotationLine[] }) {
   const counts = Object.fromEntries(ITEMS.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
   const judged = counts.objetivo + counts.rango + counts.minimo;
 
   return (
-    <section aria-label="Indicadores de la cotización" className="space-y-3 rounded-lg border border-border bg-surface p-3">
-      <div className="space-y-1.5">
-        <div
-          className="flex h-2 overflow-hidden rounded-full bg-canvas-subtle"
-          role="img"
-          aria-label={
-            judged === 0
-              ? "Aún no hay precios que evaluar contra la regla."
-              : `${formatCount(counts.objetivo)} cumplen el objetivo, ${formatCount(counts.rango)} en rango y ${formatCount(counts.minimo)} bajo el mínimo.`
-          }
-        >
-          {(["objetivo", "rango", "minimo"] as const).map((key, index) => {
-            const tone = (["success", "warning", "danger"] as const)[index];
-            return counts[key] > 0 ? (
-              <span key={key} className={TONE_BAR[tone]} style={{ width: `${(counts[key] / judged) * 100}%` }} />
-            ) : null;
-          })}
-        </div>
-        <p className="text-[13px] text-text-secondary">
-          Según el precio nuevo de cada línea, o el último si aún no tiene. Toca una cifra para filtrar la tabla.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-1 @2xl:grid-cols-4">
-        {items.map((item) => {
-          const pressed = active === item.key;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              aria-pressed={pressed}
-              onClick={() => onSelect(item.key)}
-              title={item.help}
-              className={cn(
-                "flex min-h-14 flex-col items-start justify-center rounded-md border px-3 py-1.5 text-left transition-colors duration-150",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                pressed ? "border-primary bg-primary-subtle" : "border-transparent hover:bg-canvas-subtle"
-              )}
-            >
-              <span className={cn("text-xl font-semibold leading-7 tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>
-                {formatCount(counts[item.key])}
-              </span>
-              <span className="text-[13px] leading-4 text-text-secondary">{item.label}</span>
-              <span className="sr-only">. {item.help}</span>
-            </button>
-          );
+    <section aria-label="Indicadores de la cotización" className="space-y-2 rounded-lg border border-border bg-surface px-3 py-2">
+      <div
+        className="flex h-1.5 overflow-hidden rounded-full bg-canvas-subtle"
+        role="img"
+        aria-label={
+          judged === 0
+            ? "Aún no hay precios que evaluar contra la regla."
+            : `${formatCount(counts.objetivo)} cumplen el objetivo, ${formatCount(counts.rango)} en rango y ${formatCount(counts.minimo)} bajo el mínimo.`
+        }
+        title="Según el precio nuevo de cada línea, o el último si aún no tiene."
+      >
+        {(["objetivo", "rango", "minimo"] as const).map((key, index) => {
+          const tone = (["success", "warning", "danger"] as const)[index];
+          return counts[key] > 0 ? (
+            <span key={key} className={TONE_BAR[tone]} style={{ width: `${(counts[key] / judged) * 100}%` }} />
+          ) : null;
         })}
       </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 @2xl:grid-cols-4 @6xl:grid-cols-8">
+        {ITEMS.map((item) => (
+          // Label first in the markup (as a term reads), the figure first on screen.
+          <div key={item.key} className="flex min-w-0 flex-row-reverse items-baseline justify-end gap-1.5" title={item.help}>
+            <dt className="truncate text-[13px] text-text-secondary">{item.label}</dt>
+            <dd className={cn("text-base font-semibold tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>
+              {formatCount(counts[item.key])}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
