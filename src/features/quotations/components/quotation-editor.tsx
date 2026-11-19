@@ -100,13 +100,24 @@ const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
  * The indicators are the main filters; "inactive" and "imported" (what the
  * last paste added or revalidated) are chips that appear only when they apply.
  */
-type LineFilter = Indicator | "inactive" | "imported";
+type LineFilter = Indicator | "inactive" | "imported" | "modificados" | "sin_cambios";
 
 const inactive = (line: QuotationLine) => !line.is_active;
+/** A price was written for it (confirmed with Enter and saved). */
+const isModified = (line: QuotationLine) => line.new_price !== null;
+
+/** The filters of the chips under the toolbar, beside the ones the indicators above are. */
+const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>> = {
+  inactive,
+  modificados: isModified,
+  sin_cambios: (line) => !isModified(line),
+};
 /** What confirming needs at least one of: an active line with a new price, from SIESA or local. */
 const priced = (line: QuotationLine) => line.new_price !== null && line.is_active;
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
+  modificados: "Aún no confirmaste ningún precio nuevo. Escribe el precio y presiona Enter.",
+  sin_cambios: "Todas las referencias tienen precio nuevo.",
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
   rango: "Ninguna línea queda entre el mínimo y el objetivo.",
   minimo: "Ninguna línea queda bajo el mínimo.",
@@ -222,6 +233,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   // Confirming needs one priced line, from SIESA or local: a temporary customer may have only local products.
   const pricedCount = useMemo(() => quotation.lines.filter(priced).length, [quotation.lines]);
   const inactiveCount = useMemo(() => quotation.lines.filter(inactive).length, [quotation.lines]);
+  const modifiedCount = useMemo(() => quotation.lines.filter(isModified).length, [quotation.lines]);
   // The options come from this quotation's own lines, so each one lists only what it has.
   const categoryOptions = useMemo(() => distinctValues(quotation.lines, (line) => line.category), [quotation.lines]);
   const supplierOptions = useMemo(() => distinctValues(quotation.lines, supplierOf), [quotation.lines]);
@@ -232,7 +244,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     const bySupplier = new Set(suppliers);
     const matching = quotation.lines.filter(
       (line) =>
-        (filter === "imported" ? imported.has(line.sku) : filter === "inactive" ? inactive(line) : INDICATORS[filter](line)) &&
+        (filter === "imported" ? imported.has(line.sku) : (OWN_FILTERS[filter] ?? INDICATORS[filter as Indicator])(line)) &&
         (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
@@ -389,6 +401,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
     setSavingDraft(true);
     const saved = await editor.saveNow();
     setSavingDraft(false);
+    // A typed price counts only once confirmed: the save never confirms it on the person's behalf.
+    if (saved && editor.unconfirmed.length > 0) {
+      toast.warning(
+        `${editor.unconfirmed.length === 1 ? "Un precio está escrito" : `${editor.unconfirmed.length} precios están escritos`} sin confirmar. Presiona Enter en cada uno para guardarlo.`,
+        { duration: Infinity }
+      );
+      return;
+    }
     if (saved) toast.success(hadChanges ? "Borrador guardado." : "Todo está guardado. El borrador también se guarda solo mientras escribes.");
     else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
   };
@@ -594,7 +614,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       {quotation.lines.length > 0 && !isList && (
         <QuotationIndicators
           lines={quotation.lines}
-          active={filter === "inactive" || filter === "imported" ? null : filter}
+          active={filter in OWN_FILTERS || filter === "imported" ? null : (filter as Indicator)}
           onSelect={chooseFilter}
         />
       )}
@@ -689,8 +709,25 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
             </div>
           )}
         </div>
-        {(inactiveCount > 0 || importer.lastImport) && (
+        {quotation.lines.length > 0 && (
           <div role="group" aria-label="Más filtros" className="flex flex-wrap gap-2">
+            {/* What was changed apart from what keeps its price. */}
+            <ToggleChip
+              active={filter === "modificados"}
+              onClick={() => chooseFilter(filter === "modificados" ? "all" : "modificados")}
+              count={modifiedCount}
+              title="Solo las referencias a las que les escribiste un precio nuevo."
+            >
+              Modificados
+            </ToggleChip>
+            <ToggleChip
+              active={filter === "sin_cambios"}
+              onClick={() => chooseFilter(filter === "sin_cambios" ? "all" : "sin_cambios")}
+              count={quotation.lines.length - modifiedCount}
+              title="Las referencias que conservan su precio: sin precio nuevo."
+            >
+              Sin cambios
+            </ToggleChip>
             {inactiveCount > 0 && (
               <ToggleChip active={filter === "inactive"} onClick={() => chooseFilter(filter === "inactive" ? "all" : "inactive")} count={inactiveCount}>
                 Inactivas
@@ -1262,13 +1299,15 @@ function AutosaveIndicator({ editor }: { editor: LineEditor }) {
       ? { icon: <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />, text: "Guardando…" }
       : editor.state === "conflict" || editor.state === "error" || editor.invalid.length > 0
         ? { icon: <AlertTriangle className="size-3.5 text-warning" aria-hidden="true" />, text: "Sin guardar" }
+        : editor.unconfirmed.length > 0
+          ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Precios por confirmar" }
         : editor.state === "waiting"
           ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Cambios por guardar" }
           : { icon: <Check className="size-3.5" aria-hidden="true" />, text: "Guardado" };
   return (
     <span
       aria-live="polite"
-      title="Se guarda solo al dejar de escribir, al cambiar de pestaña y al salir del editor."
+      title="Cada precio se guarda al confirmarlo con Enter; las cantidades, al dejar de escribir."
       className="inline-flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-text-secondary"
     >
       {look.icon}
@@ -1302,7 +1341,21 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
       </div>
     );
   }
-  if (editor.state !== "error" && editor.invalid.length === 0) return null;
+  if (editor.state !== "error" && editor.invalid.length === 0) {
+    if (editor.unconfirmed.length === 0) return null;
+    const count = editor.unconfirmed.length;
+    return (
+      <p role="status" className="flex items-start gap-1.5 text-[13px] text-text-secondary">
+        <Hourglass className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {count === 1
+            ? `El precio de ${editor.unconfirmed[0]} está escrito pero sin confirmar.`
+            : `${count} precios están escritos pero sin confirmar (${editor.unconfirmed.slice(0, 5).join(", ")}${count > 5 ? "…" : ""}).`}{" "}
+          Presiona Enter en cada uno para guardarlo y ver su margen; Escape lo deshace.
+        </span>
+      </p>
+    );
+  }
   return (
     <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

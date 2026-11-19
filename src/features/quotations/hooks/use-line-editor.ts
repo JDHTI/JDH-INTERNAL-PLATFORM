@@ -34,9 +34,9 @@ const draftKey = (field: LineField, sku: string) => `${field}|${sku}`;
 
 /**
  * The editable cells of one quotation: the new price and, when it quotes
- * with quantities, the quantity. Each edit is queued by reference and, after
- * a pause in typing, the queue goes out as one `PUT /lines` with the version
- * the cache holds. Edits made while a save is in flight wait for it and go in
+ * with quantities, the quantity. A price is confirmed one by one with Enter; a
+ * quantity is queued as typed and, after a pause, the queue goes out as one
+ * `PUT /lines` with the version the cache holds. Edits made while a save is in flight wait for it and go in
  * the next batch, so two saves never race with the same version, whichever
  * field they touch.
  */
@@ -45,6 +45,8 @@ export function useLineEditor(quotation: Quotation) {
   const update = useUpdateLines(quotation.id);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** The price text last confirmed with Enter, by reference. */
+  const [confirmed, setConfirmed] = useState<Record<string, string>>({});
   const [state, setState] = useState<SaveState>("idle");
   const [failure, setFailure] = useState<string | null>(null);
   const pending = useRef(new Map<string, Change>());
@@ -148,26 +150,87 @@ export function useLineEditor(quotation: Quotation) {
     timer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
   };
 
-  const edit = (sku: string, text: string, field: LineField = "price") => {
-    const key = draftKey(field, sku);
-    setDrafts((current) => ({ ...current, [key]: text }));
-    const parsed = FIELD[field].parse(text);
-    if ("error" in parsed) {
-      setErrors((current) => ({ ...current, [key]: parsed.error }));
-      unqueue(sku, field);
-      schedule();
-      return;
-    }
+  const clearError = (key: string) =>
     setErrors((current) => {
       if (!(key in current)) return current;
       const next = { ...current };
       delete next[key];
       return next;
     });
+  const dropDraft = (key: string) =>
+    setDrafts((current) => {
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+
+  /**
+   * Typing in a cell. A quantity is queued and saved after the pause. A price
+   * only stays as a draft until Enter confirms it (`commit`): saving it on a
+   * pause sent half-typed numbers, and the cell jumped to what came back.
+   */
+  const edit = (sku: string, text: string, field: LineField = "price") => {
+    const key = draftKey(field, sku);
+    setDrafts((current) => ({ ...current, [key]: text }));
+    const parsed = FIELD[field].parse(text);
+    if ("error" in parsed) {
+      setErrors((current) => ({ ...current, [key]: parsed.error }));
+      if (field === "quantity") {
+        unqueue(sku, field);
+        schedule();
+      }
+      return;
+    }
+    clearError(key);
+    if (field === "price") return;
     if (samePrice(parsed.value, saved[field].get(sku)) && !inflight.current) unqueue(sku, field);
     else queue(sku, field, parsed.value);
     schedule();
   };
+
+  /**
+   * Enter on a price: the typed value goes out at once, alone or with what is queued, and the
+   * row shows its new margin with the API's answer. The same value as saved just clears the draft.
+   */
+  const commit = (sku: string, field: LineField = "price"): Promise<boolean> => {
+    const key = draftKey(field, sku);
+    const text = drafts[key];
+    if (text === undefined) return flush();
+    const parsed = FIELD[field].parse(text);
+    if ("error" in parsed) {
+      setErrors((current) => ({ ...current, [key]: parsed.error }));
+      return Promise.resolve(false);
+    }
+    if (samePrice(parsed.value, saved[field].get(sku)) && !inflight.current) {
+      unqueue(sku, field);
+      dropDraft(key);
+      return flush();
+    }
+    queue(sku, field, parsed.value);
+    if (field === "price") setConfirmed((current) => ({ ...current, [sku]: text }));
+    if (stateRef.current === "conflict") return Promise.resolve(false);
+    return flush();
+  };
+
+  /** Escape: back to the saved value, the draft and its error gone. */
+  const revert = (sku: string, field: LineField = "price") => {
+    const key = draftKey(field, sku);
+    dropDraft(key);
+    clearError(key);
+    unqueue(sku, field);
+  };
+
+  // Prices typed and not confirmed with Enter: the text differs from the last one confirmed.
+  const unconfirmed = Object.entries(drafts)
+    .filter(([key]) => key.startsWith("price|"))
+    .map(([key, text]) => ({ sku: key.slice("price|".length), text }))
+    .filter(({ sku, text }) => {
+      if (confirmed[sku] === text) return false;
+      const typed = FIELD.price.parse(text);
+      return !("value" in typed && samePrice(typed.value, saved.price.get(sku)));
+    })
+    .map(({ sku }) => sku);
 
   /**
    * After a 409: read the current version straight from the API, so the save
@@ -198,12 +261,13 @@ export function useLineEditor(quotation: Quotation) {
     pending.current.clear();
     setDrafts({});
     setErrors({});
+    setConfirmed({});
     setFailure(null);
     setSaveState("idle");
     void client.invalidateQueries({ queryKey: quotationKeys.detail(quotation.id) });
   };
 
-  const unsaved = state !== "idle" || Object.keys(errors).length > 0;
+  const unsaved = state !== "idle" || Object.keys(errors).length > 0 || unconfirmed.length > 0;
 
   // Leaving with values that never reached the API loses them silently otherwise.
   useEffect(() => {
@@ -244,7 +308,13 @@ export function useLineEditor(quotation: Quotation) {
     errorFor: (sku: string, field: LineField = "price"): string | undefined => errors[draftKey(field, sku)],
     isDirty: (sku: string, field: LineField = "price") => drafts[draftKey(field, sku)] !== undefined,
     edit,
-    /** Saves now instead of waiting for the pause (Enter, "Guardar borrador"); resolves true when all is saved. */
+    /** Enter on a cell: confirms what it says and saves it now. */
+    commit,
+    /** Escape on a cell: back to the saved value. */
+    revert,
+    /** References whose typed price waits for Enter. */
+    unconfirmed,
+    /** Saves the queue now ("Guardar borrador"); unconfirmed prices stay as typed. Resolves true when all is saved. */
     saveNow: flush,
     /** Whether something typed has not reached the API yet. */
     hasPending: () => pending.current.size > 0 || inflight.current,
