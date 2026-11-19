@@ -232,7 +232,49 @@ export function PriceValue({
   );
 }
 
-const PRICE_GROUP = { key: "price", label: "Precio" };
+/** The price lines of the cell, with the shorter label the cell falls back to when it is narrow. */
+const PRICE_ROWS: { field: PriceKey; full: string; short: string }[] = [
+  { field: "cost", full: "Costo", short: "Costo" },
+  { field: "list_price", full: PRICE_LABELS.list.full, short: "P. lista" },
+  { field: "suggested_price_per", full: PRICE_LABELS.suggested.full, short: "P. apoyado sug." },
+  { field: "supported_price_per", full: PRICE_LABELS.minimum.full, short: "P. apoyado mín." },
+];
+
+/**
+ * Every price of the row in one cell, one under the other: the label on the
+ * left, never wrapping, and the figure on the right. Below 15rem the cell
+ * switches to the short labels, with the full name as their tooltip. The cost
+ * is BI's only.
+ */
+function PricesCell({ support, seesCost }: { support: SupplierSupport; seesCost: boolean }) {
+  const { side, noted } = priceSide(support);
+  const hasMinimum = hasSide(support.derived?.supported_price_per, side);
+  const rows = PRICE_ROWS.filter((row) => seesCost || row.field !== "cost");
+  return (
+    <div className="@container">
+      <dl className="space-y-0.5 text-[13px] tabular-nums">
+        {rows.map((row) => {
+          const value = cop(support.derived?.[row.field]?.[side]);
+          // The minimum is the price the support allows, so it leads when there is one.
+          const strong = row.field === "supported_price_per" || (row.field === "suggested_price_per" && !hasMinimum);
+          return (
+            <div key={row.field} className="flex items-baseline justify-between gap-2">
+              <dt className="whitespace-nowrap text-xs text-text-secondary">
+                <span className="hidden @[15rem]:inline">{row.full}</span>
+                <span className="@[15rem]:hidden" title={row.full}>
+                  <span aria-hidden="true">{row.short}</span>
+                  <span className="sr-only">{row.full}</span>
+                </span>
+              </dt>
+              <dd className={cn("whitespace-nowrap text-right", strong && value && "font-semibold")}>{value ?? dash}</dd>
+            </div>
+          );
+        })}
+      </dl>
+      {noted && <span className={secondary}>Precios por {side === "box" ? "caja" : "unidad"}</span>}
+    </div>
+  );
+}
 
 function ValidityCell({ support }: { support: SupplierSupport }) {
   return (
@@ -290,47 +332,13 @@ export const COLUMNS: Column[] = [
     width: "13%",
     cell: (s) => <MarginsCell support={s} />,
   },
-  // «Precio»: one group header over a sub-column per price, hidden together from «Columnas».
+  // The «price» key is the one the «Columnas» menu already stored for the old price group.
   {
-    key: "price-cost",
-    label: "Costo",
-    title: "Costo por unidad de inventario (solo BI)",
-    group: PRICE_GROUP,
-    costOnly: true,
-    tight: true,
-    middle: true,
-    width: "8.5%",
-    cell: (s) => <PriceValue support={s} field="cost" align="left" />,
-  },
-  {
-    key: "price-list",
-    label: PRICE_LABELS.list.short,
-    title: PRICE_LABELS.list.full,
-    group: PRICE_GROUP,
-    tight: true,
-    middle: true,
-    width: "9%",
-    cell: (s) => <PriceValue support={s} field="list_price" align="left" />,
-  },
-  {
-    key: "price-suggested",
-    label: PRICE_LABELS.suggested.short,
-    title: `${PRICE_LABELS.suggested.full}: precio de lista − $ Apoyo`,
-    group: PRICE_GROUP,
-    tight: true,
-    middle: true,
-    width: "9%",
-    cell: (s) => <PriceValue support={s} field="suggested_price_per" align="left" />,
-  },
-  {
-    key: "price-minimum",
-    label: PRICE_LABELS.minimum.short,
-    title: `${PRICE_LABELS.minimum.full}: (costo − apoyo) / (1 − margen mínimo autorizado JDH)`,
-    group: PRICE_GROUP,
-    tight: true,
-    middle: true,
-    width: "9%",
-    cell: (s) => <PriceValue support={s} field="supported_price_per" align="left" />,
+    key: "price",
+    label: "Precios",
+    hideable: true,
+    width: "18%",
+    cell: (s, { seesCost }) => <PricesCell support={s} seesCost={seesCost} />,
   },
   {
     key: "validity",

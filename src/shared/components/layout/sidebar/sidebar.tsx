@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 import { useUiStore } from "@/shared/store/use-ui-store";
 import { cn } from "@/shared/lib/utils";
@@ -8,9 +9,25 @@ import SidebarAreaSwitcher from "./sidebar-area-switcher";
 import SidebarFooter from "./sidebar-footer";
 import SidebarMenu from "./sidebar-menu";
 
+/**
+ * A module's page (`/{area}/{module}/...`), not the workspace guide or an area's home, where
+ * the person is still choosing where to go.
+ */
+function isModuleRoute(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  return segments.length >= 2 && segments[0] !== "workspace";
+}
+
 export default function Sidebar() {
-  const { isSidebarCollapsed, isMobileMenuOpen, setMobileMenuOpen } =
+  const { isSidebarCollapsed, isMobileMenuOpen, setMobileMenuOpen, setSidebarCollapsed } =
     useUiStore();
+  const pathname = usePathname();
+
+  // The rail is for getting somewhere: entering a module (from the menu or any link) folds it
+  // to icons so the module gets the width. Its badge expands it again to navigate.
+  useEffect(() => {
+    if (isModuleRoute(pathname)) setSidebarCollapsed(true);
+  }, [pathname, setSidebarCollapsed]);
 
   // Escape closes the mobile drawer. Without this the drawer is a trap for
   // anyone not using a pointer.

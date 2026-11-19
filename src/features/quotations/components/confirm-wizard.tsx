@@ -31,43 +31,138 @@ const STEPS = ["Oferta", "Observaciones", "Lista en SIESA"] as const;
  * changed) and the quotation goes to validation with the version that came
  * back. Afterwards the editor shows the offer ready to preview and export.
  */
+/** A list update's own confirmation: it has no offer and always writes over its list. */
 export function ConfirmDialog({ quotation, open, onOpenChange }: { quotation: Quotation; open: boolean; onOpenChange: (open: boolean) => void }) {
-  if (quotation.kind === "lista") {
-    return (
-      <Dialog
-        open={open}
-        onOpenChange={onOpenChange}
-        isForm
-        title="Confirmar la actualización"
-        description="Al enviarla pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan."
-      >
-        {open && <ListConfirm quotation={quotation} onClose={() => onOpenChange(false)} />}
-      </Dialog>
-    );
-  }
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       isForm
-      wide
-      title="Solicitar actualización o creación de lista"
-      description="Lleva los precios a una lista de SIESA: actualiza la del cliente o crea una nueva. Pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan. Para mandarle la oferta al cliente no hace falta: usa «Enviar al cliente»."
+      title="Confirmar la actualización"
+      description="Al enviarla pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan."
     >
-      {open && <ConfirmWizard quotation={quotation} onClose={() => onOpenChange(false)} />}
+      {open && <ListConfirm quotation={quotation} onClose={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: () => void }) {
+const LIST_TITLES: Record<ListAction, string> = { actualizacion: "Actualización de lista", creacion: "Creación de lista" };
+
+/**
+ * «Continuar proceso» of a customer quotation: take its prices to a SIESA list,
+ * updating the customer's or creating one, which goes to BI's validation. Each
+ * option opens the confirmation wizard for that action. The offer itself is
+ * downloaded and sent by hand.
+ */
+export function ContinueDialog({ quotation, open, onOpenChange }: { quotation: Quotation; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [list, setList] = useState<ListAction | null>(null);
+  const close = () => {
+    setList(null);
+    onOpenChange(false);
+  };
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      isForm
+      wide={list !== null}
+      title={list ? LIST_TITLES[list] : "Continuar proceso"}
+      description={
+        list
+          ? "Pasa a validación del área BI y queda bloqueada para editar hasta que la validen o la devuelvan."
+          : "Elige el paso que sigue con esta cotización."
+      }
+    >
+      {open &&
+        (list ? (
+          <ConfirmWizard quotation={quotation} action={list} onBack={() => setList(null)} onClose={close} />
+        ) : (
+          <ChooseNext quotation={quotation} onList={setList} onClose={close} />
+        ))}
+    </Dialog>
+  );
+}
+
+function ChooseNext({ quotation, onList, onClose }: { quotation: Quotation; onList: (action: ListAction) => void; onClose: () => void }) {
+  const priced = quotation.lines.filter((line) => line.is_active && line.new_price !== null).length;
+
+  // Asking for a list is once per draft; the reason a list option is off, in the person's words.
+  const listBlocked =
+    quotation.status === "pendiente_validacion"
+      ? "Ya está en validación del área BI."
+      : quotation.status !== "borrador"
+        ? "Ya se validó: los precios no cambian más."
+        : priced === 0
+          ? "Escribe al menos un precio nuevo para pedir la lista."
+          : null;
+  const updateBlocked =
+    listBlocked ??
+    (quotation.is_temporary_customer
+      ? "Un cliente temporal no tiene lista en SIESA: solo se le crea una."
+      : isGeneralList(quotation)
+        ? "La lista 1 no se actualiza por este medio: crea una lista."
+        : null);
+  const [choice, setChoice] = useState<ListAction | null>(updateBlocked === null ? "actualizacion" : listBlocked === null ? "creacion" : null);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (choice) onList(choice);
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      <p className="text-[13px] text-text-secondary">
+        La oferta al cliente no pasa por aquí: descarga el PDF o el Excel en la sección «Oferta para el cliente» y envíaselo.
+      </p>
+      <fieldset className="min-w-0 space-y-2">
+        <legend className="sr-only">Qué se hace en SIESA</legend>
+        <ActionOption
+          name="next-step"
+          value="actualizacion"
+          checked={choice === "actualizacion"}
+          onChange={setChoice}
+          disabled={updateBlocked !== null}
+          title="Actualización de lista"
+          hint={updateBlocked ?? `Escribe los precios en la lista del cliente, ${quotation.price_list_id ?? "sin lista"}. Va a validación del área BI.`}
+        />
+        <ActionOption
+          name="next-step"
+          value="creacion"
+          checked={choice === "creacion"}
+          onChange={setChoice}
+          disabled={listBlocked !== null}
+          title="Creación de lista"
+          hint={listBlocked ?? "Una lista nueva: el validador le pone el código y la descripción. Va a validación del área BI."}
+        />
+      </fieldset>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} className="max-md:h-11">Cancelar</Button>
+        <Button type="submit" disabled={choice === null} className="max-md:h-11">
+          Siguiente <ArrowRight aria-hidden="true" />
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function ConfirmWizard({
+  quotation,
+  action,
+  onBack,
+  onClose,
+}: {
+  quotation: Quotation;
+  /** Chosen in «Continuar proceso»; the wizard only confirms it. */
+  action: ListAction;
+  onBack: () => void;
+  onClose: () => void;
+}) {
   const confirm = useConfirmQuotation(quotation.id);
   const offer = useUpdateOffer(quotation.id);
-  // List 1 is never written over, and a temporary customer has no list to update: both only create.
-  const onlyCreates = isGeneralList(quotation) || quotation.is_temporary_customer;
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<OfferDraft>(() => draftFrom(quotation));
   const [validityError, setValidityError] = useState<string | null>(null);
-  const [action, setAction] = useState<ListAction>(onlyCreates ? "creacion" : (quotation.list_action ?? "actualizacion"));
   const [activation, setActivation] = useState(quotation.activation_date ?? tomorrow());
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -138,19 +233,13 @@ function ConfirmWizard({ quotation, onClose }: { quotation: Quotation; onClose: 
 
       {step === 0 && <OfferSettingsStep quotation={quotation} draft={draft} onChange={setDraft} validityError={validityError} />}
       {step === 1 && <ConditionsStep draft={draft} onChange={setDraft} validityText={draftValidityText(draft, quotation)} />}
-      {step === 2 && (
-        <SiesaStep quotation={quotation} onlyCreates={onlyCreates} action={action} onAction={setAction} activation={activation} onActivation={setActivation} />
-      )}
+      {step === 2 && <SiesaStep quotation={quotation} action={action} activation={activation} onActivation={setActivation} />}
 
       <DialogError message={error} />
       <DialogFooter>
-        {step === 0 ? (
-          <Button variant="outline" onClick={onClose} className="max-md:h-11">Cancelar</Button>
-        ) : (
-          <Button variant="outline" onClick={() => setStep(step - 1)} disabled={sending} className="max-md:h-11">
-            <ArrowLeft aria-hidden="true" /> Atrás
-          </Button>
-        )}
+        <Button variant="outline" onClick={() => (step === 0 ? onBack() : setStep(step - 1))} disabled={sending} className="max-md:h-11">
+          <ArrowLeft aria-hidden="true" /> Atrás
+        </Button>
         <Button type="submit" disabled={blocked || sending} className="max-md:h-11">
           {last ? (
             <>
@@ -263,58 +352,29 @@ function Stepper({ current }: { current: number }) {
 }
 
 /**
- * Step 3: written over the customer's list, or a new list; and from when. On
- * a creation the validator gives the list its code, so nothing is asked here.
+ * Step 3: the list the prices go to, chosen in «Continuar proceso», and from
+ * when. On a creation the validator gives the list its code, so nothing is
+ * asked here.
  */
 function SiesaStep({
   quotation,
-  onlyCreates,
   action,
-  onAction,
   activation,
   onActivation,
 }: {
   quotation: Quotation;
-  onlyCreates: boolean;
   action: ListAction;
-  onAction: (action: ListAction) => void;
   activation: string;
   onActivation: (date: string) => void;
 }) {
   const dateId = useId();
   const shared = quotation.price_list_customers ?? 0;
-  const updateHint = quotation.is_temporary_customer
-    ? "Un cliente temporal no tiene lista en SIESA: se le crea una."
-    : onlyCreates
-      ? "La lista 1 no se actualiza por este medio."
-      : `Escribe los precios en la lista del cliente, ${quotation.price_list_id ?? "sin lista"}.`;
 
   return (
     <div className="space-y-5">
-      <fieldset className="min-w-0 space-y-2">
-        <legend className="text-[13px] font-medium">Qué se hace en SIESA</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <ActionOption
-            value="actualizacion"
-            checked={action === "actualizacion"}
-            onChange={onAction}
-            disabled={onlyCreates}
-            title="Actualización de lista"
-            hint={updateHint}
-          />
-          <ActionOption
-            value="creacion"
-            checked={action === "creacion"}
-            onChange={onAction}
-            title="Creación de lista"
-            hint="Una lista nueva: el validador le pone el código y la descripción. Asignarla al cliente se hace a mano en SIESA."
-          />
-        </div>
-      </fieldset>
-
       {action === "actualizacion" ? (
         <p className="text-sm">
-          Lista <span className="font-mono font-semibold">{quotation.price_list_id ?? "—"}</span>
+          Actualiza la lista <span className="font-mono font-semibold">{quotation.price_list_id ?? "—"}</span>
           {quotation.price_list_name && <span className="text-text-secondary"> {quotation.price_list_name}</span>}
           {shared > 1 && (
             <span className="mt-1 block text-text-secondary">
@@ -324,7 +384,9 @@ function SiesaStep({
           )}
         </p>
       ) : (
-        <p className="text-sm text-text-secondary">Al validar, el área BI le pone a la lista nueva su código y su descripción.</p>
+        <p className="text-sm text-text-secondary">
+          Al validar, el área BI le pone a la lista nueva su código y su descripción. Asignarla al cliente se hace a mano en SIESA.
+        </p>
       )}
 
       <div className="max-w-56">
@@ -336,7 +398,8 @@ function SiesaStep({
   );
 }
 
-function ActionOption({
+function ActionOption<T extends string>({
+  name,
   value,
   checked,
   onChange,
@@ -344,11 +407,13 @@ function ActionOption({
   title,
   hint,
 }: {
-  value: ListAction;
+  name: string;
+  value: T;
   checked: boolean;
-  onChange: (value: ListAction) => void;
+  onChange: (value: T) => void;
   disabled?: boolean;
   title: string;
+  /** What the option does, or why it is off. */
   hint: string;
 }) {
   return (
@@ -361,7 +426,7 @@ function ActionOption({
     >
       <input
         type="radio"
-        name="list-action"
+        name={name}
         value={value}
         checked={checked}
         disabled={disabled}

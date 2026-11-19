@@ -371,65 +371,6 @@ export interface SupportPatch {
   overlap_reason?: string;
 }
 
-export type SpecialCaseStatus =
-  | "pendiente"
-  | "en_analisis"
-  | "programado"
-  | "implementado"
-  | "descartado";
-export type SpecialCasePriority = "baja" | "media" | "alta";
-
-export interface SpecialCase {
-  id: string;
-  code: string;
-  title: string;
-  request: string;
-  rule_to_program: string | null;
-  status: SpecialCaseStatus;
-  priority: SpecialCasePriority;
-  assignee: string | null;
-  resolution: string | null;
-  supplier_code: string | null;
-  supplier_name: string | null;
-  customer_nit: string | null;
-  customer_name: string | null;
-  support_count: number;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SpecialCasePage {
-  items: SpecialCase[];
-  total: number;
-  page: number;
-  size: number;
-}
-
-export interface SpecialCaseInput {
-  title: string;
-  request: string;
-  rule_to_program?: string | null;
-  supplier_code?: string | null;
-  customer_nit?: string | null;
-  customer_name?: string | null;
-  status?: SpecialCaseStatus;
-  priority?: SpecialCasePriority;
-  assignee?: string | null;
-}
-
-export type SpecialCasePatch = Partial<SpecialCaseInput> & {
-  version: number;
-  resolution?: string | null;
-};
-
-export interface SpecialCaseParams {
-  q: string;
-  status: string;
-  page: number;
-  size: number;
-}
-
 /** How a field is typed in the form and read from a bulk file. */
 export type FormFieldType = "text" | "sku" | "nit" | "date" | "number" | "fraction" | "choice" | "list";
 

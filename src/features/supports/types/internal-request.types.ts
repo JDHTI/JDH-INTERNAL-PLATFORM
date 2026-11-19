@@ -50,6 +50,8 @@ export interface InternalSupportRequest {
   agreed_with: string;
   reason: string;
   requested_by: string;
+  /** Who asked, when the API sends it: nobody decides their own request. */
+  requested_by_id?: string | null;
   created_at: string;
   version: number;
   valid_from: string | null;

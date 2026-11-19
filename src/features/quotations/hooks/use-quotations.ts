@@ -11,8 +11,8 @@ import {
   addLocalLine,
   compareCostCenters,
   confirmQuotation,
-  sendQuotation,
   createListUpdate,
+  createGroupQuotation,
   createQuotation,
   createTemporaryQuotation,
   deleteQuotation,
@@ -147,11 +147,14 @@ export function useCreateQuotation() {
     mutationFn: (
       input:
         | { kind: "existing"; customerNit: string; windowMonths: WindowMonths; empty: boolean }
+        | { kind: "group"; businessGroup: string; windowMonths: WindowMonths; empty: boolean }
         | ({ kind: "temporary" } & TemporaryQuotationInput)
     ) =>
       input.kind === "existing"
         ? createQuotation(input.customerNit, input.windowMonths, input.empty)
-        : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
+        : input.kind === "group"
+          ? createGroupQuotation(input.businessGroup, input.windowMonths, input.empty)
+          : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
     onSuccess: store,
   });
 }
@@ -249,14 +252,6 @@ export function useConfirmQuotation(id: string) {
   const store = useStoreQuotation();
   return useMutation({
     mutationFn: ({ version, options }: { version: number; options: ConfirmOptions }) => confirmQuotation(id, version, options),
-    onSuccess: store,
-  });
-}
-
-export function useSendQuotation(id: string) {
-  const store = useStoreQuotation();
-  return useMutation({
-    mutationFn: (version: number) => sendQuotation(id, version),
     onSuccess: store,
   });
 }

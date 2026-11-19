@@ -30,13 +30,18 @@ function toLevels(grants: RoleGrantDto[]): { area: Level; modules: Record<string
   return { area, modules };
 }
 
-/** Back to grants, without the module rows the whole-area level already covers. */
-function toGrants(area: Level, modules: Record<string, Level>): RoleGrantDto[] {
+/**
+ * Back to grants, without the module rows the whole-area level already covers, and only for
+ * the modules switched on in the area (`active`). A grant on a module the area switched off is
+ * not sent: the API keeps it as it is (it counts again when the module is switched back on),
+ * and builds before that refused it on save with «no está activo en el área».
+ */
+function toGrants(area: Level, modules: Record<string, Level>, active: Set<string>): RoleGrantDto[] {
   const grants: RoleGrantDto[] = [];
   if (area !== "none") grants.push({ module: WILDCARD, action: area });
   if (area === "manage") return grants;
   for (const [module, level] of Object.entries(modules)) {
-    if (level === "none" || level === area) continue;
+    if (level === "none" || level === area || !active.has(module)) continue;
     grants.push({ module, action: level });
   }
   return grants;
@@ -138,7 +143,7 @@ function PermissionsForm({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(toGrants(area, levels));
+    onSave(toGrants(area, levels, new Set(modules.map((module) => module.key))));
   };
 
   const moduleOptions =
@@ -205,12 +210,15 @@ function PermissionsForm({
   );
 }
 
-/** One line for the role list: what the role grants, at a glance. */
-export function grantsSummary(grants: RoleGrantDto[] | undefined): string {
+/**
+ * One line for the role list: what the role grants, at a glance. With `active`, a grant on a
+ * module the area switched off is not counted: it opens nothing while it is off.
+ */
+export function grantsSummary(grants: RoleGrantDto[] | undefined, active?: Set<string>): string {
   if (!grants) return "Cargando permisos…";
   const { area, modules } = toLevels(grants);
   if (area === "manage") return "Acceso completo";
-  const granted = Object.values(modules).filter((level) => level !== "none").length;
+  const granted = Object.entries(modules).filter(([module, level]) => level !== "none" && (!active || active.has(module))).length;
   if (area === "read") {
     return granted > 0 ? `Lectura de toda el área y gestión en ${granted}` : "Lectura de toda el área";
   }

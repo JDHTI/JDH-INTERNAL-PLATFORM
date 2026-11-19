@@ -681,7 +681,11 @@ function AreaDetails({
                       )}
                     </span>
                     <span className="block truncate text-xs text-text-secondary">
-                      {role.is_leader ? "Todos los permisos del área" : grantsSummary(permissions[role.id])}
+                      {role.is_leader ? "Todos los permisos del área" : grantsSummary(
+                            permissions[role.id],
+                            // While the catalog loads, every grant counts rather than none.
+                            catalogModules.length > 0 ? new Set(catalogModules.map((module) => module.key)) : undefined
+                          )}
                     </span>
                   </span>
                   <span className="flex shrink-0 gap-1">

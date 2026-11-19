@@ -26,6 +26,15 @@ export function listModuleViews(kind: ListKind, basePath: string): PageView[] {
       description: "Los ítems validados que aún no se cargan en SIESA, por lista, con sus archivos y las últimas cargas.",
     },
   ];
+  if (kind === "lista") {
+    views.push({
+      key: "cotizaciones",
+      label: "Cotizaciones por validar",
+      href: `${basePath}/cotizaciones`,
+      description:
+        "Las cotizaciones de cliente que piden actualizar o crear una lista: valídalas o devuélvelas con una nota, descarga sus archivos y márcalas como cargadas.",
+    });
+  }
   if (kind === "principal") {
     views.push({
       key: "impuesto-licor",

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { Switch } from "@/shared/components/ui/switch";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
@@ -83,6 +84,8 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
         </div>
       </div>
 
+      <VariationSwitch quotation={quotation} canEdit={canEdit} />
+
       <div className="grid gap-x-6 gap-y-4 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="min-w-0 space-y-3">
           {lines.length === 0 ? (
@@ -143,6 +146,48 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
 
       <OfferEditDialog quotation={quotation} open={editing} onOpenChange={setEditing} />
     </section>
+  );
+}
+
+/**
+ * Whether the PDF and the Excel carry the «Var.» column (the new price against
+ * the last one), saved at once (`PATCH /offer`). Beside the downloads because
+ * that is where the offer leaves for the customer; validated or loaded, the
+ * offer no longer changes, so it only says how it goes.
+ */
+function VariationSwitch({ quotation, canEdit }: { quotation: Quotation; canEdit: boolean }) {
+  const id = useId();
+  const update = useUpdateOffer(quotation.id);
+  return (
+    <div className="flex items-start gap-3 rounded-md bg-canvas-subtle px-3 py-2">
+      <Switch
+        checked={quotation.include_variation}
+        disabled={!canEdit || update.isPending}
+        onCheckedChange={(next) =>
+          update.mutate(
+            { version: quotation.version, settings: { include_variation: next } },
+            {
+              onSuccess: () => toast.success(next ? "La variación sale en el PDF y el Excel." : "La variación ya no sale en el PDF ni el Excel."),
+              onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+            }
+          )
+        }
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+        className="mt-0.5"
+      />
+      <div className="min-w-0 space-y-0.5">
+        <span id={`${id}-label`} className="flex items-center gap-1.5 text-sm font-medium">
+          Incluir la variación
+          {update.isPending && <Loader2 className="size-3.5 animate-spin text-text-secondary" aria-hidden="true" />}
+        </span>
+        <span id={`${id}-hint`} className="block text-[13px] text-text-secondary">
+          {canEdit
+            ? "Una columna en el PDF y el Excel con cuánto sube o baja cada precio frente al último que pagó."
+            : "La oferta ya no cambia en este estado."}
+        </span>
+      </div>
+    </div>
   );
 }
 

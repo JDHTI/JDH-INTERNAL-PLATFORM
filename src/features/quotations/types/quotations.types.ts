@@ -11,14 +11,14 @@ export type DecimalText = string;
  * borrador: the advisor edits. pendiente_validacion: confirmed, locked until
  * the validating area acts. pendiente_carga: validated, the files are out and
  * the validator has to load them into SIESA. cargada: the validator confirmed
- * it is loaded. Any edit goes back to borrador. `list_action` says whether the
- * customer's list is written over or a new one created.
+ * it is loaded. In pendiente_carga and cargada nothing changes any more (409).
+ * `list_action` says whether the customer's list is written over or a new one
+ * created. The offer goes to the customer by hand, from its PDF or Excel.
  */
-/**
- * `enviada`: the offer went to the customer with no validation; it stays editable and an
- * edit takes it back to `borrador`. Only asking for a price list goes to BI's validation.
- */
-export type QuotationStatus = "borrador" | "enviada" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+
+/** Validated or loaded: prices, quantities, offer, lines, center and refresh answer 409. */
+export const isClosed = (status: QuotationStatus) => status === "pendiente_carga" || status === "cargada";
 
 /**
  * `cotizacion`: a customer quotation (module `cotizador`). `lista`: the update of
@@ -135,6 +135,42 @@ export interface StockTotal {
 export interface StockTotals {
   warehouses: string[];
   items: Record<string, StockTotal>;
+}
+
+/** One warehouse of an operation center, with its units. */
+export interface StockWarehouse {
+  warehouse: string;
+  name: string | null;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+}
+
+export interface StockCenter {
+  code: string;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+  warehouses: StockWarehouse[];
+}
+
+export interface StockBreakdownItem {
+  sku: string;
+  on_hand: DecimalText;
+  available: DecimalText | null;
+  centers: StockCenter[];
+}
+
+/**
+ * `GET /quotations/{id}/stock-breakdown`: a line's stock is the sum of the saleable warehouses of
+ * the chosen centers (Nacional: the 17 main ones). `label` names them, `stock_at` is the morning
+ * snapshot from SIESA.
+ */
+export interface StockBreakdown {
+  national: boolean;
+  label: string;
+  warehouses: string[];
+  centers: string[];
+  stock_at: string | null;
+  items: StockBreakdownItem[];
 }
 
 /** The chips of a list update's table: the item's review and where its price leaves the margin. */
@@ -334,9 +370,6 @@ export interface QuotationSummary {
   created_at: string;
   updated_at: string;
   confirmed_at: string | null;
-  /** The last time the offer went to the customer, kept as history after an edit. Missing on older API builds. */
-  sent_at?: string | null;
-  sent_by?: string | null;
   validated_at: string | null;
   version: number;
   /** How many days the prices hold for the customer, counted from `valid_from`. */
@@ -348,6 +381,13 @@ export interface QuotationSummary {
   /** When and by whom the validator confirmed it is loaded in SIESA (`cargada`). */
   uploaded_at: string | null;
   uploaded_by: string | null;
+  /**
+   * Quoted for a whole business group: `customer_name` is the group's name, sales come from every
+   * customer in it, and the offer goes out in its name. Null for one customer.
+   */
+  business_group?: string | null;
+  /** How many customers the group had when it was built. */
+  group_customers?: number;
   is_temporary_customer: boolean;
   temporary_customer: TemporaryCustomer | null;
   kind: QuotationKind;
@@ -466,7 +506,10 @@ export interface SupportOption {
 export type CostSource = "cotizacion" | "inventario" | "alza";
 
 export interface QuotationLine {
-  /** Units on hand and available in the warehouses that cost the line; null, unknown. */
+  /**
+   * Units on hand and available, summed over the saleable warehouses of the chosen centers
+   * (Nacional: the 17 main ones); null, unknown. `GET /{id}/stock-breakdown` splits them.
+   */
   stock_on_hand?: DecimalText | null;
   stock_available?: DecimalText | null;
   sku: string;
@@ -540,6 +583,8 @@ export interface QuotationLine {
    * cost, no rule, never exported.
    */
   origin: LineOrigin;
+  /** Order in the quotation; a line added later has a higher one. */
+  position?: number;
   origin_label: string;
   /** Inventory units the customer would take; only used when the quotation quotes with quantities. */
   quantity: DecimalText | null;

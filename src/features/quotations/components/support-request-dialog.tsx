@@ -17,6 +17,10 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { formatMargin, formatMoney, parseMarginInput } from "../lib/format";
 import type { Quotation, QuotationLine } from "../types/quotations.types";
 
+const ALL_SUPPLIERS = "";
+/** Rows on screen whose current margin is asked for up front; past it, only the ticked ones. */
+const TARGETS_IN_VIEW = 120;
+
 const th = "px-3 py-2.5 text-left text-xs font-semibold text-text-secondary";
 const td = "px-3 py-2.5 align-top";
 
@@ -43,8 +47,10 @@ function belowMinimum(line: QuotationLine): boolean {
 
 /**
  * Asks BI for an internal support: one customer (the quotation's) and one or
- * more references of a single supplier, each with the supported margin asked.
- * BI decides whether it is registered as a support or holds only on the order's day.
+ * more references, each with the supported margin asked. The API takes one
+ * supplier per request, so references of several suppliers become one request
+ * each. BI decides whether it is registered as a support or holds only on the
+ * order's day.
  */
 export default function SupportRequestDialog({
   quotation,
@@ -104,27 +110,41 @@ function RequestForm({
     }
     return [...seen].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [candidates]);
-  const firstPicked = candidates.find((line) => preselected.has(line.sku))?.supplier_code;
-  const [supplier, setSupplier] = useState(firstPicked ?? suppliers[0]?.value ?? "");
-  const lines = candidates.filter((line) => line.supplier_code === supplier);
+  const supplierName = (code: string) => suppliers.find((option) => option.value === code)?.label ?? code;
+  // Only narrows the table: ticks of every supplier are kept, and each supplier becomes its own request.
+  const [supplier, setSupplier] = useState(ALL_SUPPLIERS);
+  const lines = supplier === ALL_SUPPLIERS ? candidates : candidates.filter((line) => line.supplier_code === supplier);
   const [ticked, setTicked] = useState<Set<string>>(() => {
-    const picked = candidates.filter((line) => preselected.has(line.sku) && line.supplier_code === supplier).map((line) => line.sku);
-    return new Set(picked.length > 0 ? picked : lines.length === 1 ? [lines[0].sku] : []);
+    const picked = candidates.filter((line) => preselected.has(line.sku)).map((line) => line.sku);
+    return new Set(picked.length > 0 ? picked : candidates.length === 1 ? [candidates[0].sku] : []);
   });
   // A line quoted under its minimum starts at its quoted margin; the rest start empty.
   const [margins, setMargins] = useState<Record<string, string>>(() =>
     Object.fromEntries(candidates.map((line) => [line.sku, belowMinimum(line) ? marginPointsText(quotedMargin(line)) : ""]))
   );
   // The current margin of each reference (the product's on the customer's list): the request must ask less.
-  const targets = useTargetMargins(quotation.customer_nit, lines.map((line) => line.sku));
+  // Asked for the ticked ones, and for the rows on screen while they fit in one request.
+  const targetSkus = [...ticked, ...(lines.length <= TARGETS_IN_VIEW ? lines.map((line) => line.sku) : [])];
+  const targets = useTargetMargins(quotation.customer_nit, targetSkus);
   const targetOf = (sku: string) => targets.data?.items.find((item) => item.sku === sku);
   const [requestedFor, setRequestedFor] = useState(todayInBogota());
   const [agreedWith, setAgreedWith] = useState("");
   const [reason, setReason] = useState("");
+  const [sending, setSending] = useState(false);
+  const [failure, setFailure] = useState<{ message: string; conflict: boolean; created: number[] } | null>(null);
 
-  const chosen = lines.filter((line) => ticked.has(line.sku));
+  const chosen = candidates.filter((line) => ticked.has(line.sku));
+  const groups = useMemo(() => {
+    const bySupplier = new Map<string, QuotationLine[]>();
+    for (const line of chosen) {
+      const code = line.supplier_code ?? "";
+      bySupplier.set(code, [...(bySupplier.get(code) ?? []), line]);
+    }
+    return [...bySupplier];
+  }, [chosen]);
   const parsed = chosen.map((line) => ({ sku: line.sku, result: parseMarginInput(margins[line.sku] ?? "") }));
   const badMargin = parsed.find((item) => "error" in item.result);
+  // The current margin must be known to check that the request asks less; the API checks it too.
   const notLower = parsed.find((item) => {
     const current = targetOf(item.sku)?.margin_pct;
     return "value" in item.result && current != null && Number(item.result.value) >= Number(current);
@@ -144,50 +164,77 @@ function RequestForm({
               ? "Escribe el motivo."
               : null;
 
-  const changeSupplier = (next: string) => {
-    setSupplier(next);
-    const only = candidates.filter((line) => line.supplier_code === next);
-    setTicked(new Set(only.length === 1 ? [only[0].sku] : []));
-  };
-
+  /**
+   * The API takes one supplier per request, so one POST per supplier, in turn.
+   * Creating a request does not change the quotation's version. If one fails,
+   * the ones already created stay, and their references are unticked so a
+   * second try sends only what is left.
+   */
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (problem || mutation.isPending) return;
-    try {
-      const created = await mutation.mutateAsync({
-        version: quotation.version,
-        supplier_code: supplier,
-        requested_for: requestedFor,
-        agreed_with: agreedWith.trim(),
-        reason: reason.trim(),
-        items: parsed.map((item) => ({ sku: item.sku, requested_margin_pct: "value" in item.result ? item.result.value : "" })),
-      });
-      toast.success(`Solicitud #${created.number} enviada a BI.`);
-      onDone();
-    } catch {
-      // The error shows in the form; a 409 asks to reload the quotation.
+    if (problem || sending) return;
+    setSending(true);
+    setFailure(null);
+    const created: number[] = [];
+    const marginOf = new Map(parsed.map((item) => [item.sku, "value" in item.result ? item.result.value : ""]));
+    for (const [code, group] of groups) {
+      try {
+        const request = await mutation.mutateAsync({
+          version: quotation.version,
+          supplier_code: code,
+          requested_for: requestedFor,
+          agreed_with: agreedWith.trim(),
+          reason: reason.trim(),
+          items: group.map((line) => ({ sku: line.sku, requested_margin_pct: marginOf.get(line.sku) ?? "" })),
+        });
+        created.push(request.number);
+        setTicked((current) => {
+          const next = new Set(current);
+          for (const line of group) next.delete(line.sku);
+          return next;
+        });
+      } catch (error) {
+        setFailure({
+          message: `${supplierName(code)}: ${errorMessage(error)}`,
+          conflict: error instanceof ApiError && error.status === 409,
+          created,
+        });
+        setSending(false);
+        return;
+      }
     }
+    setSending(false);
+    toast.success(
+      created.length === 1
+        ? `Solicitud #${created[0]} enviada a BI.`
+        : `Se crearon ${created.length} solicitudes, una por proveedor: ${created.map((number) => `#${number}`).join(", ")}.`
+    );
+    onDone();
   }
 
-  const conflict = mutation.error instanceof ApiError && mutation.error.status === 409;
-
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={(event) => void submit(event)} className="space-y-5">
       {suppliers.length > 1 && (
         <div className="space-y-1.5">
-          <label htmlFor="support-request-supplier" className="block text-[13px] font-medium">Proveedor</label>
-          <Dropdown id="support-request-supplier" aria-label="Proveedor" value={supplier} options={suppliers} onValueChange={changeSupplier} />
-          <p className="text-[13px] text-text-secondary">Una solicitud agrupa referencias de un solo proveedor.</p>
+          <label htmlFor="support-request-supplier" className="block text-[13px] font-medium">Ver proveedor</label>
+          <Dropdown
+            id="support-request-supplier"
+            aria-label="Ver proveedor"
+            value={supplier}
+            options={[{ value: ALL_SUPPLIERS, label: "Todos los proveedores" }, ...suppliers]}
+            onValueChange={setSupplier}
+          />
         </div>
       )}
 
-      <fieldset className="space-y-2" disabled={mutation.isPending}>
+      <fieldset className="space-y-2" disabled={sending}>
         <legend className="text-sm font-medium">
           Referencias{suppliers.length === 1 ? ` de ${suppliers[0].label}` : ""}
         </legend>
         <p className="text-[13px] text-text-secondary">
-          Pide un margen menor que el actual, el del producto en la lista del cliente. Las que se cotizan bajo su mínimo arrancan en
-          el margen cotizado.
+          Marca una o varias y pide un margen menor que el actual, el del producto en la lista del cliente. Las que se cotizan bajo su
+          mínimo arrancan en el margen cotizado.
+          {suppliers.length > 1 && " Se crea una solicitud por proveedor."}
         </p>
         {targets.isError && <Alert severity="warning">No se pudo leer el margen actual: {errorMessage(targets.error)}</Alert>}
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -225,11 +272,12 @@ function RequestForm({
                     <td className={td}>
                       <p className="font-mono text-xs">{line.sku}</p>
                       <p>{line.description ?? "Sin descripción"}</p>
+                      {suppliers.length > 1 && <p className="text-xs text-text-secondary">{supplierName(line.supplier_code ?? "")}</p>}
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatMoney(line.offer_price)}</td>
                     <td className={`${td} text-right tabular-nums`}>{formatMargin(quotedMargin(line))}</td>
                     <td className={`${td} text-right tabular-nums`} title={targetOf(line.sku)?.margin_label}>
-                      {targets.isPending ? "…" : formatMargin(targetOf(line.sku)?.margin_pct)}
+                      {targetOf(line.sku) ? formatMargin(targetOf(line.sku)?.margin_pct) : targets.isFetching ? "…" : "—"}
                       {targetOf(line.sku) && <span className="block text-xs text-text-secondary">{targetOf(line.sku)?.margin_label}</span>}
                     </td>
                     <td className={td}>
@@ -289,17 +337,35 @@ function RequestForm({
         />
       </div>
 
-      {conflict ? (
-        <Alert severity="warning">La cotización cambió mientras llenabas la solicitud. Cierra, recarga la cotización y vuelve a enviarla.</Alert>
-      ) : (
-        mutation.isError && <Alert severity="danger">{errorMessage(mutation.error)}</Alert>
+      {failure && (
+        <Alert severity={failure.conflict ? "warning" : "danger"}>
+          {failure.created.length > 0 &&
+            `Ya se crearon ${failure.created.map((number) => `#${number}`).join(", ")}; sus referencias se desmarcaron. `}
+          {failure.conflict
+            ? "La cotización cambió mientras llenabas la solicitud. Cierra, recarga la cotización y vuelve a enviar lo que falta."
+            : failure.message}
+        </Alert>
       )}
-      {problem && <p className="text-[13px] text-text-secondary">{problem}</p>}
+      {problem ? (
+        <p className="text-[13px] text-text-secondary">{problem}</p>
+      ) : (
+        groups.length > 1 && (
+          <p className="text-[13px] text-text-secondary">
+            Se crean {groups.length} solicitudes, una por proveedor: {groups.map(([code]) => supplierName(code)).join(", ")}.
+          </p>
+        )
+      )}
 
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onDone}>Cancelar</Button>
-        <Button type="submit" disabled={problem !== null || mutation.isPending}>
-          {mutation.isPending ? "Enviando…" : chosen.length > 1 ? `Solicitar para ${chosen.length} referencias` : "Enviar solicitud"}
+        <Button type="button" variant="outline" disabled={sending} onClick={onDone}>Cancelar</Button>
+        <Button type="submit" disabled={problem !== null || sending}>
+          {sending
+            ? "Enviando…"
+            : groups.length > 1
+              ? `Crear ${groups.length} solicitudes`
+              : chosen.length > 1
+                ? `Solicitar para ${chosen.length} referencias`
+                : "Enviar solicitud"}
         </Button>
       </DialogFooter>
     </form>
