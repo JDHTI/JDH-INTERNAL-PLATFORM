@@ -218,16 +218,21 @@ function NoteSection({ item, line }: { item: ItemContext; line: QuotationLine })
   const save = { isPending: saving };
   return (
     <section aria-labelledby={`${id}-title`} className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 id={`${id}-title`} className="text-base font-semibold">Revisión</h3>
-        <ReviewSelect line={line} control={item.review} />
-        {line.reviewed_by && line.review_status !== "sin_marcar" && (
-          <span className="text-[13px] text-text-secondary">
-            {line.reviewed_by}
-            {line.reviewed_at ? ` · ${formatDateTime(line.reviewed_at)}` : ""}
-          </span>
-        )}
-      </div>
+      {/* The review by item belongs to the main lists; a list update keeps only the observation. */}
+      {item.review ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 id={`${id}-title`} className="text-base font-semibold">Revisión</h3>
+          <ReviewSelect line={line} control={item.review} />
+          {line.reviewed_by && line.review_status !== "sin_marcar" && (
+            <span className="text-[13px] text-text-secondary">
+              {line.reviewed_by}
+              {line.reviewed_at ? ` · ${formatDateTime(line.reviewed_at)}` : ""}
+            </span>
+          )}
+        </div>
+      ) : (
+        <h3 id={`${id}-title`} className="sr-only">Observación del ítem</h3>
+      )}
       <label htmlFor={`${id}-note`} className="block text-sm font-medium">Observación</label>
       {canEdit ? (
         <>

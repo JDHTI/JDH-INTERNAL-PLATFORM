@@ -27,7 +27,19 @@ import { tomorrow } from "./review-dialogs";
  * value taxes), loads them, and marks them loaded: the items leave this page
  * and the load stays in the history below.
  */
-export default function StagingView({ kind, basePath }: { kind: ListKind; basePath: string }) {
+export default function StagingView({
+  kind,
+  basePath,
+  legacy = false,
+}: {
+  kind: ListKind;
+  basePath: string;
+  /**
+   * A list update no longer validates item by item: what it staged before the change is
+   * emptied here, under its own heading, and nothing shows when there is none left.
+   */
+  legacy?: boolean;
+}) {
   const staging = useStaging(kind);
   const loads = useLoads(kind);
   const canValidate = useQuotationPermissions(kind).data?.can_validate === true;
@@ -44,7 +56,16 @@ export default function StagingView({ kind, basePath }: { kind: ListKind; basePa
 
   return (
     <div className="space-y-6">
-      {groups.length === 0 ? (
+      {legacy && groups.length > 0 && (
+        <div className="space-y-0.5">
+          <h2 className="text-base font-semibold">Ítems validados antes del cambio</h2>
+          <p className="text-[13px] text-text-secondary">
+            Se validaron uno por uno antes de que las actualizaciones se validaran completas. Cárgalos para vaciar esta sección; no
+            entran ítems nuevos.
+          </p>
+        </div>
+      )}
+      {legacy && groups.length === 0 ? null : groups.length === 0 ? (
         <StatePanel icon={Inbox} title="No hay nada por cargar">
           Cuando quien valida acepte ítems de una actualización, aparecerán aquí agrupados por lista para descargar sus archivos
           y cargarlos en SIESA.
@@ -78,7 +99,7 @@ export default function StagingView({ kind, basePath }: { kind: ListKind; basePa
       )}
 
       <section aria-labelledby="loads-title" className="space-y-2">
-        <h2 id="loads-title" className="text-base font-semibold">Últimas cargas</h2>
+        <h2 id="loads-title" className="text-base font-semibold">{legacy ? "Historial de cargas por ítem" : "Últimas cargas"}</h2>
         {loads.isPending ? (
           <TableSkeleton rows={3} label="Cargando las últimas cargas" />
         ) : loads.isError ? (

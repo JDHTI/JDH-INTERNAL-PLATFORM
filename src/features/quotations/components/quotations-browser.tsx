@@ -43,7 +43,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions().data;
   const kind = useQuotationKind();
-  // A list update has no state of its own: its items carry the review.
+  // A list update has a status of its own, like a quotation: it goes to validation whole.
   const isList = isListKind(kind);
   const copy = KIND_COPY[kind];
   const { data: user } = useSession();
@@ -102,15 +102,13 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
               className="pl-9 max-md:h-11"
             />
           </div>
-          {!isList && (
-            <Dropdown
-              aria-label="Filtrar por estado"
-              options={STATUS_FILTERS}
-              value={status}
-              onValueChange={(next) => reset(() => setStatus(next as QuotationStatus | ""))}
-              className="w-full sm:w-56"
-            />
-          )}
+          <Dropdown
+            aria-label="Filtrar por estado"
+            options={STATUS_FILTERS}
+            value={status}
+            onValueChange={(next) => reset(() => setStatus(next as QuotationStatus | ""))}
+            className="w-full sm:w-56"
+          />
         </div>
         {canManage && (
           <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
@@ -211,7 +209,7 @@ export function QuotationTable({
             <th scope="col" className="hidden px-3 py-2 xl:table-cell">Canal</th>
             {!isList && <th scope="col" className="px-3 py-2">Lista</th>}
             {!isList && <th scope="col" className="hidden px-3 py-2 text-right xl:table-cell">Ventana</th>}
-            {!isList && <th scope="col" className="px-3 py-2">Estado</th>}
+            <th scope="col" className="px-3 py-2">Estado</th>
             <th scope="col" className="px-3 py-2 text-right">Referencias</th>
             <th scope="col" className="px-3 py-2 text-right">Cambiadas</th>
             <th scope="col" className="px-3 py-2 text-right">No cumplen</th>
@@ -254,7 +252,7 @@ export function QuotationTable({
                 </td>
               )}
               {!isList && <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>}
-              {!isList && <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>}
+              <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.changed_count)}</td>
               <td className={cn("px-3 py-2 text-right tabular-nums", item.below_rule_count > 0 && "font-semibold text-danger")}>
@@ -361,7 +359,7 @@ function ListUpdatesEmpty({
         title="No hay actualizaciones por validar"
         action={<Button variant="outline" onClick={onClear}>Ver todas las actualizaciones</Button>}
       >
-        Cuando alguien marque ítems por validar, aparecerán aquí para que los valides.
+        Cuando alguien envíe una actualización a validación, aparecerá aquí para que la valides o la devuelvas.
       </StatePanel>
     );
   }
@@ -400,12 +398,12 @@ export function QuotationCards({
   items,
   basePath,
   showAuthor,
-  isList,
 }: {
   items: QuotationSummary[];
   basePath: string;
   showAuthor: boolean;
-  isList: boolean;
+  /** Same card for both: a list update shows its status too. */
+  isList?: boolean;
 }) {
   return (
     <ul className="space-y-2 md:hidden">
@@ -421,7 +419,7 @@ export function QuotationCards({
               {showAuthor && <span className="block truncate text-xs text-text-secondary">Creada por {item.created_by}</span>}
             </span>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              {!isList && <QuotationStatusBadge status={item.status} label={item.status_label} />}
+              <QuotationStatusBadge status={item.status} label={item.status_label} />
               <span className="tabular-nums">
                 {formatCount(item.changed_count)} de {formatCount(item.line_count)} cambiadas
               </span>

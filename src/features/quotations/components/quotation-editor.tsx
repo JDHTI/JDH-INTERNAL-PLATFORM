@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   Sheet,
   Trash2,
   Undo2,
@@ -81,7 +82,7 @@ import OfferSection from "./offer-section";
 import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
-import { ContinueDialog } from "./confirm-wizard";
+import { ConfirmDialog, ContinueDialog } from "./confirm-wizard";
 import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
 import SupportRequestDialog, { canAskSupport } from "./support-request-dialog";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
@@ -211,9 +212,11 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   const router = useRouter();
   // The gate around this screen has already loaded the permissions.
   const permissions = useQuotationPermissions(quotation.kind).data;
-  // A list update goes to SIESA only: no customer offer, quantities or products only for quoting,
-  // and its items are reviewed one by one instead of confirming the whole.
+  // A list update goes to SIESA only: no customer offer, quantities or products only for quoting.
   const isList = isListKind(quotation.kind);
+  // Only the main lists review item by item; a list update goes to validation whole, like a
+  // quotation (the API answers 422 to an item review on it).
+  const perItemReview = quotation.kind === "principal";
   const copy = KIND_COPY[quotation.kind];
   // The API decides which quotations each person opens (Comercial: its own; BI and admins: all),
   // so whoever opens one and quotes has the whole editor.
@@ -262,19 +265,23 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
         toast.error(errorMessage(failure), { duration: Infinity });
       }
     );
-  const reviewControl: ReviewControl = {
-    canEdit: editable,
-    canValidate: permissions?.can_validate === true,
-    pending: reviewLines.isPending ? (reviewLines.variables?.skus[0] ?? null) : null,
-    onChange: (line, status) => void setReview(line, status),
-  };
+  const reviewControl: ReviewControl | undefined = perItemReview
+    ? {
+        canEdit: editable,
+        canValidate: permissions?.can_validate === true,
+        pending: reviewLines.isPending ? (reviewLines.variables?.skus[0] ?? null) : null,
+        onChange: (line, status) => void setReview(line, status),
+      }
+    : undefined;
+  // Sending a list update to validation needs one priced active line.
+  const pricedCount = useMemo(() => quotation.lines.filter((line) => line.is_active && line.new_price !== null).length, [quotation.lines]);
   const [text, setText] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [sort, setSort] = useState<Sort | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [dialog, setDialog] = useState<"continue" | "return" | "validate" | "uploaded" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"continue" | "confirm" | "return" | "validate" | "uploaded" | "delete" | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
@@ -555,7 +562,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight" title={title ?? undefined}>
               {title}
             </h1>
-            {!isList && (
+            {!perItemReview && (
               <span className="shrink-0">
                 <QuotationStatusBadge status={quotation.status} label={quotation.status_label} />
               </span>
@@ -636,6 +643,17 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               <CloudUpload aria-hidden="true" /> Por cargar
             </Link>
           )}
+          {/* A list update goes to validation whole, like a quotation; the main lists review item by item. */}
+          {canManage && isList && !perItemReview && quotation.status === "borrador" && (
+            <Button
+              onClick={() => setDialog("confirm")}
+              disabled={busy || pricedCount === 0}
+              title={pricedCount === 0 ? "Escribe al menos un precio nuevo para enviarla a validación." : undefined}
+              className="max-md:h-11"
+            >
+              <Send aria-hidden="true" /> Enviar a validación
+            </Button>
+          )}
           {/* Ask for a list update or creation (BI validates); the offer goes out by hand from its PDF or Excel. */}
           {canManage && !isList && (
             <Button onClick={() => setDialog("continue")} disabled={busy} className="max-md:h-11">
@@ -672,7 +690,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
         <QuotationIndicators lines={quotation.lines} />
       )}
       {quotation.lines.length > 0 && isList && (
-        <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} />
+        <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} withReview={perItemReview} />
       )}
 
       {editable && hasRows && (
@@ -886,6 +904,9 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       )}
 
       {!isList && <ContinueDialog quotation={quotation} open={dialog === "continue"} onOpenChange={(open) => !open && closeDialog()} />}
+      {isList && !perItemReview && (
+        <ConfirmDialog quotation={quotation} open={dialog === "confirm"} onOpenChange={(open) => !open && closeDialog()} />
+      )}
       <ReturnDialog
         quotation={quotation}
         open={dialog === "return"}
