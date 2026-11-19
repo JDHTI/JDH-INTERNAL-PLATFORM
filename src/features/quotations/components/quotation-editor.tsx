@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Check,
   CheckCircle2,
   CloudUpload,
@@ -17,7 +18,6 @@ import {
   FilterX,
   HandCoins,
   Hourglass,
-  ListPlus,
   Loader2,
   MessageSquareWarning,
   MoreHorizontal,
@@ -60,7 +60,6 @@ import {
   useQuotationPermissions,
   useRefreshQuotation,
   useRemoveLine,
-  useSendQuotation,
 } from "../hooks/use-quotations";
 import { useLineNote, useReviewLines, useStockTotals } from "../hooks/use-list-review";
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
@@ -69,7 +68,7 @@ import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, suppl
 import { LIST_FILTERS, type ListFilter } from "../lib/list-review";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isListKind } from "../types/quotations.types";
+import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isClosed, isListKind } from "../types/quotations.types";
 import { ListFilters } from "./list-review-controls";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
@@ -82,7 +81,7 @@ import OfferSection from "./offer-section";
 import { QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
-import { ConfirmDialog } from "./confirm-wizard";
+import { ContinueDialog } from "./confirm-wizard";
 import { ReturnDialog, UploadedDialog, ValidateDialog } from "./review-dialogs";
 import SupportRequestDialog, { canAskSupport } from "./support-request-dialog";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
@@ -103,8 +102,6 @@ const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
 type LineFilter = Indicator | "inactive" | "imported";
 
 const inactive = (line: QuotationLine) => !line.is_active;
-/** What confirming needs at least one of: an active line with a new price, from SIESA or local. */
-const priced = (line: QuotationLine) => line.new_price !== null && line.is_active;
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
@@ -162,7 +159,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
-  const editable = canManage && !pendingReview;
+  // Validated or loaded: nothing changes any more, the API answers 409 to every edit.
+  const closed = isClosed(quotation.status);
+  const editable = canManage && !pendingReview && !closed;
+  // Quantities and the offer still change while BI validates, never once it is validated.
+  const offerEditable = canManage && !closed;
 
   const editor = useLineEditor(quotation);
   const refresh = useRefreshQuotation(quotation.id);
@@ -212,15 +213,13 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   const [sort, setSort] = useState<Sort | null>(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [dialog, setDialog] = useState<"confirm" | "return" | "validate" | "uploaded" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"continue" | "return" | "validate" | "uploaded" | "delete" | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailLine, setDetailLine] = useState<QuotationLine | null>(null);
   const [agreementId, setAgreementId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<Download | null>(null);
   const q = useDebouncedValue(text.trim().toLowerCase());
 
-  // Confirming needs one priced line, from SIESA or local: a temporary customer may have only local products.
-  const pricedCount = useMemo(() => quotation.lines.filter(priced).length, [quotation.lines]);
   const inactiveCount = useMemo(() => quotation.lines.filter(inactive).length, [quotation.lines]);
   // The options come from this quotation's own lines, so each one lists only what it has.
   const categoryOptions = useMemo(() => distinctValues(quotation.lines, (line) => line.category), [quotation.lines]);
@@ -263,16 +262,6 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
   };
 
   const busy = editor.unsaved || refresh.isPending || removeLine.isPending || importer.isPending;
-  const sending = useSendQuotation(quotation.id);
-  const sendToCustomer = async () => {
-    try {
-      await sending.mutateAsync(quotation.version);
-      toast.success("Cotización enviada al cliente. Sigue editable: si cambias algo, vuelve a borrador.");
-    } catch (failure) {
-      // 422 without lines in the offer, 409 if it changed or went to validation meanwhile.
-      toast.error(errorMessage(failure), { duration: Infinity });
-    }
-  };
   // Pending rows go after the last row of the list, so only the last page shows them.
   const pending = currentPage === lastPage ? importer.pending : [];
   const hasRows = quotation.lines.length > 0 || importer.pending.length > 0;
@@ -443,7 +432,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       setPage(1);
     },
     withQuantities: !isList && quotation.quote_quantities,
-    quantitiesEditable: canManage,
+    quantitiesEditable: offerEditable,
     // Only BI, who validates, sees the cost behind the suggested prices.
     showCost: canValidate,
     basePriceLabel: copy.basePrice,
@@ -481,6 +470,14 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-secondary">
             <span>Creada por {quotation.created_by}</span>
+            {/* Sending is not a status: when and who, beside it. */}
+            {!isList && quotation.sent_at && (
+              <span className="inline-flex items-center gap-1">
+                <Send className="size-3.5" aria-hidden="true" />
+                Enviada al cliente el {formatDateTime(quotation.sent_at)}
+                {quotation.sent_by ? ` por ${quotation.sent_by}` : ""}
+              </span>
+            )}
             <QuotationHistory quotation={quotation} />
           </div>
         </div>
@@ -536,7 +533,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <Undo2 aria-hidden="true" /> Retirar de validación
             </Button>
           )}
-          {(editable || (canManage && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
+          {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
           {editable && (
             <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
@@ -547,23 +544,11 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
               <CloudUpload aria-hidden="true" /> Por cargar
             </Link>
           )}
-          {/* Sending the offer never waits on BI; only a price list does (it goes to validation). */}
-          {canManage && !isList && (quotation.status === "borrador" || quotation.status === "enviada") && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setDialog("confirm")}
-                disabled={busy || pricedCount === 0}
-                title={pricedCount === 0 ? "Escribe al menos un precio nuevo para pedir la lista." : "Va a validación de BI y, mientras tanto, no se edita."}
-                className="max-md:h-11"
-              >
-                <ListPlus aria-hidden="true" /> Solicitar actualización / creación de lista
-              </Button>
-              <Button onClick={() => void sendToCustomer()} disabled={busy || sending.isPending} className="max-md:h-11">
-                {sending.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
-                {quotation.status === "enviada" ? "Enviar de nuevo" : "Enviar al cliente"}
-              </Button>
-            </>
+          {/* Send to the customer (any status), or ask for a list update or creation (BI validates). */}
+          {canManage && !isList && (
+            <Button onClick={() => setDialog("continue")} disabled={busy} className="max-md:h-11">
+              <ArrowRight aria-hidden="true" /> Continuar proceso
+            </Button>
           )}
           {canManage && (
             <Menu
@@ -588,7 +573,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
-      {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={canManage} />}
+      {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={offerEditable} />}
       <Warnings quotation={quotation} />
 
       {quotation.lines.length > 0 && !isList && (
@@ -613,7 +598,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
       )}
 
       {/* Quantities save in every status, so the status shows whenever something can be typed. */}
-      {(editable || (canManage && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
+      {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
         Laid out by the width the content really has, not the window's: with the sidebar
@@ -668,7 +653,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
           {canManage && (
             // Next to the references they work on, not among the quotation's own actions.
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 @xl:col-span-2 @6xl:ml-auto">
-              {!isList && <QuantitiesToggle quotation={quotation} disabled={busy} />}
+              {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
               {supportCandidates > 0 && (
                 <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
                   <HandCoins aria-hidden="true" /> Solicitar margen autorizado
@@ -782,7 +767,7 @@ function Editor({ quotation, basePath }: { quotation: Quotation; basePath: strin
         </div>
       )}
 
-      <ConfirmDialog quotation={quotation} open={dialog === "confirm"} onOpenChange={(open) => !open && closeDialog()} />
+      {!isList && <ContinueDialog quotation={quotation} open={dialog === "continue"} onOpenChange={(open) => !open && closeDialog()} />}
       <ReturnDialog
         quotation={quotation}
         open={dialog === "return"}
@@ -1138,34 +1123,6 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
       </div>
     );
   }
-  if (quotation.status === "enviada") {
-    return (
-      <div role="status" className="flex items-start gap-2 rounded-lg bg-info-surface px-4 py-3 text-sm">
-        <Send className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-        <p>
-          <strong>
-            Enviada al cliente{quotation.sent_at ? ` el ${formatDateTime(quotation.sent_at)}` : ""}
-            {quotation.sent_by ? ` por ${quotation.sent_by}` : ""}.
-          </strong>{" "}
-          {canManage
-            ? "Sigue editable: si cambias algo, vuelve a borrador. Para llevarla a una lista de precios, solicita la actualización o creación de la lista: ese paso va a validación de BI."
-            : "No pasa por validación: la validación de BI es solo para llevarla a una lista de precios."}
-        </p>
-      </div>
-    );
-  }
-  if (quotation.status === "borrador" && quotation.sent_at) {
-    return (
-      <div role="status" className="flex items-start gap-2 rounded-lg bg-canvas-subtle px-4 py-3 text-sm">
-        <Send className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
-        <p>
-          Se envió al cliente el {formatDateTime(quotation.sent_at)}
-          {quotation.sent_by ? ` por ${quotation.sent_by}` : ""} y cambió desde entonces. Envíala de nuevo si el cliente debe ver los
-          cambios.
-        </p>
-      </div>
-    );
-  }
   if (quotation.status === "pendiente_validacion") {
     return (
       <div role="status" className="flex items-start gap-2 rounded-lg bg-warning-surface px-4 py-3 text-sm">
@@ -1201,7 +1158,7 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             ? "Descarga el Excel y el plano, cárgalos en SIESA y márcala como cargada."
             : "Falta que el área BI la cargue en SIESA."}
           {quotation.list_action === "creacion" && " Asignar la lista nueva al cliente se hace a mano en SIESA."}
-          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+          {canManage && " Ya no se edita: puedes descargar la oferta y enviarla al cliente."}
         </p>
       </div>
     );
@@ -1216,7 +1173,7 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             {quotation.uploaded_by ? ` por ${quotation.uploaded_by}` : ""}.
           </strong>{" "}
           {quotation.list_action === "creacion" ? `Lista ${target} creada${activation}.` : `Lista ${target} actualizada${activation}.`}
-          {canManage && " Si cambias un precio, vuelve a borrador y hay que confirmarla otra vez."}
+          {canManage && " Ya no se edita: para otros precios, arma una cotización nueva."}
         </p>
       </div>
     );

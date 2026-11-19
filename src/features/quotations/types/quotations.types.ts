@@ -11,14 +11,15 @@ export type DecimalText = string;
  * borrador: the advisor edits. pendiente_validacion: confirmed, locked until
  * the validating area acts. pendiente_carga: validated, the files are out and
  * the validator has to load them into SIESA. cargada: the validator confirmed
- * it is loaded. Any edit goes back to borrador. `list_action` says whether the
- * customer's list is written over or a new one created.
+ * it is loaded. In pendiente_carga and cargada nothing changes any more (409).
+ * `list_action` says whether the customer's list is written over or a new one
+ * created. Sending the offer to the customer is not a status: it only stamps
+ * `sent_at` and `sent_by`, from any status.
  */
-/**
- * `enviada`: the offer went to the customer with no validation; it stays editable and an
- * edit takes it back to `borrador`. Only asking for a price list goes to BI's validation.
- */
-export type QuotationStatus = "borrador" | "enviada" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+export type QuotationStatus = "borrador" | "pendiente_validacion" | "pendiente_carga" | "cargada";
+
+/** Validated or loaded: prices, quantities, offer, lines, center and refresh answer 409. */
+export const isClosed = (status: QuotationStatus) => status === "pendiente_carga" || status === "cargada";
 
 /**
  * `cotizacion`: a customer quotation (module `cotizador`). `lista`: the update of

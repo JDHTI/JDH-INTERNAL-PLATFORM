@@ -221,8 +221,8 @@ export function confirmQuotation(id: string, version: number, options: ConfirmOp
 }
 
 /**
- * The offer goes to the customer with no validation, from a draft or a sent one. Needs one line
- * in the offer (422); the margin rule never blocks; 409 while it is pending validation.
+ * The offer goes to the customer with no validation, from any status: it only stamps `sent_at`
+ * and `sent_by`, the status stays. Needs one line in the offer (422); the margin rule never blocks.
  */
 export function sendQuotation(id: string, version: number): Promise<Quotation> {
   return apiFetch<Quotation>(`${one(id)}/send`, { method: "POST", body: { version } });
