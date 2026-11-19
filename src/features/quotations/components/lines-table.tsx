@@ -977,15 +977,18 @@ function CostParts({ line }: { line: QuotationLine }) {
 
 /**
  * The editable cell, in whole pesos before VAT, and under it the margin the
- * new price leaves. It saves on its own after a pause in typing; Enter saves at
- * once. An unreadable number never leaves the cell: the border turns red and
- * the save status above the table names it. Read-only when the quotation is
- * locked, and for an inactive reference, which is never exported.
+ * new price leaves. Nothing is saved while typing: Enter confirms the price,
+ * one by one, and the margin shows with the API's answer; Escape puts the
+ * saved one back. An unreadable number never leaves the cell: the border
+ * turns red and the save status above the table names it. Read-only when the
+ * quotation is locked, and for an inactive reference, which is never exported.
  */
 function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLine; editor: LineEditor; editable: boolean; wide?: boolean }) {
   const error = editor.errorFor(line.sku);
   const errorId = `price-error-${line.sku}-${wide ? "card" : "row"}`;
+  const hintId = `price-hint-${line.sku}-${wide ? "card" : "row"}`;
   const disabled = !editable || !line.is_active;
+  const waiting = editor.unconfirmed.includes(line.sku);
   return (
     <div className={cn("space-y-1", !wide && "text-right")}>
       <Input
@@ -996,23 +999,32 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            editor.saveNow();
+            void editor.commit(line.sku);
+          } else if (event.key === "Escape" && editor.isDirty(line.sku)) {
+            event.preventDefault();
+            editor.revert(line.sku);
           }
         }}
         disabled={disabled}
         placeholder={disabled ? "" : "Sin cambio"}
-        title={error ?? (!line.is_active ? INACTIVE_HELP : undefined)}
-        aria-label={`Precio nuevo de ${line.description ?? line.sku}, sin IVA`}
+        title={error ?? (!line.is_active ? INACTIVE_HELP : "Escribe el precio y presiona Enter para confirmarlo")}
+        aria-label={`Precio nuevo de ${line.description ?? line.sku}, sin IVA. Enter confirma, Escape deshace`}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error ? errorId : waiting ? hintId : undefined}
         className={cn(
           "bg-surface text-right tabular-nums",
           // The floor keeps a seven-digit price readable when the column is narrowed.
           wide ? "h-11 w-40" : "h-8 w-full min-w-24",
-          editor.isDirty(line.sku) && !error && "border-text-primary"
+          waiting && !error && "border-warning",
+          editor.isDirty(line.sku) && !waiting && !error && "border-text-primary"
         )}
       />
       {error && <span id={errorId} className="sr-only">{error}</span>}
+      {waiting && !error && (
+        <span id={hintId} className="block text-xs text-text-secondary">
+          Enter para confirmar
+        </span>
+      )}
       {line.new_price !== null && !isLocal(line) && (
         <span className="block">
           <NewMargin line={line} />

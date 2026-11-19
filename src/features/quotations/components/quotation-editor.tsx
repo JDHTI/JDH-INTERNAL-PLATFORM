@@ -99,15 +99,27 @@ const DOWNLOADS: Record<Download, (id: string) => Promise<void>> = {
  * The indicators are the main filters; "inactive" and "imported" (what the
  * last paste added or revalidated) are chips that appear only when they apply.
  */
-type LineFilter = Indicator | "inactive" | "imported" | "nuevos";
+type LineFilter = Indicator | "inactive" | "imported" | "nuevos" | "modificados" | "sin_cambios";
 
 const inactive = (line: QuotationLine) => !line.is_active;
 /** Added by hand, from SIESA or created only to quote: not from the sales history or the list. */
 const isNew = (line: QuotationLine) => line.origin === "agregado" || line.origin === "local";
+/** A price was written for it (confirmed with Enter and saved). */
+const isModified = (line: QuotationLine) => line.new_price !== null;
+
+/** The toolbar's own filters, beside the ones the indicators above also are. */
+const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>> = {
+  inactive,
+  nuevos: isNew,
+  modificados: isModified,
+  sin_cambios: (line) => !isModified(line),
+};
 
 /** The quick filters of the toolbar; the same filter as the indicator of the same name above. */
-const QUICK_FILTERS: { key: "all" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean }[] = [
+const QUICK_FILTERS: { key: "all" | "modificados" | "sin_cambios" | "nuevos" | "minimo" | "apoyo"; label: string; help: string; forLists: boolean }[] = [
   { key: "all", label: "Todos", help: "Todas las referencias.", forLists: true },
+  { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
+  { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
   { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
   { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
@@ -124,6 +136,8 @@ function newFirst(lines: QuotationLine[]): QuotationLine[] {
 
 const EMPTY_FILTER_TEXT: Partial<Record<LineFilter, string>> = {
   nuevos: "Aún no agregaste referencias ni creaste productos para cotizar.",
+  modificados: "Aún no confirmaste ningún precio nuevo. Escribe el precio y presiona Enter.",
+  sin_cambios: "Todas las referencias tienen precio nuevo.",
   objetivo: "Ninguna línea llega al margen objetivo todavía.",
   rango: "Ninguna línea queda entre el mínimo y el objetivo.",
   minimo: "Ninguna línea queda bajo el mínimo.",
@@ -260,13 +274,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     const bySupplier = new Set(suppliers);
     const matching = quotation.lines.filter(
       (line) =>
-        (filter === "imported"
-          ? imported.has(line.sku)
-          : filter === "inactive"
-            ? inactive(line)
-            : filter === "nuevos"
-              ? isNew(line)
-              : INDICATORS[filter](line)) &&
+        (filter === "imported" ? imported.has(line.sku) : (OWN_FILTERS[filter] ?? INDICATORS[filter as Indicator])(line)) &&
         (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
@@ -276,6 +284,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   }, [quotation.lines, filter, listFilter, q, imported, categories, suppliers, sort]);
   const quickCounts = useMemo(
     () => ({
+      modificados: quotation.lines.filter(isModified).length,
+      sin_cambios: quotation.lines.filter((line) => !isModified(line)).length,
       nuevos: quotation.lines.filter(isNew).length,
       minimo: quotation.lines.filter(INDICATORS.minimo).length,
       apoyo: quotation.lines.filter(INDICATORS.apoyo).length,
@@ -424,6 +434,14 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     setSavingDraft(true);
     const saved = await editor.saveNow();
     setSavingDraft(false);
+    // A typed price counts only once confirmed: the save never confirms it on the person's behalf.
+    if (saved && editor.unconfirmed.length > 0) {
+      toast.warning(
+        `${editor.unconfirmed.length === 1 ? "Un precio está escrito" : `${editor.unconfirmed.length} precios están escritos`} sin confirmar. Presiona Enter en cada uno para guardarlo.`,
+        { duration: Infinity }
+      );
+      return;
+    }
     if (saved) toast.success(hadChanges ? "Borrador guardado." : "Todo está guardado. El borrador también se guarda solo mientras escribes.");
     else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
   };
@@ -624,7 +642,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {quotation.lines.length > 0 && !isList && (
         <QuotationIndicators
           lines={quotation.lines}
-          active={filter === "inactive" || filter === "imported" || filter === "nuevos" ? null : filter}
+          active={filter in OWN_FILTERS || filter === "imported" ? null : (filter as Indicator)}
           onSelect={chooseFilter}
         />
       )}
@@ -1289,13 +1307,15 @@ function AutosaveIndicator({ editor }: { editor: LineEditor }) {
       ? { icon: <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />, text: "Guardando…" }
       : editor.state === "conflict" || editor.state === "error" || editor.invalid.length > 0
         ? { icon: <AlertTriangle className="size-3.5 text-warning" aria-hidden="true" />, text: "Sin guardar" }
+        : editor.unconfirmed.length > 0
+          ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Precios por confirmar" }
         : editor.state === "waiting"
           ? { icon: <Hourglass className="size-3.5" aria-hidden="true" />, text: "Cambios por guardar" }
           : { icon: <Check className="size-3.5" aria-hidden="true" />, text: "Guardado" };
   return (
     <span
       aria-live="polite"
-      title="Se guarda solo al dejar de escribir, al cambiar de pestaña y al salir del editor."
+      title="Cada precio se guarda al confirmarlo con Enter; las cantidades, al dejar de escribir."
       className="inline-flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-text-secondary"
     >
       {look.icon}
@@ -1329,7 +1349,21 @@ function SaveStatus({ editor }: { editor: LineEditor }) {
       </div>
     );
   }
-  if (editor.state !== "error" && editor.invalid.length === 0) return null;
+  if (editor.state !== "error" && editor.invalid.length === 0) {
+    if (editor.unconfirmed.length === 0) return null;
+    const count = editor.unconfirmed.length;
+    return (
+      <p role="status" className="flex items-start gap-1.5 text-[13px] text-text-secondary">
+        <Hourglass className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {count === 1
+            ? `El precio de ${editor.unconfirmed[0]} está escrito pero sin confirmar.`
+            : `${count} precios están escritos pero sin confirmar (${editor.unconfirmed.slice(0, 5).join(", ")}${count > 5 ? "…" : ""}).`}{" "}
+          Presiona Enter en cada uno para guardarlo y ver su margen; Escape lo deshace.
+        </span>
+      </p>
+    );
+  }
   return (
     <p role="alert" className="flex items-start gap-1.5 text-[13px] text-danger">
       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
