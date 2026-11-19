@@ -16,11 +16,6 @@ import type {
   ReplacementAlert,
   RetireBody,
   RetireResult,
-  SpecialCase,
-  SpecialCaseInput,
-  SpecialCasePage,
-  SpecialCaseParams,
-  SpecialCasePatch,
   SupplierSupport,
   SupportCatalogs,
   SupportConflict,
@@ -243,19 +238,4 @@ export async function attachToSelection(
   form.append("selection", JSON.stringify(selection));
   if (upload.documentIds.length > 0) form.append("document_ids", JSON.stringify(upload.documentIds));
   return apiFetch<AttachResult>("/supplier-supports/attachments", { method: "POST", body: form });
-}
-
-export async function listSpecialCases({ q, status, page, size }: SpecialCaseParams): Promise<SpecialCasePage> {
-  return apiFetch<SpecialCasePage>("/supplier-special-cases", { query: { q, status, page, size } });
-}
-
-export async function createSpecialCase(input: SpecialCaseInput): Promise<SpecialCase> {
-  return apiFetch<SpecialCase>("/supplier-special-cases", { method: "POST", body: input });
-}
-
-export async function updateSpecialCase(id: string, patch: SpecialCasePatch): Promise<SpecialCase> {
-  return apiFetch<SpecialCase>(`/supplier-special-cases/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    body: patch,
-  });
 }

@@ -188,7 +188,7 @@ export function isModuleActive(module: ModuleItem, pathname: string): boolean {
  * The module a route belongs to: the one whose path is the route or a prefix of
  * it, and the longest such path when several match. A page under a module (a
  * file opened from the order validator, say) keeps that module selected, while
- * /apoyos/casos-especiales selects Casos especiales and not Maestro de apoyos.
+ * a module nested under another one's path selects itself, not its parent.
  */
 export function activeModuleId(modules: ModuleItem[], pathname: string): string | null {
   let best: ModuleItem | null = null;
@@ -508,15 +508,6 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     ],
   },
   { key: "apoyos", name: "Maestro de apoyos", category: "Maestros", icon: HandCoins, available: true, permission: "apoyos" },
-  {
-    key: "casos-especiales",
-    segment: "apoyos/casos-especiales",
-    name: "Casos especiales",
-    category: "Maestros",
-    icon: ClipboardList,
-    available: true,
-    permission: "casos-especiales",
-  },
   {
     key: "maestros",
     segment: MASTERS_SEGMENT,

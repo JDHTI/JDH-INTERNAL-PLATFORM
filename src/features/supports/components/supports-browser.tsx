@@ -106,12 +106,7 @@ function writeHiddenColumns(keys: string[]) {
  * query and shows what comes back. Managers can also enable, edit and void
  * from the row menu; the API decides who may, and a 403 hides the column.
  */
-export default function SupportsBrowser({
-  specialCase,
-}: {
-  /** A special case to scope the list to, from its "ver apoyos" link. */
-  specialCase?: { id: string; code: string };
-}) {
+export default function SupportsBrowser() {
   const fieldsQuery = useFilterFields();
   const catalogsQuery = useSupportCatalogs();
   const fields = useMemo(() => fieldsQuery.data ?? [], [fieldsQuery.data]);
@@ -120,7 +115,6 @@ export default function SupportsBrowser({
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
   const [product, setProduct] = useState<AutocompleteOption | null>(null);
-  const [caseScope, setCaseScope] = useState(specialCase ?? null);
   const [text, setText] = useState("");
   const [state, setState] = useState<string>(ALL);
   const [kind, setKind] = useState<string>(ALL);
@@ -166,7 +160,6 @@ export default function SupportsBrowser({
     const has = (name: string) => fields.some((field) => field.field === name);
     const quick: FilterCondition[] = [];
     if (kind !== ALL && has("kind")) quick.push({ field: "kind", op: "eq", value: kind });
-    if (caseScope) quick.push({ field: "special_case_id", op: "eq", value: caseScope.id });
     return {
       match: "all",
       // The builder's own all/any applies inside its group, so a quick filter
@@ -191,7 +184,7 @@ export default function SupportsBrowser({
       page,
       size: PAGE_SIZE,
     };
-  }, [q, customer, supplier, product, caseScope, state, kind, needsReview, hasIssues, hasConflicts, withoutAttachments, advanced, sort, page, fields]);
+  }, [q, customer, supplier, product, state, kind, needsReview, hasIssues, hasConflicts, withoutAttachments, advanced, sort, page, fields]);
 
   const search = useSupportSearch(body);
   const result = search.data;
@@ -223,7 +216,6 @@ export default function SupportsBrowser({
     customer !== null ||
     supplier !== null ||
     product !== null ||
-    caseScope !== null ||
     state !== ALL ||
     kind !== ALL ||
     needsReview ||
@@ -279,7 +271,6 @@ export default function SupportsBrowser({
     setCustomer(null);
     setSupplier(null);
     setProduct(null);
-    setCaseScope(null);
     setText("");
     setState(ALL);
     setKind(ALL);
@@ -442,19 +433,6 @@ export default function SupportsBrowser({
         <Check label="Con novedades" checked={hasIssues} onChange={(value) => reset(() => setHasIssues(value))} />
         <Check label="Con conflictos" checked={hasConflicts} onChange={(value) => reset(() => setHasConflicts(value))} />
         <Check label="Sin soporte" checked={withoutAttachments} onChange={(value) => reset(() => setWithoutAttachments(value))} />
-        {caseScope && (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-canvas-subtle py-0.5 pl-2 pr-0.5">
-            Caso {caseScope.code}
-            <button
-              type="button"
-              onClick={() => reset(() => setCaseScope(null))}
-              aria-label={`Quitar el filtro del caso ${caseScope.code}`}
-              className="flex size-6 items-center justify-center rounded-sm text-text-secondary hover:bg-surface hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </button>
-          </span>
-        )}
         {canWrite && selected.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-sm bg-canvas-subtle py-0.5 pl-2 pr-0.5 tabular-nums">
             {selected.length === 1 ? "1 seleccionado" : `${selected.length} seleccionados`}

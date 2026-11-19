@@ -63,7 +63,6 @@ las que creó (`docs/cotizador.md`).
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
 | Mis solicitudes JDH, Solicitudes de apoyo JDH | `solicitudes-apoyos` |
-| Casos especiales | `casos-especiales` |
 | Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |
 | Maestros (`/{área}/maestros`) | `maestros` |
 
