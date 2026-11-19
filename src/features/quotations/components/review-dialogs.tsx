@@ -14,6 +14,7 @@ import { toIso } from "@/shared/lib/iso-date";
 import { useMarkUploaded, useReturnQuotation, useValidateQuotation } from "../hooks/use-quotations";
 import { formatCount, formatDay } from "../lib/format";
 import type { Quotation } from "../types/quotations.types";
+import FreeListCodes from "./free-list-codes";
 
 export const LIST_CODE = /^[A-Z0-9]{1,3}$/;
 export const LIST_NAME_MAX = 40;
@@ -236,6 +237,15 @@ function ValidateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
               autoComplete="off"
             />
           </Field>
+          <div className="sm:col-span-2">
+            <FreeListCodes
+              value={code}
+              onPick={(picked) => {
+                setCode(picked);
+                setCodeError(null);
+              }}
+            />
+          </div>
         </div>
       )}
       <DialogError message={error} />

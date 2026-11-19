@@ -146,6 +146,21 @@ export function createGroupQuotation(businessGroup: string, windowMonths: Window
   });
 }
 
+/**
+ * The 3-character list codes (0-9, A-Z, in order) SIESA does not use yet, from the one after
+ * `after`. `free` and `used` count the whole space; `next_after` is null on the last page.
+ */
+export interface AvailableListCodes {
+  items: string[];
+  free: number;
+  used: number;
+  next_after: string | null;
+}
+
+export function getAvailableListCodes(after: string, size = 30): Promise<AvailableListCodes> {
+  return apiFetch<AvailableListCodes>(`${BASE}/list-codes/available`, { query: { after: after || undefined, size } });
+}
+
 /** A customer SIESA does not have: an empty quotation, priced from the chosen operation center. */
 export function createTemporaryQuotation(input: TemporaryQuotationInput): Promise<Quotation> {
   return apiFetch<Quotation>(BASE, { method: "POST", body: input });
