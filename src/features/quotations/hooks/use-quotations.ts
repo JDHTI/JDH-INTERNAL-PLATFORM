@@ -120,11 +120,31 @@ export function useQuotations(params: QuotationListParams) {
   });
 }
 
+/** Notices the API clears by itself once the DWH answers (it retries the read in the background). */
+const DWH_WARNINGS = new Set(["ultima_venta_no_leida"]);
+/** How often, and for how long, the editor asks again while one of them is on. */
+const DWH_POLL_MS = 20_000;
+const DWH_POLL_FOR_MS = 15 * 60_000;
+// When each quotation started waiting on the DWH, so the asking stops at the cap.
+const waitingSince = new Map<string, number>();
+
 export function useQuotation(id: string) {
   return useQuery({
     queryKey: quotationKeys.detail(id),
     queryFn: () => getQuotation(id),
     retry: retryTransient,
+    // While the DWH notice is on, ask again: when the API's retry reads the sales, the notice
+    // and the lines update with no reload. Only while the tab is visible, and up to a cap.
+    refetchInterval: (query) => {
+      const waiting = query.state.data?.warnings.some((warning) => DWH_WARNINGS.has(warning.code)) === true;
+      if (!waiting) {
+        waitingSince.delete(id);
+        return false;
+      }
+      const since = waitingSince.get(id) ?? Date.now();
+      waitingSince.set(id, since);
+      return Date.now() - since < DWH_POLL_FOR_MS ? DWH_POLL_MS : false;
+    },
   });
 }
 
@@ -135,6 +155,8 @@ export function useQuotation(id: string) {
 function useStoreQuotation() {
   const client = useQueryClient();
   return (quotation: Quotation) => {
+    // A refetch in flight (the DWH polling, a focus) started before this write would land after it with older lines.
+    void client.cancelQueries({ queryKey: quotationKeys.detail(quotation.id) });
     client.setQueryData(quotationKeys.detail(quotation.id), quotation);
     void client.invalidateQueries({ queryKey: quotationKeys.lists() });
   };
