@@ -348,6 +348,8 @@ export interface QuotationWarning {
 }
 
 export interface QuotationSummary {
+  /** When SIESA activates the prices; in the list only on API builds that send it (asked with #101). */
+  activation_date?: string | null;
   id: string;
   customer_nit: string;
   customer_name: string;

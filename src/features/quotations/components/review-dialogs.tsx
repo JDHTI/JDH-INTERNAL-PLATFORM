@@ -12,6 +12,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { toIso } from "@/shared/lib/iso-date";
 
 import { useMarkUploaded, useReturnQuotation, useValidateQuotation } from "../hooks/use-quotations";
+import { activationPassed } from "../lib/activation";
 import { formatCount, formatDay } from "../lib/format";
 import type { Quotation } from "../types/quotations.types";
 import FreeListCodes from "./free-list-codes";
@@ -151,7 +152,7 @@ function ValidateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
   // A start already past moves to the validation day: SIESA does not load past dates (decided 2026-11-20).
   // The API applies it on validating; this only says so beforehand.
   const today = toIso(new Date());
-  const overdue = Boolean(quotation.activation_date && quotation.activation_date < today);
+  const overdue = activationPassed(quotation.activation_date);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
