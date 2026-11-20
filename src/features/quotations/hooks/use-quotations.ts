@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
@@ -16,6 +17,7 @@ import {
   createQuotation,
   createTemporaryQuotation,
   deleteQuotation,
+  getLastSalesStatus,
   getQuotation,
   getQuotationPermissions,
   getQuotationManual,
@@ -120,32 +122,45 @@ export function useQuotations(params: QuotationListParams) {
   });
 }
 
-/** Notices the API clears by itself once the DWH answers (it retries the read in the background). */
-const DWH_WARNINGS = new Set(["ultima_venta_no_leida"]);
-/** How often, and for how long, the editor asks again while one of them is on. */
-const DWH_POLL_MS = 20_000;
-const DWH_POLL_FOR_MS = 15 * 60_000;
-// When each quotation started waiting on the DWH, so the asking stops at the cap.
-const waitingSince = new Map<string, number>();
-
 export function useQuotation(id: string) {
   return useQuery({
     queryKey: quotationKeys.detail(id),
     queryFn: () => getQuotation(id),
     retry: retryTransient,
-    // While the DWH notice is on, ask again: when the API's retry reads the sales, the notice
-    // and the lines update with no reload. Only while the tab is visible, and up to a cap.
+  });
+}
+
+/** The notice the API clears by itself once the DWH answers: it retries the read in the background. */
+const LAST_SALES_WARNING = "ultima_venta_no_leida";
+const LAST_SALES_POLL_MS = 20_000;
+/** A safety cap: the API's five attempts take about 8 minutes, 21 at worst. */
+const LAST_SALES_POLL_FOR_MS = 25 * 60_000;
+
+/**
+ * While the last sales are missing, asks the API's cheap status every 20 s (only with the tab
+ * visible). Once they are read, the quotation is fetched once: the notice and the last sales of
+ * each line update with no reload. The API's fill keeps the version, so nobody typing gets a 409.
+ * It stops when read, when the API gave up (not read, not retrying), or at the cap.
+ */
+export function useLastSalesRetry(quotation: Quotation) {
+  const client = useQueryClient();
+  const waiting = quotation.warnings.some((warning) => warning.code === LAST_SALES_WARNING);
+  const [since] = useState(() => Date.now());
+  const status = useQuery({
+    queryKey: [...quotationKeys.detail(quotation.id), "last-sales"] as const,
+    queryFn: () => getLastSalesStatus(quotation.id),
+    enabled: waiting,
+    retry: retryTransient,
     refetchInterval: (query) => {
-      const waiting = query.state.data?.warnings.some((warning) => DWH_WARNINGS.has(warning.code)) === true;
-      if (!waiting) {
-        waitingSince.delete(id);
-        return false;
-      }
-      const since = waitingSince.get(id) ?? Date.now();
-      waitingSince.set(id, since);
-      return Date.now() - since < DWH_POLL_FOR_MS ? DWH_POLL_MS : false;
+      const data = query.state.data;
+      if (data && (data.read || !data.retrying)) return false;
+      return Date.now() - since < LAST_SALES_POLL_FOR_MS ? LAST_SALES_POLL_MS : false;
     },
   });
+  const read = status.data?.read === true;
+  useEffect(() => {
+    if (waiting && read) void client.invalidateQueries({ queryKey: quotationKeys.detail(quotation.id), exact: true });
+  }, [waiting, read, client, quotation.id]);
 }
 
 /**

@@ -55,6 +55,7 @@ import { useLineImport } from "../hooks/use-line-import";
 import {
   useBillingCenters,
   useDeleteQuotation,
+  useLastSalesRetry,
   useQuotation,
   useUpdateCostCenters,
   useUpdateOffer,
@@ -256,6 +257,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   const offerEditable = canManage && !closed;
 
   const editor = useLineEditor(quotation);
+  // The DWH's missing last sales: the notice goes away by itself once the API's retry reads them.
+  useLastSalesRetry(quotation);
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
   const remove = useDeleteQuotation();
