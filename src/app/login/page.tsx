@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AlertCircle } from "lucide-react"
 
 import { SignInButton } from "@/intranet/components/auth/sign-in-button"
@@ -43,8 +44,18 @@ export default async function LoginPage({
         </StaggerItem>
       ) : null}
 
-      <StaggerItem>
+      <StaggerItem className="flex flex-col gap-3">
         <SignInButton />
+        {/* Only the cookies the session needs, so a notice at the door, not a consent banner. */}
+        <p className="text-xs text-muted-foreground">
+          Al iniciar sesión aceptas las cookies necesarias para mantener tu sesión abierta.{" "}
+          <Link
+            href="/login/cookies"
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Ver la política de cookies
+          </Link>
+        </p>
       </StaggerItem>
 
       <StaggerItem className="flex flex-col gap-4 border-t border-border pt-6">
