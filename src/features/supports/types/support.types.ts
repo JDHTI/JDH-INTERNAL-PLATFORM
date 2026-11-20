@@ -171,7 +171,27 @@ export interface SupplierSupport {
   margin_list?: string | null;
   /** Also applies in the promotional warehouses (SIESA group 23). Missing on older API builds. */
   promo_warehouses?: boolean;
+  /** In force and ending within a calendar month (API #99); its state stays «vigente». */
+  expiring?: boolean;
+  /** A copy of a business group's support: it holds for the whole group, members who joined later too (API #99). */
+  group_wide?: boolean;
 }
+
+/**
+ * How many supports each state chip would list, with the same filters and the seller's portfolio
+ * (`POST /supplier-supports/summary`). `por_vencer` is part of `vigente`; `total` leaves out the voided.
+ */
+export interface SupportSummary {
+  vigente: number;
+  por_vencer: number;
+  programado: number;
+  vencido: number;
+  inactivo: number;
+  total: number;
+}
+
+/** A state to filter by: a support's state, or «por vencer», a slice of the ones in force. */
+export type SupportStateFilter = SupportState | "por_vencer";
 
 /** A support as a replacement alert shows it. */
 export interface AlertSupport {
@@ -308,7 +328,7 @@ export interface SupportSearchBody {
   conditions: Array<FilterCondition | FilterGroup>;
   q?: string;
   /** Without a state, voided supports are hidden. */
-  state?: SupportState;
+  state?: SupportStateFilter;
   needs_review?: boolean;
   /** Base search: each list ANDs with the others and with every other filter. */
   customer_nits?: string[];

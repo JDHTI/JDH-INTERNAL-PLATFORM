@@ -172,8 +172,15 @@ function Body({
           {support.supplier_code && <span className="font-mono text-xs text-text-secondary"> · {support.supplier_code}</span>}
         </Row>
         <Row label="Cliente">
-          {support.customer_name ?? "Todos"}
-          {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
+          {support.group_wide ? (
+            // Stored once per member, it holds for the whole group: members who joined later too.
+            `Todo el grupo ${support.customer_group ?? support.business_group ?? ""}`.trim()
+          ) : (
+            <>
+              {support.customer_name ?? "Todos"}
+              {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
+            </>
+          )}
         </Row>
         <Row label="Grupo empresarial">{support.customer_group ?? support.business_group ?? "—"}</Row>
         {support.margin_list !== undefined && <Row label="Lista de márgenes">{marginListLabel(support.margin_list) ?? "—"}</Row>}

@@ -26,10 +26,16 @@ import type {
   SupportProfile,
   SupportProfileBody,
   SupportSearchBody,
+  SupportSummary,
 } from "../types/support.types";
 
 export async function searchSupports(body: SupportSearchBody): Promise<SupportPage> {
   return apiFetch<SupportPage>("/supplier-supports/search", { method: "POST", body });
+}
+
+/** The counts by state for the same filters as the list; page, size and sort are ignored. */
+export async function summarizeSupports(body: SupportSearchBody): Promise<SupportSummary> {
+  return apiFetch<SupportSummary>("/supplier-supports/summary", { method: "POST", body });
 }
 
 export async function listFilterFields(): Promise<FilterField[]> {

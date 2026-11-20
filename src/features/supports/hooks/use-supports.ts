@@ -32,6 +32,7 @@ import {
   runBulkLoad,
   saveProfile,
   searchSupports,
+  summarizeSupports,
   updateSupport,
   voidSupport,
 } from "../services/supports.service";
@@ -67,6 +68,27 @@ export function useSupportSearch(body: SupportSearchBody) {
   return useQuery({
     queryKey: supportKeys.search(body),
     queryFn: () => searchSupports(body),
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The counts by state behind the KPIs. Page, size and sort never change them, so they are left
+ * out of the key: paging the list does not ask again. An API without the endpoint (older than
+ * #99) answers 404 and the KPIs stay hidden.
+ */
+export function useSupportSummary(body: SupportSearchBody, enabled: boolean) {
+  // The state is left out too: each count is what its own chip would list.
+  const filters: Partial<SupportSearchBody> = { ...body };
+  delete filters.page;
+  delete filters.size;
+  delete filters.sort;
+  delete filters.state;
+  return useQuery({
+    queryKey: [...supportKeys.all, "summary", filters] as const,
+    queryFn: () => summarizeSupports({ ...(filters as Omit<SupportSearchBody, "page" | "size" | "sort">), sort: [], page: 1, size: 1 }),
+    enabled,
     retry: retryTransient,
     placeholderData: keepPreviousData,
   });

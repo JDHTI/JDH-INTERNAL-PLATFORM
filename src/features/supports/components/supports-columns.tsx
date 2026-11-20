@@ -87,8 +87,26 @@ function ProductCell({ support, open }: { support: SupplierSupport; open: () => 
   );
 }
 
+/** The group a group-wide support holds for; null when it is for one customer or for all. */
+export function groupWideName(support: SupplierSupport): string | null {
+  return support.group_wide ? (support.customer_group ?? support.business_group ?? null) : null;
+}
+
 function CustomerCell({ support }: { support: SupplierSupport }) {
   const scope = [support.regionals.join(", "), support.business_units.join(", ")].filter(Boolean).join(" · ");
+  const group = groupWideName(support);
+  // A group's support is stored once per member: it reads as the group's, not as one customer's.
+  if (group) {
+    return (
+      <div className="min-w-0 space-y-0.5">
+        <span className="block truncate" title={`Grupo empresarial ${group}: vale para todo el grupo`}>
+          {group}
+        </span>
+        <span className={secondary}>Todo el grupo</span>
+        {scope && <span className={secondary} title={scope}>{scope}</span>}
+      </div>
+    );
+  }
   return (
     <div className="min-w-0 space-y-0.5">
       <span className="block truncate" title={support.customer_name ?? undefined}>

@@ -491,7 +491,13 @@ function SupportOptions({
                 <span className="font-medium">{choiceLabel("kind", option.kind)}</span>
                 {option.applied && <Badge tone="success" className="px-1.5 py-0 text-xs">Aplicado</Badge>}
                 <span className="text-[13px] text-text-secondary">
-                  {option.customer_nit ? <>Solo el cliente <span className="font-mono">NIT {option.customer_nit}</span></> : "Toda la lista"}
+                  {option.customer_nit ? (
+                    <>Solo el cliente <span className="font-mono">NIT {option.customer_nit}</span></>
+                  ) : option.customer_group ? (
+                    `Todo el grupo ${option.customer_group}`
+                  ) : (
+                    "Toda la lista"
+                  )}
                 </span>
               </p>
               <p className="text-[13px] text-text-secondary">{option.detail || calcMethodLabel(option.calc_method)}</p>

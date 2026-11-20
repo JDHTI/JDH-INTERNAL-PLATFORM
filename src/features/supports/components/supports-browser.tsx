@@ -24,6 +24,7 @@ import {
   useSupportCatalogs,
   useSupportPermissions,
   useSupportSearch,
+  useSupportSummary,
 } from "../hooks/use-supports";
 import { PRICE_LABELS, STATE_LABELS, supportValueText } from "../lib/format";
 import type {
@@ -32,17 +33,18 @@ import type {
   SupplierSupport,
   SupportSearchBody,
   SupportSearchFilters,
-  SupportState,
+  SupportStateFilter,
 } from "../types/support.types";
 import ReplacementAlerts from "./replacement-alerts";
 import RetireDialog from "./retire-dialog";
-import { COLUMNS, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
+import { COLUMNS, groupWideName, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
 import { SupportActions, SupportVoidDialog } from "./support-actions";
 import { AttachmentBadge, ExpiringMark, FlagBadges, StateBadge } from "./support-badges";
 import SupportDetail from "./support-detail";
+import SupportKpis from "./support-kpis";
 
 const PAGE_SIZE = 50;
 const ALL = "";
@@ -129,7 +131,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       supplier_codes: supplier ? [supplier.value] : undefined,
       product_skus: product ? [product.value] : undefined,
       // No state hides voided supports; "anulado" is the only way to list them.
-      state: state === ALL ? undefined : (state as SupportState),
+      state: state === ALL ? undefined : (state as SupportStateFilter),
       needs_review: needsReview || undefined,
       has_issues: hasIssues || undefined,
       has_conflicts: hasConflicts || undefined,
@@ -141,6 +143,8 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   }, [q, customer, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
 
   const search = useSupportSearch(body);
+  // The KPIs and «Por vencer» belong to the general master, the tactical supports (decided 2026-11-20).
+  const summary = useSupportSummary(body, view === "general");
   const result = search.data;
   const items = useMemo(() => result?.items ?? [], [result]);
 
@@ -227,7 +231,10 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   ];
   const stateOptions = [
     { value: ALL, label: "Todos los estados" },
-    ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
+    ...Object.entries(STATE_LABELS).flatMap(([value, label]) =>
+      // «Por vencer» right after «Vigente», of which it is a part.
+      value === "vigente" && view === "general" ? [{ value, label }, { value: "por_vencer", label: "Por vencer" }] : [{ value, label }]
+    ),
   ];
 
   const onForbidden = () => {
@@ -260,6 +267,9 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
 
   return (
     <div className="space-y-4">
+      {view === "general" && !summary.isError && (
+        <SupportKpis summary={summary.data} active={state as SupportStateFilter | ""} onSelect={(next) => reset(() => setState(next))} />
+      )}
       <div className="grid gap-3 md:grid-cols-3">
         <BasePicker
           config={CUSTOMER_PICKER}
@@ -578,7 +588,8 @@ const MOBILE_PRICES = [
 
 /** Customer or product the support applies to, for the compact mobile row. */
 function subject(support: SupplierSupport): string {
-  const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
+  const group = groupWideName(support);
+  const parts = [group ? `${group} (todo el grupo)` : (support.customer_name ?? support.customer_group), support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
 }
 

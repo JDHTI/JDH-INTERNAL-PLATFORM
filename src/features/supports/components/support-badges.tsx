@@ -32,7 +32,9 @@ function inOneMonth(today = new Date()): string {
  * tactical ones: the temporary activities are short by nature (decided 2026-11-20).
  */
 export function expiresSoon(support: SupplierSupport): boolean {
-  return support.kind === "tactico_cliente" && support.state === "vigente" && support.valid_to !== null && support.valid_to <= inOneMonth();
+  if (support.kind !== "tactico_cliente" || support.state !== "vigente") return false;
+  // The API says it (`expiring`, with Bogotá's date); an older build leaves it to the browser's date.
+  return support.expiring ?? (support.valid_to !== null && support.valid_to <= inOneMonth());
 }
 
 export const EXPIRES_SOON_TEXT = "Vence pronto";

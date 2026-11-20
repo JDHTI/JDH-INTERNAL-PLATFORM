@@ -499,6 +499,8 @@ export interface SupportOption {
   reason: string | null;
   /** Set when the support is for one customer of the list. */
   customer_nit: string | null;
+  /** Set when it is a business group's support, which comes with no NIT; missing on older API builds. */
+  customer_group?: string | null;
   valid_to: string | null;
 }
 
