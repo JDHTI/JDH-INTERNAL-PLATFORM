@@ -55,6 +55,7 @@ import { useLineImport } from "../hooks/use-line-import";
 import {
   useBillingCenters,
   useDeleteQuotation,
+  useLastSalesRetry,
   useQuotation,
   useUpdateCostCenters,
   useUpdateOffer,
@@ -66,6 +67,7 @@ import { useLineNote, useReviewLines, useStockTotals } from "../hooks/use-list-r
 import { formatCount, formatDateTime, formatDay, isValidated } from "../lib/format";
 import { KIND_COPY } from "../lib/kind";
 import { INDICATORS, type Indicator, type Sort, distinctValues, sortLines, supplierOf } from "../lib/line-status";
+import { ACTIVATION_PASSED_TEXT, activationPassed } from "../lib/activation";
 import { LIST_FILTERS, type ListFilter } from "../lib/list-review";
 import { offerTotals } from "../lib/offer";
 import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
@@ -256,6 +258,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   const offerEditable = canManage && !closed;
 
   const editor = useLineEditor(quotation);
+  // The DWH's missing last sales: the notice goes away by itself once the API's retry reads them.
+  useLastSalesRetry(quotation);
   const refresh = useRefreshQuotation(quotation.id);
   const removeLine = useRemoveLine(quotation.id);
   const remove = useDeleteQuotation();
@@ -1376,6 +1380,8 @@ function ReviewBanner({ quotation, canManage, canValidate }: { quotation: Quotat
             : "Falta que el área BI la cargue en SIESA."}
           {quotation.list_action === "creacion" && " Asignar la lista nueva al cliente se hace a mano en SIESA."}
           {canManage && " Ya no se edita: puedes descargar la oferta en PDF o Excel para el cliente."}
+          {/* The API dates the files today when the start passed since validating. */}
+          {activationPassed(quotation.activation_date) && ` ${ACTIVATION_PASSED_TEXT}`}
         </p>
       </div>
     );

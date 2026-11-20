@@ -71,7 +71,14 @@ export function getLineInsight(id: string, sku: string): Promise<LineInsight> {
   return apiFetch<LineInsight>(`${update(id)}/lines/${encodeURIComponent(sku)}/insight`);
 }
 
-/** Stock of every item in the list's sellable warehouses, summed per reference. */
+/**
+ * Whether the last sales the DWH did not give in time have been read since (`read`), and
+ * whether the API is still retrying (`retrying`). Header only, cheap to ask often (API #100).
+ */
+export function getLastSalesStatus(id: string): Promise<{ read: boolean; retrying: boolean; version: number }> {
+  return apiFetch(`${one(id)}/last-sales`);
+}
+
 /** The stock of the given references by center and warehouse; any kind of quotation. */
 export function getStockBreakdown(id: string, skus: string[]): Promise<StockBreakdown> {
   return apiFetch<StockBreakdown>(`${one(id)}/stock-breakdown`, { query: { sku: skus } });

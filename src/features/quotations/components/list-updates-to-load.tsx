@@ -11,6 +11,7 @@ import { Button } from "@/shared/components/ui/button";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useMarkUploaded, useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
+import { ACTIVATION_PASSED_TEXT, activationPassed } from "../lib/activation";
 import { formatCount, formatDateTime } from "../lib/format";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
 import { type QuotationSummary, isListKind } from "../types/quotations.types";
@@ -154,6 +155,7 @@ function ToLoadRow({
           {item.changed_count === 1 ? "precio nuevo" : "precios nuevos"}
           {item.validated_at ? ` · validada el ${formatDateTime(item.validated_at)}` : ""}
         </p>
+        {activationPassed(item.activation_date) && <p className="text-[13px] text-warning">{ACTIVATION_PASSED_TEXT}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => void download("xlsx")} disabled={downloading !== null} className="max-md:h-11">
