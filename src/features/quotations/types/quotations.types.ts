@@ -270,15 +270,19 @@ export interface BillingCenter {
   name: string;
   regional: string | null;
   regional_label: string | null;
-  /** Its BP/BSP warehouses, by class and code. Empty when it has none or the DWH master did not answer. */
+  /** Its BP, BSP and promotional warehouses, by class and code. Empty when it has none or the DWH master did not answer. */
   warehouses?: CenterWarehouse[];
 }
 
-/** A warehouse SIESA groups as main (BP) or for one-off requests (BSP), the only ones the platform costs from. */
+/**
+ * A warehouse SIESA groups as main (BP), for one-off requests (BSP) or promotional (PROMO). The
+ * promotional ones add to the center's warehouses, ticked or not; the center they come under is the
+ * one they belong to, whatever their code says.
+ */
 export interface CenterWarehouse {
   code: string;
   name: string;
-  classification: "BP" | "BSP";
+  classification: "BP" | "BSP" | "PROMO";
   classification_label: string;
 }
 

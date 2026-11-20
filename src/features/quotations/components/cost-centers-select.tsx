@@ -45,6 +45,8 @@ export function costChoiceCodes(choice: CostChoice, centers: BillingCenter[] | u
     .join(", ");
 }
 
+const PROMO = "PROMO";
+
 /** The warehouses of one center by class, in the API's order (BP first). */
 function byClass(warehouses: CenterWarehouse[]): { label: string; items: CenterWarehouse[] }[] {
   const groups = new Map<string, { label: string; items: CenterWarehouse[] }>();
@@ -56,13 +58,25 @@ function byClass(warehouses: CenterWarehouse[]): { label: string; items: CenterW
   return [...groups.values()];
 }
 
+function WarehouseCheck({ warehouse, checked, onToggle }: { warehouse: CenterWarehouse; checked: boolean; onToggle: (code: string) => void }) {
+  return (
+    <label className="flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] hover:bg-canvas-subtle max-md:min-h-11">
+      <input type="checkbox" checked={checked} onChange={() => onToggle(warehouse.code)} className="size-4 shrink-0 accent-[var(--primary)]" />
+      <span className="min-w-0 flex-1 truncate" title={`${warehouse.code} · ${warehouse.name}`}>
+        <span className="font-mono">{warehouse.code}</span> · {warehouse.name}
+      </span>
+    </label>
+  );
+}
+
 /**
  * Where the cost of every line comes from: Nacional, alone, or one or more
  * operation centers. Nacional and the centers exclude each other: ticking
  * Nacional clears the centers, ticking a center clears Nacional, and leaving
- * no center ticked is Nacional again. A ticked center that has BP/BSP
- * warehouses opens them underneath; ticking some narrows the center to those,
- * ticking none keeps its usual ones. With two or more centers ticked, the
+ * no center ticked is Nacional again. A ticked center that has warehouses
+ * opens them underneath. Ticking BP/BSP ones narrows the center to those,
+ * ticking none keeps its usual ones; the promotional ones add on top, all at
+ * once with «Incluir bodegas promocionales» or one by one. With two or more centers ticked, the
  * panel asks the API which one costs the most for this quotation's references
  * and marks it, before anything is applied. The panel is a group of real
  * checkboxes, so Tab, Space and screen readers work as anywhere else; Escape
@@ -114,6 +128,17 @@ export default function CostCentersSelect({
   const toggleWarehouse = (code: string) => {
     const next = new Set(ticked);
     if (!next.delete(code)) next.add(code);
+    emit(selected, next);
+  };
+
+  /** «Incluir bodegas promocionales»: all of the center's on, or all off when they already are. */
+  const toggleAll = (codes: string[]) => {
+    const next = new Set(ticked);
+    const allOn = codes.every((code) => next.has(code));
+    for (const code of codes) {
+      if (allOn) next.delete(code);
+      else next.add(code);
+    }
     emit(selected, next);
   };
 
@@ -185,6 +210,9 @@ export default function CostCentersSelect({
           <ul className="max-h-80 overflow-y-auto">
             {shown.map((center) => {
               const open = selected.has(center.code) && (center.warehouses?.length ?? 0) > 0;
+              const usual = (center.warehouses ?? []).filter((warehouse) => warehouse.classification !== PROMO);
+              const promos = (center.warehouses ?? []).filter((warehouse) => warehouse.classification === PROMO);
+              const promosOn = promos.filter((warehouse) => ticked.has(warehouse.code)).length;
               return (
                 <li key={center.code}>
                   <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-canvas-subtle max-md:min-h-11">
@@ -204,27 +232,35 @@ export default function CostCentersSelect({
                   </label>
                   {open && (
                     <div role="group" aria-label={`Bodegas de ${centerLabel(center)}`} className="mb-1 ml-4 border-l border-border pl-2">
-                      {byClass(center.warehouses ?? []).map((group) => (
+                      {byClass(usual).map((group) => (
                         <div key={group.label} role="group" aria-label={group.label}>
                           <p className="px-2 pt-1 text-xs text-text-secondary" aria-hidden="true">{group.label}</p>
                           {group.items.map((warehouse) => (
-                            <label
-                              key={warehouse.code}
-                              className="flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] hover:bg-canvas-subtle max-md:min-h-11"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={ticked.has(warehouse.code)}
-                                onChange={() => toggleWarehouse(warehouse.code)}
-                                className="size-4 shrink-0 accent-[var(--primary)]"
-                              />
-                              <span className="min-w-0 flex-1 truncate" title={`${warehouse.code} · ${warehouse.name}`}>
-                                <span className="font-mono">{warehouse.code}</span> · {warehouse.name}
-                              </span>
-                            </label>
+                            <WarehouseCheck key={warehouse.code} warehouse={warehouse} checked={ticked.has(warehouse.code)} onToggle={toggleWarehouse} />
                           ))}
                         </div>
                       ))}
+                      {promos.length > 0 && (
+                        <div role="group" aria-label={promos[0].classification_label}>
+                          <label className="mt-1 flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] font-medium hover:bg-canvas-subtle max-md:min-h-11">
+                            <input
+                              type="checkbox"
+                              checked={promosOn === promos.length}
+                              ref={(input) => {
+                                if (input) input.indeterminate = promosOn > 0 && promosOn < promos.length;
+                              }}
+                              onChange={() => toggleAll(promos.map((warehouse) => warehouse.code))}
+                              className="size-4 shrink-0 accent-[var(--primary)]"
+                            />
+                            Incluir bodegas promocionales
+                          </label>
+                          <div className="ml-4">
+                            {promos.map((warehouse) => (
+                              <WarehouseCheck key={warehouse.code} warehouse={warehouse} checked={ticked.has(warehouse.code)} onToggle={toggleWarehouse} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
@@ -234,8 +270,9 @@ export default function CostCentersSelect({
           </ul>
           {withWarehouses && (
             <p className="mx-2 mt-1 border-t border-border pt-1.5 pb-1 text-xs text-text-secondary">
-              Sin bodegas marcadas, el C.O. usa sus bodegas de siempre. En SIESA el costo promedio es por instalación: las bodegas
-              cambian sobre todo qué existencias cuentan.
+              Sin bodegas principales ni puntuales marcadas, el C.O. usa sus bodegas de siempre. Las promocionales se suman a ellas:
+              cuentan en las existencias y, si tienen existencia, entran al mayor costo. En SIESA el costo promedio es por
+              instalación, así que las bodegas cambian sobre todo qué existencias cuentan.
             </p>
           )}
           <p className="sr-only" aria-live="polite">
