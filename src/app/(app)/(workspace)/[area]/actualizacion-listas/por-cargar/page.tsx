@@ -9,7 +9,7 @@ import { requireModule } from "@/features/areas/server/area-access";
 const SEGMENT = "actualizacion-listas";
 
 /**
- * The list updates validated and not loaded in SIESA yet, each with its files; under them, what
+ * The list updates and customer quotations validated and not loaded in SIESA yet, each with its files; under them, what
  * was validated item by item before updates went to validation whole, only while some is left.
  */
 export default async function PorCargarPage({ params }: { params: Promise<{ area: string }> }) {

@@ -26,7 +26,7 @@ export function listModuleViews(kind: ListKind, basePath: string): PageView[] {
       description:
         kind === "principal"
           ? "Los ítems validados que aún no se cargan en SIESA, por lista, con sus archivos y las últimas cargas."
-          : "Las actualizaciones validadas que aún no se cargan en SIESA, con su Excel y su plano para marcarlas como cargadas.",
+          : "Las actualizaciones y las cotizaciones validadas que aún no se cargan en SIESA, con su Excel y su plano para marcarlas como cargadas.",
     },
   ];
   if (kind === "lista") {

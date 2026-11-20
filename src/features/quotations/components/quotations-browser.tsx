@@ -15,8 +15,6 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useSession } from "@/features/session/hooks/use-session";
-
 import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
 import { KIND_COPY, useQuotationKind } from "../lib/kind";
 import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
@@ -35,9 +33,10 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 ];
 
 /**
- * Saved quotations, newest first. The API lists only the ones each person
- * created, except for whoever validates (BI, admins) and moderators: they see
- * everyone's and choose between theirs and all.
+ * Saved quotations, newest first. Each person sees the ones they created; only
+ * whoever validates (BI, admins) chooses between theirs and everyone's.
+ * Commercial does not get «Todas», moderators included (decided 2026-11-20):
+ * the API would let a moderator read them, but the view stays on their own.
  */
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
@@ -46,10 +45,9 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // A list update has a status of its own, like a quotation: it goes to validation whole.
   const isList = isListKind(kind);
   const copy = KIND_COPY[kind];
-  const { data: user } = useSession();
   const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
-  const seesAll = canValidate || user?.role === "moderator";
+  const seesAll = canValidate;
   const [mine, setMine] = useState(!seesAll);
   // Everyone opens on every status, Comercial and BI alike (decided 2026-11-09); the pending ones are one pick away.
   const [status, setStatus] = useState<QuotationStatus | "">("");
@@ -80,7 +78,13 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
         <NewQuotationDialog basePath={basePath} open={creating} onOpenChange={setCreating} />
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+        {/* The one action, alone on the left; the filters keep to the right. */}
+        {canManage && (
+          <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
+            <Plus aria-hidden="true" /> {copy.create}
+          </Button>
+        )}
+        <div className="flex w-full flex-col gap-3 sm:ml-auto sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           {canManage && seesAll && (
             <div role="group" aria-label="De quién" className="flex gap-2">
               <ToggleChip active={mine} onClick={() => reset(() => setMine(true))}>
@@ -110,11 +114,6 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
             className="w-full sm:w-56"
           />
         </div>
-        {canManage && (
-          <Button onClick={() => setCreating(true)} className="w-full sm:w-auto max-md:h-11">
-            <Plus aria-hidden="true" /> {copy.create}
-          </Button>
-        )}
       </div>
 
       {quotations.isPending ? (

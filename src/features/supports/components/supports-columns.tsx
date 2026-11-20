@@ -20,7 +20,7 @@ import {
   SUPPORTED_MARGIN_LABEL,
 } from "../lib/format";
 import type { PerUnit, SupplierSupport } from "../types/support.types";
-import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
+import { AttachmentBadge, ExpiringMark, FlagBadges, StateBadge } from "./support-badges";
 
 export interface CellContext {
   open: () => void;
@@ -38,13 +38,11 @@ export interface Column {
    */
   sorts?: [field: string, name: string][];
   align?: "right";
-  /** The person can hide it from the "Columnas" menu. */
-  hideable?: boolean;
   /** Share of the fixed-layout table; the product takes what the others leave. */
   width?: string;
   /** The full name, as the header's tooltip and accessible name, when `label` is short. */
   title?: string;
-  /** Consecutive columns of a group share a header above theirs, and hide together. */
+  /** Consecutive columns of a group share a header above theirs. */
   group?: { key: string; label: string };
   /** Only BI sees it: Comercial gets the cost empty. */
   costOnly?: boolean;
@@ -280,8 +278,9 @@ function ValidityCell({ support }: { support: SupplierSupport }) {
   return (
     <div className="space-y-1">
       <StateBadge value={support.state} />
-      <span className="block whitespace-nowrap text-xs tabular-nums text-text-secondary">
+      <span className="flex items-center gap-1 whitespace-nowrap text-xs tabular-nums text-text-secondary">
         {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "indefinido"}
+        <ExpiringMark support={support} />
       </span>
       <span className="flex flex-wrap gap-1">
         <AttachmentBadge support={support} />
@@ -311,7 +310,6 @@ export const COLUMNS: Column[] = [
     key: "customer",
     label: "Cliente",
     sorts: [["customer_name", "Cliente"]],
-    hideable: true,
     width: "12%",
     cell: (s) => <CustomerCell support={s} />,
   },
@@ -328,15 +326,12 @@ export const COLUMNS: Column[] = [
   {
     key: "margins",
     label: "Márgenes",
-    hideable: true,
     width: "13%",
     cell: (s) => <MarginsCell support={s} />,
   },
-  // The «price» key is the one the «Columnas» menu already stored for the old price group.
   {
     key: "price",
     label: "Precios",
-    hideable: true,
     width: "18%",
     cell: (s, { seesCost }) => <PricesCell support={s} seesCost={seesCost} />,
   },
@@ -351,16 +346,6 @@ export const COLUMNS: Column[] = [
     cell: (s) => <ValidityCell support={s} />,
   },
 ];
-
-/** What the «Columnas» menu hides: a column, or a whole group of them under one name. */
-export function hideKeyOf(column: Column): string {
-  return column.group?.key ?? column.key;
-}
-
-/** One entry per column or group, for the «Columnas» menu. */
-export const HIDEABLE = COLUMNS.filter((column) => column.hideable || column.group).filter(
-  (column, index, all) => all.findIndex((other) => hideKeyOf(other) === hideKeyOf(column)) === index
-).map((column) => ({ key: hideKeyOf(column), label: column.group?.label ?? column.label }));
 
 export type SortDirection = "asc" | "desc";
 

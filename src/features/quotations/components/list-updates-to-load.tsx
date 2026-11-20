@@ -13,36 +13,88 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { useMarkUploaded, useQuotationPermissions, useQuotations } from "../hooks/use-quotations";
 import { formatCount, formatDateTime } from "../lib/format";
 import { downloadQuotationExcel, downloadQuotationFlatFile } from "../services/quotations.service";
-import type { QuotationSummary } from "../types/quotations.types";
+import { type QuotationSummary, isListKind } from "../types/quotations.types";
 import { QuotationLoadError } from "./quotations-gate";
 
 /**
- * The list updates validated whole and not in SIESA yet (`pendiente_carga`): each one with its
- * two SIESA files and «Marcar cargada». Whoever validates loads them; the rest see what waits.
+ * Everything validated and not in SIESA yet (`pendiente_carga`), each with its two SIESA files
+ * and «Marcar cargada»: the list updates, and the customer quotations that asked for a list. A
+ * validated quotation also stays under «Cotizaciones por validar» › «Por cargar»; here it waits
+ * with the rest of what has to be loaded (decided 2026-11-20). Whoever validates loads them; the
+ * rest see what waits.
  */
 export default function ListUpdatesToLoad({ basePath }: { basePath: string }) {
   const canValidate = useQuotationPermissions("lista").data?.can_validate === true;
-  const list = useQuotations({ kind: "lista", mine: false, status: "pendiente_carga", q: "", page: 1, size: 100 });
-
-  if (list.isPending) return <TableSkeleton rows={4} label="Cargando las actualizaciones por cargar" />;
-  if (list.isError && !list.data) {
-    return <QuotationLoadError error={list.error} onRetry={() => void list.refetch()} subject="las actualizaciones por cargar" />;
-  }
-  const items = list.data.items;
+  const updates = useQuotations({ kind: "lista", mine: false, status: "pendiente_carga", q: "", page: 1, size: 100 });
+  const quotations = useQuotations({ kind: "cotizacion", mine: false, status: "pendiente_carga", q: "", page: 1, size: 100 });
 
   return (
-    <section aria-labelledby="to-load-title" className="space-y-2">
-      <h2 id="to-load-title" className="text-base font-semibold">
-        Actualizaciones validadas{items.length > 0 && <span className="font-normal text-text-secondary"> · {formatCount(list.data.total)}</span>}
+    <div className="space-y-8">
+      <ToLoadSection
+        id="to-load-updates"
+        title="Actualizaciones validadas"
+        query={updates}
+        basePath={basePath}
+        canValidate={canValidate}
+        subject="las actualizaciones por cargar"
+        empty={{
+          title: "No hay actualizaciones por cargar",
+          text: "Cuando quien valida acepte una actualización, aparece aquí con su Excel y su plano para cargarla en SIESA.",
+        }}
+      />
+      <ToLoadSection
+        id="to-load-quotations"
+        title="Cotizaciones validadas"
+        query={quotations}
+        basePath={`${basePath}/cotizaciones`}
+        canValidate={canValidate}
+        subject="las cotizaciones por cargar"
+        empty={{
+          title: "No hay cotizaciones por cargar",
+          text: "Cuando se valide una cotización que pide actualizar o crear una lista, aparece aquí con sus archivos para cargarla en SIESA.",
+        }}
+      />
+    </div>
+  );
+}
+
+function ToLoadSection({
+  id,
+  title,
+  query,
+  basePath,
+  canValidate,
+  subject,
+  empty,
+}: {
+  id: string;
+  title: string;
+  query: ReturnType<typeof useQuotations>;
+  /** Where each one opens: the list update's editor, or the quotation's inside this module. */
+  basePath: string;
+  canValidate: boolean;
+  subject: string;
+  empty: { title: string; text: string };
+}) {
+  if (query.isPending) return <TableSkeleton rows={3} label={`Cargando ${subject}`} />;
+  if (query.isError && !query.data) {
+    return <QuotationLoadError error={query.error} onRetry={() => void query.refetch()} subject={subject} />;
+  }
+  const items = query.data.items;
+  return (
+    <section aria-labelledby={id} className="space-y-2">
+      <h2 id={id} className="text-base font-semibold">
+        {title}
+        {items.length > 0 && <span className="font-normal text-text-secondary"> · {formatCount(query.data.total)}</span>}
       </h2>
       {items.length === 0 ? (
-        <StatePanel icon={Inbox} title="No hay actualizaciones por cargar">
-          Cuando quien valida acepte una actualización, aparece aquí con su Excel y su plano para cargarla en SIESA.
+        <StatePanel icon={Inbox} title={empty.title}>
+          {empty.text}
         </StatePanel>
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {items.map((item) => (
-            <ToLoadRow key={item.id} item={item} basePath={basePath} canValidate={canValidate} onDone={() => void list.refetch()} />
+            <ToLoadRow key={item.id} item={item} basePath={basePath} canValidate={canValidate} onDone={() => void query.refetch()} />
           ))}
         </ul>
       )}
@@ -61,6 +113,7 @@ function ToLoadRow({
   canValidate: boolean;
   onDone: () => void;
 }) {
+  const isQuotation = !isListKind(item.kind);
   const uploaded = useMarkUploaded(item.id);
   const [downloading, setDownloading] = useState<"xlsx" | "txt" | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -93,10 +146,11 @@ function ToLoadRow({
           href={`${basePath}/${item.id}`}
           className="block truncate font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {item.price_list_name ?? `Lista ${list}`}
+          {isQuotation ? item.customer_name : (item.price_list_name ?? `Lista ${list}`)}
         </Link>
         <p className="text-[13px] text-text-secondary">
-          <span className="font-mono">Lista {list}</span> · {formatCount(item.changed_count)}{" "}
+          <span className="font-mono">Lista {list}</span>
+          {isQuotation && item.list_action_label ? ` · ${item.list_action_label}` : ""} · {formatCount(item.changed_count)}{" "}
           {item.changed_count === 1 ? "precio nuevo" : "precios nuevos"}
           {item.validated_at ? ` · validada el ${formatDateTime(item.validated_at)}` : ""}
         </p>

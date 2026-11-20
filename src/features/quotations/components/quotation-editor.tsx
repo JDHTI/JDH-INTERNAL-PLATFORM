@@ -122,13 +122,21 @@ type ChipKey = "all" | "activos" | "modificados" | "sin_cambios" | "nuevos" | "o
 /** Every filter a person can keep in the toolbar: the chips and the two dropdowns. */
 type ToolbarKey = ChipKey | "categorias" | "proveedores";
 
-type ChipFilter = { key: ChipKey; label: string; help: string; forLists: boolean };
+type ChipFilter = {
+  key: ChipKey;
+  label: string;
+  help: string;
+  forLists: boolean;
+  /** A list update's words, where its reference (the list's price) changes them. */
+  list?: { label: string; help: string };
+};
 
 /**
  * The chips, in the order they show wherever they are: in the toolbar or in «Más filtros».
  * The indicators above are only a summary, so every group they count can be filtered here.
  * «Activos» adds to the others (active and modified, active and below the minimum); the rest
- * are one at a time.
+ * are one at a time. A list update has the same ones (decided 2026-11-20), except the products
+ * only for quoting it cannot have.
  */
 const CHIP_FILTERS: ChipFilter[] = [
   { key: "all", label: "Todos", help: "Todas las referencias, activas e inactivas.", forLists: true },
@@ -136,11 +144,17 @@ const CHIP_FILTERS: ChipFilter[] = [
   { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
   { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
-  { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: false },
-  { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: false },
-  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: false },
-  { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: false },
-  { key: "sin_referencia", label: "Sin precio de referencia", help: "El cliente no la compró en la ventana.", forLists: false },
+  { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: true },
+  { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: true },
+  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: true },
+  { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: true },
+  {
+    key: "sin_referencia",
+    label: "Sin precio de referencia",
+    help: "El cliente no la compró en la ventana.",
+    forLists: true,
+    list: { label: "Sin precio en la lista", help: "La lista no tiene precio vigente: el precio nuevo la agrega." },
+  },
   { key: "local", label: "Sin SKU en SIESA", help: "Productos creados solo para cotizar.", forLists: false },
 ];
 
@@ -339,7 +353,9 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     }),
     [quotation.lines]
   );
-  const chips = CHIP_FILTERS.filter((chip) => !isList || chip.forLists);
+  const chips = isList
+    ? CHIP_FILTERS.filter((chip) => chip.forLists).map((chip) => (chip.list ? { ...chip, ...chip.list } : chip))
+    : CHIP_FILTERS;
   const chipActive = (key: ChipKey) => (key === "all" ? filter === "all" && !onlyActive : key === "activos" ? onlyActive : filter === key);
   const hiddenChips = chips.filter((chip) => !inToolbar.has(chip.key));
   // How many filters are on inside «Más filtros», so its trigger never hides why the table is short.
@@ -769,14 +785,15 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
 
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       {/* The figures right under who and where: how the quotation stands before anything else. */}
-      {quotation.lines.length > 0 && !isList && <QuotationIndicators lines={quotation.lines} />}
+      {/* A list update shows the same figures (decided 2026-11-20); only the main lists keep their review panel. */}
+      {quotation.lines.length > 0 && !perItemReview && <QuotationIndicators lines={quotation.lines} forList={isList} />}
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
       {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={offerEditable} />}
       <Warnings quotation={quotation} />
 
-      {quotation.lines.length > 0 && isList && (
-        <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} withReview={perItemReview} />
+      {quotation.lines.length > 0 && perItemReview && (
+        <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} withReview />
       )}
 
       {editable && hasRows && (
@@ -849,7 +866,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
           </MoreFilters>
           )}
           <CustomizeFilters
-            options={TOOLBAR_OPTIONS.filter((option) => !isList || option.forLists)}
+            options={isList ? [...chips, ...TOOLBAR_OPTIONS.filter((option) => option.key === "categorias" || option.key === "proveedores")] : TOOLBAR_OPTIONS}
             shown={inToolbar}
             onChange={setToolbarKeys}
             defaults={DEFAULT_TOOLBAR}
@@ -1015,7 +1032,6 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             : undefined
         }
         forList={isList}
-        stockOf={{ quotationId: quotation.id, version: quotation.version }}
         showCost={canValidate}
         onClose={() => setDetailLine(null)}
         onOpenAgreement={(id) => {
