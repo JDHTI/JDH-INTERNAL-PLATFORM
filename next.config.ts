@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/administracion", destination: "/ti/administracion/areas", permanent: true },
       { source: "/administracion/:section", destination: "/ti/administracion/:section", permanent: true },
+      // The supplier profiles left the supports master (2026-11-20); a saved link lands on the master.
+      { source: "/:area/apoyos/perfiles/:path*", destination: "/:area/apoyos", permanent: false },
     ];
   },
 };

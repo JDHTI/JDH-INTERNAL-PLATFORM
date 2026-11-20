@@ -44,6 +44,7 @@ import { Menu, MenuItem } from "@/shared/components/ui/menu";
 import { MultiSelect } from "@/shared/components/ui/multi-select";
 import { Switch } from "@/shared/components/ui/switch";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { useStoredPreference } from "@/shared/hooks/use-stored-preference";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
@@ -71,6 +72,7 @@ import { downloadLinesTemplate, downloadQuotationExcel, downloadQuotationFlatFil
 import { type ImportResult, type Quotation, type QuotationLine, type ReviewStatus, isClosed, isListKind } from "../types/quotations.types";
 import { ListFilters } from "./list-review-controls";
 import MoreFilters from "./more-filters";
+import CustomizeFilters from "./customize-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
 import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
@@ -116,25 +118,23 @@ const OWN_FILTERS: Partial<Record<LineFilter, (line: QuotationLine) => boolean>>
   sin_cambios: (line) => !isModified(line),
 };
 
-type ChipFilter = {
-  key: "all" | "modificados" | "sin_cambios" | "nuevos" | "objetivo" | "rango" | "minimo" | "apoyo" | "sin_referencia" | "local";
-  label: string;
-  help: string;
-  forLists: boolean;
-};
+type ChipKey = "all" | "activos" | "modificados" | "sin_cambios" | "nuevos" | "objetivo" | "rango" | "minimo" | "apoyo" | "sin_referencia" | "local";
+/** Every filter a person can keep in the toolbar: the chips and the two dropdowns. */
+type ToolbarKey = ChipKey | "categorias" | "proveedores";
 
-/** The chips always in the toolbar: what was changed apart from what keeps its price. */
-const QUICK_FILTERS: ChipFilter[] = [
-  { key: "all", label: "Todos", help: "Todas las referencias.", forLists: true },
-  { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
-  { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
-];
+type ChipFilter = { key: ChipKey; label: string; help: string; forLists: boolean };
 
 /**
- * The ones used less, inside «Más filtros». The indicators above are only a summary, so every
- * group they count can be filtered from here.
+ * The chips, in the order they show wherever they are: in the toolbar or in «Más filtros».
+ * The indicators above are only a summary, so every group they count can be filtered here.
+ * «Activos» adds to the others (active and modified, active and below the minimum); the rest
+ * are one at a time.
  */
-const MORE_FILTERS: ChipFilter[] = [
+const CHIP_FILTERS: ChipFilter[] = [
+  { key: "all", label: "Todos", help: "Todas las referencias, activas e inactivas.", forLists: true },
+  { key: "activos", label: "Activos", help: "Solo las referencias activas en SIESA. Se suma a los otros filtros.", forLists: true },
+  { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
+  { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
   { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: false },
   { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: false },
@@ -143,6 +143,18 @@ const MORE_FILTERS: ChipFilter[] = [
   { key: "sin_referencia", label: "Sin precio de referencia", help: "El cliente no la compró en la ventana.", forLists: false },
   { key: "local", label: "Sin SKU en SIESA", help: "Productos creados solo para cotizar.", forLists: false },
 ];
+
+const TOOLBAR_OPTIONS: { key: ToolbarKey; label: string; forLists: boolean }[] = [
+  ...CHIP_FILTERS,
+  { key: "categorias", label: "Categorías", forLists: true },
+  { key: "proveedores", label: "Proveedores", forLists: true },
+];
+
+/** What the toolbar shows until each person chooses: «Todos» is implied when no chip is on. */
+const DEFAULT_TOOLBAR: readonly ToolbarKey[] = ["activos", "modificados", "minimo", "categorias", "proveedores"];
+const TOOLBAR_KEYS = new Set<string>(TOOLBAR_OPTIONS.map((option) => option.key));
+const parseToolbar = (stored: unknown): readonly ToolbarKey[] | null =>
+  Array.isArray(stored) ? stored.filter((key): key is ToolbarKey => typeof key === "string" && TOOLBAR_KEYS.has(key)) : null;
 
 /**
  * The new items first, the latest added on top, then the rest in the order the API gives;
@@ -249,6 +261,10 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     [canAskSupportHere, quotation.lines]
   );
   const [filter, setFilter] = useState<LineFilter>("all");
+  // «Activos» adds to the filter above instead of replacing it.
+  const [onlyActive, setOnlyActive] = useState(false);
+  const [toolbarKeys, setToolbarKeys] = useStoredPreference("jdh-quoter-toolbar-filters", DEFAULT_TOOLBAR, parseToolbar);
+  const inToolbar = useMemo(() => new Set(toolbarKeys), [toolbarKeys]);
   // A list update filters by the item's review and by where its price leaves the margin.
   const [listFilter, setListFilter] = useState<ListFilter>("all");
   const stockTotals = useStockTotals(quotation.id, isList);
@@ -300,15 +316,17 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     const matching = quotation.lines.filter(
       (line) =>
         (filter === "imported" ? imported.has(line.sku) : (OWN_FILTERS[filter] ?? INDICATORS[filter as Indicator])(line)) &&
+        (!onlyActive || line.is_active) &&
         (listFilter === "all" || LIST_FILTERS[listFilter](line)) &&
         (q === "" || line.sku.toLowerCase().includes(q) || (line.description ?? "").toLowerCase().includes(q)) &&
         (byCategory.size === 0 || byCategory.has(line.category?.trim() ?? "")) &&
         (bySupplier.size === 0 || bySupplier.has(supplierOf(line)?.trim() ?? ""))
     );
     return sort ? sortLines(matching, sort) : newFirst(matching);
-  }, [quotation.lines, filter, listFilter, q, imported, categories, suppliers, sort]);
+  }, [quotation.lines, filter, onlyActive, listFilter, q, imported, categories, suppliers, sort]);
   const quickCounts = useMemo(
     () => ({
+      activos: quotation.lines.filter((line) => line.is_active).length,
       modificados: quotation.lines.filter(isModified).length,
       sin_cambios: quotation.lines.filter((line) => !isModified(line)).length,
       nuevos: quotation.lines.filter(isNew).length,
@@ -321,23 +339,89 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     }),
     [quotation.lines]
   );
-  // Whether the chip on is one inside «Más filtros», so its trigger says a filter is on.
-  const moreActive = MORE_FILTERS.some((chip) => chip.key === filter) || filter === "inactive" || filter === "imported" ? 1 : 0;
+  const chips = CHIP_FILTERS.filter((chip) => !isList || chip.forLists);
+  const chipActive = (key: ChipKey) => (key === "all" ? filter === "all" && !onlyActive : key === "activos" ? onlyActive : filter === key);
+  const hiddenChips = chips.filter((chip) => !inToolbar.has(chip.key));
+  // How many filters are on inside «Más filtros», so its trigger never hides why the table is short.
+  const moreActive =
+    hiddenChips.filter((chip) => chip.key !== "all" && chipActive(chip.key)).length +
+    (filter === "inactive" || filter === "imported" ? 1 : 0) +
+    (!inToolbar.has("categorias") && categories.length > 0 ? 1 : 0) +
+    (!inToolbar.has("proveedores") && suppliers.length > 0 ? 1 : 0);
   const lastPage = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, lastPage);
   const pageLines = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const filtered = filter !== "all" || listFilter !== "all" || text.trim() !== "" || categories.length > 0 || suppliers.length > 0;
+  const filtered = filter !== "all" || onlyActive || listFilter !== "all" || text.trim() !== "" || categories.length > 0 || suppliers.length > 0;
 
   const chooseFilter = (next: LineFilter) => {
     setFilter(next);
+    // Only the inactive ones and only the active ones would always be empty; what was just
+    // imported shows whole, inactive ones included.
+    if (next === "inactive" || next === "imported") setOnlyActive(false);
     setPage(1);
   };
+  const toggleChip = (key: ChipKey) => {
+    if (key === "all") {
+      setOnlyActive(false);
+      chooseFilter("all");
+    } else if (key === "activos") {
+      if (!onlyActive && filter === "inactive") setFilter("all");
+      setOnlyActive(!onlyActive);
+      setPage(1);
+    } else {
+      chooseFilter(filter === key ? "all" : key);
+    }
+  };
+  const chip = (item: ChipFilter) => (
+    <ToggleChip
+      key={item.key}
+      active={chipActive(item.key)}
+      onClick={() => toggleChip(item.key)}
+      count={item.key === "all" ? undefined : quickCounts[item.key]}
+      title={item.help}
+    >
+      {item.label}
+    </ToggleChip>
+  );
+  const dropdown = (key: "categorias" | "proveedores", className: string) =>
+    key === "categorias"
+      ? categoryOptions.length > 0 && (
+          <MultiSelect
+            key={key}
+            label="Categorías"
+            allLabel="Todas las categorías"
+            options={categoryOptions}
+            value={categories}
+            onValueChange={(next) => {
+              setCategories(next);
+              setPage(1);
+            }}
+            className={className}
+          />
+        )
+      : supplierOptions.length > 0 && (
+          <MultiSelect
+            key={key}
+            label="Proveedores"
+            allLabel="Todos los proveedores"
+            options={supplierOptions}
+            value={suppliers}
+            onValueChange={(next) => {
+              setSuppliers(next);
+              setPage(1);
+            }}
+            className={className}
+          />
+        );
+  const hiddenDropdowns = (["categorias", "proveedores"] as const).filter((key) => !inToolbar.has(key));
+  const hasMore = hiddenChips.length > 0 || hiddenDropdowns.length > 0 || inactiveCount > 0 || Boolean(importer.lastImport);
   const chooseListFilter = (next: ListFilter) => {
     setListFilter(next);
     setPage(1);
   };
   const clearFilters = () => {
     setFilter("all");
+    setOnlyActive(false);
     setListFilter("all");
     setText("");
     setCategories([]);
@@ -584,6 +668,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
 
         {/* The actions keep their row; the name gives up its width instead. */}
         <div className="flex flex-wrap items-center gap-2 xl:shrink-0 xl:justify-end">
+          {/* The save state leads the actions, left of «Refrescar», instead of between two buttons. */}
+          {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
           {editable && (
             <Button variant="outline" onClick={runRefresh} disabled={busy} className="max-md:h-11">
               <RefreshCw className={cn(refresh.isPending && "animate-spin")} aria-hidden="true" />
@@ -634,7 +720,6 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               <Undo2 aria-hidden="true" /> Retirar de validación
             </Button>
           )}
-          {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <AutosaveIndicator editor={editor} />}
           {editable && (
             <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
@@ -709,13 +794,13 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {(editable || (offerEditable && !isList && quotation.quote_quantities)) && <SaveStatus editor={editor} />}
 
       {/*
-        Two rows across the whole container: the filters (the search takes the room the rest
-        leaves) and, under them on the right, the actions on the references. The filters used
-        less live in «Más filtros».
+        Two rows across the whole container: the filters each person chose to keep at hand
+        (the rest wait in «Más filtros») and, under them, the actions on the references:
+        «Agregar productos» alone on the left, the others on the right.
       */}
       <div className={cn("space-y-2", !hasRows && "hidden")}>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full min-w-56 @xl:w-auto @xl:flex-1">
+          <div className="relative w-full @xl:w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
             <Input
               type="search"
@@ -729,59 +814,21 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               className="pl-9 max-md:h-11"
             />
           </div>
-          <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap gap-2">
-            {QUICK_FILTERS.filter((quick) => !isList || quick.forLists).map((quick) => (
-              <ToggleChip
-                key={quick.key}
-                active={filter === quick.key}
-                onClick={() => chooseFilter(filter === quick.key && quick.key !== "all" ? "all" : quick.key)}
-                count={quick.key === "all" ? undefined : quickCounts[quick.key]}
-                title={quick.help}
-              >
-                {quick.label}
-              </ToggleChip>
-            ))}
-          </div>
-          {categoryOptions.length > 0 && (
-            <MultiSelect
-              label="Categorías"
-              allLabel="Todas las categorías"
-              options={categoryOptions}
-              value={categories}
-              onValueChange={(next) => {
-                setCategories(next);
-                setPage(1);
-              }}
-              className="w-full @xl:w-52"
-            />
-          )}
-          {supplierOptions.length > 0 && (
-            <MultiSelect
-              label="Proveedores"
-              allLabel="Todos los proveedores"
-              options={supplierOptions}
-              value={suppliers}
-              onValueChange={(next) => {
-                setSuppliers(next);
-                setPage(1);
-              }}
-              className="w-full @xl:w-52"
-            />
-          )}
-          <MoreFilters active={moreActive}>
-            <div role="group" aria-label="Filtros de la línea" className="flex flex-wrap gap-2">
-              {MORE_FILTERS.filter((chip) => !isList || chip.forLists).map((chip) => (
-                <ToggleChip
-                  key={chip.key}
-                  active={filter === chip.key}
-                  onClick={() => chooseFilter(filter === chip.key ? "all" : chip.key)}
-                  count={quickCounts[chip.key as keyof typeof quickCounts]}
-                  title={chip.help}
-                >
-                  {chip.label}
-                </ToggleChip>
-              ))}
+          {chips.some((item) => inToolbar.has(item.key)) && (
+            <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap gap-2">
+              {chips.filter((item) => inToolbar.has(item.key)).map(chip)}
             </div>
+          )}
+          {inToolbar.has("categorias") && dropdown("categorias", "w-full @xl:w-52")}
+          {inToolbar.has("proveedores") && dropdown("proveedores", "w-full @xl:w-52")}
+          {hasMore && (
+          <MoreFilters active={moreActive}>
+            {hiddenChips.length > 0 && (
+              <div role="group" aria-label="Filtros de la línea" className="flex flex-wrap gap-2">
+                {hiddenChips.map(chip)}
+              </div>
+            )}
+            {hiddenDropdowns.map((key) => dropdown(key, "w-full"))}
             {(inactiveCount > 0 || importer.lastImport) && (
               <div role="group" aria-label="Estado de la línea" className="flex flex-wrap gap-2">
                 {inactiveCount > 0 && (
@@ -801,33 +848,39 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
               </div>
             )}
           </MoreFilters>
+          )}
+          <CustomizeFilters
+            options={TOOLBAR_OPTIONS.filter((option) => !isList || option.forLists)}
+            shown={inToolbar}
+            onChange={setToolbarKeys}
+            defaults={DEFAULT_TOOLBAR}
+          />
           <Button variant="ghost" onClick={clearFilters} disabled={!filtered} className="max-md:h-11">
             <FilterX aria-hidden="true" /> Borrar filtros
           </Button>
         </div>
         {canManage && (
           // Next to the references they work on, not among the quotation's own actions. Adding
-          // products is the usual step, so it leads and is the solid one; a product only to
-          // quote is the exception.
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-            {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
-            {supportCandidates > 0 && (
-              <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
-                <HandCoins aria-hidden="true" /> Solicitar margen autorizado
+          // products is the usual step: it stands alone on the left, solid; the rest go right.
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {editable && (
+              <Button onClick={openImport} disabled={busy} className="max-md:h-11">
+                <PackagePlus aria-hidden="true" /> Agregar productos
               </Button>
             )}
-            {editable && (
-              <>
-                <Button onClick={openImport} disabled={busy} className="max-md:h-11">
-                  <PackagePlus aria-hidden="true" /> Agregar productos
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+              {!isList && offerEditable && <QuantitiesToggle quotation={quotation} disabled={busy} />}
+              {supportCandidates > 0 && (
+                <Button variant="outline" onClick={() => setAskingSupport(true)} disabled={busy} className="max-md:h-11">
+                  <HandCoins aria-hidden="true" /> Solicitar margen autorizado
                 </Button>
-                {!isList && (
-                  <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
-                    <PackageOpen aria-hidden="true" /> Crear producto
-                  </Button>
-                )}
-              </>
-            )}
+              )}
+              {editable && !isList && (
+                <Button variant="outline" onClick={() => setCreatingLocal(true)} disabled={busy} className="max-md:h-11">
+                  <PackageOpen aria-hidden="true" /> Crear producto
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1358,7 +1411,7 @@ function Warnings({ quotation }: { quotation: Quotation }) {
 }
 
 /**
- * The autosave at a glance, beside "Guardar borrador": a polite live region,
+ * The autosave at a glance, first among the actions: a polite live region,
  * since a save is not urgent news. The problems (conflict, refusal, cells that
  * cannot be read) are spelled out by SaveStatus under the indicators.
  */

@@ -63,8 +63,6 @@ export default function JdhSupport({ support, context, onEditingChange = () => u
   return <section className="space-y-3 rounded-lg border border-border p-4">
     <h3 className="font-semibold">Margen JDH</h3><JdhValues support={support} />
     {permissions.isError && <p role="alert">{errorMessage(permissions.error)}</p>}
-    {context === "commercial" && permissions.data?.can_request && <p>Selecciona los registros con las casillas del maestro y usa la barra «Solicitar margen JDH».</p>}
-    {context === "commercial" && (support.state !== "vigente" || support.needs_review) && <p>Solo se puede solicitar sobre un acuerdo vigente, habilitado y sin revisión pendiente.</p>}
     {context === "manage" && <div className="flex flex-wrap items-center gap-2">
       {permissions.data?.can_manage && <Button variant="outline" disabled={action !== null} onClick={() => { setAction("cancel"); onEditingChange(true); }}>Quitar margen JDH</Button>}
       {permissions.data?.can_review && <Button variant="secondary" onClick={() => setShowHistory(!showHistory)}>Historial JDH</Button>}

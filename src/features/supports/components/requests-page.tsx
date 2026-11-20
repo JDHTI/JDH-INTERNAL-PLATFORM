@@ -5,32 +5,26 @@ import { useState } from "react";
 import { HandCoins } from "lucide-react";
 
 import PageHeader from "@/shared/components/page-header";
+import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
-import { ViewTab } from "@/shared/components/ui/view-tab";
 
 import { useSupportPermissions } from "../hooks/use-supports";
 import InternalRequestsBrowser from "./internal-requests-browser";
 import MarginRequestDialog from "./margin-request-dialog";
-import RequestsBrowser from "./requests-browser";
-
-type View = "internal" | "jdh";
 
 /**
- * Two kinds of request live here: the internal supports asked from the quoter
- * (BI decides them) and the older JDH adjustments on an existing support. The
- * API decides who reviews and who only sees their own, per kind.
+ * The internal supports asked from the quoter or from here (BI decides them).
+ * The older JDH adjustments on an existing support no longer have a tray: one
+ * kind of request, one list. The API decides who reviews and who only sees
+ * their own.
  */
 export default function RequestsPage() {
   const permissions = useSupportPermissions();
   const data = permissions.data;
-  const reviewInternal = data?.can_review_internal === true;
-  const internal = reviewInternal || data?.can_request_internal === true;
-  const reviewJdh = data?.can_review === true;
-  const jdh = reviewJdh || data?.can_request === true;
-  const [chosen, setChosen] = useState<View>("internal");
-  const view: View = internal && jdh ? chosen : internal ? "internal" : "jdh";
+  const review = data?.can_review_internal === true;
+  const allowed = review || data?.can_request_internal === true;
   // Whoever quotes asks (BI, who approves, does not): by customer and reference, with no quotation.
-  const canAskMargin = data?.can_request_internal === true && !reviewInternal;
+  const canAskMargin = data?.can_request_internal === true && !review;
   const [asking, setAsking] = useState(false);
 
   if (permissions.isPending) {
@@ -42,7 +36,7 @@ export default function RequestsPage() {
       <PageHeader
         title="Solicitudes de apoyo"
         description={
-          reviewInternal || reviewJdh
+          review
             ? "Revisa los apoyos que piden desde las cotizaciones, decide y consulta su historial."
             : "Consulta el estado y las decisiones de los apoyos que pediste."
         }
@@ -55,25 +49,12 @@ export default function RequestsPage() {
         }
       />
       <MarginRequestDialog open={asking} onClose={() => setAsking(false)} />
-      {internal && jdh && (
-        <div role="tablist" aria-label="Tipo de solicitud" className="flex gap-1 border-b border-border">
-          <ViewTab selected={view === "internal"} onSelect={() => setChosen("internal")} controls="requests-internal">
-            Apoyo interno
-          </ViewTab>
-          <ViewTab selected={view === "jdh"} onSelect={() => setChosen("jdh")} controls="requests-jdh">
-            Ajustes JDH
-          </ViewTab>
-        </div>
-      )}
-      {view === "internal" ? (
-        <div id="requests-internal" role={internal && jdh ? "tabpanel" : undefined}>
-          <InternalRequestsBrowser key={reviewInternal ? "review" : "own"} review={reviewInternal} />
-        </div>
+      {allowed ? (
+        <InternalRequestsBrowser key={review ? "review" : "own"} review={review} />
       ) : (
-        <div id="requests-jdh" role={internal && jdh ? "tabpanel" : undefined}>
-          {/* Keyed so the tray starts over on its own filters when the mode resolves. */}
-          <RequestsBrowser key={reviewJdh ? "review" : "own"} review={reviewJdh} />
-        </div>
+        <StatePanel icon={HandCoins} title="Sin acceso a las solicitudes">
+          Tu rol no pide ni revisa apoyos internos. Si los necesitas, pídele el permiso al administrador del área.
+        </StatePanel>
       )}
     </div>
   );

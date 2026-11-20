@@ -35,10 +35,10 @@ const STATUSES = [
 const th = "px-3 py-2.5 text-left text-xs font-semibold text-text-secondary";
 const td = "px-3 py-2.5 align-top";
 
-/** BI reviews every request (pending first); whoever quotes sees their own. */
+/** BI reviews every request; whoever quotes sees their own. Every status at first, for both. */
 export default function InternalRequestsBrowser({ review }: { review: boolean }) {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState(review ? "pendiente" : "");
+  const [status, setStatus] = useState("");
   const [text, setText] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const me = useSession().data;

@@ -42,10 +42,14 @@ const roundRatio = (value: number) => Math.round(value * 10000) / 10000;
 export function previewLine(line: QuotationLine, price: number): QuotationLine {
   const cost = toNumber(line.cost);
   const text = String(price);
+  // The API's `variation`: new / last − 1, none without a last price.
+  const last = toNumber(line.last_price);
+  const variation_pct = last === null || last <= 0 || price <= 0 ? null : String(roundRatio(price / last - 1));
   if (cost === null || price <= 0) {
     const compliance = cost === null ? "sin_costo" : null;
     return {
       ...line,
+      variation_pct,
       new_price: text,
       new_margin_pct: null,
       new_margin_with_support_pct: null,
@@ -66,6 +70,7 @@ export function previewLine(line: QuotationLine, price: number): QuotationLine {
   const compliance: Compliance = minimum === null ? "sin_objetivo" : withSupport >= roundRatio(minimum) ? "cumple" : "bajo_minimo";
   return {
     ...line,
+    variation_pct,
     new_price: text,
     new_margin_pct: String(plain),
     new_margin_with_support_pct: String(withSupport),

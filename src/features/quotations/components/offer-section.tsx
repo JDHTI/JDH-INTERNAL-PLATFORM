@@ -2,16 +2,16 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Eye, FileSpreadsheet, Loader2, Pencil, Printer } from "lucide-react";
+import { ChevronDown, Eye, FileSpreadsheet, Loader2, Pencil, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Switch } from "@/shared/components/ui/switch";
+import { parseBoolean, useStoredPreference } from "@/shared/hooks/use-stored-preference";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-
-import { InfoPopover } from "@/shared/components/ui/info-popover";
 
 import { useUpdateOffer } from "../hooks/use-quotations";
 import { formatCount, formatLongDay } from "../lib/format";
@@ -30,6 +30,7 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
   const id = useId();
   const [editing, setEditing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [open, setOpen] = useStoredPreference("jdh-quoter-offer-open", true, parseBoolean);
   const lines = offerLines(quotation);
   const previewHref = `${basePath}/${quotation.id}/oferta`;
   const seller = quotation.include_seller ? quotation.seller_contact : null;
@@ -48,25 +49,38 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
   const linkClass = cn(buttonVariants({ variant: "outline", size: "sm" }), "max-md:h-11");
 
   return (
-    <section aria-labelledby={`${id}-title`} className="space-y-4 rounded-lg border border-border bg-surface p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-0.5">
-          <h2 id={`${id}-title`} className="text-base font-semibold">Oferta para el cliente</h2>
-          <p className="flex flex-wrap items-center gap-x-2 text-[13px] text-text-secondary">
-            <span>
-              Válida hasta el {formatLongDay(quotation.valid_until)} · {formatCount(lines.length)} {lines.length === 1 ? "ítem" : "ítems"}
-              {seller ? ` · asesor: ${seller.name ?? seller.code}` : " · sin datos del vendedor"}
-            </span>
-            {/* The items are in the preview, the PDF and the Excel; only the conditions are a hover away. */}
-            <InfoPopover label="Ver condiciones" title="Condiciones de la oferta">
-              <ul className="list-disc space-y-1 pl-5">
-                {offerConditions(quotation).map((condition, index) => (
-                  <li key={`${index}-${condition}`}>{condition}</li>
-                ))}
-              </ul>
-            </InfoPopover>
-          </p>
-        </div>
+    // Folds like «Asignación masiva de precio»: the header keeps the validity and the conditions.
+    <section aria-labelledby={`${id}-title`} className="rounded-lg border border-border bg-surface">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-3">
+        <h2 id={`${id}-title`} className="min-w-0 flex-1 text-base font-semibold">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-controls={`${id}-body`}
+            className="flex min-h-12 w-full items-center gap-2 rounded-lg px-3 text-left hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <ChevronDown className={cn("size-4 shrink-0 text-text-secondary", !open && "-rotate-90")} aria-hidden="true" />
+            <span>Oferta para el cliente</span>
+          </button>
+        </h2>
+        <span className="text-[13px] text-text-secondary max-sm:pb-2 max-sm:pl-9">
+          Válida hasta el {formatLongDay(quotation.valid_until)} · {formatCount(lines.length)} {lines.length === 1 ? "ítem" : "ítems"}
+          {seller ? ` · asesor: ${seller.name ?? seller.code}` : " · sin datos del vendedor"}
+        </span>
+        {/* The items are in the preview, the PDF and the Excel; only the conditions are a hover away. */}
+        <InfoPopover label="Ver condiciones" title="Condiciones de la oferta">
+          <ul className="list-disc space-y-1 pl-5">
+            {offerConditions(quotation).map((condition, index) => (
+              <li key={`${index}-${condition}`}>{condition}</li>
+            ))}
+          </ul>
+        </InfoPopover>
+      </div>
+
+      {open && (
+      <div id={`${id}-body`} className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3">
+        <VariationSwitch quotation={quotation} canEdit={canEdit} />
         <div className="flex flex-wrap gap-2">
           <Link href={previewHref} target="_blank" rel="noopener noreferrer" className={linkClass}>
             <Eye aria-hidden="true" /> Vista previa<span className="sr-only"> (se abre en una pestaña nueva)</span>
@@ -90,8 +104,7 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
           )}
         </div>
       </div>
-
-      <VariationSwitch quotation={quotation} canEdit={canEdit} />
+      )}
 
       <OfferEditDialog quotation={quotation} open={editing} onOpenChange={setEditing} />
     </section>
@@ -108,7 +121,7 @@ function VariationSwitch({ quotation, canEdit }: { quotation: Quotation; canEdit
   const id = useId();
   const update = useUpdateOffer(quotation.id);
   return (
-    <div className="flex items-start gap-3 rounded-md bg-canvas-subtle px-3 py-2">
+    <div className="flex min-h-9 items-center gap-2 max-md:min-h-11">
       <Switch
         checked={quotation.include_variation}
         disabled={!canEdit || update.isPending}
@@ -122,20 +135,19 @@ function VariationSwitch({ quotation, canEdit }: { quotation: Quotation; canEdit
           )
         }
         aria-labelledby={`${id}-label`}
-        aria-describedby={`${id}-hint`}
-        className="mt-0.5"
       />
-      <div className="min-w-0 space-y-0.5">
-        <span id={`${id}-label`} className="flex items-center gap-1.5 text-sm font-medium">
-          Incluir la variación
-          {update.isPending && <Loader2 className="size-3.5 animate-spin text-text-secondary" aria-hidden="true" />}
-        </span>
-        <span id={`${id}-hint`} className="block text-[13px] text-text-secondary">
+      <span id={`${id}-label`} className="text-sm font-medium">
+        Incluir la variación
+      </span>
+      {update.isPending && <Loader2 className="size-3.5 animate-spin text-text-secondary" aria-hidden="true" />}
+      {/* One line in the folded panel: what the switch does is a hover away. */}
+      <InfoPopover label="Qué es la variación" title="Variación en la oferta" iconOnly>
+        <p>
           {canEdit
             ? "Una columna en el PDF y el Excel con cuánto sube o baja cada precio frente al último que pagó."
             : "La oferta ya no cambia en este estado."}
-        </span>
-      </div>
+        </p>
+      </InfoPopover>
     </div>
   );
 }

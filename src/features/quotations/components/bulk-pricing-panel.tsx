@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
 import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
+import { parseBoolean, useStoredPreference } from "@/shared/hooks/use-stored-preference";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -60,7 +61,8 @@ export default function BulkPricingPanel({
   const update = useUpdateLines(quotation.id);
   const clear = useUpdateLines(quotation.id);
   const id = useId();
-  const [open, setOpen] = useState(true);
+  // Folded or not, it stays as each person left it, in every quotation.
+  const [open, setOpen] = useStoredPreference("jdh-quoter-bulk-open", true, parseBoolean);
   const [mode, setMode] = useState<Mode>("optimo");
   const [margin, setMargin] = useState("");
   const [marginInvalid, setMarginInvalid] = useState(false);
