@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { CircleCheck, CloudOff, RefreshCw, TriangleAlert } from "lucide-react";
 
 import StatePanel from "@/shared/components/state-panel";
@@ -95,7 +94,7 @@ const HELP: Record<string, string> = {
  * profile pre-fills the fields, and the type then decides which apply and
  * whether the value is typed as a percentage or in pesos.
  */
-export default function SupportCreateDialog({ area, open, onClose }: { area: string; open: boolean; onClose: () => void }) {
+export default function SupportCreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   // A new key per opening: closing and opening again starts an empty form.
   const [session, setSession] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -119,7 +118,7 @@ export default function SupportCreateDialog({ area, open, onClose }: { area: str
         isForm
         wide
       >
-        {open && <SupportCreateForm key={session} area={area} onClose={close} onDirtyChange={setDirty} />}
+        {open && <SupportCreateForm key={session} onClose={close} onDirtyChange={setDirty} />}
       </Dialog>
       <DiscardDialog
         open={confirmClose}
@@ -134,11 +133,9 @@ export default function SupportCreateDialog({ area, open, onClose }: { area: str
 }
 
 function SupportCreateForm({
-  area,
   onClose,
   onDirtyChange,
 }: {
-  area: string;
   onClose: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -163,16 +160,14 @@ function SupportCreateForm({
       </StatePanel>
     );
   }
-  return <CreateForm area={area} schema={schemaQuery.data} onClose={onClose} onDirtyChange={onDirtyChange} />;
+  return <CreateForm schema={schemaQuery.data} onClose={onClose} onDirtyChange={onDirtyChange} />;
 }
 
 function CreateForm({
-  area,
   schema,
   onClose,
   onDirtyChange,
 }: {
-  area: string;
   schema: SupportFormSchema;
   onClose: () => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -372,7 +367,7 @@ function CreateForm({
             setAppliedKey(null);
           }}
         />
-        <ProfileNote area={area} supplier={supplier} isPending={profile.isFetching} isError={profile.isError} hasProfile={Boolean(profile.data)} filled={filled} />
+        <ProfileNote supplier={supplier} isPending={profile.isFetching} isError={profile.isError} hasProfile={Boolean(profile.data)} filled={filled} />
       </div>
 
       {profileReady && (
@@ -434,32 +429,24 @@ function methodsOfKind(catalogs: SupportCatalogs | undefined, kind: string): str
 }
 
 function ProfileNote({
-  area,
   supplier,
   isPending,
   isError,
   hasProfile,
   filled,
 }: {
-  area: string;
   supplier: AutocompleteOption | null;
   isPending: boolean;
   isError: boolean;
   hasProfile: boolean;
   filled: number;
 }) {
-  const link = (label: string) =>
-    supplier && (
-      <Link href={`/${area}/apoyos/perfiles/${encodeURIComponent(supplier.value)}`} className="font-medium text-text-primary underline underline-offset-2">
-        {label}
-      </Link>
-    );
+  // The profiles are no longer edited from the master; the ones already saved still prefill.
   let text: React.ReactNode;
-  if (!supplier) text = "Elige el proveedor para empezar. Si tiene perfil de apoyos, sus valores prellenan el formulario.";
-  else if (isPending) text = "Buscando el perfil del proveedor.";
-  else if (isError) text = "No se pudo leer el perfil del proveedor; el formulario empieza vacío.";
-  else if (!hasProfile) text = <>Este proveedor no tiene perfil: el formulario empieza vacío. {link("Crear su perfil")}</>;
-  else text = <>Se prellenaron {filled === 1 ? "1 campo" : `${filled} campos`} con el perfil del proveedor. {link("Ver el perfil")}</>;
+  if (!supplier) text = "Elige el proveedor para empezar.";
+  else if (isPending) text = "Buscando los valores habituales del proveedor.";
+  else if (isError || !hasProfile || filled === 0) text = "El formulario empieza vacío.";
+  else text = `Se prellenaron ${filled === 1 ? "1 campo" : `${filled} campos`} con los valores habituales del proveedor.`;
   return (
     <p className="text-[13px] text-text-secondary" aria-live="polite">
       {text}

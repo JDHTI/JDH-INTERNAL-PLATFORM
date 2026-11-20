@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FileSliders, Plus, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 import { useArea } from "@/features/areas/hooks/use-areas";
 import { canUseModule } from "@/features/areas/types/area.types";
@@ -29,7 +29,7 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
   const requests = current && canUseModule(current, "solicitudes-apoyos") ? `/${area}/${SUPPORT_REQUESTS_SEGMENT}` : null;
 
   if (permissions?.can_manage !== true) {
-    if (!requests || permissions?.can_request !== true) return null;
+    if (!requests || permissions?.can_request_internal !== true) return null;
     return (
       <Link href={requests} className={buttonVariants({ variant: "outline" })}>
         Mis solicitudes
@@ -39,12 +39,9 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
   const base = `/${area}/apoyos`;
   return (
     <div className="flex flex-wrap gap-2 md:justify-end">
-      {requests && permissions.can_review && (
-        <Link href={requests} className={buttonVariants({ variant: "outline" })}>Solicitudes JDH</Link>
+      {requests && permissions.can_review_internal && (
+        <Link href={requests} className={buttonVariants({ variant: "outline" })}>Solicitudes de apoyo</Link>
       )}
-      <Link href={`${base}/perfiles`} className={buttonVariants({ variant: "outline", className: "max-sm:h-11" })}>
-        <FileSliders aria-hidden="true" /> Perfiles de proveedor
-      </Link>
       <Link href={`${base}/carga`} className={buttonVariants({ variant: "outline", className: "max-sm:h-11" })}>
         <Upload aria-hidden="true" /> Carga masiva
       </Link>
@@ -52,7 +49,6 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
         <Plus aria-hidden="true" /> Nuevo apoyo
       </Button>
       <SupportCreateDialog
-        area={area}
         open={creating || asked}
         onClose={() => {
           setCreating(false);
