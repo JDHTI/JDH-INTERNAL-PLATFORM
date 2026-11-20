@@ -337,7 +337,7 @@ export function LinesTable(props: LinesProps) {
                     <QuantityCell line={line} editor={props.editor} editable={props.quantitiesEditable} />
                   </td>
                 )}
-                <td className={cn(td, divided, "text-right")}><Variation line={line} /></td>
+                <td className={cn(td, divided, "text-right")}><Variation line={line} editor={props.editor} /></td>
               </tr>
             );
           })}
@@ -408,7 +408,7 @@ export function LinesList(props: LinesProps) {
             )}
             <div className="text-right text-sm">
               <span className="block text-xs text-text-secondary">Variación</span>
-              <Variation line={line} />
+              <Variation line={line} editor={editor} />
             </div>
           </div>
         </li>
@@ -985,16 +985,23 @@ function CostParts({ line }: { line: QuotationLine }) {
  * turns red and the save status above the table names it. Read-only when the
  * quotation is locked, and for an inactive reference, which is never exported.
  */
+/**
+ * The line with the price typed and not confirmed yet, previewed with the API's arithmetic
+ * (margin and variation), so both follow each digit instead of waiting for Enter. The line
+ * itself when nothing readable is waiting.
+ */
+function typedLine(line: QuotationLine, editor: LineEditor): QuotationLine {
+  if (isLocal(line) || !editor.unconfirmed.includes(line.sku) || editor.errorFor(line.sku)) return line;
+  const typed = parsePriceInput(editor.textFor(line.sku));
+  return "value" in typed && typed.value !== null ? previewLine(line, Number(typed.value)) : line;
+}
+
 function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLine; editor: LineEditor; editable: boolean; wide?: boolean }) {
   const error = editor.errorFor(line.sku);
   const errorId = `price-error-${line.sku}-${wide ? "card" : "row"}`;
   const disabled = !editable || !line.is_active;
   const waiting = editor.unconfirmed.includes(line.sku);
-  // While a price is typed and not saved, its margin is previewed with the API's arithmetic, so
-  // it stays on screen (and follows each digit) instead of waiting for Enter.
-  const typed = waiting && !error ? parsePriceInput(editor.textFor(line.sku)) : null;
-  const typedPrice = typed && "value" in typed && typed.value !== null ? Number(typed.value) : null;
-  const shown = typedPrice !== null && !isLocal(line) ? previewLine(line, typedPrice) : line;
+  const shown = typedLine(line, editor);
   return (
     <div className={cn("space-y-1", !wide && "text-right")}>
       <Input
@@ -1030,6 +1037,10 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         <span className={cn("block", shown !== line && "opacity-80")} title={shown !== line ? "Margen con el precio escrito; se guarda con Enter" : undefined}>
           <NewMargin line={shown} />
         </span>
+      )}
+      {/* Beside the cell too, since the «Var.» column may be scrolled out of sight while typing. */}
+      {shown !== line && toNumber(shown.variation_pct) !== null && (
+        <span className="block text-xs tabular-nums text-text-secondary">Var. {formatVariation(shown.variation_pct)}</span>
       )}
     </div>
   );
@@ -1147,12 +1158,18 @@ function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignSt
  * in color. The number stays in the text color: red text on a hovered row
  * misses AA in the dark theme, an icon only needs 3:1.
  */
-function Variation({ line }: { line: QuotationLine }) {
+function Variation({ line: saved, editor }: { line: QuotationLine; editor: LineEditor }) {
+  // A price typed and not confirmed shows its variation too, dimmed like its margin.
+  const line = typedLine(saved, editor);
+  const preview = line !== saved;
   const value = toNumber(line.variation_pct);
   if (value === null || line.new_price === null) return dash;
   const Icon = value > 0.00005 ? TrendingUp : value < -0.00005 ? TrendingDown : null;
   return (
-    <span className="inline-flex items-center justify-end gap-1 font-medium tabular-nums">
+    <span
+      className={cn("inline-flex items-center justify-end gap-1 font-medium tabular-nums", preview && "opacity-80")}
+      title={preview ? "Variación con el precio escrito; se guarda con Enter" : undefined}
+    >
       {Icon && <Icon className={cn("size-3.5 shrink-0", value > 0 ? "text-success" : "text-danger")} aria-hidden="true" />}
       {formatVariation(value)}
     </span>
