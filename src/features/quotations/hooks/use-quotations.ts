@@ -207,13 +207,15 @@ export function useBillingCenters() {
 
 /**
  * Which of the ticked centers costs the most for this quotation's references,
- * while two or more are ticked. Keyed by the version: a priced line changes it.
+ * while two or more are ticked, counting only the ticked warehouses. Keyed by
+ * the version: a priced line changes it.
  */
-export function useCostCentersComparison(id: string, version: number, codes: string[]) {
+export function useCostCentersComparison(id: string, version: number, codes: string[], warehouses: string[]) {
   const sorted = [...codes].sort();
+  const stores = [...warehouses].sort();
   return useQuery({
-    queryKey: [...quotationKeys.all, "compare-centers", id, version, sorted.join(",")] as const,
-    queryFn: () => compareCostCenters(id, sorted),
+    queryKey: [...quotationKeys.all, "compare-centers", id, version, sorted.join(","), stores.join(",")] as const,
+    queryFn: () => compareCostCenters(id, sorted, stores),
     enabled: sorted.length > 1,
     staleTime: 5 * 60_000,
     retry: false,
@@ -223,7 +225,8 @@ export function useCostCentersComparison(id: string, version: number, codes: str
 export function useUpdateCostCenters(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, codes }: { version: number; codes: string[] }) => updateCostCenters(id, version, codes),
+    mutationFn: ({ version, codes, warehouses }: { version: number; codes: string[]; warehouses: string[] }) =>
+      updateCostCenters(id, version, codes, warehouses),
     onSuccess: store,
   });
 }

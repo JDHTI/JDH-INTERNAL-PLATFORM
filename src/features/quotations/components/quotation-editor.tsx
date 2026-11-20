@@ -77,7 +77,7 @@ import MoreFilters from "./more-filters";
 import CustomizeFilters from "./customize-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
-import CostCentersSelect, { costCentersLabel, NATIONAL_LABEL } from "./cost-centers-select";
+import CostCentersSelect, { type CostChoice, costCentersLabel, costChoiceCodes, sameChoice } from "./cost-centers-select";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection, type ReviewControl } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
@@ -1224,12 +1224,11 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
   );
 }
 
-const sameCodes = (a: string[], b: string[]) => a.length === b.length && a.every((code, index) => code === b[index]);
-
 /**
  * Where the cost of every line comes from: Nacional or one or more operation
- * centers (a customer billed from several centers starts Nacional). While
- * several are ticked, the dropdown marks the costliest before applying.
+ * centers (a customer billed from several centers starts Nacional), each one
+ * narrowed to some of its BP/BSP warehouses if ticked. While several centers
+ * are ticked, the dropdown marks the costliest before applying.
  * Changing it recalculates every line, keeps the new prices and sends the
  * quotation back to draft, so it asks first. No notes under it: the card stays
  * as compact as the other two.
@@ -1238,17 +1237,24 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
   const id = useId();
   const update = useUpdateCostCenters(quotation.id);
   const centers = useBillingCenters();
-  const [choice, setChoice] = useState<string[] | null>(null);
+  const [choice, setChoice] = useState<CostChoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const current = quotation.cost_centers;
+  const current: CostChoice = { centers: quotation.cost_centers, warehouses: quotation.cost_warehouses ?? [] };
 
-  if (!editable) return <span>{costCentersLabel(current, centers.data)}</span>;
+  if (!editable) {
+    return (
+      <span>
+        {costCentersLabel(current.centers, centers.data)}
+        {current.warehouses.length > 0 && <span className="text-text-secondary"> · {current.warehouses.join(", ")}</span>}
+      </span>
+    );
+  }
 
   const apply = () => {
     if (!choice) return;
     setError(null);
     update.mutate(
-      { version: quotation.version, codes: choice },
+      { version: quotation.version, codes: choice.centers, warehouses: choice.warehouses },
       {
         onSuccess: () => {
           setChoice(null);
@@ -1266,7 +1272,7 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
         id={id}
         quotation={quotation}
         value={choice ?? current}
-        onChange={(codes) => setChoice(sameCodes(codes, current) ? null : codes)}
+        onChange={(next) => setChoice(sameChoice(next, current) ? null : next)}
         disabled={update.isPending}
       />
       {choice && (
@@ -1275,7 +1281,7 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={apply} disabled={update.isPending} className="max-md:h-11">
               {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
-              Cambiar a {choice.length === 0 ? NATIONAL_LABEL : choice.join(", ")}
+              Cambiar a {costChoiceCodes(choice, centers.data)}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setChoice(null)} disabled={update.isPending} className="max-md:h-11">
               Cancelar

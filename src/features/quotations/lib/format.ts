@@ -57,13 +57,13 @@ export function formatLongDay(value: string | Date | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? String(value) : longDay.format(parsed);
 }
 
-export const DEFAULT_VALIDITY_DAYS = 30;
+export const DEFAULT_VALIDITY_DAYS = 15;
 export const MAX_VALIDITY_DAYS = 365;
 
 /** Validity typed as days, 1 to 365. */
 export function parseValidityDays(text: string): { value: number } | { error: string } {
   const clean = text.trim();
-  if (!/^\d+$/.test(clean)) return { error: "Escribe la vigencia en días, por ejemplo 30." };
+  if (!/^\d+$/.test(clean)) return { error: `Escribe la vigencia en días, por ejemplo ${DEFAULT_VALIDITY_DAYS}.` };
   const days = Number(clean);
   if (days < 1 || days > MAX_VALIDITY_DAYS) return { error: `La vigencia va de 1 a ${MAX_VALIDITY_DAYS} días.` };
   return { value: days };
