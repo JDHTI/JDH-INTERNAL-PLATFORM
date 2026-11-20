@@ -32,7 +32,21 @@ const ITEMS: { key: Indicator; label: string; tone?: "success" | "warning" | "da
   { key: "apoyo", label: "Con apoyo aplicado", help: "Referencias con un apoyo del proveedor que entra en el margen." },
 ];
 
-const TONE_TEXT ={ success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
+type Item = (typeof ITEMS)[number];
+
+/** A list update's words where they differ: its reference is the list's price in force, not a sale. */
+const LIST_COPY: Partial<Record<Indicator, Item>> = {
+  objetivo: {
+    key: "objetivo",
+    label: "Cumplen objetivo",
+    tone: "success",
+    help: "El precio nuevo, o el de la lista si aún no tiene, deja el margen con apoyo en el objetivo o por encima.",
+  },
+  sin_referencia: { key: "sin_referencia", label: "Sin precio en la lista", help: "La lista no tiene precio vigente: el precio nuevo la agrega." },
+  all: { key: "all", label: "Líneas totales", help: "Todas las referencias de la actualización." },
+};
+
+const TONE_TEXT = { success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
 const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" } as const;
 
 /**
@@ -43,12 +57,14 @@ const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-dan
  * meaning by color alone. One card per figure: eight in a row on a wide
  * container, four or two on narrower ones.
  */
-export default function QuotationIndicators({ lines }: { lines: QuotationLine[] }) {
-  const counts = Object.fromEntries(ITEMS.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
+export default function QuotationIndicators({ lines, forList = false }: { lines: QuotationLine[]; forList?: boolean }) {
+  // A list update has no products only for quoting, and its reference price is the list's.
+  const items = forList ? ITEMS.filter((item) => item.key !== "local").map((item) => LIST_COPY[item.key] ?? item) : ITEMS;
+  const counts = Object.fromEntries(items.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
   const judged = counts.objetivo + counts.rango + counts.minimo;
 
   return (
-    <section aria-label="Indicadores de la cotización" className="space-y-3">
+    <section aria-label={forList ? "Indicadores de la actualización" : "Indicadores de la cotización"} className="space-y-3">
       {/* Square ends: a proportion, not a pill. */}
       <div
         className="flex h-2.5 overflow-hidden bg-canvas-subtle"
@@ -58,7 +74,7 @@ export default function QuotationIndicators({ lines }: { lines: QuotationLine[] 
             ? "Aún no hay precios que evaluar contra la regla."
             : `${formatCount(counts.objetivo)} cumplen el objetivo, ${formatCount(counts.rango)} en rango y ${formatCount(counts.minimo)} bajo el mínimo.`
         }
-        title="Según el precio nuevo de cada línea, o el último si aún no tiene."
+        title={`Según el precio nuevo de cada línea, o ${forList ? "el de la lista" : "el último"} si aún no tiene.`}
       >
         {(["objetivo", "rango", "minimo"] as const).map((key, index) => {
           const tone = (["success", "warning", "danger"] as const)[index];
@@ -67,8 +83,8 @@ export default function QuotationIndicators({ lines }: { lines: QuotationLine[] 
           ) : null;
         })}
       </div>
-      <dl className="grid grid-cols-2 gap-3 @2xl:grid-cols-4 @6xl:grid-cols-8">
-        {ITEMS.map((item) => (
+      <dl className={cn("grid grid-cols-2 gap-3 @2xl:grid-cols-4", forList ? "@6xl:grid-cols-7" : "@6xl:grid-cols-8")}>
+        {items.map((item) => (
           <div key={item.key} className="min-w-0 space-y-1 rounded-lg border border-border bg-surface px-3 py-2.5" title={item.help}>
             <dt className="truncate text-[13px] text-text-secondary">{item.label}</dt>
             <dd className={cn("text-2xl font-semibold tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>

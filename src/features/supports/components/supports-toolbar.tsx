@@ -29,7 +29,17 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
   const requests = current && canUseModule(current, "solicitudes-apoyos") ? `/${area}/${SUPPORT_REQUESTS_SEGMENT}` : null;
 
   if (permissions?.can_manage !== true) {
-    if (!requests || permissions?.can_request_internal !== true) return null;
+    if (!requests) return null;
+    // Whoever approves the internal supports without managing the master (the approval module
+    // alone) still needs the way to the tray.
+    if (permissions?.can_review_internal === true) {
+      return (
+        <Link href={requests} className={buttonVariants({ variant: "outline" })}>
+          Solicitudes de apoyo
+        </Link>
+      );
+    }
+    if (permissions?.can_request_internal !== true) return null;
     return (
       <Link href={requests} className={buttonVariants({ variant: "outline" })}>
         Mis solicitudes

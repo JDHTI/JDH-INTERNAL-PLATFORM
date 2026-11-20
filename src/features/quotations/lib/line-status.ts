@@ -106,10 +106,12 @@ export const INDICATORS: Record<Indicator, (line: QuotationLine) => boolean> = {
 
 /**
  * The price the customer pays, with VAT and the liquor tax: VAT on the new
- * price, the liquor tax added as a fixed amount per unit. Null without a new price.
+ * price, the liquor tax added as a fixed amount per unit. A line the offer
+ * carries without a new price (quoted with a quantity, or every line with a
+ * price) is offered at its last price, so that one counts. Null otherwise.
  */
 export function priceWithVat(line: QuotationLine): number | null {
-  const price = toNumber(line.new_price);
+  const price = toNumber(line.new_price) ?? (line.in_offer ? toNumber(line.offer_price) : null);
   if (price === null) return null;
   const vat = toNumber(line.vat_pct) ?? 0;
   const liquor = toNumber(line.value_tax_amount) ?? 0;

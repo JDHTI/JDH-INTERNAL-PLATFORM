@@ -1,17 +1,16 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
-import { CalendarClock, CalendarX2, CloudOff, Columns3, FileX2, Paperclip, RefreshCw, Search, SlidersHorizontal, UserX, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarClock, CalendarX2, CloudOff, FileX2, Paperclip, RefreshCw, Search, UserX, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
-import { Button, buttonVariants } from "@/shared/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import { Alert, type AlertSeverity } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
-import { Menu, MenuCheckboxItem, MenuLabel } from "@/shared/components/ui/menu";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
@@ -25,26 +24,27 @@ import {
   useSupportCatalogs,
   useSupportPermissions,
   useSupportSearch,
+  useSupportSummary,
 } from "../hooks/use-supports";
-import { PRICE_LABELS, STATE_LABELS, supportValueText, toOptions } from "../lib/format";
+import { PRICE_LABELS, STATE_LABELS, supportValueText } from "../lib/format";
 import type {
   FilterCondition,
   RetireResult,
   SupplierSupport,
   SupportSearchBody,
   SupportSearchFilters,
-  SupportState,
+  SupportStateFilter,
 } from "../types/support.types";
-import AdvancedFilters from "./advanced-filters";
 import ReplacementAlerts from "./replacement-alerts";
 import RetireDialog from "./retire-dialog";
-import { COLUMNS, HIDEABLE, hideKeyOf, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
+import { COLUMNS, groupWideName, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
 import { SupportActions, SupportVoidDialog } from "./support-actions";
-import { AttachmentBadge, FlagBadges, StateBadge } from "./support-badges";
+import { AttachmentBadge, ExpiringMark, FlagBadges, StateBadge } from "./support-badges";
 import SupportDetail from "./support-detail";
+import SupportKpis from "./support-kpis";
 
 const PAGE_SIZE = 50;
 const ALL = "";
@@ -54,57 +54,24 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 /** The list opens on the newest supports. */
 const DEFAULT_SORT = ["-valid_from"];
 
-/*
- * Columns the person hid, kept in this browser. A per-viewer convenience: a
- * blocked storage keeps the choice in memory until the page reloads, and the
- * server render (no storage) shows every column.
+/** The class of the temporary discounts, which have a view of their own. */
+export const TEMPORARY_KIND = "actividad_temporal";
+
+/**
+ * Which supports a view lists: the general master every class but the temporary activities,
+ * which go in their own view (decided 2026-11-20). Same rules in both: what BI and Comercial see.
  */
-const HIDDEN_COLUMNS_KEY = "jdh-supports-hidden-columns";
-const hiddenListeners = new Set<() => void>();
-let hiddenSnapshot: string | null = null;
-
-function hiddenColumnsSnapshot(): string {
-  if (hiddenSnapshot === null) {
-    try {
-      hiddenSnapshot = window.localStorage.getItem(HIDDEN_COLUMNS_KEY) ?? "[]";
-    } catch {
-      hiddenSnapshot = "[]";
-    }
-  }
-  return hiddenSnapshot;
-}
-
-function subscribeHiddenColumns(listener: () => void) {
-  hiddenListeners.add(listener);
-  return () => hiddenListeners.delete(listener);
-}
-
-function parseHiddenColumns(snapshot: string): string[] {
-  try {
-    const stored: unknown = JSON.parse(snapshot);
-    return Array.isArray(stored) ? stored.filter((value): value is string => typeof value === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeHiddenColumns(keys: string[]) {
-  hiddenSnapshot = JSON.stringify(keys);
-  try {
-    window.localStorage.setItem(HIDDEN_COLUMNS_KEY, hiddenSnapshot);
-  } catch {
-    // Kept in memory only.
-  }
-  hiddenListeners.forEach((listener) => listener());
-}
+export type SupportsView = "general" | "temporales";
 
 /**
  * Master of supplier supports. Filtering, sorting and paging all happen in
  * the API (the table holds tens of thousands of rows); this view builds the
  * query and shows what comes back. Managers can also enable, edit and void
  * from the row menu; the API decides who may, and a 403 hides the column.
+ * No column picker or advanced filter builder: nobody used them and they
+ * crowded the bar (decided 2026-11-20).
  */
-export default function SupportsBrowser() {
+export default function SupportsBrowser({ view = "general" }: { view?: SupportsView }) {
   const fieldsQuery = useFilterFields();
   const catalogsQuery = useSupportCatalogs();
   const fields = useMemo(() => fieldsQuery.data ?? [], [fieldsQuery.data]);
@@ -131,11 +98,6 @@ export default function SupportsBrowser() {
   const readOnly = permissions.data?.can_manage !== true;
   const [composeId, setComposeId] = useState<string | null>(null);
   const [bulkAttach, setBulkAttach] = useState<{ document: ExistingDocument | null } | null>(null);
-  const [advanced, setAdvanced] = useState<{ match: "all" | "any"; conditions: FilterCondition[] }>({
-    match: "all",
-    conditions: [],
-  });
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [sort, setSort] = useState<string[]>(DEFAULT_SORT);
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -155,23 +117,21 @@ export default function SupportsBrowser() {
     // The quick dropdowns only filter on fields the catalog really offers.
     const has = (name: string) => fields.some((field) => field.field === name);
     const quick: FilterCondition[] = [];
-    if (kind !== ALL && has("kind")) quick.push({ field: "kind", op: "eq", value: kind });
+    // The view's own class first: the temporary activities, or every class but them.
+    if (has("kind")) {
+      if (view === "temporales") quick.push({ field: "kind", op: "eq", value: TEMPORARY_KIND });
+      else if (kind !== ALL) quick.push({ field: "kind", op: "eq", value: kind });
+      else quick.push({ field: "kind", op: "neq", value: TEMPORARY_KIND });
+    }
     return {
       match: "all",
-      // The builder's own all/any applies inside its group, so a quick filter
-      // is never loosened by choosing "alguna condición".
-      conditions: [
-        ...quick,
-        ...(advanced.conditions.length > 0
-          ? [{ match: advanced.match, conditions: advanced.conditions }]
-          : []),
-      ],
+      conditions: quick,
       q: q || undefined,
       customer_nits: customer ? [customer.value] : undefined,
       supplier_codes: supplier ? [supplier.value] : undefined,
       product_skus: product ? [product.value] : undefined,
       // No state hides voided supports; "anulado" is the only way to list them.
-      state: state === ALL ? undefined : (state as SupportState),
+      state: state === ALL ? undefined : (state as SupportStateFilter),
       needs_review: needsReview || undefined,
       has_issues: hasIssues || undefined,
       has_conflicts: hasConflicts || undefined,
@@ -180,9 +140,11 @@ export default function SupportsBrowser() {
       page,
       size: PAGE_SIZE,
     };
-  }, [q, customer, supplier, product, state, kind, needsReview, hasIssues, hasConflicts, withoutAttachments, advanced, sort, page, fields]);
+  }, [q, customer, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
 
   const search = useSupportSearch(body);
+  // The KPIs and «Por vencer» belong to the general master, the tactical supports (decided 2026-11-20).
+  const summary = useSupportSummary(body, view === "general");
   const result = search.data;
   const items = useMemo(() => result?.items ?? [], [result]);
 
@@ -192,12 +154,8 @@ export default function SupportsBrowser() {
 
   const methodLabel = useCalcMethodLabel();
   const kindLabel = useKindLabel();
-  const hiddenRaw = useSyncExternalStore(subscribeHiddenColumns, hiddenColumnsSnapshot, () => "[]");
-  const hiddenColumns = useMemo(() => parseHiddenColumns(hiddenRaw), [hiddenRaw]);
-  const toggleColumn = (key: string, shown: boolean) =>
-    writeHiddenColumns(shown ? hiddenColumns.filter((hidden) => hidden !== key) : [...hiddenColumns, key]);
-  // The «price» key hides the whole price group; the cost sub-column is BI's only.
-  const columns = COLUMNS.filter((column) => !hiddenColumns.includes(hideKeyOf(column)) && (!column.costOnly || !readOnly));
+  // The cost sub-column is BI's only.
+  const columns = COLUMNS.filter((column) => !column.costOnly || !readOnly);
   const grouped = columns.some((column) => column.group);
   // The group header row: a cell per column outside a group (spanning both rows), one per group run.
   const groupHeads = columns.reduce<{ column: Column; span: number }[]>((runs, column) => {
@@ -217,8 +175,7 @@ export default function SupportsBrowser() {
     needsReview ||
     hasIssues ||
     hasConflicts ||
-    withoutAttachments ||
-    advanced.conditions.length > 0;
+    withoutAttachments;
 
   // The collective upload reuses the list's filters; with none it would reach every support.
   const attachFilters: SupportSearchFilters | null = filtered ? searchFiltersOf(body) : null;
@@ -256,7 +213,6 @@ export default function SupportsBrowser() {
     setHasIssues(false);
     setHasConflicts(false);
     setWithoutAttachments(false);
-    setAdvanced({ match: "all", conditions: [] });
     setPage(1);
   };
 
@@ -265,13 +221,20 @@ export default function SupportsBrowser() {
     setPage(1);
   };
 
+  // Only the classes a support can be loaded with today (the bulk load's three); the temporary
+  // activities have their own view, so the general one offers the other two.
   const kindOptions = [
     { value: ALL, label: "Todas las clases" },
-    ...toOptions(catalogs?.kinds).map((option) => ({ ...option, label: kindLabel(option.value) })),
+    ...(catalogs?.active_kinds ?? [])
+      .filter((code) => code !== TEMPORARY_KIND)
+      .map((code) => ({ value: code, label: kindLabel(code) })),
   ];
   const stateOptions = [
     { value: ALL, label: "Todos los estados" },
-    ...Object.entries(STATE_LABELS).map(([value, label]) => ({ value, label })),
+    ...Object.entries(STATE_LABELS).flatMap(([value, label]) =>
+      // «Por vencer» right after «Vigente», of which it is a part.
+      value === "vigente" && view === "general" ? [{ value, label }, { value: "por_vencer", label: "Por vencer" }] : [{ value, label }]
+    ),
   ];
 
   const onForbidden = () => {
@@ -304,6 +267,9 @@ export default function SupportsBrowser() {
 
   return (
     <div className="space-y-4">
+      {view === "general" && !summary.isError && (
+        <SupportKpis summary={summary.data} active={state as SupportStateFilter | ""} onSelect={(next) => reset(() => setState(next))} />
+      )}
       <div className="grid gap-3 md:grid-cols-3">
         <BasePicker
           config={CUSTOMER_PICKER}
@@ -336,8 +302,8 @@ export default function SupportsBrowser() {
             type="search"
             value={text}
             onChange={(event) => reset(() => setText(event.target.value))}
-            placeholder="Programa, marca o ref. externa"
-            aria-label="Buscar apoyos por programa, marca o referencia externa"
+            placeholder="Marca o texto del apoyo"
+            aria-label="Buscar apoyos por marca o texto del apoyo"
             className="pl-9"
           />
         </div>
@@ -348,55 +314,24 @@ export default function SupportsBrowser() {
           options={stateOptions}
           aria-label="Filtrar por estado"
         />
-        <Dropdown
-          className="lg:w-56"
-          value={kind}
-          onValueChange={(value) => reset(() => setKind(value))}
-          options={kindOptions}
-          aria-label="Filtrar por clase de apoyo"
-        />
-        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-          {canWrite && (
+        {/* The temporary activities are a single class: their view has nothing to choose here. */}
+        {view === "general" && (
+          <Dropdown
+            className="lg:w-56"
+            value={kind}
+            onValueChange={(value) => reset(() => setKind(value))}
+            options={kindOptions}
+            aria-label="Filtrar por clase de apoyo"
+          />
+        )}
+        {canWrite && (
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
             <Button variant="outline" size="sm" className="max-md:h-11" onClick={() => setBulkAttach({ document: null })}>
               <Paperclip aria-hidden="true" />
               Adjuntar soporte
             </Button>
-          )}
-          <Menu
-            align="end"
-            trigger={
-              <>
-                <Columns3 aria-hidden="true" />
-                Columnas
-                {hiddenColumns.length === 1 ? " (1 oculta)" : hiddenColumns.length > 1 ? ` (${hiddenColumns.length} ocultas)` : ""}
-              </>
-            }
-            triggerClassName={buttonVariants({ variant: "outline", size: "sm", className: "max-md:hidden" })}
-          >
-            <MenuLabel>Columnas de la tabla</MenuLabel>
-            {HIDEABLE.map((column) => (
-              <MenuCheckboxItem
-                key={column.key}
-                checked={!hiddenColumns.includes(column.key)}
-                onCheckedChange={(shown) => toggleColumn(column.key, shown)}
-              >
-                {column.label}
-              </MenuCheckboxItem>
-            ))}
-          </Menu>
-          <Button
-            variant="outline"
-            size="sm"
-            className="max-md:h-11"
-            onClick={() => setShowAdvanced((value) => !value)}
-            aria-expanded={showAdvanced}
-            aria-controls="supports-advanced"
-            disabled={fieldsQuery.isError}
-          >
-            <SlidersHorizontal aria-hidden="true" />
-            Filtros avanzados{advanced.conditions.length > 0 ? ` (${advanced.conditions.length})` : ""}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -441,18 +376,6 @@ export default function SupportsBrowser() {
           </Button>
         )}
         </span>
-      </div>
-
-      {/* Kept mounted while hidden so a half-built query survives closing the panel. */}
-      <div id="supports-advanced" hidden={!showAdvanced}>
-        {fieldsQuery.isPending ? (
-          <div className="h-24 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando campos" />
-        ) : (
-          <AdvancedFilters
-            fields={fields}
-            onApply={(match, conditions) => reset(() => setAdvanced({ match, conditions }))}
-          />
-        )}
       </div>
 
       {notice && <Alert severity={notice.severity} onDismiss={() => setNotice(null)}>{notice.message}</Alert>}
@@ -511,8 +434,9 @@ export default function SupportsBrowser() {
                       </span>
                     ))}
                   </span>
-                  <span className="flex flex-wrap gap-1.5">
+                  <span className="flex flex-wrap items-center gap-1.5">
                     <StateBadge value={support.state} />
+                    <ExpiringMark support={support} />
                     <AttachmentBadge support={support} />
                     <FlagBadges support={support} />
                   </span>
@@ -664,7 +588,8 @@ const MOBILE_PRICES = [
 
 /** Customer or product the support applies to, for the compact mobile row. */
 function subject(support: SupplierSupport): string {
-  const parts = [support.customer_name ?? support.customer_group, support.product_brand ?? support.brand].filter(Boolean);
+  const group = groupWideName(support);
+  const parts = [group ? `${group} (todo el grupo)` : (support.customer_name ?? support.customer_group), support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
 }
 

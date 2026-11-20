@@ -15,10 +15,10 @@ import { internalStatusLabel } from "@/features/supports/lib/internal-requests";
 
 import { useLineInsight } from "../hooks/use-list-review";
 import { MARGIN_BASIS_LABELS, formatCount, formatDateTime, formatDay, formatMargin, formatMoney } from "../lib/format";
+import { APPLIED_LOOK, type AppliedKind, appliedKinds } from "../lib/support-kinds";
 import type { LineInsight, QuotationLine, SupportOption } from "../types/quotations.types";
 import { BELOW_TARGET_HELP, INACTIVE_HELP, LOCAL_HELP, NO_SALE_TEXT, type ReviewControl, ReviewSelect } from "./lines-table";
 import PriceHistoryChart from "./price-history-chart";
-import { StockBreakdownCard } from "./stock-breakdown";
 
 /**
  * Everything about one reference that does not fit on its row: the sale the
@@ -32,7 +32,6 @@ export default function LineDetailDialog({
   onOpenAgreement,
   forList = false,
   item,
-  stockOf,
 }: {
   line: QuotationLine | null;
   onClose: () => void;
@@ -43,8 +42,6 @@ export default function LineDetailDialog({
   showCost?: boolean;
   /** A list update: its review, observation and price history come with it. */
   item?: ItemContext;
-  /** The quotation whose centers the stock card splits (`GET /{id}/stock-breakdown`). */
-  stockOf?: { quotationId: string; version: number };
 }) {
   const local = line?.origin === "local";
   return (
@@ -61,8 +58,7 @@ export default function LineDetailDialog({
           <LocalDetail line={line} onClose={onClose} />
         ) : (
           <Detail line={line} onClose={onClose} onOpenAgreement={onOpenAgreement} forList={forList}>
-            {/* Every center the quotation draws from, with its warehouses: where Nacional or several centers split. */}
-            {stockOf && <StockBreakdownCard quotationId={stockOf.quotationId} version={stockOf.version} sku={line.sku} />}
+            {/* The stock by warehouse is not repeated here: it opens from the stock in the row. */}
             {item && <ListItemPanels item={item} line={line} />}
           </Detail>
         ))}
@@ -351,8 +347,6 @@ function Detail({
               {line.last_document ? ` · ${line.last_document}` : ""}
               {line.last_sale_unit ? ` · en ${line.last_sale_unit}` : ""}
             </Row>
-            {toNumber(line.last_gross_price) !== null && <Row label="Precio bruto">{formatMoney(line.last_gross_price)}</Row>}
-            {toNumber(line.last_discount_pct) !== null && <Row label="Descuento">{formatMargin(line.last_discount_pct)}</Row>}
             {line.sales_in_window !== null && <Row label="Ventas en la ventana">{formatCount(line.sales_in_window)}</Row>}
           </>
         )}
@@ -381,36 +375,52 @@ function Detail({
         {line.new_price !== null && <Row label="Nuevo sin apoyo">{formatMargin(line.new_margin_pct)}</Row>}
       </Section>
 
-      <Section title="Apoyo aplicado">
+      <section className="space-y-2">
+        <h3 className="text-base font-semibold">Apoyo aplicado</h3>
         {support ? (
-          <>
-            <Row label="Tipo">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
-            <Row label="Programa">{support.program ?? "—"}</Row>
-            <Row label="Cálculo">{calcMethodLabel(support.calc_method)}</Row>
-            <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>{formatMoney(support.amount)}</Row>
-            {/* With a guaranteed margin the support depends on the price: say what it is at the list price too. */}
-            {support.list_amount != null && support.list_amount !== support.amount && (
-              <Row label="Al precio de lista">{formatMoney(support.list_amount)}</Row>
-            )}
-            <Row label="Sobre el costo">{formatMargin(support.share_of_cost)}</Row>
-            {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
-            {support.guaranteed_margin_pct != null && (
-              <Row label="Margen garantizado">{formatMargin(support.guaranteed_margin_pct)}</Row>
-            )}
-            {support.authorized_margin_pct != null && (
-              <Row label="Margen mínimo autorizado JDH">{formatMargin(support.authorized_margin_pct)}</Row>
-            )}
-            <Row label="Vigencia">
-              {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
-            </Row>
-            {support.conditions && <Row label="Condiciones">{support.conditions}</Row>}
-            {support.detail && <Row label="Detalle">{support.detail}</Row>}
-            {support.needs_review && <Row label="Estado">En revisión con el proveedor</Row>}
-          </>
+          // One card per thing the support brings, in its color: the supplier's money or the temporary
+          // discount, and the margin JDH authorized. The same colors as the chips in the table.
+          <div className="grid gap-2 sm:grid-cols-2">
+            {appliedKinds(support).map((kind) => (
+              <AppliedCard key={kind} kind={kind}>
+                {kind === "margen" ? (
+                  <>
+                    <Row label="Margen mínimo">
+                      {formatMargin(support.kind === "excepcion_margen" ? support.required_margin_pct : (support.authorized_margin_pct ?? null))}
+                    </Row>
+                    <Row label="Vigencia">
+                      {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
+                    </Row>
+                  </>
+                ) : (
+                  <>
+                    <Row label="Clase">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
+                    <Row label="Cálculo">{calcMethodLabel(support.calc_method)}</Row>
+                    <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>{formatMoney(support.amount)}</Row>
+                    {/* With a guaranteed margin the support depends on the price: say what it is at the list price too. */}
+                    {support.list_amount != null && support.list_amount !== support.amount && (
+                      <Row label="Al precio de lista">{formatMoney(support.list_amount)}</Row>
+                    )}
+                    <Row label="Sobre el costo">{formatMargin(support.share_of_cost)}</Row>
+                    {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
+                    {support.guaranteed_margin_pct != null && (
+                      <Row label="Margen garantizado">{formatMargin(support.guaranteed_margin_pct)}</Row>
+                    )}
+                    <Row label="Vigencia">
+                      {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
+                    </Row>
+                    {support.conditions && <Row label="Condiciones">{support.conditions}</Row>}
+                    {support.detail && <Row label="Detalle">{support.detail}</Row>}
+                    {support.needs_review && <Row label="Estado">En revisión con el proveedor</Row>}
+                  </>
+                )}
+              </AppliedCard>
+            ))}
+          </div>
         ) : (
-          <p className="col-span-2 text-text-secondary">Ningún apoyo se aplicó a esta referencia.</p>
+          <p className="text-text-secondary">Ningún apoyo se aplicó a esta referencia.</p>
         )}
-      </Section>
+      </section>
 
       {!forList && line.support_request && (
         <Section title="Apoyo interno solicitado">
@@ -433,10 +443,7 @@ function Detail({
           <ul className="divide-y divide-border rounded-md border border-border">
             {line.support_candidates.map((candidate) => (
               <li key={candidate.support_id} className="space-y-0.5 px-3 py-2">
-                <p className="font-medium">
-                  {candidate.program ?? "Sin programa"}
-                  <span className="font-normal text-text-secondary"> · {calcMethodLabel(candidate.calc_method)}</span>
-                </p>
+                <p className="font-medium">{calcMethodLabel(candidate.calc_method)}</p>
                 <p className="text-text-secondary">{candidate.reason}</p>
                 <Button variant="ghost" size="sm" className="-ml-2.5 max-md:h-11" onClick={() => onOpenAgreement(candidate.support_id)}>
                   Ver el apoyo
@@ -481,10 +488,16 @@ function SupportOptions({
           {options.map((option) => (
             <li key={option.support_id} className="space-y-1.5 px-3 py-2">
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="font-medium">{option.program ?? "Sin programa"}</span>
+                <span className="font-medium">{choiceLabel("kind", option.kind)}</span>
                 {option.applied && <Badge tone="success" className="px-1.5 py-0 text-xs">Aplicado</Badge>}
                 <span className="text-[13px] text-text-secondary">
-                  {option.customer_nit ? <>Solo el cliente <span className="font-mono">NIT {option.customer_nit}</span></> : "Toda la lista"}
+                  {option.customer_nit ? (
+                    <>Solo el cliente <span className="font-mono">NIT {option.customer_nit}</span></>
+                  ) : option.customer_group ? (
+                    `Todo el grupo ${option.customer_group}`
+                  ) : (
+                    "Toda la lista"
+                  )}
                 </span>
               </p>
               <p className="text-[13px] text-text-secondary">{option.detail || calcMethodLabel(option.calc_method)}</p>
@@ -511,6 +524,23 @@ function SupportOptions({
         </ul>
       )}
     </section>
+  );
+}
+
+const CARD_SURFACE: Record<AppliedKind, string> = {
+  proveedor: "bg-info-surface",
+  temporal: "bg-warning-surface",
+  margen: "bg-success-surface",
+};
+
+/** One kind of what applied, on its tone's surface, named by the same chip as in the table. */
+function AppliedCard({ kind, children }: { kind: AppliedKind; children: React.ReactNode }) {
+  const look = APPLIED_LOOK[kind];
+  return (
+    <div className={cn("space-y-2 rounded-lg border border-border p-3", CARD_SURFACE[kind])} title={look.help}>
+      <Badge tone={look.tone}>{look.label}</Badge>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">{children}</dl>
+    </div>
   );
 }
 

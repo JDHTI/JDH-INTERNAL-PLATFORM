@@ -31,7 +31,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from "@/shared/components/ui/menu";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
-import { choiceLabel } from "@/features/supports/lib/format";
 
 import { type ColumnKey, useColumnWidths } from "../hooks/use-column-widths";
 import type { LineEditor } from "../hooks/use-line-editor";
@@ -49,6 +48,7 @@ import {
 } from "../lib/line-status";
 import { REVIEW_HELP, REVIEW_LABELS, type ReviewView, reviewOf } from "../lib/list-review";
 import { offerAmounts } from "../lib/offer";
+import { APPLIED_LOOK, appliedKinds } from "../lib/support-kinds";
 import type { QuotationLine, ReviewStatus, StockTotal } from "../types/quotations.types";
 import { ComplianceBadge } from "./quotation-badges";
 import { StockBreakdownPopover } from "./stock-breakdown";
@@ -286,7 +286,8 @@ export function LinesTable(props: LinesProps) {
               divider={divider(at("consumption"), "Impuesto al consumo")}
               {...sortProps}
             />
-            <SortHeader label="Precio con IVA" name="Precio con IVA" keys={[["final_price", "Precio con IVA"]]} divider={divider(at("final"), "Precio con IVA")} {...sortProps} />
+            {/* What the customer pays per unit: VAT plus the consumption tax where it applies. */}
+            <SortHeader label="Precio neto" name="Precio neto" keys={[["final_price", "Precio neto"]]} divider={divider(at("final"), "Precio neto")} {...sortProps} />
             {withQuantities && (
               <SortHeader
                 label="Cant."
@@ -393,7 +394,7 @@ export function LinesList(props: LinesProps) {
                 <Vat line={line} /> · <ConsumptionTax line={line} />
               </span>
             </Pair>
-            <Pair label="Precio con IVA"><FinalPrice line={line} alignStart /></Pair>
+            <Pair label="Precio neto"><FinalPrice line={line} alignStart /></Pair>
           </dl>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">
@@ -1038,10 +1039,6 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
           <NewMargin line={shown} />
         </span>
       )}
-      {/* Beside the cell too, since the «Var.» column may be scrolled out of sight while typing. */}
-      {shown !== line && toNumber(shown.variation_pct) !== null && (
-        <span className="block text-xs tabular-nums text-text-secondary">Var. {formatVariation(shown.variation_pct)}</span>
-      )}
     </div>
   );
 }
@@ -1109,8 +1106,10 @@ function SupportBadge({ line, onOpen }: { line: QuotationLine; onOpen: (line: Qu
   if (!line.support && candidates === 0) return dash;
   // A list update lists every support of its customers: the badge says how many more there are.
   const others = line.support && candidates > 0 && line.support_options ? candidates : 0;
+  // One chip per thing the support brings, each in its color: money (tactical or temporary) and the authorized margin.
+  const kinds = appliedKinds(line.support);
   const label = line.support
-    ? line.support.kind ? choiceLabel("kind", line.support.kind) : "Apoyo"
+    ? kinds.map((kind) => APPLIED_LOOK[kind].label).join(" y ")
     : candidates === 1 ? "1 sin aplicar" : `${candidates} sin aplicar`;
   return (
     <button
@@ -1118,13 +1117,22 @@ function SupportBadge({ line, onOpen }: { line: QuotationLine; onOpen: (line: Qu
       onClick={() => onOpen(line)}
       aria-label={`Apoyo de ${line.description ?? line.sku}: ${label}${others ? ` y ${others} más` : ""}. Ver detalle`}
       title={line.support ? `${formatMoney(line.support.amount)} por unidad` : "Apoyos que cubren la referencia sin aplicarse"}
-      className="block max-w-full rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="flex max-w-full flex-wrap gap-1 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
-      <Badge tone={line.support ? "info" : "neutral"} className="max-w-full cursor-pointer py-0">
-        <HandCoins aria-hidden="true" />
-        <span className="truncate">{label}</span>
-        {others > 0 && <span className="shrink-0 tabular-nums">+{others}</span>}
-      </Badge>
+      {line.support ? (
+        kinds.map((kind, index) => (
+          <Badge key={kind} tone={APPLIED_LOOK[kind].tone} className="max-w-full cursor-pointer py-0">
+            {index === 0 && <HandCoins aria-hidden="true" />}
+            <span className="truncate">{APPLIED_LOOK[kind].label}</span>
+            {index === kinds.length - 1 && others > 0 && <span className="shrink-0 tabular-nums">+{others}</span>}
+          </Badge>
+        ))
+      ) : (
+        <Badge tone="neutral" className="max-w-full cursor-pointer py-0">
+          <HandCoins aria-hidden="true" />
+          <span className="truncate">{label}</span>
+        </Badge>
+      )}
     </button>
   );
 }
@@ -1150,7 +1158,16 @@ function ConsumptionTax({ line }: { line: QuotationLine }) {
 function FinalPrice({ line, alignStart = false }: { line: QuotationLine; alignStart?: boolean }) {
   const withVat = priceWithVat(line);
   if (withVat === null) return dash;
-  return <span className={cn("block whitespace-nowrap font-semibold tabular-nums", alignStart ? "text-left" : "text-right")}>{formatMoney(withVat)}</span>;
+  // Unchanged and still offered: it goes at the last price, so it reads quieter than a new one.
+  const fromLast = line.new_price === null;
+  return (
+    <span
+      className={cn("block whitespace-nowrap tabular-nums", fromLast ? "text-text-secondary" : "font-semibold", alignStart ? "text-left" : "text-right")}
+      title={fromLast ? "Sin precio nuevo: se ofrece al último precio" : undefined}
+    >
+      {formatMoney(withVat)}
+    </span>
+  );
 }
 
 /**

@@ -132,8 +132,7 @@ function Body({
         <Row label="Tipo de apoyo">{calcMethodLabel(support.calc_method)}</Row>
         <Row label="Clase de apoyo">{kindLabel(support.kind)}</Row>
         <Row label="Financia">{support.funding ? choiceLabel("funding", support.funding) : "—"}</Row>
-        <Row label="Programa">{support.program ?? "—"}</Row>
-        <Row label="Referencia externa" mono>{support.external_ref ?? "—"}</Row>
+        {/* No program or external reference: nobody fills them (decided 2026-11-20). */}
         <Row label={support.calc_method === "precio_neto" ? "Margen garantizado" : "Valor del proveedor"} tabular>
           {supportValueText(support)}
           {support.value_unit && support.calc_method !== "precio_neto" ? ` (${support.value_unit})` : ""}
@@ -173,8 +172,15 @@ function Body({
           {support.supplier_code && <span className="font-mono text-xs text-text-secondary"> · {support.supplier_code}</span>}
         </Row>
         <Row label="Cliente">
-          {support.customer_name ?? "Todos"}
-          {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
+          {support.group_wide ? (
+            // Stored once per member, it holds for the whole group: members who joined later too.
+            `Todo el grupo ${support.customer_group ?? support.business_group ?? ""}`.trim()
+          ) : (
+            <>
+              {support.customer_name ?? "Todos"}
+              {support.customer_nit && <span className="font-mono text-xs text-text-secondary"> · {support.customer_nit}</span>}
+            </>
+          )}
         </Row>
         <Row label="Grupo empresarial">{support.customer_group ?? support.business_group ?? "—"}</Row>
         {support.margin_list !== undefined && <Row label="Lista de márgenes">{marginListLabel(support.margin_list) ?? "—"}</Row>}
@@ -421,7 +427,6 @@ function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
     <table className="w-full text-left text-sm">
       <thead className={headClass}>
         <tr>
-          <th scope="col" className="px-3 py-2">Programa</th>
           <th scope="col" className="px-3 py-2">Vigencia</th>
           <th scope="col" className="px-3 py-2">Tipo de apoyo</th>
           <th scope="col" className="px-3 py-2 text-right">Valor</th>
@@ -430,7 +435,6 @@ function ConflictsTable({ conflicts }: { conflicts: SupportConflict[] }) {
       <tbody className="divide-y divide-border">
         {conflicts.map((conflict) => (
           <tr key={conflict.id}>
-            <td className="px-3 py-2">{conflict.program ?? "—"}</td>
             <td className="whitespace-nowrap px-3 py-2 tabular-nums">
               {formatDay(conflict.valid_from)} a {conflict.valid_to ? formatDay(conflict.valid_to) : "indefinido"}
             </td>
