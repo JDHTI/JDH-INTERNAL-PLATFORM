@@ -40,6 +40,8 @@ export const listKeys = {
 function useStore() {
   const client = useQueryClient();
   return (quotation: Quotation) => {
+    // A refetch in flight would land after this write with the older lines.
+    void client.cancelQueries({ queryKey: quotationKeys.detail(quotation.id) });
     client.setQueryData(quotationKeys.detail(quotation.id), quotation);
     void client.invalidateQueries({ queryKey: [...quotationKeys.all, "staging"] });
   };
@@ -70,8 +72,14 @@ export function useLineInsight(id: string, sku: string | null) {
     enabled: sku !== null,
     staleTime: 10 * 60_000,
     retry: retryTransient,
+    // The DWH did not answer with the sales: ask again while the detail is open, so the chart
+    // fills in and the notice goes away by itself once it answers.
+    refetchInterval: (query) => (query.state.data?.sales_read === false ? DWH_RETRY_MS : false),
   });
 }
+
+/** How often a view that the DWH left without data asks again. */
+export const DWH_RETRY_MS = 20_000;
 
 export function useStockTotals(id: string, enabled: boolean) {
   return useQuery({
