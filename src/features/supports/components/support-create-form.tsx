@@ -234,6 +234,10 @@ function CreateForm({
   if (isException) {
     required.delete("min_margin_pct");
     required.add("supported_margin_pct");
+  } else {
+    // Creating asks the unit the value is in, except on a margin exception (decided 2026-11-20).
+    // Editing does not, and the bulk upload is unchanged.
+    required.add("value_unit");
   }
   // Promotional warehouses (group 23): off unless ticked here or in the supplier's profile.
   const promo = form.draft.promo_warehouses === "true";
@@ -306,7 +310,11 @@ function CreateForm({
           if (failure instanceof ApiError && failure.status === 403) {
             setFormError("Tu usuario puede consultar los apoyos, pero no crearlos.");
           } else {
-            setFormError(Object.keys(byField).length > 0 ? "El API rechazó algunos datos: revisa los campos marcados." : errorMessage(failure));
+            // A field the form does not show cannot be marked: then the API's own words are the message.
+            const allShown = Object.keys(byField).every((name) => specs.some((spec) => spec.name === name));
+            setFormError(
+              Object.keys(byField).length > 0 && allShown ? "El API rechazó algunos datos: revisa los campos marcados." : errorMessage(failure)
+            );
           }
         },
       }
