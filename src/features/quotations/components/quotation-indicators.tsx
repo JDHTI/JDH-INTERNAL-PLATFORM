@@ -37,19 +37,21 @@ const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-dan
 
 /**
  * How the quotation stands at a glance: a summary, not a control. Filtering is
- * the toolbar's job (and «Más filtros»), so the figures do not click. The bar
- * splits the lines the rule can judge into the three standings; the figures
- * beside it are its labels, so it never carries meaning by color alone. One
- * row on a wide container, two on a narrow one.
+ * the toolbar's job (and «Más filtros»), so the figures do not click. The bar,
+ * on its own above the cards, splits the lines the rule can judge into the
+ * three standings; the cards under it are its labels, so it never carries
+ * meaning by color alone. One card per figure: eight in a row on a wide
+ * container, four or two on narrower ones.
  */
 export default function QuotationIndicators({ lines }: { lines: QuotationLine[] }) {
   const counts = Object.fromEntries(ITEMS.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
   const judged = counts.objetivo + counts.rango + counts.minimo;
 
   return (
-    <section aria-label="Indicadores de la cotización" className="space-y-2 rounded-lg border border-border bg-surface px-3 py-2">
+    <section aria-label="Indicadores de la cotización" className="space-y-3">
+      {/* Square ends: a proportion, not a pill. */}
       <div
-        className="flex h-1.5 overflow-hidden rounded-full bg-canvas-subtle"
+        className="flex h-2.5 overflow-hidden bg-canvas-subtle"
         role="img"
         aria-label={
           judged === 0
@@ -65,12 +67,11 @@ export default function QuotationIndicators({ lines }: { lines: QuotationLine[] 
           ) : null;
         })}
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 @2xl:grid-cols-4 @6xl:grid-cols-8">
+      <dl className="grid grid-cols-2 gap-3 @2xl:grid-cols-4 @6xl:grid-cols-8">
         {ITEMS.map((item) => (
-          // Label first in the markup (as a term reads), the figure first on screen.
-          <div key={item.key} className="flex min-w-0 flex-row-reverse items-baseline justify-end gap-1.5" title={item.help}>
+          <div key={item.key} className="min-w-0 space-y-1 rounded-lg border border-border bg-surface px-3 py-2.5" title={item.help}>
             <dt className="truncate text-[13px] text-text-secondary">{item.label}</dt>
-            <dd className={cn("text-base font-semibold tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>
+            <dd className={cn("text-2xl font-semibold tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>
               {formatCount(counts[item.key])}
             </dd>
           </div>

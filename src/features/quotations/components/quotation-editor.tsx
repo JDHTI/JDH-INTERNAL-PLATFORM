@@ -555,7 +555,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       return;
     }
     if (saved) toast.success(hadChanges ? "Borrador guardado." : "Todo está guardado. El borrador también se guarda solo mientras escribes.");
-    else toast.error("No se guardó el borrador. El aviso bajo los indicadores dice por qué.", { duration: Infinity });
+    else toast.error("No se guardó el borrador. El aviso sobre la tabla dice por qué.", { duration: Infinity });
   };
 
   const runRefresh = () =>
@@ -768,14 +768,13 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       </header>
 
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
+      {/* The figures right under who and where: how the quotation stands before anything else. */}
+      {quotation.lines.length > 0 && !isList && <QuotationIndicators lines={quotation.lines} />}
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
       {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={offerEditable} />}
       <Warnings quotation={quotation} />
 
-      {quotation.lines.length > 0 && !isList && (
-        <QuotationIndicators lines={quotation.lines} />
-      )}
       {quotation.lines.length > 0 && isList && (
         <ListFilters lines={quotation.lines} active={listFilter} onSelect={chooseListFilter} withReview={perItemReview} />
       )}
@@ -1413,7 +1412,7 @@ function Warnings({ quotation }: { quotation: Quotation }) {
 /**
  * The autosave at a glance, first among the actions: a polite live region,
  * since a save is not urgent news. The problems (conflict, refusal, cells that
- * cannot be read) are spelled out by SaveStatus under the indicators.
+ * cannot be read) are spelled out by SaveStatus above the table.
  */
 function AutosaveIndicator({ editor }: { editor: LineEditor }) {
   const look =
