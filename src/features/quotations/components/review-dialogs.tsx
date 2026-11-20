@@ -148,6 +148,10 @@ function ValidateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
   const [codeError, setCodeError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A start already past moves to the validation day: SIESA does not load past dates (decided 2026-11-20).
+  // The API applies it on validating; this only says so beforehand.
+  const today = toIso(new Date());
+  const overdue = Boolean(quotation.activation_date && quotation.activation_date < today);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -188,12 +192,28 @@ function ValidateForm({ quotation, onClose }: { quotation: Quotation; onClose: (
           </>
         )}
         <dt className="text-text-secondary">Activación</dt>
-        <dd>{quotation.activation_date ? formatDay(quotation.activation_date) : "Mañana"}</dd>
+        <dd>
+          {overdue ? (
+            <>
+              Hoy, {formatDay(today)} <span className="text-text-secondary">(pedía el {formatDay(quotation.activation_date!)})</span>
+            </>
+          ) : quotation.activation_date ? (
+            formatDay(quotation.activation_date)
+          ) : (
+            "Mañana"
+          )}
+        </dd>
         <dt className="text-text-secondary">Precios nuevos</dt>
         <dd className="tabular-nums">{formatCount(quotation.changed_count)}</dd>
         <dt className="text-text-secondary">Confirmó</dt>
         <dd>{quotation.confirmed_by ?? "—"}</dd>
       </dl>
+      {overdue && (
+        <p className="rounded-md bg-warning-surface px-3 py-2 text-sm">
+          La vigencia pedida ya pasó y SIESA no acepta cargar fechas vencidas: al validar, los precios quedan vigentes desde hoy,
+          el día de la validación.
+        </p>
+      )}
       {quotation.below_rule_count > 0 && (
         <p className="rounded-md bg-warning-surface px-3 py-2 text-sm">
           {quotation.below_rule_count === 1 ? "1 referencia con precio nuevo queda" : `${formatCount(quotation.below_rule_count)} referencias con precio nuevo quedan`}{" "}
