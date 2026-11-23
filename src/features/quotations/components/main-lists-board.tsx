@@ -284,7 +284,8 @@ export default function MainListsBoard() {
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs tabular-nums text-text-secondary">
-                  {formatCount(page_?.total ?? 0)} {page_?.total === 1 ? "referencia" : "referencias"} en{" "}
+                  {/* The API leaves out the references without stock (API #106): the total counts only the ones with it. */}
+                  {formatCount(page_?.total ?? 0)} {page_?.total === 1 ? "referencia con existencia" : "referencias con existencia"} en{" "}
                   {filters.lists.length === 0 ? "todas las listas" : `${filters.lists.length} ${filters.lists.length === 1 ? "lista" : "listas"}`}
                 </span>
                 <Pager page={page} size={PAGE_SIZE} total={page_?.total ?? 0} count={pageRows.length} onPageChange={setPage} />
