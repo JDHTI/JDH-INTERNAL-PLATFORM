@@ -156,7 +156,7 @@ export default function PriceIncreasesView() {
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Aún no hay alzas cargadas">
-            {result?.can_manage ? "Carga el acumulado de alzas con «Cargar alzas»." : "Las carga el área de BI desde el acumulado de alzas."}
+            {result?.can_manage ? "Carga el acumulado de alzas con «Cargar alzas»." : "Las carga quien gestiona el acumulado de alzas."}
           </StatePanel>
         )
       ) : (
