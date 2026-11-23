@@ -3,10 +3,12 @@ import { Boxes, Building, Factory, Users, type LucideIcon } from "lucide-react";
 import type { CommercialMasterKey } from "../types/commercial-master.types";
 
 /**
- * `sku` is the product code that opens the product's detail; `liquor` is the
- * liquor-tax chip, shown when the tax is above zero.
+ * `sku` is the product code that opens the product's detail; `supplier` is the
+ * commercial supplier's name with its code under it; `points` is a percentage
+ * the API sends in points (19 is 19 %); `money` a peso amount, a dash at 0;
+ * `tax_group` the consumption tax group with its name (0503 vino, 0509 licores).
  */
-export type ColumnKind = "text" | "mono" | "active" | "count" | "pct" | "nits" | "sku" | "liquor";
+export type ColumnKind = "text" | "mono" | "active" | "count" | "pct" | "nits" | "sku" | "supplier" | "points" | "money" | "tax_group";
 
 export interface MasterColumn {
   key: string;
@@ -20,6 +22,11 @@ export interface DropdownFilter {
   ariaLabel: string;
   allLabel: string;
   options: { value: string; label: string }[];
+  /**
+   * Options that come from the API (`GET /commercial/products/options`) instead of `options`;
+   * long lists, so the dropdown takes a search box.
+   */
+  optionsFrom?: "suppliers" | "categories";
 }
 
 /** `is_active` on every master. For customers and legal suppliers, active means the third party and the branch are. */
@@ -40,6 +47,33 @@ const MARGIN_FILTER: DropdownFilter = {
   options: [
     { value: "true", label: "Con margen" },
     { value: "false", label: "Sin margen" },
+  ],
+};
+
+const SUPPLIER_FILTER: DropdownFilter = {
+  param: "commercial_supplier_code",
+  ariaLabel: "Filtrar por proveedor",
+  allLabel: "Todos los proveedores",
+  options: [],
+  optionsFrom: "suppliers",
+};
+
+const CATEGORY_FILTER: DropdownFilter = {
+  param: "category",
+  ariaLabel: "Filtrar por categoría",
+  allLabel: "Todas las categorías",
+  options: [],
+  optionsFrom: "categories",
+};
+
+/** With the consumption tax (liquors and wine): Nacional or Costa above 0. */
+const CONSUMPTION_TAX_FILTER: DropdownFilter = {
+  param: "has_consumption_tax",
+  ariaLabel: "Filtrar por impuesto al consumo",
+  allLabel: "Con y sin impuesto al consumo",
+  options: [
+    { value: "true", label: "Con impuesto al consumo" },
+    { value: "false", label: "Sin impuesto al consumo" },
   ],
 };
 
@@ -136,21 +170,25 @@ export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
     endpoint: "/commercial/products",
     description: "Catálogo de productos con su proveedor comercial, marca y clasificación.",
     searchPlaceholder: "Buscar por SKU, descripción o código de barras",
-    filters: [STATE_FILTER, MARGIN_FILTER],
+    filters: [STATE_FILTER, MARGIN_FILTER, SUPPLIER_FILTER, CATEGORY_FILTER, CONSUMPTION_TAX_FILTER],
     rowKey: ["sku"],
     columns: [
       { key: "sku", label: "SKU", kind: "sku" },
       { key: "description", label: "Descripción" },
       { key: "is_active", label: "Activo", kind: "active" },
-      { key: "commercial_supplier_code", label: "Proveedor comercial", kind: "mono" },
+      // Who JDH buys it from, by name; the manufacturer stays further on.
+      { key: "commercial_supplier_name", label: "Proveedor", kind: "supplier" },
       // The margins sit next to the description: they are what this view is for.
       { key: "margin_list", label: "Food Service", kind: "pct" },
       { key: "margin_wholesale", label: "Mayoristas", kind: "pct" },
-      { key: "margin_salsamentarias", label: "Salsamentarias", kind: "pct" },
       { key: "margin_mass_food", label: "Masivo Food", kind: "pct" },
       { key: "margin_market", label: "Market Apartadó", kind: "pct" },
       { key: "margin_employee", label: "Margen Empleado JDH", kind: "pct" },
-      { key: "liquor_tax", label: "Impuesto licor", kind: "liquor" },
+      { key: "vat_pct", label: "IVA", kind: "points" },
+      // The consumption tax on liquors and wine, per unit; the quoter uses them when the list has none of its own.
+      { key: "liquor_tax", label: "Impuesto al consumo Nacional", kind: "money" },
+      { key: "liquor_tax_coast", label: "Impuesto al consumo Costa", kind: "money" },
+      { key: "liquor_tax_group", label: "Grupo impositivo", kind: "tax_group" },
       { key: "supplier_sku", label: "SKU del proveedor", kind: "mono" },
       { key: "manufacturer", label: "Fabricante" },
       { key: "brand", label: "Marca" },

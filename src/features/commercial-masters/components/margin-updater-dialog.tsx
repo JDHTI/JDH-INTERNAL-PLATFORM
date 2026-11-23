@@ -26,7 +26,7 @@ const LISTED_SKUS = 30;
  */
 export default function MarginUpdaterDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()} isForm wide title="Actualizar márgenes" description="Descarga la hoja, edítala y súbela: primero se simula y ves qué cambia.">
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()} isForm wide title="Actualizar márgenes" description="Descarga la hoja, edítala y súbela: primero se simula y ves qué cambia. Ya no hay margen Salsamentarias: los clientes de ese canal usan el margen Mayoristas.">
       {open && <Updater onClose={onClose} />}
     </Dialog>
   );

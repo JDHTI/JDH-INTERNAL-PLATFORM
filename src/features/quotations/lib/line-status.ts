@@ -88,6 +88,31 @@ export function lastPriceStanding(line: QuotationLine): Standing | null {
   return standingOf(toNumber(line.current_margin_with_support_pct), toNumber(line.target_margin_pct), line.below_target);
 }
 
+/** A suggested price's margin (with support) and where it stands, for its chip. */
+export interface SuggestedMargin {
+  value: string;
+  standing: Standing | null;
+}
+
+/**
+ * The margin (with support) each suggested price leaves, so the advisor sees it without typing
+ * the price (decided 2026-11-23). With the cost on the line it is the same preview a typed price
+ * gets; without it (the advisors do not receive the cost) it is the rule the price was built on:
+ * the optimal price leaves the target margin and the minimum price the minimum margin.
+ */
+export function suggestedMargin(line: QuotationLine, which: "optimal" | "minimum"): SuggestedMargin | null {
+  const price = toNumber(which === "optimal" ? line.optimal_price : line.min_price);
+  if (price === null || price <= 0 || isLocal(line)) return null;
+  if (toNumber(line.cost) !== null) {
+    const preview = previewLine(line, price);
+    const value = preview.new_margin_with_support_pct ?? preview.new_margin_pct;
+    if (value !== null) return { value, standing: newPriceStanding(preview) };
+  }
+  const rule = which === "optimal" ? line.target_margin_pct : line.min_margin_pct;
+  if (toNumber(rule) === null) return null;
+  return { value: rule!, standing: which === "optimal" ? "objetivo" : "rango" };
+}
+
 /** What the line will be quoted at: the new price when there is one, the last price otherwise. */
 export function lineStanding(line: QuotationLine): Standing | null {
   return line.new_price !== null ? newPriceStanding(line) : lastPriceStanding(line);

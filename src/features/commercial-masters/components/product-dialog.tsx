@@ -150,8 +150,11 @@ function ProductReadOnly({ product }: { product: CommercialProduct }) {
       </section>
       {toNumber(product.liquor_tax) ? (
         <p>
-          <Badge tone="warning">Impuesto licor</Badge>{" "}
-          <span className="text-text-secondary tabular-nums">{product.liquor_tax}</span>
+          <Badge tone="warning">Impuesto al consumo</Badge>{" "}
+          <span className="text-text-secondary tabular-nums">
+            Nacional {product.liquor_tax}
+            {toNumber(product.liquor_tax_coast) ? ` · Costa ${product.liquor_tax_coast}` : ""}
+          </span>
         </p>
       ) : null}
     </div>
@@ -183,7 +186,6 @@ function initialValues(product: CommercialProduct): Values {
     margin_wholesale: fractionToPercentInput(product.margin_wholesale),
     margin_mass_food: fractionToPercentInput(product.margin_mass_food),
     margin_market: fractionToPercentInput(product.margin_market),
-    margin_salsamentarias: fractionToPercentInput(product.margin_salsamentarias),
     margin_employee: fractionToPercentInput(product.margin_employee),
     margin_notes: text(product.margin_notes),
   };
