@@ -20,14 +20,7 @@ function eventSummary(event: SupportEvent) {
     const value = event.after?.value;
     const mode = (event.after?.mode as RequestMode | undefined) ?? "porcentaje";
     const unit = event.before?.value_unit;
-    const what =
-      mode === "margen_minimo"
-        ? "margen mínimo autorizado JDH"
-        : mode === "margen_proveedor"
-          ? "margen mínimo del proveedor"
-          : mode === "costo_neto"
-            ? "costo JDH"
-            : "apoyo JDH";
+    const what = mode === "margen_minimo" ? "margen mínimo autorizado JDH" : mode === "costo_neto" ? "costo JDH" : "apoyo JDH";
     return `Solicitó ${what} por ${value == null ? "un valor no disponible" : formatRequestValue(String(value), mode)}${mode === "costo_neto" && unit ? ` / ${String(unit)}` : ""}.`;
   }
   if (event.event_type === "aprobada") return "Aprobó la solicitud.";

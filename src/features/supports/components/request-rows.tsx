@@ -14,8 +14,7 @@ export default function RequestRows({ items, onOpen }: { items: SupportRequest[]
         {["Solicitud", "Cliente", "Referencia", "Propuesto", "Estado", "Solicitante / fecha", "Acciones"].map(label => <th key={label} scope="col" className={`px-3 py-3 ${label === "Propuesto" ? "text-center" : ""}`}>{label}</th>)}
       </tr></thead>
       <tbody className="divide-y divide-border">{items.map(item => <tr key={item.id} className="align-middle hover:bg-canvas-subtle">
-        {/* The API names it («Solicitud de margen proveedor X»); older builds do not. */}
-        <td className="px-3 py-3 font-medium">{item.mode_label || `Margen JDH · ${requestSupplier(item)}`}</td>
+        <td className="px-3 py-3 font-medium">Margen JDH · {requestSupplier(item)}</td>
         <td className="px-3 py-3"><p>{item.snapshot.customer_name ?? item.snapshot.customer_group ?? "Todos los clientes"}</p><p className="text-text-secondary">NIT {item.snapshot.customer_nit ?? "sin NIT"}</p></td>
         <td className="px-3 py-3 font-mono">{item.snapshot.product_sku ?? "Todos los productos"}</td>
         <td className="px-3 py-3 text-center tabular-nums">{formatRequestValue(item.value, item.mode)}{item.mode === "costo_neto" && item.snapshot.value_unit ? ` / ${item.snapshot.value_unit}` : ""}<span className="block text-xs text-text-secondary">{REQUEST_MODE_LABELS[item.mode] ?? item.mode}</span></td>
