@@ -1,4 +1,4 @@
-import { currentJdhValue, formatRequestValue, REQUEST_MODE_LABELS } from "../lib/request-values";
+import { currentJdhValue, formatRequestValue, requestModeLabel } from "../lib/request-values";
 import type { RequestDetail, RequestMode } from "../types/request.types";
 import type { SupplierSupport } from "../types/support.types";
 
@@ -8,7 +8,7 @@ export function CurrentJdh({ support, mode = "margen_minimo" }: { support: Parti
 }
 
 export default function RequestJdhValues({ request }: { request: RequestDetail }) {
-  const label = REQUEST_MODE_LABELS[request.mode] ?? "JDH";
+  const label = requestModeLabel(request);
   return <div className="space-y-2">
     <p className="text-sm text-text-secondary">Se pide: {label}</p>
     <dl className="grid gap-4 rounded-lg bg-canvas-subtle p-4 sm:grid-cols-3">

@@ -14,10 +14,13 @@ export interface SupportPermissions {
   customer_scope?: "all" | "team" | "mine" | "none";
 }
 export type RequestStatus = "pendiente" | "aprobada" | "rechazada";
-export type RequestMode = "margen_minimo" | "porcentaje" | "costo_neto";
+/** `margen_proveedor`: a lower supplier minimum margin on a «% Margen Garantizado» (may be negative). */
+export type RequestMode = "margen_minimo" | "margen_proveedor" | "porcentaje" | "costo_neto";
 export interface SupportRequest {
   /** margen_minimo since rules v2; porcentaje and costo_neto are the earlier requests, still decided. */
   id: string; support_id: string; mode: RequestMode;
+  /** The API's name for it («Solicitud de margen proveedor {proveedor}»); missing on older builds. */
+  mode_label?: string | null;
   supplier_name?: string | null; supplier_code?: string | null;
   value: Decimal; reason: string; status: RequestStatus; requested_by: string;
   created_at: string; version: number; support_version: number;

@@ -57,11 +57,14 @@ export function previewLine(line: QuotationLine, price: number): QuotationLine {
       compliance_label: compliance ? COMPLIANCE_LABELS[compliance] : null,
     };
   }
+  // A guaranteed margin moves the support with the price, unless the supplier set a minimum margin
+  // under it: then the support is fixed (cost − supported price × (1 − guaranteed)) and is `amount`.
   const guaranteed = toNumber(line.support?.guaranteed_margin_pct ?? null);
+  const fixed = toNumber(line.support?.supplier_min_margin_pct ?? null) !== null;
   const support =
     line.support === null
       ? 0
-      : guaranteed !== null
+      : guaranteed !== null && !fixed
         ? Math.max(0, cost - price * (1 - guaranteed))
         : (toNumber(line.support.amount) ?? 0);
   const plain = roundRatio((price - cost) / price);
