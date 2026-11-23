@@ -34,10 +34,10 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 
 /**
  * Saved quotations, newest first. Each person sees the ones they created; only
- * whoever validates (BI, admins) or leads an area that reads its team's
- * (`can_see_team`, Call Center's leader) chooses between theirs and everyone's.
- * Commercial does not get «Todas», moderators included (decided 2026-11-20):
- * the API would let a moderator read them, but the view stays on their own.
+ * whoever validates (BI, admins) or reads a team's (`can_see_team`: Comercial's
+ * coordinators and directors, Call Center's leader) chooses between theirs and
+ * the others: «Mi equipo» for a coordinator's salespeople (`team_scope`
+ * "assigned"), «Todas» for the rest. A salesperson keeps to their own.
  */
 export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   // The gate around this screen has already loaded the permissions.
@@ -50,6 +50,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   const canValidate = permissions?.can_validate === true;
   // The API decides whose they are with `mine`; a leader's «Todas» is their team's.
   const seesAll = canValidate || permissions?.can_see_team === true;
+  // A coordinator's (or a Call Center leader's) «everyone» is their team, and says so.
+  const teamLabel = permissions?.team_scope === "assigned" && !canValidate ? "Mi equipo" : "Todas";
   const [mine, setMine] = useState(!seesAll);
   // Everyone opens on every status, Comercial and BI alike (decided 2026-11-09); the pending ones are one pick away.
   const [status, setStatus] = useState<QuotationStatus | "">("");
@@ -93,7 +95,7 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
                 {isList ? "Mis actualizaciones" : "Mis cotizaciones"}
               </ToggleChip>
               <ToggleChip active={!mine} onClick={() => reset(() => setMine(false))}>
-                Todas
+                {teamLabel}
               </ToggleChip>
             </div>
           )}

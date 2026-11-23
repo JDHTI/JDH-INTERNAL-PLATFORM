@@ -141,6 +141,27 @@ export default function MastersBrowser({ area }: { area?: string }) {
   );
 }
 
+/**
+ * One of the area's masters on its own page, opened from the sidebar's Maestros
+ * list (decided 2026-11-23: no landing with every master). Only a master TI
+ * switched on for the area: anything else says so instead of showing it.
+ */
+export function AreaMasterView({ area, slug }: { area: string; slug: string }) {
+  const mastersQuery = useMasters(area);
+  if (mastersQuery.isPending) return <Skeleton label="Cargando el maestro" className="h-96" />;
+  if (mastersQuery.isError) return <LoadError error={mastersQuery.error} onRetry={() => mastersQuery.refetch()} />;
+  const summary = mastersQuery.data.find((master) => master.slug === slug);
+  if (!summary) {
+    return (
+      <Notice
+        title="Este maestro no está habilitado en el área"
+        description="Elige otro en Maestros, en el menú. TI decide qué maestros ve cada área."
+      />
+    );
+  }
+  return <MasterPanel key={summary.slug} summary={summary} />;
+}
+
 function MasterPanel({ summary }: { summary: MasterSummaryDto }) {
   const detailQuery = useMaster(summary.slug);
   const [view, setView] = useState<"records" | "structure">("records");

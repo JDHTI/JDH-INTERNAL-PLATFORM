@@ -45,6 +45,13 @@ interface UiState {
   setAreaPickerOpen: (open: boolean) => void;
   /** Shows the area list: expands the rail and, on a phone, opens the drawer. */
   openAreaPicker: () => void;
+  /**
+   * A module with pages and no screen of its own, clicked on the collapsed rail: the rail
+   * expands and that module's pages open. Its group reads the id once and clears it.
+   */
+  moduleToOpen: string | null;
+  openModuleFromRail: (moduleId: string) => void;
+  clearModuleToOpen: () => void;
 }
 
 /**
@@ -125,4 +132,8 @@ export const useUiStore = create<UiState>()((set, get) => ({
 
   openAreaPicker: () =>
     set({ isAreaPickerOpen: true, isSidebarCollapsed: false, isMobileMenuOpen: true }),
+
+  moduleToOpen: null,
+  openModuleFromRail: (moduleId) => set({ moduleToOpen: moduleId, isSidebarCollapsed: false }),
+  clearModuleToOpen: () => set({ moduleToOpen: null }),
 }));

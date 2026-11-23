@@ -145,6 +145,12 @@ export interface ModuleItem {
    * module with pages that also has a landing screen needs no flag.
    */
   hasPage?: boolean;
+  /**
+   * Pages the sidebar loads from the API, after the static ones: `area-masters`
+   * is one per DWH master TI switched on for the area (`GET /masters?area=`),
+   * each at `${path}/dwh/{slug}`.
+   */
+  dynamicSubItems?: "area-masters";
   /** Only platform administrators see the row; the pages enforce it too. */
   adminOnly?: boolean;
   /**
@@ -154,6 +160,9 @@ export interface ModuleItem {
    */
   permission?: string;
 }
+
+/** Where one of the area's DWH masters opens, under the Maestros module. */
+export const areaMasterPath = (modulePath: string, slug: string) => `${modulePath}/dwh/${encodeURIComponent(slug)}`;
 
 /**
  * The modules of an area the person may see: the ones `my_modules` lists
@@ -516,8 +525,12 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: Database,
     available: true,
     permission: "maestros",
-    // The landing lists the area's masters; BI also keeps the typed commercial
-    // tables, where it edits products and loads margins.
+    // No landing (decided 2026-11-23): the row only opens its pages. Every area
+    // gets one page per DWH master TI switched on for it, loaded by the sidebar;
+    // BI also keeps the typed commercial tables first, where it edits products
+    // and loads margins. On the collapsed rail the row expands it and opens them.
+    hasPage: false,
+    dynamicSubItems: "area-masters",
     subItems: (base, slug) =>
       slug === COMMERCIAL_MASTERS_AREA_SLUG
         ? COMMERCIAL_MASTERS.map((master) => ({
@@ -540,7 +553,8 @@ function buildModule({ key, segment, subItems, ...template }: ModuleTemplate, ar
     id,
     path,
     areaSlug,
-    ...(pages.length > 0 ? { subItems: pages } : {}),
+    // A module whose pages load later still gets the (empty) list: its row is a group, not a link.
+    ...(pages.length > 0 || template.dynamicSubItems ? { subItems: pages } : {}),
   };
 }
 

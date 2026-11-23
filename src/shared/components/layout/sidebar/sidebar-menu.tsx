@@ -15,6 +15,7 @@ import {
 import { ScrollCue } from "@/shared/components/ui/scroll-cue";
 import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
 import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
+import { cn } from "@/shared/lib/utils";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarModuleGroup from "./sidebar-module-group";
 import SidebarRow from "./sidebar-row";
@@ -22,6 +23,7 @@ import SidebarRow from "./sidebar-row";
 export default function SidebarMenu() {
   const pathname = usePathname();
   const setMobileMenuOpen = useUiStore((state) => state.setMobileMenuOpen);
+  const openModuleFromRail = useUiStore((state) => state.openModuleFromRail);
   const isSidebarCollapsed = useRailCollapsed();
   const { area: activeArea, areas, isPending } = useActiveArea();
   const { data: user } = useSession();
@@ -95,6 +97,24 @@ export default function SidebarMenu() {
                 <li key={module.id}>
                   {module.subItems && module.available && !isSidebarCollapsed ? (
                     <SidebarModuleGroup module={module} onNavigate={closeDrawer} />
+                  ) : module.subItems && module.available && module.hasPage === false ? (
+                    // Collapsed, a module with no screen of its own does not navigate: the rail
+                    // expands and its pages open, as a click on its row would do expanded.
+                    <button
+                      type="button"
+                      onClick={() => openModuleFromRail(module.id)}
+                      title={module.name}
+                      aria-label={`${module.name}: abrir sus páginas`}
+                      className={cn(
+                        "flex h-9 w-full items-center justify-center rounded-md text-sm font-medium transition-colors duration-150",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-foreground",
+                        module.id === currentModuleId
+                          ? "bg-sidebar-active text-sidebar-foreground"
+                          : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
+                      )}
+                    >
+                      <module.icon className="size-4 shrink-0" aria-hidden="true" />
+                    </button>
                   ) : (
                     <SidebarRow
                       href={moduleHref(module)}
