@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { CloudOff, FileSpreadsheet, FileX2, Percent, RefreshCw, Search } from "lucide-react";
 
-import { useCanManage } from "@/features/supports/hooks/use-supports";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
@@ -16,7 +15,7 @@ import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
-import { useCommercialMaster, useProductFilterOptions } from "../hooks/use-commercial-masters";
+import { useCanManageProducts, useCommercialMaster, useProductFilterOptions } from "../hooks/use-commercial-masters";
 import type { CommercialMasterKey } from "../types/commercial-master.types";
 import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
@@ -41,7 +40,8 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
   // Looked up here, not passed down: the definition holds an icon component,
   // which a Server Component cannot hand to a Client Component.
   const master = findCommercialMaster(masterKey)!;
-  const canManage = useCanManage();
+  // Edits are BI's (`manage` on maestros there): another area with the module only reads.
+  const canManage = useCanManageProducts();
   const [text, setText] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
