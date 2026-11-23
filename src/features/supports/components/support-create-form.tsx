@@ -226,7 +226,8 @@ function CreateForm({
     if (name === "value_unit") return [{ ...shown, choices: spec.choices.filter((code) => VALUE_UNITS.includes(code)) }];
     return [shown];
   });
-  const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
+  // `requires_on_create` is what only this form asks (the unit of the value); the bulk template does not.
+  const required = new Set([...schema.required_always, ...(rule?.requires ?? []), ...(rule?.requires_on_create ?? [])]);
   // A margin exception (margen_minimo) keeps its margin in `min_margin_pct`: the API requires
   // it there and the quoter and the order validator read it there. The form asks it as the one
   // field BI knows, «Excepción margen mínimo autorizado JDH», and sends it where it belongs.
@@ -234,10 +235,6 @@ function CreateForm({
   if (isException) {
     required.delete("min_margin_pct");
     required.add("supported_margin_pct");
-  } else {
-    // Creating asks the unit the value is in, except on a margin exception (decided 2026-11-20).
-    // Editing does not, and the bulk upload is unchanged.
-    required.add("value_unit");
   }
   // Promotional warehouses (group 23): off unless ticked here or in the supplier's profile.
   const promo = form.draft.promo_warehouses === "true";

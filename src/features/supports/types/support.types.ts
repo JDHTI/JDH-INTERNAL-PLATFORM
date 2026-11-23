@@ -408,7 +408,10 @@ export interface FormFieldSpec {
 export interface CalcMethodRule {
   /** How `supplier_value` is typed: a percentage, pesos, or not at all. */
   value_kind: "percent" | "money" | "none";
+  /** Required in the form and in the bulk template. */
   requires: string[];
+  /** Required only when creating one in the form, on top of `requires` (`value_unit`). Missing before API #103. */
+  requires_on_create?: string[];
   shows: string[];
   help: string;
 }
