@@ -65,6 +65,10 @@ las que creó (`docs/cotizador.md`).
 | Solicitudes de apoyo (apoyo interno: pedir y revisar) | `solicitudes-apoyos` |
 | Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |
 | Maestros (`/{área}/maestros`) | `maestros` |
+| Costos · Análisis de entradas | `analisis-entradas`; `manage` (o el de `novedades-compras`) pone el motivo de una línea (`GET /costs/permissions`, `docs/costos.md`) |
+| Costos · Novedades y notas crédito | `novedades-compras`; `manage` registra y quita notas crédito |
+| Costos · Alzas de proveedor | `alzas-proveedor`; `read` consulta y descarga la MAESTRA y el libro, `manage` carga, digita, corrige, aprueba y rechaza |
+| Costos · Acumulado de alzas | `acumulado-alzas`; las mismas vistas que Maestros > Productos de BI, `can_manage` lo responde `/commercial/price-increases` |
 
 Si el API suma un módulo al catálogo (`app/modules/areas/domain/catalog.py`), se agrega su plantilla
 a `MODULE_TEMPLATES` y sus páginas bajo `[area]/`, cada una con `requireModule`. La lista completa de

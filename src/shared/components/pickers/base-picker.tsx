@@ -83,11 +83,14 @@ export default function BasePicker({
   selected,
   onSelect,
   onClear,
+  hideLabel = false,
 }: {
   config: BasePickerConfig;
   selected: AutocompleteOption | null;
   onSelect: (option: AutocompleteOption) => void;
   onClear: () => void;
+  /** In a filter row whose other fields name themselves by placeholder: the label stays for screen readers. */
+  hideLabel?: boolean;
 }) {
   const id = useId();
   const [input, setInput] = useState("");
@@ -110,7 +113,7 @@ export default function BasePicker({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <label htmlFor={id} className="block text-[13px] font-medium">
+      <label htmlFor={id} className={hideLabel ? "sr-only" : "block text-[13px] font-medium"}>
         {config.label}
       </label>
       {selected ? (

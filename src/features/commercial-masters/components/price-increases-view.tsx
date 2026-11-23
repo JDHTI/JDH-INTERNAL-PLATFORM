@@ -156,7 +156,7 @@ export default function PriceIncreasesView() {
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Aún no hay alzas cargadas">
-            {result?.can_manage ? "Carga el acumulado de alzas con «Cargar alzas»." : "Las carga el área de BI desde el acumulado de alzas."}
+            {result?.can_manage ? "Carga el acumulado de alzas con «Cargar alzas»." : "Las carga quien gestiona el acumulado de alzas."}
           </StatePanel>
         )
       ) : (
@@ -172,6 +172,7 @@ export default function PriceIncreasesView() {
                   <th scope="col" className="px-3 py-2 text-right">Costo nuevo</th>
                   <th scope="col" className="px-3 py-2 text-right">Variación</th>
                   <th scope="col" className="px-3 py-2">Estado</th>
+                  <th scope="col" className="px-3 py-2">Origen</th>
                   <th scope="col" className="px-3 py-2">Actualizado en SIESA</th>
                 </tr>
               </thead>
@@ -227,6 +228,7 @@ function IncreaseRow({ row, canManage }: { row: PriceIncrease; canManage: boolea
         {variation !== null && <span className="block text-xs text-text-secondary">{formatChange(variation)}</span>}
       </td>
       <td className="px-3 py-2">{look ? <Badge tone={look.tone}>{look.label}</Badge> : "—"}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{row.source === "solicitud" ? "Solicitud del proveedor" : "Libro de alzas"}</td>
       <td className="px-3 py-2">
         <SystemDate row={row} canManage={canManage} />
       </td>

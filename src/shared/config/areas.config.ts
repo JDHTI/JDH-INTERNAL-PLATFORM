@@ -18,6 +18,8 @@ import {
   ClipboardList,
   Database,
   FileCheck,
+  FileSpreadsheet,
+  FileWarning,
   FolderKanban,
   FolderOpen,
   HandCoins,
@@ -31,6 +33,7 @@ import {
   ListOrdered,
   ListRestart,
   MessageSquareWarning,
+  PackageSearch,
   Palette,
   ReceiptText,
   Settings,
@@ -99,6 +102,8 @@ export type AdminSection = (typeof ADMIN_SECTIONS)[number]["key"];
  */
 export const MODULE_CATEGORIES = [
   "Operación",
+  // Abastecimiento's purchase cost control: four views, each with its own key.
+  "Costos",
   "Reportes",
   "Monitoreo",
   "Maestros",
@@ -470,6 +475,19 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     subItems: (base, slug) => [
       { id: `${slug}-planes-accion-indicadores`, name: "Indicadores", path: `${base}/indicadores`, icon: BarChart3 },
     ],
+  },
+  { key: "analisis-entradas", name: "Análisis de entradas", category: "Costos", icon: PackageSearch, available: true, permission: "analisis-entradas" },
+  { key: "novedades-compras", name: "Novedades y notas crédito", category: "Costos", icon: FileWarning, available: true, permission: "novedades-compras" },
+  // The supplier's MAESTRA, its upload or a typed request, and their review.
+  { key: "alzas-proveedor", name: "Alzas de proveedor", category: "Costos", icon: FileSpreadsheet, available: true, permission: "alzas-proveedor" },
+  {
+    // The increase history and its analysis, the same ones BI keeps under Maestros > Productos.
+    key: "acumulado-alzas",
+    name: "Acumulado de alzas",
+    category: "Costos",
+    icon: TrendingUp,
+    available: true,
+    permission: "acumulado-alzas",
   },
   {
     key: "monitoreo",
