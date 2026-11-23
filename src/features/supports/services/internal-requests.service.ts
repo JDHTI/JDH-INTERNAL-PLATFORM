@@ -9,6 +9,7 @@ import type {
   InternalRequestParams,
   InternalSupportRequest,
 } from "../types/internal-request.types";
+import type { DeleteResult } from "../types/request.types";
 
 const path = (id: string) => `/internal-support-requests/${encodeURIComponent(id)}`;
 
@@ -34,6 +35,10 @@ export const getTargetMargins = (customerNit: string, skus: string[]) =>
 
 export const approveInternalRequest =(id: string, body: InternalApproval) =>
   apiFetch<InternalSupportRequest>(`${path(id)}/approve`, { method: "POST", body });
+
+/** For good, 1 to 500 at once (`can_delete` only). What was approved stays in the supports. */
+export const deleteInternalRequests = (ids: string[]) =>
+  apiFetch<DeleteResult>("/internal-support-requests/delete", { method: "POST", body: { ids } });
 
 export const rejectInternalRequest = (id: string, body: { version: number; reason: string }) =>
   apiFetch<InternalSupportRequest>(`${path(id)}/reject`, { method: "POST", body });

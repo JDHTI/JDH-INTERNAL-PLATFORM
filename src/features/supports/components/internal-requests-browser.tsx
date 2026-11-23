@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 
 import { formatDay, formatMargin, formatMoney, parseMarginInput } from "@/features/quotations/lib/format";
 import Pager from "@/shared/components/pager";
@@ -18,7 +19,8 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { useSession } from "@/features/session/hooks/use-session";
 import type { SessionUser } from "@/features/session/types/session.types";
 
-import { useDecideInternalRequest, useInternalRequest, useInternalRequests } from "../hooks/use-internal-requests";
+import { useDecideInternalRequest, useDeleteInternalRequests, useInternalRequest, useInternalRequests } from "../hooks/use-internal-requests";
+import { useSupportPermissions } from "../hooks/use-supports";
 import { internalStatusLabel, internalStatusTone, marginPointsText } from "../lib/internal-requests";
 import type { InternalSupportRequest } from "../types/internal-request.types";
 import type { RequestStatus } from "../types/request.types";
@@ -35,12 +37,20 @@ const STATUSES = [
 const th = "px-3 py-2.5 text-left text-xs font-semibold text-text-secondary";
 const td = "px-3 py-2.5 align-top";
 
-/** BI reviews every request; whoever quotes sees their own. Every status at first, for both. */
+/**
+ * BI reviews every request; whoever quotes sees their own. Every status at first, for both.
+ * Whoever may delete (`can_delete`: BI's leader, superadmins) ticks requests and deletes them.
+ */
 export default function InternalRequestsBrowser({ review }: { review: boolean }) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [text, setText] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  // Ticked requests, kept across pages until deleted or cleared.
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const canDelete = useSupportPermissions().data?.can_delete === true;
   const me = useSession().data;
   const q = useDebouncedValue(text.trim());
   const query = useInternalRequests(
@@ -73,6 +83,20 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
           }}
         />
       </div>
+      {canDelete && ticked.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3" aria-live="polite">
+          <span className="text-sm tabular-nums text-text-secondary">
+            {ticked.size === 1 ? "1 solicitud seleccionada" : `${ticked.size.toLocaleString("es-CO")} solicitudes seleccionadas`}
+          </span>
+          <Button variant="danger" size="sm" onClick={() => setDeleting(true)} className="max-md:h-11">
+            <Trash2 aria-hidden="true" /> Eliminar
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setTicked(new Set())} className="max-md:h-11">
+            Quitar la selección
+          </Button>
+        </div>
+      )}
+      {notice && <Alert severity="success" onDismiss={() => setNotice(null)}>{notice}</Alert>}
       {query.isPending ? (
         <p aria-busy="true" className="text-sm text-text-secondary">Cargando solicitudes…</p>
       ) : query.isError ? (
@@ -95,6 +119,27 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
               <caption className="sr-only">Solicitudes de apoyo interno</caption>
               <thead className="bg-canvas-subtle">
                 <tr>
+                  {canDelete && (
+                    <th scope="col" className={`${th} w-10`}>
+                      <input
+                        type="checkbox"
+                        aria-label="Seleccionar las solicitudes de esta página"
+                        checked={query.data.items.every((item) => ticked.has(item.id))}
+                        onChange={() =>
+                          setTicked((current) => {
+                            const next = new Set(current);
+                            const all = query.data.items.every((item) => next.has(item.id));
+                            for (const item of query.data.items) {
+                              if (all) next.delete(item.id);
+                              else next.add(item.id);
+                            }
+                            return next;
+                          })
+                        }
+                        className="size-4 accent-[var(--primary)]"
+                      />
+                    </th>
+                  )}
                   <th scope="col" className={th}>Solicitud</th>
                   <th scope="col" className={th}>Cliente</th>
                   <th scope="col" className={th}>Proveedor y referencias</th>
@@ -105,6 +150,23 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
               <tbody className="divide-y divide-border">
                 {query.data.items.map((item) => (
                   <tr key={item.id} className="hover:bg-canvas-subtle">
+                    {canDelete && (
+                      <td className={td}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar la solicitud ${item.number}`}
+                          checked={ticked.has(item.id)}
+                          onChange={() =>
+                            setTicked((current) => {
+                              const next = new Set(current);
+                              if (!next.delete(item.id)) next.add(item.id);
+                              return next;
+                            })
+                          }
+                          className="size-4 accent-[var(--primary)]"
+                        />
+                      </td>
+                    )}
                     <td className={td}>
                       <p className="font-medium tabular-nums">#{item.number}</p>
                       <p className="text-xs text-text-secondary">{item.requested_by} · {dateTime(item.created_at)}</p>
@@ -136,7 +198,58 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
         </>
       )}
       {openId && <InternalRequestDialog key={openId} id={openId} review={review} onClose={() => setOpenId(null)} />}
+      <DeleteRequestsDialog
+        ids={deleting ? [...ticked] : []}
+        onClose={() => setDeleting(false)}
+        onDone={(deleted) => {
+          setDeleting(false);
+          setTicked(new Set());
+          setNotice(deleted === 1 ? "Se eliminó 1 solicitud." : `Se eliminaron ${deleted.toLocaleString("es-CO")} solicitudes.`);
+        }}
+      />
     </div>
+  );
+}
+
+/** The API deletes at most this many requests per call. */
+const DELETE_LIMIT = 500;
+
+/**
+ * Deletes the ticked requests for good, after one confirmation. What was already approved stays:
+ * the supports it registered are not touched.
+ */
+function DeleteRequestsDialog({ ids, onClose, onDone }: { ids: string[]; onClose: () => void; onDone: (deleted: number) => void }) {
+  const remove = useDeleteInternalRequests();
+  const count = ids.length;
+  const overLimit = count > DELETE_LIMIT;
+  return (
+    <Dialog
+      open={count > 0}
+      onOpenChange={(open) => {
+        if (!open && !remove.isPending) {
+          remove.reset();
+          onClose();
+        }
+      }}
+      title={count === 1 ? "Eliminar 1 solicitud" : `Eliminar ${count.toLocaleString("es-CO")} solicitudes`}
+      description="Se borran para siempre. Lo que ya se aprobó se conserva en los apoyos."
+    >
+      {overLimit && (
+        <p className="text-sm text-danger">El máximo por vez es {DELETE_LIMIT}: quita algunas de la selección.</p>
+      )}
+      {remove.isError && <Alert severity="danger">{errorMessage(remove.error)}</Alert>}
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} disabled={remove.isPending}>Cancelar</Button>
+        {/* Solid danger: the confirm inside a delete dialog (DESIGN.md §7.1). */}
+        <Button
+          onClick={() => remove.mutate(ids, { onSuccess: (result) => onDone(result.deleted) })}
+          disabled={remove.isPending || overLimit}
+          className="bg-danger text-text-on-primary hover:bg-danger/90"
+        >
+          <Trash2 aria-hidden="true" /> {remove.isPending ? "Eliminando" : "Eliminar"}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 }
 

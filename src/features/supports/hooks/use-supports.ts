@@ -15,6 +15,7 @@ import {
   previewSelection,
   previewSupport,
   retireSupports,
+  deleteSupports,
   unlinkAttachment,
   viewAttachment,
   createSupport,
@@ -41,6 +42,7 @@ import type {
   AttachmentUpload,
   BulkLoadInput,
   ColumnMap,
+  DeleteSupportsBody,
   RetireBody,
   SupportCreateBody,
   SupportPatch,
@@ -200,6 +202,19 @@ export function useRetireSupports() {
   return useMutation({
     mutationFn: (body: RetireBody) => retireSupports(body),
     onSettled: () => client.invalidateQueries({ queryKey: supportKeys.all }),
+  });
+}
+
+export function useDeleteSupports() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DeleteSupportsBody) => deleteSupports(body),
+    // Their requests go with them, so the request trays are refreshed too.
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: supportKeys.all }),
+        client.invalidateQueries({ queryKey: ["internal-support-requests"] }),
+      ]),
   });
 }
 

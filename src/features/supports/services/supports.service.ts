@@ -1,6 +1,6 @@
 import { ApiError, apiDownload, apiFetch } from "@/shared/lib/api-client";
 
-import type { SupportPermissions } from "../types/request.types";
+import type { DeleteResult, SupportPermissions } from "../types/request.types";
 
 import type {
   AttachmentSelection,
@@ -14,6 +14,7 @@ import type {
   BusinessGroup,
   FilterField,
   ReplacementAlert,
+  DeleteSupportsBody,
   RetireBody,
   RetireResult,
   SupplierSupport,
@@ -115,6 +116,11 @@ export async function listBusinessGroups(q: string): Promise<BusinessGroup[]> {
 /** Voids or expires up to 2.000 supports at once. All or none: 409 if one changed or is voided. */
 export async function retireSupports(body: RetireBody): Promise<RetireResult> {
   return apiFetch<RetireResult>("/supplier-supports/retire", { method: "POST", body });
+}
+
+/** For good, with their requests and history (`can_delete` only). All or nothing: 409 when one changed. */
+export async function deleteSupports(body: DeleteSupportsBody): Promise<DeleteResult> {
+  return apiFetch<DeleteResult>("/supplier-supports/delete", { method: "POST", body });
 }
 
 /** A commercial supplier by its code ("Cod. Proveedor"); 404 if the masters do not have it. */

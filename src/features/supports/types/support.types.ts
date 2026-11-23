@@ -260,6 +260,18 @@ export interface RetireResult {
   expired: string[];
 }
 
+/**
+ * `POST /supplier-supports/delete`: deletes for good the chosen supports, or every one the filter
+ * finds (the same filter as /retire), with their requests and history; the DWH keeps them as voided.
+ * All or nothing: 409 when one changed. Answers `{deleted}`.
+ */
+export interface DeleteSupportsBody {
+  /** 3 to 500 characters. */
+  reason: string;
+  items: { id: string; version?: number }[];
+  filter?: SupportSearchFilters;
+}
+
 /** A business group of the customer master and how many active customers it has. */
 export interface BusinessGroup {
   name: string;
