@@ -6,7 +6,6 @@ import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
 import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
 import { productsView, productsViews } from "@/features/commercial-masters/config/products-views";
-import { COMMERCIAL_MASTERS_AREA_SLUG } from "@/shared/config/areas.config";
 import PageHeader from "@/shared/components/page-header";
 
 export default async function MaestroPage({
@@ -18,7 +17,8 @@ export default async function MaestroPage({
 }) {
   const { area, master: key } = await params;
   const master = findCommercialMaster(key);
-  if (!master || area !== COMMERCIAL_MASTERS_AREA_SLUG) notFound();
+  // The same four tables in every area that has the Maestros module (decided 2026-11-23).
+  if (!master) notFound();
   await requireModule(area, MASTERS_SEGMENT);
 
   if (master.key === "productos") {

@@ -85,7 +85,9 @@ export default function SidebarMenu() {
       </ul>
 
       {grouped.map(({ category, modules }) => (
-          <div key={category} className="space-y-1">
+          // A hairline above each group (from the area summary down): the groups read apart, also on
+          // the collapsed rail, where their titles are not shown.
+          <div key={category} className="space-y-1 border-t border-sidebar-border pt-3">
             {!isSidebarCollapsed && (
               <h2 className="px-2 text-[11px] font-semibold tracking-wider text-sidebar-muted uppercase select-none">
                 {category}
