@@ -481,8 +481,8 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   },
   { key: "analisis-entradas", name: "Análisis de entradas", category: "Costos", icon: PackageSearch, available: true, permission: "analisis-entradas" },
   { key: "novedades-compras", name: "Novedades y notas crédito", category: "Costos", icon: FileWarning, available: true, permission: "novedades-compras" },
-  // The supplier's increase requests (template, upload, review) wait for the API's second part.
-  { key: "alzas-proveedor", name: "Alzas de proveedor", category: "Costos", icon: FileSpreadsheet, available: false, permission: "alzas-proveedor" },
+  // The supplier's MAESTRA, its upload or a typed request, and their review.
+  { key: "alzas-proveedor", name: "Alzas de proveedor", category: "Costos", icon: FileSpreadsheet, available: true, permission: "alzas-proveedor" },
   {
     // The increase history and its analysis, the same ones BI keeps under Maestros > Productos.
     key: "acumulado-alzas",

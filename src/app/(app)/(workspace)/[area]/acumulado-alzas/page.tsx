@@ -41,7 +41,7 @@ export default async function AcumuladoAlzasPage({
         current={analysis ? "analisis" : "historico"}
         viewsLabel="Vistas del acumulado de alzas"
       />
-      <CostsScreen view={analysis ? "ledger-analysis" : "ledger"} />
+      <CostsScreen view={{ kind: analysis ? "ledger-analysis" : "ledger" }} />
     </div>
   );
 }

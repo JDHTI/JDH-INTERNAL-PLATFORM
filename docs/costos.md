@@ -12,7 +12,7 @@ las enciende donde haga falta (`/ti/administracion/modulos`) y `my_modules` deci
 | --- | --- | --- |
 | `/{área}/analisis-entradas` | `analisis-entradas` | `EntriesView` |
 | `/{área}/novedades-compras` | `novedades-compras` | `NoveltiesView` |
-| `/{área}/alzas-proveedor` | `alzas-proveedor` | «Próximamente» (`available: false`): el API llega en un segundo PR |
+| `/{área}/alzas-proveedor` y `/{área}/alzas-proveedor/{id}` | `alzas-proveedor` | `IncreaseRequestsView` y `IncreaseRequestDetailView` |
 | `/{área}/acumulado-alzas` | `acumulado-alzas` | `PriceIncreasesView` y, con `?vista=analisis`, `PriceIncreaseAnalysisView` |
 
 Código: `src/features/costs/`. Cada página llama a `requireModule` y monta `CostsScreen`, que
@@ -47,8 +47,35 @@ de la clave ve por qué, no una pantalla de 403. Los permisos nunca se deducen d
 - **Detalle** (`GET /costs/novelties/{id}`): la línea, el motivo, la nota con su soporte (visor en la
   plataforma) y el historial. Quitar la nota pide confirmación.
 
+## Alzas de proveedor
+
+API: `/costs/increase-requests` (PR #110 de la API). `read` consulta y descarga; `manage` carga,
+digita, corrige, aprueba y rechaza.
+
+- **Proveedor:** el buscador de `GET /commercial/suppliers` (manda el `code`). Abre las acciones y
+  filtra la bandeja; sin proveedor, la bandeja muestra las solicitudes de todos.
+- **Descargar MAESTRA:** `GET /template` se guarda con el nombre que da el API en
+  `Content-Disposition` (`MAESTRA 50 - ASCENDER S.A. 23-11-2026.xlsx`).
+- **Cargar la MAESTRA diligenciada** (`IncreaseUploadDialog`): elegir el archivo lo lee sin guardar
+  (`apply=false`) y muestra filas leídas, las referencias con costo nuevo y los problemas por fila.
+  Un problema bloquea la carga (`blocked`). «Crear solicitud» la envía con `apply=true` y abre la
+  solicitud creada.
+- **Digitar alzas** (`ManualRequestDialog`): busca entre los productos activos del proveedor
+  (`GET /items`), y cada referencia agregada lleva costo nuevo, fecha (la de la anterior por
+  defecto), observación (la lista de la MAESTRA) y descuentos.
+- **Descuentos** (`DiscountFields`): se escriben en puntos (`5`, `2,5`) y viajan como fracción. Una
+  regional vacía no se envía y toma el regular, así la referencia no se repite por regional.
+- **Bandeja:** abre en «En revisión», con chips por estado y sus `counts`.
+- **Detalle:** costo anterior y nuevo con y sin impuesto saludable, variación en pesos y en %,
+  estado del incremento (`change_label` con el color del acumulado), fecha, descuentos y
+  observación. Mientras está en revisión, quien gestiona corrige una línea (`LineEditDialog`), la
+  deja por fuera o la vuelve a incluir, aprueba (nota opcional) o rechaza (motivo obligatorio).
+  Con `has_file` se descarga el libro original.
+
 ## Acumulado de alzas
 
 Las mismas vistas que BI tiene en Maestros > Productos (que se quedan ahí). Los endpoints
 `/commercial/price-increases*` aceptan `maestros` o `acumulado-alzas`, y `can_manage` (cargar el
-libro, poner la fecha de SIESA) lo responde el mismo endpoint.
+libro, poner la fecha de SIESA) lo responde el mismo endpoint. El histórico muestra el origen de
+cada alza (`source`): el libro de alzas o una solicitud de proveedor aprobada, que llega sin fecha
+de SIESA.

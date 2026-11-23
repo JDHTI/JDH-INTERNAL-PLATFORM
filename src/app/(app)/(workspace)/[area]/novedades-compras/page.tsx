@@ -12,7 +12,7 @@ export default async function NovedadesComprasPage({ params }: { params: Promise
         title="Novedades y notas crédito"
         description="Las entradas que no cuadraron con su cotización: su motivo y, cuando el motivo la pide, la nota crédito del proveedor."
       />
-      <CostsScreen view="novelties" />
+      <CostsScreen view={{ kind: "novelties" }} />
     </div>
   );
 }

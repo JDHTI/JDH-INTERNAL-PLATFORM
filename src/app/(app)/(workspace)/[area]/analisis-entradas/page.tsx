@@ -12,7 +12,7 @@ export default async function AnalisisEntradasPage({ params }: { params: Promise
         title="Análisis de entradas"
         description="Cada entrada de compra contra la cotización del proveedor vigente el día en que entró, con su motivo."
       />
-      <CostsScreen view="entries" />
+      <CostsScreen view={{ kind: "entries" }} />
     </div>
   );
 }

@@ -39,6 +39,9 @@ export interface PriceIncrease {
   price: Decimal | null;
   notified: boolean;
   siesa_changed: boolean;
+  /** Loaded from the purchasing workbook, or approved from a supplier's increase request. */
+  source: "libro" | "solicitud";
+  request_line_id: string | null;
   is_pending: boolean;
   updated_by: string;
   updated_at: string;

@@ -12,25 +12,11 @@ import { formatBytes } from "@/shared/lib/format";
 import { formatCop } from "@/features/supports/lib/format";
 
 import { useAttachCreditNote } from "../hooks/use-costs";
+import { parseAmount } from "../lib/format";
 import type { Novelty } from "../types/costs.types";
 
 const MAX_MB = 10;
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
-
-/**
- * Pesos as people type them, to the API's plain form: «1.250.000,50» and
- * «1250000.50» are both «1250000.50»; dots in threes are thousands. Null when
- * it is not an amount.
- */
-function parseAmount(text: string): string | null {
-  const value = text.trim().replace(/\s|\$/g, "");
-  const plain = value.includes(",")
-    ? value.replace(/\./g, "").replace(",", ".")
-    : /^\d{1,3}(\.\d{3})+$/.test(value)
-      ? value.replace(/\./g, "")
-      : value;
-  return /^\d+(\.\d{1,2})?$/.test(plain) && Number(plain) > 0 ? plain : null;
-}
 
 /**
  * Number, amount and the supplier's PDF or picture. A note is unique per
