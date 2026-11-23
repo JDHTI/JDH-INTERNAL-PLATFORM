@@ -226,7 +226,8 @@ function CreateForm({
     if (name === "value_unit") return [{ ...shown, choices: spec.choices.filter((code) => VALUE_UNITS.includes(code)) }];
     return [shown];
   });
-  const required = new Set([...schema.required_always, ...(rule?.requires ?? [])]);
+  // `requires_on_create` is what only this form asks (the unit of the value); the bulk template does not.
+  const required = new Set([...schema.required_always, ...(rule?.requires ?? []), ...(rule?.requires_on_create ?? [])]);
   // A margin exception (margen_minimo) keeps its margin in `min_margin_pct`: the API requires
   // it there and the quoter and the order validator read it there. The form asks it as the one
   // field BI knows, «Excepción margen mínimo autorizado JDH», and sends it where it belongs.
@@ -306,7 +307,11 @@ function CreateForm({
           if (failure instanceof ApiError && failure.status === 403) {
             setFormError("Tu usuario puede consultar los apoyos, pero no crearlos.");
           } else {
-            setFormError(Object.keys(byField).length > 0 ? "El API rechazó algunos datos: revisa los campos marcados." : errorMessage(failure));
+            // A field the form does not show cannot be marked: then the API's own words are the message.
+            const allShown = Object.keys(byField).every((name) => specs.some((spec) => spec.name === name));
+            setFormError(
+              Object.keys(byField).length > 0 && allShown ? "El API rechazó algunos datos: revisa los campos marcados." : errorMessage(failure)
+            );
           }
         },
       }
