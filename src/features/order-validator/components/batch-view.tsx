@@ -12,6 +12,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
+import { useStoredPreference } from "@/shared/hooks/use-stored-preference";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbLabel } from "@/shared/store/use-breadcrumb-store";
@@ -25,7 +26,7 @@ import {
   useValidatorCatalogs,
 } from "../hooks/use-order-validator";
 import { formatDateTime, parseThresholdPoints } from "../lib/format";
-import type { ValidationBatch, ValidationStatus } from "../types/order-validator.types";
+import type { OrderSort, ValidationBatch, ValidationStatus } from "../types/order-validator.types";
 import ApprovalDialog, { type ApprovalAction } from "./approval-dialog";
 import DeleteBatchDialog from "./delete-batch-dialog";
 import { OrdersList, OrdersTable } from "./orders-table";
@@ -39,6 +40,18 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 
 const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_validacion", "liberado"];
 
+const SORT_KEY = "order-validation:sort";
+const DEFAULT_SORT: OrderSort = "attention";
+const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
+  { value: "attention", label: "Ordenar: requieren atención primero" },
+  { value: "file", label: "Ordenar: como vienen en el archivo" },
+  { value: "document_asc", label: "Ordenar: consecutivo ascendente" },
+  { value: "document_desc", label: "Ordenar: consecutivo descendente" },
+];
+/** Anything stored that is not one of the sorts falls back to the default. */
+const parseSort = (stored: unknown): OrderSort | null =>
+  SORT_OPTIONS.some((option) => option.value === stored) ? (stored as OrderSort) : null;
+
 /** One uploaded file: its totals, the filters, and every order with its lines. */
 export default function BatchView({ batchId, basePath }: { batchId: string; basePath: string }) {
   const batch = useBatch(batchId);
@@ -46,6 +59,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const canManage = useCanManageValidations();
   const revalidate = useRevalidateBatch();
 
+  // Kept in this browser for every file: whoever reads by order number keeps reading that way.
+  const [sort, setSort] = useStoredPreference(SORT_KEY, DEFAULT_SORT, parseSort);
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
   const [text, setText] = useState("");
   const [operationCenter, setOperationCenter] = useState(ALL);
@@ -71,8 +86,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       ? parsedThreshold
       : "";
 
-  // The rows come in the server's order (no support first, then by margin) and are never re-sorted here.
-  const orders = useBatchOrders({ batchId, status, thresholdPreview, q, operationCenter, page, size: PAGE_SIZE });
+  // The rows come in the server's order (the pages are the server's too) and are never re-sorted here.
+  const orders = useBatchOrders({ batchId, sort, status, thresholdPreview, q, operationCenter, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
   // The API lists every C.O. of the file whatever the filters, so the options never shrink.
@@ -228,6 +243,13 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             className="w-full lg:w-60"
           />
         )}
+        <Dropdown
+          aria-label="Orden de los pedidos"
+          options={SORT_OPTIONS}
+          value={sort}
+          onValueChange={(next) => reset(() => setSort(parseSort(next) ?? DEFAULT_SORT))}
+          className="w-full lg:w-72"
+        />
         <ThresholdControl
           batch={batch.data}
           canManage={canManage}

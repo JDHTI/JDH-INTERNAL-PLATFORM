@@ -217,8 +217,16 @@ export interface OperationCenterCount {
   order_count: number;
 }
 
+/**
+ * How the API orders a file's orders. `attention` (its default): no support first, then by margin.
+ * `file`: as they come in the report. `document_*`: by the order number, compared as a number
+ * (PV-9 before PV-10), the ones without a number last. Sorted on the server, as the pages are.
+ */
+export type OrderSort = "attention" | "file" | "document_asc" | "document_desc";
+
 export interface OrderParams {
   batchId: string;
+  sort: OrderSort;
   status: ValidationStatus | "";
   /** Points of a threshold to try without saving it; empty uses the saved one. */
   thresholdPreview: string;
