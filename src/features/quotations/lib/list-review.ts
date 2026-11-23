@@ -6,20 +6,28 @@ import type { QuotationLine, ReviewStatus } from "../types/quotations.types";
  * Where the list's price in force leaves the margin (with support) against the
  * product's target, with half a point of room either way (decided 2026-11-12):
  * under it the item needs an increase, over it the price could come down or the
- * cost be checked. Null without a price or a target to compare.
+ * cost be checked. An increase counts only from 1 % up (API #106, the same rule
+ * as the main lists board's chips): under the target but rising less than that
+ * is still «En el objetivo». Null without a price or a target to compare.
  */
 export type MarginBand = "alza" | "objetivo" | "encima";
 
 /** Half a point, as a fraction. */
 export const TARGET_TOLERANCE = 0.005;
 
+/** The smallest rise that counts as an increase: 1 % over the price in force. */
+export const MIN_INCREASE = 0.01;
+
 export function marginBand(line: QuotationLine): MarginBand | null {
   const margin = toNumber(line.current_margin_with_support_pct);
   const target = toNumber(line.target_margin_pct);
-  if (toNumber(line.last_price) === null || margin === null || target === null) return null;
-  if (margin < target - TARGET_TOLERANCE) return "alza";
+  const current = toNumber(line.last_price);
+  if (current === null || margin === null || target === null) return null;
   if (margin > target + TARGET_TOLERANCE) return "encima";
-  return "objetivo";
+  if (margin >= target - TARGET_TOLERANCE) return "objetivo";
+  // Under the target: the price it goes to is the new one if set, else the optimal one.
+  const goesTo = toNumber(line.new_price) ?? toNumber(line.optimal_price);
+  return goesTo !== null && goesTo >= current * (1 + MIN_INCREASE) ? "alza" : "objetivo";
 }
 
 /** Needs a look before anything else: under the minimum, no cost to judge it, or a $1 placeholder on the list. */
@@ -65,8 +73,16 @@ export const LIST_FILTERS: Record<Exclude<ListFilter, "all">, (line: QuotationLi
 };
 
 export const MARGIN_FILTERS: { key: MarginBand | "alerta"; label: string; help: string }[] = [
-  { key: "alza", label: "Con alza", help: "Su precio actual deja el margen más de 0,5 puntos bajo el objetivo: hay que subirlo." },
-  { key: "objetivo", label: "En el objetivo", help: "Su precio actual deja el margen a menos de 0,5 puntos del objetivo." },
+  {
+    key: "alza",
+    label: "Con alza",
+    help: "Su precio actual deja el margen más de 0,5 puntos bajo el objetivo y el precio debe subir al menos 1 %: el precio nuevo si ya se puso; si no, el óptimo.",
+  },
+  {
+    key: "objetivo",
+    label: "En el objetivo",
+    help: "Su precio actual deja el margen a menos de 0,5 puntos del objetivo, o bajo él pero con una subida menor al 1 %.",
+  },
   {
     key: "encima",
     label: "Por encima",

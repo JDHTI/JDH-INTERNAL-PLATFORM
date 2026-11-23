@@ -82,7 +82,8 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
       <div id={`${id}-body`} className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="max-md:h-11">
+            // The offer's one action, in the primary (dark) button; the exits on the right stay outlined.
+            <Button size="sm" onClick={() => setEditing(true)} className="max-md:h-11">
               <ListChecks aria-hidden="true" /> Definir condiciones
             </Button>
           )}

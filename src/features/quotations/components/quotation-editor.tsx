@@ -83,7 +83,7 @@ import { LinesList, LinesTable, type LineSelection, type ReviewControl } from ".
 import LocalProductDialog from "./local-product-dialog";
 import { TotalsTable } from "./offer-document";
 import OfferSection from "./offer-section";
-import { QuotationStatusBadge } from "./quotation-badges";
+import { DeletionNotice, QuotationStatusBadge } from "./quotation-badges";
 import QuotationIndicators from "./quotation-indicators";
 import { QuotationLoadError, QuotationRulesLink } from "./quotations-gate";
 import { ConfirmDialog, ContinueDialog } from "./confirm-wizard";
@@ -792,6 +792,8 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       {/* A list update shows the same figures (decided 2026-11-20); only the main lists keep their review panel. */}
       {quotation.lines.length > 0 && !perItemReview && <QuotationIndicators lines={quotation.lines} forList={isList} />}
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
+      {/* A draft never sent to validation is deleted 30 days after it was created; the API says when. */}
+      <DeletionNotice deletedOn={quotation.deleted_on} />
       {/* The offer is there from the draft on: preview, adjust and download it before sending it. */}
       {!isList && <OfferSection quotation={quotation} basePath={basePath} canEdit={offerEditable} />}
       <Warnings quotation={quotation} />

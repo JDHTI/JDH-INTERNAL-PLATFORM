@@ -313,6 +313,11 @@ export interface QuotationPermissions {
   can_manage: boolean;
   /** The validating area (BI) or an administrator: validates or returns, reads every quotation. */
   can_validate: boolean;
+  /**
+   * An area leader (Call Center's, for one) who reads the team's quotations without validating:
+   * the list offers «Todas» (mine=false). Missing on API builds that do not send it.
+   */
+  can_see_team?: boolean;
   /** The user works as a linked SIESA salesperson, so "mis clientes" has something to list. */
   seller_linked: boolean;
   seller: Seller | null;
@@ -364,6 +369,11 @@ export interface QuotationWarning {
 export interface QuotationSummary {
   /** When SIESA activates the prices; in the list only on API builds that send it (asked with #101). */
   activation_date?: string | null;
+  /**
+   * "YYYY-MM-DD": a customer quotation still in draft that was never sent to validation is deleted
+   * on this day, 30 days after it was created (daily job, 00:15). Null when it does not apply.
+   */
+  deleted_on?: string | null;
   id: string;
   customer_nit: string;
   customer_name: string;
@@ -574,6 +584,8 @@ export interface QuotationLine {
   cost_center: string | null;
   /** The new cost of a pending price increase (not loaded in SIESA yet), the third value the rule compares. */
   increase_cost: DecimalText | null;
+  /** "YYYY-MM-DD": the SKU's last supplier price increase; null without one or on older API builds. */
+  increase_on?: string | null;
   target_margin_pct: DecimalText | null;
   margin_basis: MarginBasis | null;
   /** The API's own words for `margin_basis`, ready to show. */

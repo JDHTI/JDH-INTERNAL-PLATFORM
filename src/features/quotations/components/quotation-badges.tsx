@@ -1,8 +1,10 @@
-import { AlertTriangle, CheckCircle2, CircleSlash, FileCheck2, FileUp, Hourglass, PencilLine, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleSlash, Clock, FileCheck2, FileUp, Hourglass, PencilLine, TrendingDown } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
+import { cn } from "@/shared/lib/utils";
 
-import { COMPLIANCE_LABELS } from "../lib/format";
+import { DELETE_SOON_DAYS, daysUntil, deletionText } from "../lib/auto-delete";
+import { COMPLIANCE_LABELS, formatDay } from "../lib/format";
 import type { Compliance, QuotationStatus } from "../types/quotations.types";
 
 const STATUS_LOOK: Record<QuotationStatus, { tone: BadgeTone; icon: typeof CheckCircle2 }> = {
@@ -24,6 +26,35 @@ export function QuotationStatusBadge({ status, label }: { status: QuotationStatu
     <Badge tone={look.tone}>
       <Icon aria-hidden="true" /> {label}
     </Badge>
+  );
+}
+
+/**
+ * When a draft never sent to validation is deleted by itself (`deleted_on`), and why. In a row it
+ * is one short line, the reason a hover away and read in full by screen readers; on the detail, the
+ * whole sentence. Amber from DELETE_SOON_DAYS days left.
+ */
+export function DeletionNotice({ deletedOn, inline = false }: { deletedOn: string | null | undefined; inline?: boolean }) {
+  if (!deletedOn) return null;
+  const left = daysUntil(deletedOn);
+  const soon = left <= DELETE_SOON_DAYS;
+  const text = deletionText(deletedOn);
+  if (inline) {
+    return (
+      <span title={text} className={cn("inline-flex items-center gap-1 text-xs", soon ? "font-medium text-warning" : "text-text-secondary")}>
+        <Clock className="size-3.5" aria-hidden="true" />
+        <span aria-hidden="true">
+          {left <= 0 ? "Se elimina hoy" : left === 1 ? "Se elimina mañana" : `Se elimina el ${formatDay(deletedOn)}`}
+        </span>
+        <span className="sr-only">{text}</span>
+      </span>
+    );
+  }
+  return (
+    <p role="note" className={cn("flex items-start gap-2 rounded-lg px-4 py-3 text-sm", soon ? "bg-warning-surface" : "bg-canvas-subtle")}>
+      <Clock className={cn("mt-0.5 size-4 shrink-0", soon ? "text-warning" : "text-text-secondary")} aria-hidden="true" />
+      <span>{text}</span>
+    </p>
   );
 }
 

@@ -19,7 +19,7 @@ import { useQuotationPermissions, useQuotations } from "../hooks/use-quotations"
 import { KIND_COPY, useQuotationKind } from "../lib/kind";
 import { STATUS_LABELS, formatCount, formatDateTime } from "../lib/format";
 import { type QuotationStatus, type QuotationSummary, isListKind } from "../types/quotations.types";
-import { QuotationStatusBadge } from "./quotation-badges";
+import { DeletionNotice, QuotationStatusBadge } from "./quotation-badges";
 import NewListUpdateDialog from "./new-list-update-dialog";
 import NewQuotationDialog from "./new-quotation-dialog";
 import { QuotationLoadError } from "./quotations-gate";
@@ -34,7 +34,8 @@ const STATUS_FILTERS: { value: QuotationStatus | ""; label: string }[] = [
 
 /**
  * Saved quotations, newest first. Each person sees the ones they created; only
- * whoever validates (BI, admins) chooses between theirs and everyone's.
+ * whoever validates (BI, admins) or leads an area that reads its team's
+ * (`can_see_team`, Call Center's leader) chooses between theirs and everyone's.
  * Commercial does not get «Todas», moderators included (decided 2026-11-20):
  * the API would let a moderator read them, but the view stays on their own.
  */
@@ -47,7 +48,8 @@ export default function QuotationsBrowser({ basePath }: { basePath: string }) {
   const copy = KIND_COPY[kind];
   const canManage = permissions?.can_manage === true;
   const canValidate = permissions?.can_validate === true;
-  const seesAll = canValidate;
+  // The API decides whose they are with `mine`; a leader's «Todas» is their team's.
+  const seesAll = canValidate || permissions?.can_see_team === true;
   const [mine, setMine] = useState(!seesAll);
   // Everyone opens on every status, Comercial and BI alike (decided 2026-11-09); the pending ones are one pick away.
   const [status, setStatus] = useState<QuotationStatus | "">("");
@@ -251,7 +253,14 @@ export function QuotationTable({
                 </td>
               )}
               {!isList && <td className="hidden px-3 py-2 text-right tabular-nums xl:table-cell">{item.window_months} meses</td>}
-              <td className="px-3 py-2"><QuotationStatusBadge status={item.status} label={item.status_label} /></td>
+              <td className="px-3 py-2">
+                <QuotationStatusBadge status={item.status} label={item.status_label} />
+                {item.deleted_on && (
+                  <span className="mt-0.5 block">
+                    <DeletionNotice deletedOn={item.deleted_on} inline />
+                  </span>
+                )}
+              </td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.line_count)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCount(item.changed_count)}</td>
               <td className={cn("px-3 py-2 text-right tabular-nums", item.below_rule_count > 0 && "font-semibold text-danger")}>
@@ -425,6 +434,7 @@ export function QuotationCards({
               {item.below_rule_count > 0 && (
                 <span className="font-semibold tabular-nums text-danger">{formatCount(item.below_rule_count)} no cumplen la regla</span>
               )}
+              <DeletionNotice deletedOn={item.deleted_on} inline />
             </span>
           </Link>
         </li>

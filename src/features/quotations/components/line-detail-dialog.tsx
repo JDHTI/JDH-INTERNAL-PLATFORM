@@ -351,6 +351,8 @@ function Detail({
           </>
         )}
         {!forList && <Row label="Precio de lista">{formatMoney(line.list_price)}</Row>}
+        {/* The supplier's last price increase on the SKU: in the quoter and on the main lists board alike. */}
+        {line.increase_on && <Row label="Fecha alza">{formatDay(line.increase_on)}</Row>}
         {liquor !== null && liquor > 0 && (
           <Row label="Imp. consumo">
             {formatMoney(liquor)}
