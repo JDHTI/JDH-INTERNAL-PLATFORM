@@ -350,6 +350,10 @@ export interface SupportSearchBody {
   needs_review?: boolean;
   /** Base search: each list ANDs with the others and with every other filter. */
   customer_nits?: string[];
+  /** With `customer_nits`: only that NIT's own supports, without its business group's (API #115). */
+  customer_nit_only?: boolean;
+  /** A business group's supports, the group's own row once; case and spaces do not count. */
+  business_groups?: string[];
   supplier_codes?: string[];
   product_skus?: string[];
   has_issues?: boolean;
