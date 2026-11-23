@@ -190,12 +190,13 @@ export function createTemporaryQuotation(input: TemporaryQuotationInput): Promis
  * (the highest sum of their unit costs), before choosing them. No amounts:
  * the advisors do not see costs. `highest` is null when they cost the same.
  */
-export function compareCostCenters(id: string, codes: string[]): Promise<{ highest: string | null }> {
-  return apiFetch<{ highest: string | null }>(`${one(id)}/cost-centers/compare`, { query: { codes } });
+export function compareCostCenters(id: string, codes: string[], warehouses: string[]): Promise<{ highest: string | null }> {
+  return apiFetch<{ highest: string | null }>(`${one(id)}/cost-centers/compare`, { query: { codes, warehouses } });
 }
 
-export function updateCostCenters(id: string, version: number, codes: string[]): Promise<Quotation> {
-  const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes };
+/** No centers is Nacional, alone. Centers sent without warehouses clear the ticked ones. */
+export function updateCostCenters(id: string, version: number, codes: string[], warehouses: string[]): Promise<Quotation> {
+  const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes, cost_warehouses: warehouses };
   return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body });
 }
 

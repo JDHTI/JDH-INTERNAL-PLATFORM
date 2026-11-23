@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Eye, FileSpreadsheet, Loader2, Pencil, Printer } from "lucide-react";
+import { ChevronDown, Eye, FileSpreadsheet, ListChecks, Loader2, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/shared/components/ui/button";
@@ -80,7 +80,14 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
 
       {open && (
       <div id={`${id}-body`} className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-3">
-        <VariationSwitch quotation={quotation} canEdit={canEdit} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="max-md:h-11">
+              <ListChecks aria-hidden="true" /> Definir condiciones
+            </Button>
+          )}
+          <VariationSwitch quotation={quotation} canEdit={canEdit} />
+        </div>
         <div className="flex flex-wrap gap-2">
           <Link href={previewHref} target="_blank" rel="noopener noreferrer" className={linkClass}>
             <Eye aria-hidden="true" /> Vista previa<span className="sr-only"> (se abre en una pestaña nueva)</span>
@@ -97,11 +104,6 @@ export default function OfferSection({ quotation, basePath, canEdit }: { quotati
           >
             <Printer aria-hidden="true" /> PDF<span className="sr-only"> (se abre en una pestaña nueva)</span>
           </Link>
-          {canEdit && (
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)} className="max-md:h-11">
-              <Pencil aria-hidden="true" /> Editar oferta
-            </Button>
-          )}
         </div>
       </div>
       )}
@@ -163,7 +165,7 @@ function OfferEditDialog({ quotation, open, onOpenChange }: { quotation: Quotati
       onOpenChange={onOpenChange}
       isForm
       wide
-      title="Editar la oferta"
+      title="Definir las condiciones"
       description="Cambia lo que recibe el cliente. Los precios y el estado de la cotización no cambian."
     >
       {open && <OfferEditForm quotation={quotation} onClose={() => onOpenChange(false)} />}
@@ -194,7 +196,7 @@ function OfferEditForm({ quotation, onClose }: { quotation: Quotation; onClose: 
       { version: quotation.version, settings: result.settings },
       {
         onSuccess: () => {
-          toast.success("Oferta actualizada.");
+          toast.success("Condiciones de la oferta guardadas.");
           onClose();
         },
         onError: (failure) => setError(errorMessage(failure)),
@@ -212,7 +214,7 @@ function OfferEditForm({ quotation, onClose }: { quotation: Quotation; onClose: 
       <DialogFooter>
         <Button variant="outline" onClick={onClose} className="max-md:h-11">Cancelar</Button>
         <Button type="submit" disabled={update.isPending} className="max-md:h-11">
-          {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Guardar la oferta
+          {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />} Guardar condiciones
         </Button>
       </DialogFooter>
     </form>

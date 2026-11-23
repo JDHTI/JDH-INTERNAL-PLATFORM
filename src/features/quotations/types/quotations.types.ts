@@ -270,6 +270,20 @@ export interface BillingCenter {
   name: string;
   regional: string | null;
   regional_label: string | null;
+  /** Its BP, BSP and promotional warehouses, by class and code. Empty when it has none or the DWH master did not answer. */
+  warehouses?: CenterWarehouse[];
+}
+
+/**
+ * A warehouse SIESA groups as main (BP), for one-off requests (BSP) or promotional (PROMO). The
+ * promotional ones add to the center's warehouses, ticked or not; the center they come under is the
+ * one they belong to, whatever their code says.
+ */
+export interface CenterWarehouse {
+  code: string;
+  name: string;
+  classification: "BP" | "BSP" | "PROMO";
+  classification_label: string;
 }
 
 /** Write into the customer's SIESA list, or create a new one. List 1 always creates. */
@@ -643,7 +657,12 @@ export interface Quotation extends QuotationSummary {
    * every warehouse, reference by reference. With several, each line takes the costliest.
    */
   cost_centers: string[];
-  /** False when the list has its own warehouses: the centers then change only the liquor tax regional. */
+  /** The warehouses ticked inside those centers, in the centers' order. A center with none ticked uses its usual ones. */
+  cost_warehouses?: string[];
+  /**
+   * False when the list has its own warehouses: the centers then change only the liquor tax regional.
+   * Ticked warehouses make it true again.
+   */
   centers_set_cost: boolean;
   /** False when it started empty: a refresh revalidates its references and never brings the sales history in. */
   with_history: boolean;
