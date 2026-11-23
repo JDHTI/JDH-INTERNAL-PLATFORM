@@ -246,9 +246,10 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   // quotation (the API answers 422 to an item review on it).
   const perItemReview = quotation.kind === "principal";
   const copy = KIND_COPY[quotation.kind];
-  // The API decides which quotations each person opens (Comercial: its own; BI and admins: all),
-  // so whoever opens one and quotes has the whole editor.
-  const canManage = permissions?.can_manage === true;
+  // The API decides which quotations each person opens (Comercial: its own; a coordinator, a
+  // director or a Call Center leader: also their team's; BI and admins: all). Whoever quotes has
+  // the whole editor on the ones they may edit (`can_edit`); a team's quotation opens read-only.
+  const canManage = permissions?.can_manage === true && quotation.can_edit !== false;
   const canValidate = permissions?.can_validate === true;
   const pendingReview = quotation.status === "pendiente_validacion";
   // Validated or loaded: nothing changes any more, the API answers 409 to every edit.

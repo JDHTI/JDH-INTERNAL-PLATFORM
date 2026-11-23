@@ -61,14 +61,15 @@ export interface Customer {
 }
 
 /**
- * The margins a product carries, fractions: 0.18 is 18%. The first five are one
+ * The margins a product carries, fractions: 0.18 is 18%. The first four are one
  * per sales channel; `margin_employee` prices the employee catalog and is not a
  * channel, so the API leaves it out of `has_margin` and the margin filter.
+ * Salsamentarias is no longer a business rule (decided 2026-11-23): out of the
+ * table, the edit and the template.
  */
 export const MARGIN_FIELDS = [
   "margin_list",
   "margin_wholesale",
-  "margin_salsamentarias",
   "margin_mass_food",
   "margin_market",
   "margin_employee",
@@ -85,7 +86,11 @@ export interface CommercialProduct {
   state: string | null;
   is_active: boolean;
   commercial_supplier_code: string | null;
+  /** The commercial supplier's name; the code alone said little. Missing on older API builds. */
+  commercial_supplier_name?: string | null;
   manufacturer: string | null;
+  /** VAT in points (19, 5, 0), as the quoter line's `vat_pct`. Missing on older API builds. */
+  vat_pct?: Decimal | null;
   brand: string | null;
   category: string | null;
   subcategory: string | null;
@@ -100,7 +105,6 @@ export interface CommercialProduct {
   margin_wholesale: Decimal | null;
   margin_mass_food: Decimal | null;
   margin_market: Decimal | null;
-  margin_salsamentarias: Decimal | null;
   margin_employee: Decimal | null;
   margin_notes: string | null;
   margin_source: MarginSource | null;
@@ -135,7 +139,6 @@ export type ProductPatch = Partial<
     | "margin_wholesale"
     | "margin_mass_food"
     | "margin_market"
-    | "margin_salsamentarias"
     | "margin_employee"
     | "margin_notes"
     | "liquor_tax"
@@ -143,6 +146,12 @@ export type ProductPatch = Partial<
     | "liquor_tax_group"
   >
 >;
+
+/** `GET /commercial/products/options`: the values the products master's dropdowns offer. */
+export interface ProductFilterOptions {
+  suppliers: { code: string; name: string | null }[];
+  categories: string[];
+}
 
 /**
  * PUT /commercial/products/{sku}/margins: every field is required but
@@ -156,7 +165,6 @@ export interface ProductMarginsInput {
   margin_wholesale: string;
   margin_mass_food: string;
   margin_market: string;
-  margin_salsamentarias: string;
   margin_employee?: string;
   notes: string | null;
   liquor_tax: { national: string; coast: string; group: string } | null;

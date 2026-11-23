@@ -220,9 +220,13 @@ export interface OperationCenterCount {
 /**
  * How the API orders a file's orders. `attention` (its default): no support first, then by margin.
  * `file`: as they come in the report. `document_*`: by the order number, compared as a number
- * (PV-9 before PV-10), the ones without a number last. Sorted on the server, as the pages are.
+ * (PV-9 before PV-10), the ones without a number last. `margin_*`: by the order's margin. Sorted
+ * on the server, as the pages are.
  */
-export type OrderSort = "attention" | "file" | "document_asc" | "document_desc";
+export type OrderSort = "attention" | "file" | "document_asc" | "document_desc" | "margin_asc" | "margin_desc";
+
+/** The columns the orders table sorts by, from their headers. */
+export type OrderSortColumn = "document" | "margin";
 
 export interface OrderParams {
   batchId: string;

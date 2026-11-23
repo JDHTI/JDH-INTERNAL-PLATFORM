@@ -166,18 +166,18 @@ function MarginForm({ product, onClose }: { product: CommercialProduct; onClose:
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold" id={`${id}-liquor`}>Paga impuesto licor</h3>
+              <h3 className="text-sm font-semibold" id={`${id}-liquor`}>Paga impuesto al consumo</h3>
               <p className="text-[13px] text-text-secondary" id={`${id}-liquor-help`}>
                 {paysAlready
                   ? "Este producto ya lo paga: puedes cambiar los valores, no quitarlo."
-                  : "Enciéndelo si el producto paga impuesto al consumo de licores."}
+                  : "Enciéndelo si el producto paga impuesto al consumo (licores y vinos)."}
               </p>
             </div>
             <Switch
               checked={paysLiquor}
               onCheckedChange={setPaysLiquor}
               disabled={paysAlready}
-              aria-label="Paga impuesto licor"
+              aria-label="Paga impuesto al consumo"
               aria-describedby={`${id}-liquor-help`}
             />
           </div>

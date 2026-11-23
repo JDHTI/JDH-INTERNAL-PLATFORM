@@ -294,7 +294,11 @@ export type WindowMonths = 6 | 12;
 /** Whether a new price keeps the margin (with support) within the rule. Null without a new price. */
 export type Compliance = "cumple" | "bajo_minimo" | "sin_objetivo" | "sin_costo";
 
-/** Which margin the target comes from: the product's margin for the channel, or the support's own. */
+/**
+ * Which margin the target comes from: the product's margin for the channel, or the support's own.
+ * `salsamentarias` is history only: since 2026-11-23 that channel uses the Mayoristas margin and
+ * the API no longer sends it; it stays so older records still read with their name.
+ */
 export type MarginBasis = "lista" | "mayoristas" | "salsamentarias" | "masivo_food" | "market" | "apoyo";
 
 export type CustomerScope = "mine" | "all";
@@ -318,6 +322,12 @@ export interface QuotationPermissions {
    * the list offers «Todas» (mine=false). Missing on API builds that do not send it.
    */
   can_see_team?: boolean;
+  /**
+   * Whose «everyone» it is with `mine=false`: `assigned`, a Comercial coordinator's salespeople
+   * (or a Call Center leader's operators), labelled «Mi equipo»; `all`, a director, BI or a
+   * validator, «Todas». Null or missing: the person only sees their own.
+   */
+  team_scope?: "all" | "assigned" | null;
   /** The user works as a linked SIESA salesperson, so "mis clientes" has something to list. */
   seller_linked: boolean;
   seller: Seller | null;
@@ -664,6 +674,12 @@ export interface LocalLineInput {
 }
 
 export interface Quotation extends QuotationSummary {
+  /**
+   * Whether this person may edit it, the API's own rule: its owner, whoever validates its kind,
+   * the main lists' managers. False for a coordinator, director or Call Center leader on their
+   * team's: they read it. Not about the status. Missing on older API builds.
+   */
+  can_edit?: boolean;
   channel_code: string | null;
   price_list_name: string | null;
   /** Active customers on the same SIESA list: a price written there reaches all of them. */

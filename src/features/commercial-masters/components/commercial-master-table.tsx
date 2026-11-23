@@ -10,13 +10,14 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
+import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
-import { useCommercialMaster } from "../hooks/use-commercial-masters";
+import { useCommercialMaster, useProductFilterOptions } from "../hooks/use-commercial-masters";
 import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
 import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
@@ -26,6 +27,10 @@ const PAGE_SIZE = 50;
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 const percentFormat = new Intl.NumberFormat("es-CO", { style: "percent", maximumFractionDigits: 2 });
+const pesoFormat = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 });
+
+/** The consumption tax groups SIESA uses for liquors and wine. */
+const TAX_GROUPS: Record<string, string> = { "0503": "Vino", "0509": "Licores" };
 
 /**
  * Server-paged table of one general master. The server already lists active
@@ -49,6 +54,13 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
   const q = useDebouncedValue(text.trim());
 
   const query = useCommercialMaster({ master: master.key, q, filters: filterValues, page, size: PAGE_SIZE });
+  // The supplier and category dropdowns load their values once, only where a filter asks for them.
+  const options = useProductFilterOptions(master.filters.some((filter) => filter.optionsFrom));
+  const supplierOptions = options.data?.suppliers.map((item) => ({
+    value: item.code,
+    label: item.name ? `${item.name} · ${item.code}` : item.code,
+  }));
+  const categoryOptions = options.data?.categories.map((category) => ({ value: category, label: category }));
   const result = query.data;
   const rows = result?.items ?? [];
   const filtered = q !== "" || Object.values(filterValues).some((value) => value !== "");
@@ -61,8 +73,9 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="relative flex-1 lg:max-w-xl">
+      {/* Up to five filters on products: they wrap under the search instead of squeezing it. */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap">
+        <div className="relative flex-1 lg:min-w-72 lg:max-w-xl">
           <Search
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
@@ -79,19 +92,43 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
             className="pl-9"
           />
         </div>
-        {master.filters.map((filter) => (
-          <Dropdown
-            key={filter.param}
-            className="lg:w-48"
-            value={filterValues[filter.param] ?? ""}
-            onValueChange={(value) => {
-              setFilterValues((current) => ({ ...current, [filter.param]: value }));
-              setPage(1);
-            }}
-            options={[{ value: "", label: filter.allLabel }, ...filter.options]}
-            aria-label={filter.ariaLabel}
-          />
-        ))}
+        {master.filters.map((filter) => {
+          const value = filterValues[filter.param] ?? "";
+          const choose = (next: string) => {
+            setFilterValues((current) => ({ ...current, [filter.param]: next }));
+            setPage(1);
+          };
+          if (filter.optionsFrom) {
+            // Long lists from the API (suppliers, categories): typing narrows them.
+            const loaded = filter.optionsFrom === "suppliers" ? supplierOptions : categoryOptions;
+            const inputId = `${master.key}-${filter.param}`;
+            return (
+              <div key={filter.param} className="lg:w-56">
+                <label htmlFor={inputId} className="sr-only">{filter.ariaLabel}</label>
+                <SearchableDropdown
+                  id={inputId}
+                  value={value}
+                  options={loaded ?? []}
+                  onValueChange={choose}
+                  placeholder={loaded ? filter.allLabel : "Cargando…"}
+                  emptyMessage="Ningún valor coincide."
+                  clearLabel={`Quitar el filtro: ${filter.ariaLabel.replace("Filtrar por ", "")}`}
+                  disabled={!loaded}
+                />
+              </div>
+            );
+          }
+          return (
+            <Dropdown
+              key={filter.param}
+              className="lg:w-48"
+              value={value}
+              onValueChange={choose}
+              options={[{ value: "", label: filter.allLabel }, ...filter.options]}
+              aria-label={filter.ariaLabel}
+            />
+          );
+        })}
         {filtered && (
           <Button variant="ghost" onClick={clearFilters}>
             Limpiar filtros
@@ -150,7 +187,7 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
                   >
                     {master.columns.map((column) => (
                       <td key={column.key} className={cn("px-3 py-2", alignment(column), column.kind === "mono" && "font-mono text-[13px]")}>
-                        <Cell column={column} value={row[column.key]} onOpenSku={setOpenSku} />
+                        <Cell column={column} value={row[column.key]} row={row} onOpenSku={setOpenSku} />
                       </td>
                     ))}
                     {editsMargins && (
@@ -199,18 +236,41 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
   );
 }
 
-const alignment = (column: MasterColumn) => (column.kind === "count" || column.kind === "pct" ? "text-right tabular-nums" : "");
+const alignment = (column: MasterColumn) =>
+  column.kind === "count" || column.kind === "pct" || column.kind === "points" || column.kind === "money" ? "text-right tabular-nums" : "";
 
 function Cell({
   column,
   value,
+  row,
   onOpenSku,
 }: {
   column: MasterColumn;
   value: unknown;
+  /** The whole row, for the cells that read two fields. */
+  row: Record<string, unknown>;
   onOpenSku: (sku: string) => void;
 }) {
   switch (column.kind) {
+    case "supplier": {
+      // The name, with the code under it; an older API without the name still shows the code.
+      const code = typeof row.commercial_supplier_code === "string" ? row.commercial_supplier_code : null;
+      if (!value && !code) return "—";
+      return (
+        <span className="block max-w-64">
+          <span className="block truncate" title={typeof value === "string" ? value : undefined}>{typeof value === "string" && value ? value : code}</span>
+          {value && code ? <span className="block font-mono text-xs text-text-secondary">{code}</span> : null}
+        </span>
+      );
+    }
+    case "points":
+      return toNumber(value as Decimal | null) === null ? "—" : `${numberFormat.format(Number(value))} %`;
+    case "money": {
+      const amount = toNumber(value as Decimal | null);
+      return amount === null || amount <= 0 ? "—" : pesoFormat.format(amount);
+    }
+    case "tax_group":
+      return typeof value === "string" && value ? `${value}${TAX_GROUPS[value] ? ` · ${TAX_GROUPS[value]}` : ""}` : "—";
     case "active":
       return value ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>;
     // Decimals arrive as strings or numbers depending on the field.
@@ -231,8 +291,6 @@ function Cell({
       ) : (
         "—"
       );
-    case "liquor":
-      return (toNumber(value as Decimal | null) ?? 0) > 0 ? <Badge tone="warning">Impuesto licor</Badge> : "—";
     case "nits":
       return <Nits nits={Array.isArray(value) ? (value as SupplierNit[]) : []} />;
     default:

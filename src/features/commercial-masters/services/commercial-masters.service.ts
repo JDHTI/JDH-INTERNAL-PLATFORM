@@ -6,6 +6,7 @@ import type {
   CommercialPage,
   CommercialProduct,
   MarginReport,
+  ProductFilterOptions,
   ProductMarginsInput,
   ProductPatch,
 } from "../types/commercial-master.types";
@@ -32,6 +33,11 @@ export async function listCommercialMaster({
   const def = findCommercialMaster(master);
   if (!def) throw new Error(`Maestro desconocido: ${master}`);
   return apiFetch<CommercialPage<MasterRow>>(def.endpoint, { query: { ...filters, q, page, size } });
+}
+
+/** The suppliers and categories the products master's dropdowns offer, from the master itself. */
+export async function getProductFilterOptions(): Promise<ProductFilterOptions> {
+  return apiFetch<ProductFilterOptions>("/commercial/products/options");
 }
 
 const productPath = (sku: string) => `/commercial/products/${encodeURIComponent(sku)}`;

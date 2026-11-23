@@ -44,6 +44,7 @@ import {
   newPriceStanding,
   previewLine,
   priceWithVat,
+  suggestedMargin,
   supplierOf,
 } from "../lib/line-status";
 import { REVIEW_HELP, REVIEW_LABELS, type ReviewView, reviewOf } from "../lib/list-review";
@@ -894,13 +895,20 @@ function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) 
   const row = "flex items-baseline justify-between gap-2";
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
+      {/* Each price with the margin it leaves, in the same chip as the new price's (decided 2026-11-23). */}
       <div className={row} title={`Óptimo. ${OPTIMAL_PRICE_HELP}`}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">Óptimo</dt>
-        <dd className="whitespace-nowrap font-semibold">{toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}</dd>
+        <dd className="flex items-center justify-end gap-1.5 whitespace-nowrap font-semibold">
+          {toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}
+          <SuggestedMarginChip line={line} which="optimal" />
+        </dd>
       </div>
       <div className={row} title={`Mínimo. ${MIN_PRICE_HELP}`}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">Mínimo</dt>
-        <dd className="whitespace-nowrap font-semibold">{toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}</dd>
+        <dd className="flex items-center justify-end gap-1.5 whitespace-nowrap font-semibold">
+          {toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}
+          <SuggestedMarginChip line={line} which="minimum" />
+        </dd>
       </div>
       {showCost && (
         // A rule above: the cost is what the two prices are built on, not a third price.
@@ -911,6 +919,13 @@ function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) 
       )}
     </dl>
   );
+}
+
+/** The margin a suggested price leaves, as the new price's chip; nothing when it cannot be told. */
+function SuggestedMarginChip({ line, which }: { line: QuotationLine; which: "optimal" | "minimum" }) {
+  const margin = suggestedMargin(line, which);
+  if (!margin) return null;
+  return <MarginMark value={margin.value} standing={margin.standing} />;
 }
 
 /**

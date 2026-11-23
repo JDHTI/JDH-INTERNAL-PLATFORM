@@ -9,6 +9,7 @@ import {
   getPriceIncreaseAnalysis,
   getPriceIncreaseOptions,
   getProduct,
+  getProductFilterOptions,
   listCommercialMaster,
   listPriceIncreases,
   setPriceIncreaseDate,
@@ -38,6 +39,17 @@ export function useCommercialMaster(params: CommercialMasterParams) {
     // master's rows under another master's heading.
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === params.master ? keepPreviousData(previous) : undefined,
+  });
+}
+
+/** The options of the products master's supplier and category dropdowns; they change with the nightly sync. */
+export function useProductFilterOptions(enabled: boolean) {
+  return useQuery({
+    queryKey: [...commercialMasterKeys.all, "product-options"] as const,
+    queryFn: getProductFilterOptions,
+    enabled,
+    staleTime: 10 * 60_000,
+    retry: retryTransient,
   });
 }
 

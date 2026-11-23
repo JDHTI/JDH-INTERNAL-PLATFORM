@@ -7,8 +7,8 @@ export type ColumnKey = "last" | "bounds" | "price" | "support" | "vat" | "consu
 
 export const COLUMN_DEFAULTS: Record<ColumnKey, number> = {
   last: 136,
-  // Fits BI's "Costo más alto" beside a seven-digit price.
-  bounds: 200,
+  // Fits BI's "Costo más alto" beside a seven-digit price, and each price's margin chip (2026-11-23).
+  bounds: 256,
   price: 128,
   support: 112,
   vat: 56,
@@ -20,7 +20,7 @@ export const COLUMN_DEFAULTS: Record<ColumnKey, number> = {
 
 const COLUMN_MIN: Record<ColumnKey, number> = {
   last: 104,
-  bounds: 144,
+  bounds: 200,
   price: 104,
   support: 72,
   vat: 48,

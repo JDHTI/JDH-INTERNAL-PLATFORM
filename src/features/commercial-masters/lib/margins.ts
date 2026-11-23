@@ -5,7 +5,6 @@ import type { MarginField, MarginSource } from "../types/commercial-master.types
 export const MARGIN_LABELS: Record<MarginField, string> = {
   margin_list: "Food Service",
   margin_wholesale: "Mayoristas",
-  margin_salsamentarias: "Salsamentarias",
   margin_mass_food: "Masivo Food",
   margin_market: "Market Apartadó",
   margin_employee: "Empleado JDH",
