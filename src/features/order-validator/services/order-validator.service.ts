@@ -42,13 +42,14 @@ export async function uploadBatch(file: File, thresholdPoints: string | null): P
 }
 
 /**
- * The screen asks for neither a reason nor a sort: the API lists orders with no
- * support first, then by margin, which is the order it is meant to be read in.
- * `thresholdPreview` tries a threshold without saving it: statuses, counts and
- * margins come back as if the file had it.
+ * The API orders the rows (`sort`, `attention` by default: no support first,
+ * then by margin); the screen never re-sorts a page. `thresholdPreview` tries a
+ * threshold without saving it: statuses, counts and margins come back as if the
+ * file had it.
  */
 export async function listOrders({
   batchId,
+  sort,
   status,
   thresholdPreview,
   q,
@@ -57,7 +58,7 @@ export async function listOrders({
   size,
 }: OrderParams): Promise<OrderPage> {
   return apiFetch<OrderPage>(`${BASE}/${encodeURIComponent(batchId)}/orders`, {
-    query: { status, margin_threshold_points: thresholdPreview, q, operation_center: operationCenter, page, size },
+    query: { sort, status, margin_threshold_points: thresholdPreview, q, operation_center: operationCenter, page, size },
   });
 }
 
