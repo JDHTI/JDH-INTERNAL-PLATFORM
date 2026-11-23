@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { approveRequest, cancelJdh, createRequest, createRequestBatch, getJdhHistory, getRequest, listRequests, rejectRequest } from "../services/requests.service";
+import { approveRequest, cancelJdh, createRequest, createRequestBatch, deleteRequests, getJdhHistory, getRequest, listRequests, rejectRequest } from "../services/requests.service";
 import type { BatchRequestItem, RequestParams } from "../types/request.types";
 import { supportKeys } from "./use-supports";
 
@@ -28,6 +28,16 @@ export function useRequestAction() {
         case "cancel": return cancelJdh(id, { version, reason: action.reason });
       }
     },
+    onSettled: async () => { await Promise.all([client.invalidateQueries({ queryKey: supportKeys.all }), client.invalidateQueries({ queryKey: requestKeys.all })]); },
+  });
+}
+
+/** Deletes JDH requests for good; the supports' JDH history is refreshed too. */
+export function useDeleteRequests() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteRequests(ids),
+    retry: false,
     onSettled: async () => { await Promise.all([client.invalidateQueries({ queryKey: supportKeys.all }), client.invalidateQueries({ queryKey: requestKeys.all })]); },
   });
 }

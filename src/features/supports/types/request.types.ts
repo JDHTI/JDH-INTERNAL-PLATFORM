@@ -12,6 +12,16 @@ export interface SupportPermissions {
    * NITs of the portfolio plus the general supports) or none (no customers assigned).
    */
   customer_scope?: "all" | "team" | "mine" | "none";
+  /**
+   * BI's leader and the superadmins: deletes supports and requests for good. Missing on API
+   * builds without the deletions (API #106): nothing is offered then.
+   */
+  can_delete?: boolean;
+}
+
+/** What a delete answers: how many went. */
+export interface DeleteResult {
+  deleted: number;
 }
 export type RequestStatus = "pendiente" | "aprobada" | "rechazada";
 export type RequestMode = "margen_minimo" | "porcentaje" | "costo_neto";

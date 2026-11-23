@@ -1,5 +1,5 @@
 import { apiFetch } from "@/shared/lib/api-client";
-import type { BatchRequestItem, RequestDetail, RequestPage, RequestParams, SupportEvent, SupportRequest } from "../types/request.types";
+import type { BatchRequestItem, DeleteResult, RequestDetail, RequestPage, RequestParams, SupportEvent, SupportRequest } from "../types/request.types";
 import type { SupplierSupport } from "../types/support.types";
 
 const supportPath = (id: string) => `/supplier-supports/${encodeURIComponent(id)}`;
@@ -11,4 +11,7 @@ export const createRequestBatch = (items: BatchRequestItem[]) => apiFetch<Suppor
 export const approveRequest = (id: string, body: { version: number; support_version: number }) => apiFetch<SupportRequest>(`${requestPath(id)}/approve`, { method: "POST", body });
 export const rejectRequest = (id: string, body: { version: number; reason: string }) => apiFetch<SupportRequest>(`${requestPath(id)}/reject`, { method: "POST", body });
 export const getJdhHistory = (id: string) => apiFetch<SupportEvent[]>(`${supportPath(id)}/jdh-history`);
+/** For good, 1 to 500 at once (`can_delete` only). What was approved stays in the supports. */
+export const deleteRequests = (ids: string[]) =>
+  apiFetch<DeleteResult>("/supplier-support-requests/delete", { method: "POST", body: { ids } });
 export const cancelJdh = (id: string, body: { version: number; reason: string }) => apiFetch<SupplierSupport>(`${supportPath(id)}/jdh-support`, { method: "DELETE", body });

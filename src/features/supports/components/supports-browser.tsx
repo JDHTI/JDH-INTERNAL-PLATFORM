@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarClock, CalendarX2, CloudOff, FileX2, Paperclip, RefreshCw, Search, UserX, X } from "lucide-react";
+import { CalendarClock, CalendarX2, CloudOff, FileX2, Paperclip, RefreshCw, Search, Trash2, UserX, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
@@ -37,6 +37,7 @@ import type {
 } from "../types/support.types";
 import ReplacementAlerts from "./replacement-alerts";
 import RetireDialog from "./retire-dialog";
+import DeleteSupportsDialog from "./delete-supports-dialog";
 import { COLUMNS, groupWideName, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
@@ -92,6 +93,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   // The version each ticked row had when ticked: a mass void or expiry sends it, so a row changed meanwhile is a 409.
   const [selectedVersions, setSelectedVersions] = useState<Record<string, number>>({});
   const [retireOpen, setRetireOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const permissions = useSupportPermissions();
   // Whoever does not manage only reads: margins are asked as internal supports, from the quoter
   // or from «Solicitudes de apoyo», not by ticking rows here.
@@ -106,6 +108,8 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   const [denied, setDenied] = useState(false);
   const canWrite = useCanManage() && !denied && !readOnly;
   const canSelect = canWrite;
+  // Deleting for good is BI's leader's and the superadmins' (`can_delete`); the API checks it again.
+  const canDelete = canWrite && permissions.data?.can_delete === true;
   const alerts = useReplacementAlerts(canWrite);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [notice, setNotice] = useState<{ severity: AlertSeverity; message: string } | null>(null);
@@ -370,6 +374,12 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
             Anular o vencer
           </Button>
         )}
+        {canDelete && (selected.length > 0 || filtered) && (
+          <Button variant="danger" size="sm" className="max-md:h-11" onClick={() => setDeleteOpen(true)}>
+            <Trash2 aria-hidden="true" />
+            Eliminar
+          </Button>
+        )}
         {filtered && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Limpiar filtros
@@ -571,6 +581,22 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
           setSelected([]);
           setSelectedVersions({});
           setNotice({ severity: "success", message: retiredMessage(done) });
+        }}
+      />
+      <DeleteSupportsDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        selection={selected.map((supportId) => ({ id: supportId, version: selectedVersions[supportId] }))}
+        filter={retireFilter}
+        onForbidden={onForbidden}
+        onDone={(deleted) => {
+          setDeleteOpen(false);
+          setSelected([]);
+          setSelectedVersions({});
+          setNotice({
+            severity: "success",
+            message: deleted === 1 ? "Se eliminó 1 apoyo." : `Se eliminaron ${deleted.toLocaleString("es-CO")} apoyos.`,
+          });
         }}
       />
       <SupportEditDialog support={editing} onClose={() => setEditId(null)} onForbidden={onForbidden} />

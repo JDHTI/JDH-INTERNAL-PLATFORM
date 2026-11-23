@@ -6,6 +6,7 @@ import {
   approveInternalRequest,
   createDirectRequest,
   createInternalRequest,
+  deleteInternalRequests,
   getInternalRequest,
   getTargetMargins,
   listInternalRequests,
@@ -74,6 +75,20 @@ export function useTargetMargins(customerNit: string | null, skus: string[]) {
     staleTime: 5 * 60_000,
     retry: false,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Deletes requests for good; a quotation's lines lose their request, so those refresh too. */
+export function useDeleteInternalRequests() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteInternalRequests(ids),
+    retry: false,
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: internalRequestKeys.all }),
+        client.invalidateQueries({ queryKey: ["quotations", "detail"] }),
+      ]),
   });
 }
 
