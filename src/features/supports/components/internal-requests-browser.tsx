@@ -24,6 +24,7 @@ import { useSupportPermissions } from "../hooks/use-supports";
 import { internalStatusLabel, internalStatusTone, marginPointsText } from "../lib/internal-requests";
 import type { InternalSupportRequest } from "../types/internal-request.types";
 import type { RequestStatus } from "../types/request.types";
+import DeleteRequestsDialog from "./delete-requests-dialog";
 import DiscardDialog from "./discard-dialog";
 import { dateTime } from "./jdh-support";
 
@@ -51,6 +52,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const canDelete = useSupportPermissions().data?.can_delete === true;
+  const remove = useDeleteInternalRequests();
   const me = useSession().data;
   const q = useDebouncedValue(text.trim());
   const query = useInternalRequests(
@@ -200,6 +202,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
       {openId && <InternalRequestDialog key={openId} id={openId} review={review} onClose={() => setOpenId(null)} />}
       <DeleteRequestsDialog
         ids={deleting ? [...ticked] : []}
+        remove={remove}
         onClose={() => setDeleting(false)}
         onDone={(deleted) => {
           setDeleting(false);
@@ -208,48 +211,6 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
         }}
       />
     </div>
-  );
-}
-
-/** The API deletes at most this many requests per call. */
-const DELETE_LIMIT = 500;
-
-/**
- * Deletes the ticked requests for good, after one confirmation. What was already approved stays:
- * the supports it registered are not touched.
- */
-function DeleteRequestsDialog({ ids, onClose, onDone }: { ids: string[]; onClose: () => void; onDone: (deleted: number) => void }) {
-  const remove = useDeleteInternalRequests();
-  const count = ids.length;
-  const overLimit = count > DELETE_LIMIT;
-  return (
-    <Dialog
-      open={count > 0}
-      onOpenChange={(open) => {
-        if (!open && !remove.isPending) {
-          remove.reset();
-          onClose();
-        }
-      }}
-      title={count === 1 ? "Eliminar 1 solicitud" : `Eliminar ${count.toLocaleString("es-CO")} solicitudes`}
-      description="Se borran para siempre. Lo que ya se aprobó se conserva en los apoyos."
-    >
-      {overLimit && (
-        <p className="text-sm text-danger">El máximo por vez es {DELETE_LIMIT}: quita algunas de la selección.</p>
-      )}
-      {remove.isError && <Alert severity="danger">{errorMessage(remove.error)}</Alert>}
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={remove.isPending}>Cancelar</Button>
-        {/* Solid danger: the confirm inside a delete dialog (DESIGN.md §7.1). */}
-        <Button
-          onClick={() => remove.mutate(ids, { onSuccess: (result) => onDone(result.deleted) })}
-          disabled={remove.isPending || overLimit}
-          className="bg-danger text-text-on-primary hover:bg-danger/90"
-        >
-          <Trash2 aria-hidden="true" /> {remove.isPending ? "Eliminando" : "Eliminar"}
-        </Button>
-      </DialogFooter>
-    </Dialog>
   );
 }
 

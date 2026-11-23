@@ -9,7 +9,10 @@ import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
 
 import { useSupportPermissions } from "../hooks/use-supports";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
+
 import InternalRequestsBrowser from "./internal-requests-browser";
+import JdhRequestsCleanup from "./jdh-requests-cleanup";
 import MarginRequestDialog from "./margin-request-dialog";
 
 /**
@@ -26,6 +29,9 @@ export default function RequestsPage() {
   // Whoever quotes asks (BI, who approves, does not): by customer and reference, with no quotation.
   const canAskMargin = data?.can_request_internal === true && !review;
   const [asking, setAsking] = useState(false);
+  // The old JDH requests come back only for whoever may delete them, in a tab of their own.
+  const canDelete = data?.can_delete === true;
+  const [tab, setTab] = useState<"internas" | "jdh">("internas");
 
   if (permissions.isPending) {
     return <div className="h-8 w-64 animate-pulse rounded-md bg-canvas-subtle" aria-busy="true" aria-label="Validando permisos" />;
@@ -49,7 +55,19 @@ export default function RequestsPage() {
         }
       />
       <MarginRequestDialog open={asking} onClose={() => setAsking(false)} />
-      {allowed ? (
+      {canDelete && (
+        <div role="group" aria-label="Qué solicitudes" className="flex flex-wrap gap-2">
+          <ToggleChip active={tab === "internas"} onClick={() => setTab("internas")}>
+            Apoyos internos
+          </ToggleChip>
+          <ToggleChip active={tab === "jdh"} onClick={() => setTab("jdh")}>
+            Solicitudes JDH anteriores
+          </ToggleChip>
+        </div>
+      )}
+      {canDelete && tab === "jdh" ? (
+        <JdhRequestsCleanup />
+      ) : allowed ? (
         <InternalRequestsBrowser key={review ? "review" : "own"} review={review} />
       ) : (
         <StatePanel icon={HandCoins} title="Sin acceso a las solicitudes">
