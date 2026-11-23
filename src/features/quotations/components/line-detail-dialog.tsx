@@ -397,11 +397,12 @@ function Detail({
                   <>
                     <Row label="Clase">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
                     <Row label="Cálculo">{calcMethodLabel(support.calc_method)}</Row>
-                    <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>
+                    {/* Old guaranteed margins (no supplier minimum) move with the price; with the minimum it is fixed. */}
+                    <Row label={support.guaranteed_margin_pct != null && support.supplier_min_margin_pct == null ? "Por unidad, a este precio" : "Por unidad"}>
                       <span className="whitespace-nowrap">{formatMoney(support.amount)}</span>
                     </Row>
-                    {/* With a guaranteed margin the support depends on the price: say what it is at the list price too. */}
-                    {support.list_amount != null && support.list_amount !== support.amount && (
+                    {/* When the support depends on the price, say what it is at the list price too. */}
+                    {support.supplier_min_margin_pct == null && support.list_amount != null && support.list_amount !== support.amount && (
                       <Row label="Al precio de lista">
                         <span className="whitespace-nowrap">{formatMoney(support.list_amount)}</span>
                       </Row>
@@ -410,6 +411,9 @@ function Detail({
                     {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
                     {support.guaranteed_margin_pct != null && (
                       <Row label="Margen garantizado">{formatMargin(support.guaranteed_margin_pct)}</Row>
+                    )}
+                    {support.supplier_min_margin_pct != null && (
+                      <Row label="Margen mínimo proveedor">{formatMargin(support.supplier_min_margin_pct)}</Row>
                     )}
                     <Row label="Vigencia">
                       <Validity from={support.valid_from} to={support.valid_to} />
