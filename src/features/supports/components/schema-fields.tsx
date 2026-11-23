@@ -26,6 +26,9 @@ const PICKERS: Record<string, BasePickerConfig> = {
 /** Long free text gets a text area; the API caps those at 2000 characters. */
 const LONG_TEXT = 1000;
 
+/** Numbers that may be typed below zero: «% Margen Garantizado»'s supplier minimum margin. */
+const NEGATIVE_FIELDS = new Set(["supplier_min_margin_pct"]);
+
 /**
  * The fields of a support as `form-schema` describes them, in its groups and
  * order. The creation form and the profile editor both render through here,
@@ -187,7 +190,8 @@ function SchemaField({
       return field(
         <Input
           {...common}
-          inputMode="decimal"
+          // The decimal pad has no minus sign on iOS: a field that takes negatives gets the full keyboard.
+          inputMode={NEGATIVE_FIELDS.has(spec.name) ? "text" : "decimal"}
           value={text}
           onChange={(event) => onChange(event.target.value)}
           className={isPercentField(spec, rule) ? undefined : "tabular-nums"}

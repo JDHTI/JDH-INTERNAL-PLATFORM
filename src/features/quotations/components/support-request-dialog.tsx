@@ -14,7 +14,9 @@ import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
-import { formatMargin, formatMoney, parseMarginInput } from "../lib/format";
+import type { InternalRequestKind } from "@/features/supports/types/internal-request.types";
+
+import { formatMargin, formatMoney, parseMarginInput, parseSupplierMarginInput } from "../lib/format";
 import type { Quotation, QuotationLine } from "../types/quotations.types";
 
 const ALL_SUPPLIERS = "";
@@ -37,6 +39,17 @@ export function canAskSupport(line: QuotationLine): boolean {
   // Pending, or approved for this reference; one BI left out of an approved request can be asked again.
   return !(asked && (asked.status === "pendiente" || (asked.status === "aprobada" && asked.approved_margin_pct !== null)));
 }
+
+/**
+ * Its applied support is a «% Margen Garantizado» with the supplier's minimum margin: what it asks
+ * is a lower supplier minimum (one-off for this customer and reference), not JDH's margin.
+ */
+export function asksSupplierMargin(line: QuotationLine): boolean {
+  return line.support?.calc_method === "precio_neto" && line.support.supplier_min_margin_pct != null;
+}
+
+/** The supplier's minimum in force, the one a supplier request must ask under. */
+const supplierMinimum = (line: QuotationLine) => line.support?.supplier_min_margin_pct ?? null;
 
 /** Quoted under its own minimum: its quoted margin is the natural start of the request. */
 function belowMinimum(line: QuotationLine): boolean {
@@ -64,44 +77,99 @@ export default function SupportRequestDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const candidates = useMemo(() => quotation.lines.filter(canAskSupport), [quotation.lines]);
+  const askable = useMemo(() => quotation.lines.filter(canAskSupport), [quotation.lines]);
+  const byKind: Record<InternalRequestKind, QuotationLine[]> = {
+    jdh: askable.filter((line) => !asksSupplierMargin(line)),
+    proveedor: askable.filter(asksSupplierMargin),
+  };
+  // Starts on what the ticked references ask; nothing ticked, on JDH unless only supplier ones are left.
+  const ticked = askable.filter((line) => preselected.has(line.sku));
+  const startKind: InternalRequestKind =
+    ticked.length > 0
+      ? ticked.every(asksSupplierMargin)
+        ? "proveedor"
+        : "jdh"
+      : byKind.jdh.length === 0 && byKind.proveedor.length > 0
+        ? "proveedor"
+        : "jdh";
+  const [picked, setPicked] = useState<InternalRequestKind | null>(null);
+  const kind = picked ?? startKind;
+  const candidates = byKind[kind];
+  const supplierNames = [...new Set(byKind.proveedor.map((line) => line.supplier_name ?? line.supplier_code ?? ""))];
+  const close = (next: boolean) => {
+    if (!next) setPicked(null);
+    onOpenChange(next);
+  };
+
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
-      title="Solicitar margen autorizado"
-      description={`Para ${quotation.customer_name}: un margen menor que el actual de cada referencia. BI decide si lo registra como apoyo o si vale solo para este pedido.`}
+      onOpenChange={close}
+      title={
+        kind === "proveedor"
+          ? `Solicitud de margen proveedor${supplierNames.length === 1 ? ` ${supplierNames[0]}` : ""}`
+          : "Solicitar margen autorizado"
+      }
+      description={
+        kind === "proveedor"
+          ? `Para ${quotation.customer_name}: un margen mínimo del proveedor menor que el vigente de su % Margen Garantizado. Si BI lo aprueba, la referencia toma una copia del apoyo para este cliente con ese mínimo; el apoyo base no cambia.`
+          : `Para ${quotation.customer_name}: un margen menor que el actual de cada referencia. BI decide si lo registra como apoyo o si vale solo para este pedido.`
+      }
       wide
       isForm
     >
-      {open &&
-        (candidates.length === 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm">
-              Ninguna referencia de SIESA con proveedor queda para pedir: todas tienen una solicitud pendiente o aprobada.
-            </p>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
-            </DialogFooter>
-          </div>
-        ) : (
-          <RequestForm quotation={quotation} candidates={candidates} preselected={preselected} onDone={() => onOpenChange(false)} />
-        ))}
+      {open && (
+        <div className="space-y-5">
+          {/* One request is all JDH or all supplier: both kinds on the quotation, one at a time. */}
+          {byKind.jdh.length > 0 && byKind.proveedor.length > 0 && (
+            <div role="group" aria-label="Qué se pide" className="flex flex-wrap gap-2">
+              {(["jdh", "proveedor"] as const).map((option) => (
+                <Button
+                  key={option}
+                  type="button"
+                  size="sm"
+                  variant={kind === option ? "primary" : "outline"}
+                  aria-pressed={kind === option}
+                  onClick={() => setPicked(option)}
+                  className="max-md:h-11"
+                >
+                  {option === "jdh" ? "Margen autorizado JDH" : "Margen mínimo proveedor"} · {byKind[option].length}
+                </Button>
+              ))}
+            </div>
+          )}
+          {candidates.length === 0 ? (
+            <div className="space-y-4">
+              <p className="text-sm">
+                Ninguna referencia de SIESA con proveedor queda para pedir: todas tienen una solicitud pendiente o aprobada.
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => close(false)}>Cerrar</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <RequestForm key={kind} kind={kind} quotation={quotation} candidates={candidates} preselected={preselected} onDone={() => close(false)} />
+          )}
+        </div>
+      )}
     </Dialog>
   );
 }
 
 function RequestForm({
+  kind,
   quotation,
   candidates,
   preselected,
   onDone,
 }: {
+  kind: InternalRequestKind;
   quotation: Quotation;
   candidates: QuotationLine[];
   preselected: Set<string>;
   onDone: () => void;
 }) {
+  const forSupplier = kind === "proveedor";
   const mutation = useCreateInternalRequest(quotation.id);
   const suppliers = useMemo(() => {
     const seen = new Map<string, string>();
@@ -118,15 +186,20 @@ function RequestForm({
     const picked = candidates.filter((line) => preselected.has(line.sku)).map((line) => line.sku);
     return new Set(picked.length > 0 ? picked : candidates.length === 1 ? [candidates[0].sku] : []);
   });
-  // A line quoted under its minimum starts at its quoted margin; the rest start empty.
+  // A JDH line quoted under its minimum starts at its quoted margin; the rest, and every supplier one, start empty.
   const [margins, setMargins] = useState<Record<string, string>>(() =>
-    Object.fromEntries(candidates.map((line) => [line.sku, belowMinimum(line) ? marginPointsText(quotedMargin(line)) : ""]))
+    Object.fromEntries(
+      candidates.map((line) => [line.sku, !forSupplier && belowMinimum(line) ? marginPointsText(quotedMargin(line)) : ""])
+    )
   );
-  // The current margin of each reference (the product's on the customer's list): the request must ask less.
-  // Asked for the ticked ones, and for the rows on screen while they fit in one request.
-  const targetSkus = [...ticked, ...(lines.length <= TARGETS_IN_VIEW ? lines.map((line) => line.sku) : [])];
+  // JDH: the current margin of each reference (the product's on the customer's list), asked for the
+  // ticked ones and the rows on screen while they fit in one request. Supplier: the minimum in force,
+  // already on the line. Either way the request must ask less.
+  const targetSkus = forSupplier ? [] : [...ticked, ...(lines.length <= TARGETS_IN_VIEW ? lines.map((line) => line.sku) : [])];
   const targets = useTargetMargins(quotation.customer_nit, targetSkus);
   const targetOf = (sku: string) => targets.data?.items.find((item) => item.sku === sku);
+  const lineOf = (sku: string) => candidates.find((line) => line.sku === sku);
+  const currentOf = (sku: string) => (forSupplier ? supplierMinimum(lineOf(sku)!) : targetOf(sku)?.margin_pct ?? null);
   const [requestedFor, setRequestedFor] = useState(todayInBogota());
   const [agreedWith, setAgreedWith] = useState("");
   const [reason, setReason] = useState("");
@@ -142,11 +215,13 @@ function RequestForm({
     }
     return [...bySupplier];
   }, [chosen]);
-  const parsed = chosen.map((line) => ({ sku: line.sku, result: parseMarginInput(margins[line.sku] ?? "") }));
+  // A supplier's minimum may be 0 or negative; JDH's stays above 0.
+  const parse = forSupplier ? parseSupplierMarginInput : parseMarginInput;
+  const parsed = chosen.map((line) => ({ sku: line.sku, result: parse(margins[line.sku] ?? "") }));
   const badMargin = parsed.find((item) => "error" in item.result);
   // The current margin must be known to check that the request asks less; the API checks it too.
   const notLower = parsed.find((item) => {
-    const current = targetOf(item.sku)?.margin_pct;
+    const current = currentOf(item.sku);
     return "value" in item.result && current != null && Number(item.result.value) >= Number(current);
   });
   const problem =
@@ -155,7 +230,9 @@ function RequestForm({
       : badMargin && "error" in badMargin.result
         ? `${badMargin.sku}: ${badMargin.result.error}`
         : notLower
-          ? `${notLower.sku}: el margen pedido debe ser menor que su margen actual (${formatMargin(targetOf(notLower.sku)?.margin_pct)}).`
+          ? forSupplier
+            ? `${notLower.sku}: el margen pedido debe ser menor que el mínimo vigente del proveedor (${formatMargin(currentOf(notLower.sku))}).`
+            : `${notLower.sku}: el margen pedido debe ser menor que su margen actual (${formatMargin(currentOf(notLower.sku))}).`
           : !requestedFor
           ? "Elige la fecha del pedido."
           : agreedWith.trim().length < 3
@@ -181,6 +258,8 @@ function RequestForm({
       try {
         const request = await mutation.mutateAsync({
           version: quotation.version,
+          // Left out for JDH: the API's default, and what older builds understand.
+          ...(forSupplier ? { kind: "proveedor" as const } : {}),
           supplier_code: code,
           requested_for: requestedFor,
           agreed_with: agreedWith.trim(),
@@ -232,8 +311,9 @@ function RequestForm({
           Referencias{suppliers.length === 1 ? ` de ${suppliers[0].label}` : ""}
         </legend>
         <p className="text-[13px] text-text-secondary">
-          Marca una o varias y pide un margen menor que el actual, el del producto en la lista del cliente. Las que se cotizan bajo su
-          mínimo arrancan en el margen cotizado.
+          {forSupplier
+            ? "Son las referencias con % Margen Garantizado. Marca una o varias y pide un margen mínimo del proveedor menor que el vigente; puede ser 0 o negativo."
+            : "Marca una o varias y pide un margen menor que el actual, el del producto en la lista del cliente. Las que se cotizan bajo su mínimo arrancan en el margen cotizado."}
           {suppliers.length > 1 && " Se crea una solicitud por proveedor."}
         </p>
         {targets.isError && <Alert severity="warning">No se pudo leer el margen actual: {errorMessage(targets.error)}</Alert>}
@@ -246,8 +326,10 @@ function RequestForm({
                 <th scope="col" className={th}>Referencia</th>
                 <th scope="col" className={`${th} text-right`}>Precio</th>
                 <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
-                <th scope="col" className={`${th} text-right`}>Margen actual</th>
-                <th scope="col" className={`${th} w-32`}>Margen pedido (%)</th>
+                <th scope="col" className={`${th} text-right`}>{forSupplier ? "Mínimo proveedor vigente" : "Margen actual"}</th>
+                <th scope="col" className={`${th} ${forSupplier ? "w-40" : "w-32"}`}>
+                  {forSupplier ? "Margen mínimo proveedor solicitado (%)" : "Margen pedido (%)"}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -276,14 +358,19 @@ function RequestForm({
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatMoney(line.offer_price)}</td>
                     <td className={`${td} text-right tabular-nums`}>{formatMargin(quotedMargin(line))}</td>
-                    <td className={`${td} text-right tabular-nums`} title={targetOf(line.sku)?.margin_label}>
-                      {targetOf(line.sku) ? formatMargin(targetOf(line.sku)?.margin_pct) : targets.isFetching ? "…" : "—"}
-                      {targetOf(line.sku) && <span className="block text-xs text-text-secondary">{targetOf(line.sku)?.margin_label}</span>}
-                    </td>
+                    {forSupplier ? (
+                      <td className={`${td} text-right tabular-nums`}>{formatMargin(supplierMinimum(line))}</td>
+                    ) : (
+                      <td className={`${td} text-right tabular-nums`} title={targetOf(line.sku)?.margin_label}>
+                        {targetOf(line.sku) ? formatMargin(targetOf(line.sku)?.margin_pct) : targets.isFetching ? "…" : "—"}
+                        {targetOf(line.sku) && <span className="block text-xs text-text-secondary">{targetOf(line.sku)?.margin_label}</span>}
+                      </td>
+                    )}
                     <td className={td}>
                       <Input
-                        inputMode="decimal"
-                        aria-label={`Margen pedido para ${line.sku}`}
+                        // The decimal pad has no minus sign on iOS, and a supplier's minimum may be negative.
+                        inputMode={forSupplier ? "text" : "decimal"}
+                        aria-label={`${forSupplier ? "Margen mínimo proveedor solicitado" : "Margen pedido"} para ${line.sku}`}
                         disabled={!on}
                         value={margins[line.sku] ?? ""}
                         onChange={(event) => setMargins((current) => ({ ...current, [line.sku]: event.target.value }))}
