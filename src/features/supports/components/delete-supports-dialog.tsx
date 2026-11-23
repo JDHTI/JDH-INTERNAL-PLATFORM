@@ -12,6 +12,7 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useDeleteSupports } from "../hooks/use-supports";
 import type { SupportSearchFilters } from "../types/support.types";
+import { GROUP_COUNT_NOTE } from "./retire-dialog";
 
 /** What has to be typed to delete: a slip of the hand cannot do it. */
 const CONFIRM_WORD = "ELIMINAR";
@@ -153,6 +154,8 @@ function DeleteForm({
           </span>
         </label>
       </fieldset>
+
+      <p className="text-[13px] text-text-secondary">{GROUP_COUNT_NOTE}</p>
 
       <Field label="Motivo" htmlFor={`${id}-reason`} hint="De 3 a 500 caracteres.">
         <Textarea

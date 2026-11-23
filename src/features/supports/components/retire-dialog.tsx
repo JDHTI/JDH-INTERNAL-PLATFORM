@@ -16,6 +16,13 @@ import type { RetireAction, RetireResult, SupportSearchFilters } from "../types/
 /** The API retires up to this many at once. */
 export const RETIRE_LIMIT = 2000;
 
+/**
+ * A group-wide support is one row and one copy per customer of the group (API #115): voiding,
+ * expiring or deleting it reaches every copy, so the total can be above the rows chosen.
+ */
+export const GROUP_COUNT_NOTE =
+  "Un apoyo «Todo el grupo» se aplica a cada cliente del grupo: el total que se informe puede ser mayor que las filas elegidas.";
+
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("es-CO")} ${n === 1 ? one : many}`;
 
 /** Yesterday in Bogotá: the API's default last day of an expiry. */
@@ -165,6 +172,8 @@ function RetireForm({
           </span>
         </label>
       </fieldset>
+
+      <p className="text-[13px] text-text-secondary">{GROUP_COUNT_NOTE}</p>
 
       <fieldset className="space-y-2" disabled={retire.isPending}>
         <legend className="mb-2 text-sm font-medium">Qué hacer</legend>

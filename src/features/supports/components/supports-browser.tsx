@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { CalendarClock, CalendarX2, CloudOff, FileX2, Paperclip, RefreshCw, Search, Trash2, UserX, X } from "lucide-react";
 
 import Pager from "@/shared/components/pager";
@@ -35,6 +35,7 @@ import type {
   SupportSearchFilters,
   SupportStateFilter,
 } from "../types/support.types";
+import BusinessGroupPicker from "./business-group-picker";
 import ReplacementAlerts from "./replacement-alerts";
 import RetireDialog from "./retire-dialog";
 import DeleteSupportsDialog from "./delete-supports-dialog";
@@ -49,6 +50,15 @@ import SupportKpis from "./support-kpis";
 
 const PAGE_SIZE = 50;
 const ALL = "";
+
+/** `nit_y_grupo`: customer_nits (the NIT and its group's supports); `solo_nit`: plus customer_nit_only; `grupo`: business_groups. */
+type CustomerScope = "nit_y_grupo" | "solo_nit" | "grupo";
+
+const CUSTOMER_SCOPE_OPTIONS: { value: CustomerScope; label: string }[] = [
+  { value: "nit_y_grupo", label: "NIT y su grupo" },
+  { value: "solo_nit", label: "Solo el NIT" },
+  { value: "grupo", label: "Grupo empresarial" },
+];
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 
@@ -79,6 +89,11 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   const catalogs = catalogsQuery.data;
 
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
+  // How the customer filter reads (API #115): a NIT with its business group's supports, the NIT's
+  // own only, or a whole business group.
+  const [customerScope, setCustomerScope] = useState<CustomerScope>("nit_y_grupo");
+  const [group, setGroup] = useState<string | null>(null);
+  const scopeId = useId();
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
   const [product, setProduct] = useState<AutocompleteOption | null>(null);
   const [text, setText] = useState("");
@@ -131,7 +146,9 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       match: "all",
       conditions: quick,
       q: q || undefined,
-      customer_nits: customer ? [customer.value] : undefined,
+      customer_nits: customerScope !== "grupo" && customer ? [customer.value] : undefined,
+      customer_nit_only: customerScope === "solo_nit" && customer ? true : undefined,
+      business_groups: customerScope === "grupo" && group ? [group] : undefined,
       supplier_codes: supplier ? [supplier.value] : undefined,
       product_skus: product ? [product.value] : undefined,
       // No state hides voided supports; "anulado" is the only way to list them.
@@ -144,7 +161,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       page,
       size: PAGE_SIZE,
     };
-  }, [q, customer, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
+  }, [q, customer, customerScope, group, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
 
   const search = useSupportSearch(body);
   // The KPIs and «Por vencer» belong to the general master, the tactical supports (decided 2026-11-20).
@@ -171,7 +188,8 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
 
   const filtered =
     q !== "" ||
-    customer !== null ||
+    (customerScope !== "grupo" && customer !== null) ||
+    (customerScope === "grupo" && group !== null) ||
     supplier !== null ||
     product !== null ||
     state !== ALL ||
@@ -208,6 +226,8 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
 
   const clearFilters = () => {
     setCustomer(null);
+    setGroup(null);
+    setCustomerScope("nit_y_grupo");
     setSupplier(null);
     setProduct(null);
     setText("");
@@ -274,13 +294,39 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       {view === "general" && !summary.isError && (
         <SupportKpis summary={summary.data} active={state as SupportStateFilter | ""} onSelect={(next) => reset(() => setState(next))} />
       )}
-      <div className="grid gap-3 md:grid-cols-3">
-        <BasePicker
-          config={CUSTOMER_PICKER}
-          selected={customer}
-          onSelect={(option) => reset(() => setCustomer(option))}
-          onClear={() => reset(() => setCustomer(null))}
-        />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[12rem_1fr_1fr_1fr]">
+        {/* What the customer filter covers; a business group's support is one row, «Todo el grupo». */}
+        <div className="min-w-0 space-y-1.5">
+          <label htmlFor={scopeId} className="block text-[13px] font-medium">Filtrar cliente por</label>
+          <Dropdown
+            id={scopeId}
+            value={customerScope}
+            onValueChange={(next) =>
+              reset(() => {
+                const scope = next as CustomerScope;
+                // A customer and a group are different pickers: switching between them starts empty.
+                if (scope === "grupo") setCustomer(null);
+                else setGroup(null);
+                setCustomerScope(scope);
+              })
+            }
+            options={CUSTOMER_SCOPE_OPTIONS}
+          />
+        </div>
+        {customerScope === "grupo" ? (
+          <BusinessGroupPicker
+            selected={group}
+            onSelect={(next) => reset(() => setGroup(next))}
+            onClear={() => reset(() => setGroup(null))}
+          />
+        ) : (
+          <BasePicker
+            config={CUSTOMER_PICKER}
+            selected={customer}
+            onSelect={(option) => reset(() => setCustomer(option))}
+            onClear={() => reset(() => setCustomer(null))}
+          />
+        )}
         <BasePicker
           config={SUPPLIER_PICKER}
           selected={supplier}
@@ -615,7 +661,7 @@ const MOBILE_PRICES = [
 /** Customer or product the support applies to, for the compact mobile row. */
 function subject(support: SupplierSupport): string {
   const group = groupWideName(support);
-  const parts = [group ? `${group} (todo el grupo)` : (support.customer_name ?? support.customer_group), support.product_brand ?? support.brand].filter(Boolean);
+  const parts = [group ? `Todo el grupo · ${group}` : (support.customer_name ?? support.customer_group), support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
 }
 
@@ -626,6 +672,8 @@ function retireFiltersOf(body: SupportSearchBody): SupportSearchFilters {
     conditions: body.conditions,
     q: body.q,
     customer_nits: body.customer_nits,
+    customer_nit_only: body.customer_nit_only,
+    business_groups: body.business_groups,
     supplier_codes: body.supplier_codes,
     product_skus: body.product_skus,
     state: body.state,
