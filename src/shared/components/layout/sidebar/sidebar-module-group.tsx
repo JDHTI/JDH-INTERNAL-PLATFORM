@@ -3,11 +3,10 @@
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Database } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
-import { useMasters } from "@/features/masters/hooks/use-masters";
 import { useCatalog, useFeedbackSummary } from "@/features/pqrsf/hooks/use-pqrsf";
-import { areaMasterPath, isModuleActive, moduleHref, type ModuleItem, type ModuleSubItem } from "@/shared/config/areas.config";
+import { isModuleActive, moduleHref, type ModuleItem } from "@/shared/config/areas.config";
 import { cn } from "@/shared/lib/utils";
 import { useUiStore } from "@/shared/store/use-ui-store";
 import SidebarRow from "./sidebar-row";
@@ -46,19 +45,7 @@ export default function SidebarModuleGroup({
     if (moduleToOpen === module.id) clearModuleToOpen();
   }, [moduleToOpen, module.id, clearModuleToOpen]);
 
-  // The area's DWH masters, one page each, after the static pages (BI's commercial tables).
-  const dynamic = module.dynamicSubItems === "area-masters";
-  const areaMasters = useMasters(module.areaSlug, dynamic);
-  const loadedItems: ModuleSubItem[] = dynamic
-    ? (areaMasters.data ?? []).map((master) => ({
-        id: `${module.id}-dwh-${master.slug}`,
-        name: master.name,
-        path: areaMasterPath(module.path, master.slug),
-        icon: Database,
-      }))
-    : [];
-
-  const subItems = [...(module.subItems ?? []), ...loadedItems].filter(
+  const subItems = (module.subItems ?? []).filter(
     (item) => !item.managerOnly || catalog?.is_manager
   );
   const feedback = useFeedbackSummary(
@@ -67,13 +54,12 @@ export default function SidebarModuleGroup({
   const unread = feedback.data?.unread ?? 0;
   const isInside =
     pathname === module.path || pathname.startsWith(`${module.path}/`);
-  // A module whose pages load from the API is a group even while it has none: it says why.
-  const isOpen = (subItems.length > 0 || dynamic) && (toggled ?? isInside);
+  const isOpen = subItems.length > 0 && (toggled ?? isInside);
   const hasPage = module.hasPage !== false;
   const isModulePage = hasPage && pathname === module.path;
   const Icon = module.icon;
 
-  if (subItems.length === 0 && !dynamic) {
+  if (subItems.length === 0) {
     return (
       <SidebarRow
         href={moduleHref(module)}
@@ -173,11 +159,6 @@ export default function SidebarModuleGroup({
         // same level; flush with the row above and rounded only at the bottom.
         // No padding: the selected page fills the row edge to edge.
         <ul id={panelId} className="overflow-hidden rounded-b-md bg-sidebar-subtle">
-          {subItems.length === 0 && (
-            <li className="px-2 py-2 text-[13px] text-sidebar-muted">
-              {areaMasters.isPending ? "Cargando maestros…" : areaMasters.isError ? "No se pudieron cargar los maestros." : "Esta área aún no tiene maestros."}
-            </li>
-          )}
           {subItems.map((item) => (
             <li key={item.id}>
               <SidebarRow

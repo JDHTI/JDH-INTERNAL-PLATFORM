@@ -69,9 +69,6 @@ export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
 /** The P.04.F.02 action plan matrix. A responsible from another area reaches theirs by /mis-planes-de-accion. */
 export const ACTION_PLANS_SEGMENT = "planes-accion";
 
-/** Where the typed commercial masters (margins, product edits) live, besides the generic ones. */
-export const COMMERCIAL_MASTERS_AREA_SLUG = "bi";
-
 /** Platform administration is a TI module, not a third place outside the workspace. */
 export const ADMIN_AREA_SLUG = "ti";
 export const ADMIN_SEGMENT = "administracion";
@@ -145,12 +142,6 @@ export interface ModuleItem {
    * module with pages that also has a landing screen needs no flag.
    */
   hasPage?: boolean;
-  /**
-   * Pages the sidebar loads from the API, after the static ones: `area-masters`
-   * is one per DWH master TI switched on for the area (`GET /masters?area=`),
-   * each at `${path}/dwh/{slug}`.
-   */
-  dynamicSubItems?: "area-masters";
   /** Only platform administrators see the row; the pages enforce it too. */
   adminOnly?: boolean;
   /**
@@ -160,9 +151,6 @@ export interface ModuleItem {
    */
   permission?: string;
 }
-
-/** Where one of the area's DWH masters opens, under the Maestros module. */
-export const areaMasterPath = (modulePath: string, slug: string) => `${modulePath}/dwh/${encodeURIComponent(slug)}`;
 
 /**
  * The modules of an area the person may see: the ones `my_modules` lists
@@ -525,21 +513,17 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: Database,
     available: true,
     permission: "maestros",
-    // No landing (decided 2026-11-23): the row only opens its pages. Every area
-    // gets one page per DWH master TI switched on for it, loaded by the sidebar;
-    // BI also keeps the typed commercial tables first, where it edits products
-    // and loads margins. On the collapsed rail the row expands it and opens them.
+    // No landing (decided 2026-11-23): the row only opens its pages, the typed
+    // commercial tables (suppliers, customers, products), the same in every area
+    // that has the module. On the collapsed rail the row expands it and opens them.
     hasPage: false,
-    dynamicSubItems: "area-masters",
     subItems: (base, slug) =>
-      slug === COMMERCIAL_MASTERS_AREA_SLUG
-        ? COMMERCIAL_MASTERS.map((master) => ({
-            id: `${slug}-maestros-${master.key}`,
-            name: master.name,
-            path: `${base}/${master.key}`,
-            icon: master.icon,
-          }))
-        : [],
+      COMMERCIAL_MASTERS.map((master) => ({
+        id: `${slug}-maestros-${master.key}`,
+        name: master.name,
+        path: `${base}/${master.key}`,
+        icon: master.icon,
+      })),
   },
   { key: "documentos", name: "Gestor documental", category: "Documentación", icon: FolderOpen, available: true, permission: "documentos" },
 ];
@@ -553,8 +537,7 @@ function buildModule({ key, segment, subItems, ...template }: ModuleTemplate, ar
     id,
     path,
     areaSlug,
-    // A module whose pages load later still gets the (empty) list: its row is a group, not a link.
-    ...(pages.length > 0 || template.dynamicSubItems ? { subItems: pages } : {}),
+    ...(pages.length > 0 ? { subItems: pages } : {}),
   };
 }
 

@@ -10,7 +10,6 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
-import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { toNumber, type Decimal } from "@/shared/lib/format";
@@ -18,7 +17,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
 import { useCommercialMaster, useProductFilterOptions } from "../hooks/use-commercial-masters";
-import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
+import type { CommercialMasterKey } from "../types/commercial-master.types";
 import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
 import ProductDialog from "./product-dialog";
@@ -99,23 +98,23 @@ export default function CommercialMasterTable({ masterKey }: { masterKey: Commer
             setPage(1);
           };
           if (filter.optionsFrom) {
-            // Long lists from the API (suppliers, categories): typing narrows them.
+            // Long lists from the API (suppliers, categories): the same dropdown as the other
+            // filters, with a search box inside that narrows the list.
             const loaded = filter.optionsFrom === "suppliers" ? supplierOptions : categoryOptions;
-            const inputId = `${master.key}-${filter.param}`;
             return (
-              <div key={filter.param} className="lg:w-56">
-                <label htmlFor={inputId} className="sr-only">{filter.ariaLabel}</label>
-                <SearchableDropdown
-                  id={inputId}
-                  value={value}
-                  options={loaded ?? []}
-                  onValueChange={choose}
-                  placeholder={loaded ? filter.allLabel : "Cargando…"}
-                  emptyMessage="Ningún valor coincide."
-                  clearLabel={`Quitar el filtro: ${filter.ariaLabel.replace("Filtrar por ", "")}`}
-                  disabled={!loaded}
-                />
-              </div>
+              <Dropdown
+                key={filter.param}
+                className="lg:w-56"
+                value={value}
+                onValueChange={choose}
+                options={[{ value: "", label: filter.allLabel }, ...(loaded ?? [])]}
+                placeholder={loaded ? filter.allLabel : "Cargando…"}
+                disabled={!loaded}
+                aria-label={filter.ariaLabel}
+                searchable
+                searchPlaceholder={filter.optionsFrom === "suppliers" ? "Buscar proveedor" : "Buscar categoría"}
+                emptyMessage={filter.optionsFrom === "suppliers" ? "Ningún proveedor coincide." : "Ninguna categoría coincide."}
+              />
             );
           }
           return (
@@ -291,28 +290,9 @@ function Cell({
       ) : (
         "—"
       );
-    case "nits":
-      return <Nits nits={Array.isArray(value) ? (value as SupplierNit[]) : []} />;
     default:
       return value === null || value === undefined || value === "" ? "—" : String(value);
   }
-}
-
-/** The primary NIT first; one that was never confirmed says so instead of looking settled. */
-function Nits({ nits }: { nits: SupplierNit[] }) {
-  if (nits.length === 0) return "—";
-  const ordered = [...nits].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
-  return (
-    <span className="flex flex-wrap gap-x-3 gap-y-1">
-      {ordered.map((item) => (
-        <span key={item.nit} className="whitespace-nowrap font-mono text-[13px]">
-          {item.nit}
-          {item.is_primary && <span className="font-sans text-xs text-text-secondary"> principal</span>}
-          {!item.confirmed && <span className="font-sans text-xs text-warning"> sin confirmar</span>}
-        </span>
-      ))}
-    </span>
-  );
 }
 
 function LoadError({ name, error, onRetry }: { name: string; error: Error; onRetry: () => void }) {
