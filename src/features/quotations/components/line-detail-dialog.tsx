@@ -375,31 +375,36 @@ function Detail({
         {line.new_price !== null && <Row label="Nuevo sin apoyo">{formatMargin(line.new_margin_pct)}</Row>}
       </Section>
 
-      <section className="space-y-2">
+      <section className="@container space-y-2">
         <h3 className="text-base font-semibold">Apoyo aplicado</h3>
         {support ? (
           // One card per thing the support brings, in its color: the supplier's money or the temporary
-          // discount, and the margin JDH authorized. The same colors as the chips in the table.
-          <div className="grid gap-2 sm:grid-cols-2">
+          // discount, and the margin JDH authorized. The same colors as the chips in the table. Side by
+          // side only when the panel itself is wide enough (the dialog, not the window, decides).
+          <div className="grid gap-2 @2xl:grid-cols-2">
             {appliedKinds(support).map((kind) => (
-              <AppliedCard key={kind} kind={kind}>
+              <AppliedCard key={kind} kind={kind} footer={kind !== "margen" && support.detail ? support.detail : null}>
                 {kind === "margen" ? (
                   <>
                     <Row label="Margen mínimo">
                       {formatMargin(support.kind === "excepcion_margen" ? support.required_margin_pct : (support.authorized_margin_pct ?? null))}
                     </Row>
                     <Row label="Vigencia">
-                      {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
+                      <Validity from={support.valid_from} to={support.valid_to} />
                     </Row>
                   </>
                 ) : (
                   <>
                     <Row label="Clase">{support.kind ? choiceLabel("kind", support.kind) : "—"}</Row>
                     <Row label="Cálculo">{calcMethodLabel(support.calc_method)}</Row>
-                    <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>{formatMoney(support.amount)}</Row>
+                    <Row label={support.guaranteed_margin_pct != null ? "Por unidad, a este precio" : "Por unidad"}>
+                      <span className="whitespace-nowrap">{formatMoney(support.amount)}</span>
+                    </Row>
                     {/* With a guaranteed margin the support depends on the price: say what it is at the list price too. */}
                     {support.list_amount != null && support.list_amount !== support.amount && (
-                      <Row label="Al precio de lista">{formatMoney(support.list_amount)}</Row>
+                      <Row label="Al precio de lista">
+                        <span className="whitespace-nowrap">{formatMoney(support.list_amount)}</span>
+                      </Row>
                     )}
                     <Row label="Sobre el costo">{formatMargin(support.share_of_cost)}</Row>
                     {support.required_margin_pct !== null && <Row label="Margen que exige">{formatMargin(support.required_margin_pct)}</Row>}
@@ -407,10 +412,9 @@ function Detail({
                       <Row label="Margen garantizado">{formatMargin(support.guaranteed_margin_pct)}</Row>
                     )}
                     <Row label="Vigencia">
-                      {formatDay(support.valid_from)} a {support.valid_to ? formatDay(support.valid_to) : "sin fin"}
+                      <Validity from={support.valid_from} to={support.valid_to} />
                     </Row>
                     {support.conditions && <Row label="Condiciones">{support.conditions}</Row>}
-                    {support.detail && <Row label="Detalle">{support.detail}</Row>}
                     {support.needs_review && <Row label="Estado">En revisión con el proveedor</Row>}
                   </>
                 )}
@@ -533,14 +537,34 @@ const CARD_SURFACE: Record<AppliedKind, string> = {
   margen: "bg-success-surface",
 };
 
-/** One kind of what applied, on its tone's surface, named by the same chip as in the table. */
-function AppliedCard({ kind, children }: { kind: AppliedKind; children: React.ReactNode }) {
+/**
+ * One kind of what applied, on its tone's surface, named by the same chip as in the table. The
+ * labels take at most 45% of the card and wrap beyond it, so a long label never squeezes the value
+ * to one word per line; the free text (`footer`, the support's detail) goes under, full width.
+ */
+function AppliedCard({ kind, footer, children }: { kind: AppliedKind; footer: string | null; children: React.ReactNode }) {
   const look = APPLIED_LOOK[kind];
   return (
-    <div className={cn("space-y-2 rounded-lg border border-border p-3", CARD_SURFACE[kind])} title={look.help}>
+    <div className={cn("min-w-0 space-y-2 rounded-lg border border-border p-3", CARD_SURFACE[kind])} title={look.help}>
       <Badge tone={look.tone}>{look.label}</Badge>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">{children}</dl>
+      <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] gap-x-4 gap-y-1.5">{children}</dl>
+      {footer && (
+        <div className="space-y-0.5 border-t border-border pt-2">
+          <p className="text-text-secondary">Detalle</p>
+          <p className="break-words">{footer}</p>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** «1/11/2026 – 31/12/2026», each date whole: it may break at the dash, never inside a date. */
+function Validity({ from, to }: { from: string | null; to: string | null }) {
+  return (
+    <>
+      <span className="whitespace-nowrap">{formatDay(from)}</span> –{" "}
+      <span className="whitespace-nowrap">{to ? formatDay(to) : "sin fin"}</span>
+    </>
   );
 }
 
