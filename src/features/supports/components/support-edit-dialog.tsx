@@ -14,7 +14,8 @@ import { ApiError, errorMessage } from "@/shared/lib/api-client";
 
 import { useCalcMethodLabel, useUpdateSupport } from "../hooks/use-supports";
 import { PERCENT_METHODS, SUPPORTED_MARGIN_HELP, SUPPORTED_MARGIN_LABEL } from "../lib/format";
-import { toDecimal, toInput } from "../lib/form-values";
+import { NUMBER_ERROR, toDecimal, toInput } from "../lib/form-values";
+import { guaranteedMinError } from "../lib/guaranteed-margin";
 import { overlapsOf } from "../lib/overlaps";
 import type { SupplierSupport, SupportOverlap, SupportPatch, SupportTier, ValueUnit } from "../types/support.types";
 import OverlapDialog from "./overlap-dialog";
@@ -45,6 +46,7 @@ interface Draft {
   reference_cost: string;
   reference_list_price: string;
   target_margin_pct: string;
+  supplier_min_margin_pct: string;
   program: string;
   authorized_by: string;
   notes: string;
@@ -68,6 +70,7 @@ function draftOf(support: SupplierSupport): Draft {
     reference_cost: toInput(support.reference_cost, false),
     reference_list_price: toInput(support.reference_list_price, false),
     target_margin_pct: toInput(support.target_margin_pct, true),
+    supplier_min_margin_pct: toInput(support.supplier_min_margin_pct, true),
     program: support.program ?? "",
     authorized_by: support.authorized_by ?? "",
     notes: support.notes ?? "",
@@ -101,6 +104,7 @@ function buildPatch(support: SupplierSupport, initial: Draft, draft: Draft): Sup
   if (changed("reference_cost")) patch.reference_cost = toDecimal(draft.reference_cost, false);
   if (changed("reference_list_price")) patch.reference_list_price = toDecimal(draft.reference_list_price, false);
   if (changed("target_margin_pct")) patch.target_margin_pct = toDecimal(draft.target_margin_pct, true);
+  if (changed("supplier_min_margin_pct")) patch.supplier_min_margin_pct = toDecimal(draft.supplier_min_margin_pct, true);
   if (changed("program")) patch.program = draft.program.trim() || null;
   if (changed("authorized_by")) patch.authorized_by = draft.authorized_by.trim() || null;
   if (changed("notes")) patch.notes = draft.notes.trim() || null;
@@ -174,6 +178,12 @@ function EditForm({
 
   const patch = buildPatch(support, initial, draft);
   const dirty = Object.keys(patch).length > 1;
+  // Typed but unreadable, or not below the guaranteed margin: said under the field, and it does not save.
+  const supplierMinError = !guaranteed
+    ? null
+    : draft.supplier_min_margin_pct.trim() !== "" && toDecimal(draft.supplier_min_margin_pct, true) === null
+      ? NUMBER_ERROR
+      : guaranteedMinError(toDecimal(draft.supplier_min_margin_pct, true), toDecimal(draft.target_margin_pct, true));
 
   const save = async (body: SupportPatch) => {
     setError(null);
@@ -204,6 +214,7 @@ function EditForm({
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (supplierMinError) return;
     void save(patch);
   };
 
@@ -220,9 +231,27 @@ function EditForm({
       <div className="grid gap-4 sm:grid-cols-2">
         {guaranteed ? (
           // The supplier guarantees a margin at any selling price: that margin is the support, there is no value.
-          <Field label="Margen garantizado (%)" htmlFor={`${id}-target`} hint="El proveedor pone lo que falte para llegar a este margen, se venda al precio que se venda.">
-            <Input id={`${id}-target`} inputMode="decimal" value={draft.target_margin_pct} onChange={(e) => set("target_margin_pct", e.target.value)} />
-          </Field>
+          <>
+            <Field label="Margen garantizado (%)" htmlFor={`${id}-target`} hint="El proveedor pone lo que falte para llegar a este margen, se venda al precio que se venda.">
+              <Input id={`${id}-target`} inputMode="decimal" value={draft.target_margin_pct} onChange={(e) => set("target_margin_pct", e.target.value)} />
+            </Field>
+            <Field
+              label="Margen mínimo garantizado proveedor (%)"
+              htmlFor={`${id}-supplier-min`}
+              hint="Puede ser 0 o negativo, y menor que el garantizado. Precio apoyado = costo / (1 − este margen)."
+              error={supplierMinError}
+            >
+              {/* The full keyboard: the decimal pad has no minus sign on iOS. */}
+              <Input
+                id={`${id}-supplier-min`}
+                inputMode="text"
+                value={draft.supplier_min_margin_pct}
+                onChange={(e) => set("supplier_min_margin_pct", e.target.value)}
+                aria-invalid={supplierMinError ? true : undefined}
+                aria-describedby={supplierMinError ? `${id}-supplier-min-error` : `${id}-supplier-min-hint`}
+              />
+            </Field>
+          </>
         ) : (
           !isException(support) && (
             <Field label={valuePercent ? "Valor del proveedor (%)" : "Valor del proveedor ($)"} htmlFor={`${id}-value`}>
@@ -340,7 +369,7 @@ function EditForm({
         <Button variant="outline" onClick={onClose} disabled={update.isPending}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!dirty || update.isPending}>
+        <Button type="submit" disabled={!dirty || update.isPending || supplierMinError !== null}>
           {update.isPending ? "Guardando" : "Guardar cambios"}
         </Button>
       </div>

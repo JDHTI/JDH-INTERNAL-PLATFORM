@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { formatDay, formatMargin, formatMoney, parseMarginInput } from "@/features/quotations/lib/format";
+import { formatDay, formatMargin, formatMoney, parseMarginInput, parseSupplierMarginInput } from "@/features/quotations/lib/format";
 import Pager from "@/shared/components/pager";
 import { Alert } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
@@ -20,7 +20,7 @@ import type { SessionUser } from "@/features/session/types/session.types";
 
 import { useDecideInternalRequest, useInternalRequest, useInternalRequests } from "../hooks/use-internal-requests";
 import { internalStatusLabel, internalStatusTone, marginPointsText } from "../lib/internal-requests";
-import type { InternalSupportRequest } from "../types/internal-request.types";
+import type { InternalRequestItem, InternalSupportRequest } from "../types/internal-request.types";
 import type { RequestStatus } from "../types/request.types";
 import DiscardDialog from "./discard-dialog";
 import { dateTime } from "./jdh-support";
@@ -107,6 +107,7 @@ export default function InternalRequestsBrowser({ review }: { review: boolean })
                   <tr key={item.id} className="hover:bg-canvas-subtle">
                     <td className={td}>
                       <p className="font-medium tabular-nums">#{item.number}</p>
+                      {item.kind_label && <p className="text-xs">{item.kind_label}</p>}
                       <p className="text-xs text-text-secondary">{item.requested_by} · {dateTime(item.created_at)}</p>
                     </td>
                     <td className={td}>
@@ -164,7 +165,7 @@ function InternalRequestDialog({ id, review, onClose }: { id: string; review: bo
     <Dialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={data ? `Solicitud de apoyo interno #${data.number}` : "Solicitud de apoyo interno"}
+      title={data ? `${data.kind_label || "Solicitud de apoyo interno"} #${data.number}` : "Solicitud de apoyo interno"}
       wide
       isForm={canDecide}
     >
@@ -195,6 +196,9 @@ function InternalRequestDialog({ id, review, onClose }: { id: string; review: bo
 function RequestSummary({ request }: { request: InternalSupportRequest }) {
   return (
     <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      {request.kind_label && (
+        <div className="sm:col-span-2"><dt className="text-text-secondary">Qué se pide</dt><dd>{request.kind_label}</dd></div>
+      )}
       <div><dt className="text-text-secondary">Cliente</dt><dd>{request.customer_name ?? "Sin nombre"} · NIT {request.customer_nit}</dd></div>
       <div><dt className="text-text-secondary">Proveedor</dt><dd>{request.supplier_name ?? request.supplier_code}</dd></div>
       <div><dt className="text-text-secondary">Cotización</dt><dd>{request.quotation_label ?? request.quotation_id ?? "Sin cotización: pedida desde el panel"}</dd></div>
@@ -206,8 +210,25 @@ function RequestSummary({ request }: { request: InternalSupportRequest }) {
   );
 }
 
+/** A supplier request lowers a «% Margen Garantizado»'s supplier minimum, which may go negative. */
+const isSupplierRequest = (request: InternalSupportRequest) => request.kind === "proveedor";
+
+/**
+ * The margin columns: on a JDH request the rule's minimum and the authorized margin asked; on a
+ * supplier one the supplier's minimum in force when asked (`target_margin_pct`) and the one asked.
+ */
+function marginColumns(request: InternalSupportRequest) {
+  return isSupplierRequest(request)
+    ? {
+        floor: { label: "Mínimo proveedor vigente", of: (item: InternalRequestItem) => item.target_margin_pct ?? null },
+        asked: "Mínimo proveedor solicitado",
+      }
+    : { floor: { label: "Mínimo", of: (item: InternalRequestItem) => item.min_margin_pct }, asked: "Margen mínimo autorizado" };
+}
+
 function ItemsTable({ request }: { request: InternalSupportRequest }) {
   const decided = request.status !== "pendiente";
+  const columns = marginColumns(request);
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[640px] text-sm">
@@ -217,8 +238,8 @@ function ItemsTable({ request }: { request: InternalSupportRequest }) {
             <th scope="col" className={th}>Referencia</th>
             <th scope="col" className={`${th} text-right`}>Precio cotizado</th>
             <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
-            <th scope="col" className={`${th} text-right`}>Mínimo</th>
-            <th scope="col" className={`${th} text-right`}>Margen mínimo autorizado</th>
+            <th scope="col" className={`${th} text-right`}>{columns.floor.label}</th>
+            <th scope="col" className={`${th} text-right`}>{columns.asked}</th>
             {decided && <th scope="col" className={`${th} text-right`}>Aprobado</th>}
           </tr>
         </thead>
@@ -228,9 +249,9 @@ function ItemsTable({ request }: { request: InternalSupportRequest }) {
               <td className={td}><p className="font-mono text-xs">{item.sku}</p><p>{item.description ?? "Sin descripción"}</p></td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(item.quoted_price)}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMargin(item.margin_pct)}</td>
-              <td className={`${td} text-right tabular-nums`}>{formatMargin(item.min_margin_pct)}</td>
+              <td className={`${td} text-right tabular-nums`}>{formatMargin(columns.floor.of(item))}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMargin(item.requested_margin_pct)}</td>
-              {decided && <td className={`${td} text-right tabular-nums`}>{item.approved_margin_pct === null ? "No aprobado" : formatMargin(item.approved_margin_pct)}</td>}
+              {decided &&<td className={`${td} text-right tabular-nums`}>{item.approved_margin_pct === null ? "No aprobado" : formatMargin(item.approved_margin_pct)}</td>}
             </tr>
           ))}
         </tbody>
@@ -272,9 +293,20 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
   const [discard, setDiscard] = useState(false);
 
   const approving = choice === "persistente" || choice === "unica_vez";
+  const forSupplier = isSupplierRequest(request);
+  const columns = marginColumns(request);
+  // A supplier's minimum may be 0 or negative, and must stay under the one in force when it was asked.
+  const parseOne = (item: InternalRequestItem): { value: string } | { error: string } => {
+    const result = (forSupplier ? parseSupplierMarginInput : parseMarginInput)(margins[item.sku] ?? "");
+    const floor = item.target_margin_pct;
+    if (forSupplier && "value" in result && floor != null && Number(result.value) >= Number(floor)) {
+      return { error: `debe ser menor que el mínimo vigente del proveedor (${formatMargin(floor)}).` };
+    }
+    return result;
+  };
   const parsed = request.items
     .filter((item) => included.has(item.sku))
-    .map((item) => ({ sku: item.sku, result: parseMarginInput(margins[item.sku] ?? "") }));
+    .map((item) => ({ sku: item.sku, result: parseOne(item) }));
   const marginError = parsed.find((item) => "error" in item.result);
   const noteRequired = choice === "unica_vez" || choice === "rechazar";
   const errors = [
@@ -314,11 +346,25 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
     }
   }
 
-  const options: { value: Choice; label: string; hint: string }[] = [
-    { value: "persistente", label: "Registrar como apoyo", hint: "Queda en el maestro con las vigencias que pongas. El validador de pedidos lo aplica mientras esté vigente." },
-    { value: "unica_vez", label: "Aprobar por una sola vez", hint: `Queda documentado y el validador lo aplica solo a pedidos del ${formatDay(request.requested_for)}.` },
-    { value: "rechazar", label: "Rechazar", hint: "No registra nada. Quien lo pidió ve el motivo." },
-  ];
+  const options: { value: Choice; label: string; hint: string }[] = forSupplier
+    ? [
+        {
+          value: "persistente",
+          label: "Registrar como apoyo",
+          hint: "Crea una copia del % Margen Garantizado para este cliente y esta referencia, con el mínimo aprobado y las vigencias que pongas. El apoyo base no cambia.",
+        },
+        {
+          value: "unica_vez",
+          label: "Aprobar por una sola vez",
+          hint: `Crea la copia con el mínimo aprobado solo para pedidos del ${formatDay(request.requested_for)}. El apoyo base no cambia.`,
+        },
+        { value: "rechazar", label: "Rechazar", hint: "No registra nada. Quien lo pidió ve el motivo." },
+      ]
+    : [
+        { value: "persistente", label: "Registrar como apoyo", hint: "Queda en el maestro con las vigencias que pongas. El validador de pedidos lo aplica mientras esté vigente." },
+        { value: "unica_vez", label: "Aprobar por una sola vez", hint: `Queda documentado y el validador lo aplica solo a pedidos del ${formatDay(request.requested_for)}.` },
+        { value: "rechazar", label: "Rechazar", hint: "No registra nada. Quien lo pidió ve el motivo." },
+      ];
 
   return (
     <>
@@ -337,7 +383,9 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
 
         {approving ? (
           <fieldset className="space-y-2" disabled={mutation.isPending}>
-            <legend className="text-sm font-medium">Referencias y margen apoyado aprobado</legend>
+            <legend className="text-sm font-medium">
+              {forSupplier ? "Referencias y margen mínimo proveedor aprobado" : "Referencias y margen apoyado aprobado"}
+            </legend>
             <p className="text-[13px] text-text-secondary">Puedes ajustar el margen de cada referencia o quitar las que no se aprueban.</p>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full min-w-[680px] text-sm">
@@ -347,8 +395,8 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
                     <th scope="col" className={th}>Aprobar</th>
                     <th scope="col" className={th}>Referencia</th>
                     <th scope="col" className={`${th} text-right`}>Margen cotizado</th>
-                    <th scope="col" className={`${th} text-right`}>Mínimo</th>
-                    <th scope="col" className={`${th} text-right`}>Margen mínimo autorizado</th>
+                    <th scope="col" className={`${th} text-right`}>{columns.floor.label}</th>
+                    <th scope="col" className={`${th} text-right`}>{columns.asked}</th>
                     <th scope="col" className={`${th} w-32`}>Aprobado (%)</th>
                   </tr>
                 </thead>
@@ -373,11 +421,12 @@ function DecisionForm({ request, onDone, onConflict }: { request: InternalSuppor
                         </td>
                         <td className={td}><p className="font-mono text-xs">{item.sku}</p><p>{item.description ?? "Sin descripción"}</p></td>
                         <td className={`${td} text-right tabular-nums`}>{formatMargin(item.margin_pct)}</td>
-                        <td className={`${td} text-right tabular-nums`}>{formatMargin(item.min_margin_pct)}</td>
+                        <td className={`${td} text-right tabular-nums`}>{formatMargin(columns.floor.of(item))}</td>
                         <td className={`${td} text-right tabular-nums`}>{formatMargin(item.requested_margin_pct)}</td>
                         <td className={td}>
                           <Input
-                            inputMode="decimal"
+                            // The decimal pad has no minus sign on iOS, and a supplier's minimum may be negative.
+                            inputMode={forSupplier ? "text" : "decimal"}
                             aria-label={`Margen aprobado para ${item.sku}`}
                             disabled={!on}
                             value={margins[item.sku] ?? ""}

@@ -21,6 +21,7 @@ import {
   withoutKey,
   type Draft,
 } from "../lib/form-values";
+import { guaranteedMinError } from "../lib/guaranteed-margin";
 import { overlapsOf } from "../lib/overlaps";
 import type {
   SupplierSupport,
@@ -57,6 +58,8 @@ const CREATE_FIELDS: { name: string; section: "Apoyo" | "Alcance"; label?: strin
   { name: "supplier_value", section: "Apoyo" },
   // Only «% Margen Garantizado» asks for it: its value is the price and this is the margin.
   { name: "target_margin_pct", section: "Apoyo" },
+  // And the supplier's minimum under it, which may be 0 or negative.
+  { name: "supplier_min_margin_pct", section: "Apoyo" },
   { name: "value_unit", section: "Apoyo" },
   { name: "supported_margin_pct", section: "Apoyo" },
   { name: "valid_from", section: "Apoyo" },
@@ -88,6 +91,9 @@ const HELP: Record<string, string> = {
   customer_group: "Crea un apoyo por cada cliente activo del grupo.",
   product_sku: "Vacío, el SKU del proveedor lo identifica.",
 };
+
+/** Fields whose help the API writes for the form itself (the formula behind it): it is kept as is. */
+const API_HELP = new Set(["supplier_min_margin_pct"]);
 
 /**
  * New support, in a modal over the master. The supplier comes first: its
@@ -219,7 +225,7 @@ function CreateForm({
     if (!spec || !isFieldVisible(name, rule, gated)) return [];
     if (hasGroup && CUSTOMER_FIELDS.includes(name)) return [];
     if (hasCustomer && name === "customer_group") return [];
-    const shown = { ...spec, group: section, label: label ?? spec.label, help: HELP[name] ?? "" };
+    const shown = { ...spec, group: section, label: label ?? spec.label, help: HELP[name] ?? (API_HELP.has(name) ? spec.help : "") };
     // Only the rules v2 classes are created, each with its own types.
     if (name === "kind" && catalogs?.active_kinds) return [{ ...shown, choices: catalogs.active_kinds }];
     if (name === "calc_method") return [{ ...shown, choices: methodsFor(kind) ?? spec.choices }];
@@ -236,6 +242,7 @@ function CreateForm({
     required.delete("min_margin_pct");
     required.add("supported_margin_pct");
   }
+  const isGuaranteed = method === "precio_neto";
   // Promotional warehouses (group 23): off unless ticked here or in the supplier's profile.
   const promo = form.draft.promo_warehouses === "true";
   const toBody = (values: Record<string, string | number | string[]>, supplierCode: string): SupportCreateBody => {
@@ -256,6 +263,7 @@ function CreateForm({
     (!kind || !method) && "la clase y el tipo",
     rule && rule.value_kind !== "none" && typed.values.supplier_value === undefined && "el valor",
     isException && typed.values.supported_margin_pct === undefined && "el margen mínimo autorizado",
+    isGuaranteed && typed.values.supplier_min_margin_pct === undefined && "el margen mínimo del proveedor",
   ].filter((part): part is string => Boolean(part));
   const previewBody: SupportCreateBody | null =
     supplier && missing.length === 0 && Object.keys(typed.errors).length === 0 ? toBody(typed.values, supplier.value) : null;
@@ -340,6 +348,8 @@ function CreateForm({
     if (typeof values.valid_from === "string" && typeof values.valid_to === "string" && values.valid_to < values.valid_from) {
       found.valid_to = "La fecha fin no puede ser anterior a la fecha de inicio.";
     }
+    const supplierMin = guaranteedMinError(values.supplier_min_margin_pct, values.target_margin_pct);
+    if (supplierMin && !found.supplier_min_margin_pct) found.supplier_min_margin_pct = supplierMin;
     setErrors(found);
     if (Object.keys(found).length > 0) {
       setFormError(`Revisa ${Object.keys(found).length === 1 ? "el campo marcado" : `los ${Object.keys(found).length} campos marcados`}.`);

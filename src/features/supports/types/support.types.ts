@@ -142,6 +142,12 @@ export interface SupplierSupport {
    * supplier's support leaves. Fraction. Missing on older API builds.
    */
   supported_margin_pct?: Decimal | null;
+  /**
+   * «% Margen Garantizado»: the supplier's guaranteed minimum margin, which may be 0 or negative
+   * (-1 < value < the guaranteed margin). The supported price is cost / (1 − it), and the support
+   * is fixed at cost − supported price × (1 − guaranteed). Null on the other types and on older ones.
+   */
+  supplier_min_margin_pct?: Decimal | null;
   reference_cost: Decimal | null;
   reference_list_price: Decimal | null;
   valid_from: string | null;
@@ -379,6 +385,8 @@ export interface SupportPatch {
   reference_list_price?: Decimal | null;
   target_margin_pct?: Decimal | null;
   supported_margin_pct?: Decimal | null;
+  /** «% Margen Garantizado»'s supplier minimum margin; may be negative. */
+  supplier_min_margin_pct?: Decimal | null;
   /** A margin exception's authorized minimum (margen_minimo keeps it here). */
   min_margin_pct?: Decimal | null;
   program?: string | null;

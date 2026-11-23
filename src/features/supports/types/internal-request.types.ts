@@ -25,8 +25,13 @@ export interface InternalRequestItem {
   /** The minimum the rule asks for the product. */
   min_margin_pct: Decimal | null;
   requested_margin_pct: Decimal;
-  /** The current margin it had to be under: the product's on the customer's margin list. */
+  /**
+   * The current margin it had to be under: the product's on the customer's margin list, or on a
+   * supplier request the supplier's minimum in force when it was asked.
+   */
   target_margin_pct?: Decimal | null;
+  /** On a supplier request, the «% Margen Garantizado» being lowered. */
+  base_support_id?: string | null;
   /** Null while pending, or when BI left this reference out. */
   approved_margin_pct: Decimal | null;
   /** The support the approval registered. */
@@ -36,6 +41,10 @@ export interface InternalRequestItem {
 export interface InternalSupportRequest {
   id: string;
   number: number;
+  /** Missing on older API builds: those are all `jdh`. */
+  kind?: InternalRequestKind;
+  /** «Solicitud de margen proveedor {proveedor}» or «Excepción margen mínimo autorizado JDH». */
+  kind_label?: string | null;
   status: RequestStatus;
   decision: InternalDecision | null;
   /** Null when it was asked from the requests panel, by customer and SKU. */
@@ -77,9 +86,18 @@ export interface InternalRequestParams {
   mine?: boolean;
 }
 
-/** `POST /quotations/{id}/support-requests`. */
+/**
+ * What a request lowers: `jdh`, the authorized minimum margin (0 ≤ v < the current margin), or
+ * `proveedor`, the supplier's minimum margin of a «% Margen Garantizado» (-100 % < v < the one in
+ * force), which on approval becomes a copy of that support for this customer and reference.
+ */
+export type InternalRequestKind = "jdh" | "proveedor";
+
+/** `POST /quotations/{id}/support-requests`. One request is all JDH or all supplier. */
 export interface InternalRequestInput {
   version: number;
+  /** Left out it is `jdh`. */
+  kind?: InternalRequestKind;
   supplier_code: string;
   requested_for: string;
   agreed_with: string;

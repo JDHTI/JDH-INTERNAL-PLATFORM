@@ -483,6 +483,12 @@ export interface LineSupport {
   authorized_margin_pct?: DecimalText | null;
   /** «% Margen Garantizado»: the margin the supplier guarantees at any price; `amount` is then at the line's price. */
   guaranteed_margin_pct?: DecimalText | null;
+  /**
+   * The supplier's minimum margin under a guaranteed one; may be negative. With it the support is
+   * fixed (`amount` does not move with the price) and the line's `min_price` is the supported price.
+   * Null on supports saved before it: then `amount` still follows the price.
+   */
+  supplier_min_margin_pct?: DecimalText | null;
   /** The support at the list price; `amount` is at the line's price. Equal except with a guaranteed margin. */
   list_amount?: DecimalText | null;
 }

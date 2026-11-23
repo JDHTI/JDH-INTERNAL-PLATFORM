@@ -137,6 +137,10 @@ function Body({
           {supportValueText(support)}
           {support.value_unit && support.calc_method !== "precio_neto" ? ` (${support.value_unit})` : ""}
         </Row>
+        {/* The supplier's floor: the supported price is cost / (1 − it) and the support, fixed, makes up the rest. */}
+        {support.calc_method === "precio_neto" && (
+          <Row label="Margen mínimo garantizado proveedor" tabular>{formatPct(support.supplier_min_margin_pct ?? null)}</Row>
+        )}
         <Row label={SUPPORTED_MARGIN_LABEL} tabular>{formatPct(authorizedMargin(support))}</Row>
         {/* Kept as history: since rules v2 they no longer move the figures. */}
         {seesCost && support.calc_method === "costo_neto" && toNumber(support.jdh_net_cost) !== null && (
