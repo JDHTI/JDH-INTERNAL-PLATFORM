@@ -42,13 +42,19 @@ const STATUS_ORDER: ValidationStatus[] = ["listo_para_liberar", "pendiente_valid
 
 const SORT_KEY = "order-validation:sort";
 const DEFAULT_SORT: OrderSort = "attention";
+/**
+ * On a phone, where the cards have no column headers to sort from. On a wider screen the order
+ * and the margin sort from their own headers (decided 2026-11-23), and the bar above keeps only
+ * the filters.
+ */
 const SORT_OPTIONS: { value: OrderSort; label: string }[] = [
   { value: "attention", label: "Ordenar: requieren atención primero" },
-  { value: "file", label: "Ordenar: como vienen en el archivo" },
-  { value: "document_asc", label: "Ordenar: consecutivo ascendente" },
-  { value: "document_desc", label: "Ordenar: consecutivo descendente" },
+  { value: "document_asc", label: "Ordenar: consecutivo, menor a mayor" },
+  { value: "document_desc", label: "Ordenar: consecutivo, mayor a menor" },
+  { value: "margin_asc", label: "Ordenar: margen, menor a mayor" },
+  { value: "margin_desc", label: "Ordenar: margen, mayor a menor" },
 ];
-/** Anything stored that is not one of the sorts falls back to the default. */
+/** Anything stored that is not one of the sorts offered falls back to the default. */
 const parseSort = (stored: unknown): OrderSort | null =>
   SORT_OPTIONS.some((option) => option.value === stored) ? (stored as OrderSort) : null;
 
@@ -136,6 +142,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     setSelected(allSelected ? new Set() : new Set(selectableOrders.map((order) => order.document)));
 
   const chooseStatus = (next: ValidationStatus | typeof ALL) => reset(() => setStatus(next));
+  // A new order starts on page 1 with nothing ticked, like a filter.
+  const chooseSort = (next: OrderSort) => reset(() => setSort(next));
 
   const clearFilters = () => {
     setStatus(ALL);
@@ -243,12 +251,13 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             className="w-full lg:w-60"
           />
         )}
+        {/* Phones only: from md up the table's headers sort. */}
         <Dropdown
           aria-label="Orden de los pedidos"
           options={SORT_OPTIONS}
           value={sort}
-          onValueChange={(next) => reset(() => setSort(parseSort(next) ?? DEFAULT_SORT))}
-          className="w-full lg:w-72"
+          onValueChange={(next) => chooseSort(parseSort(next) ?? DEFAULT_SORT)}
+          className="w-full md:hidden"
         />
         <ThresholdControl
           batch={batch.data}
@@ -346,6 +355,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             onToggle={toggle}
             onSelect={toggleSelected}
             onSelectAll={toggleAll}
+            sort={sort}
+            onSort={chooseSort}
             onRevoke={(document) => setAction({ kind: "revoke", document })}
             onOpenSupport={setSupportId}
           />

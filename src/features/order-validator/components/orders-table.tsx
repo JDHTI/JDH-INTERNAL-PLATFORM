@@ -1,14 +1,15 @@
 "use client";
 
-import { AlertTriangle, ArrowUp, ChevronDown } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown } from "lucide-react";
 
 import { Badge } from "@/shared/components/ui/badge";
+import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator } from "@/shared/components/ui/menu";
 import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
 import { alertedRows, formatMarginPct, formatOrderDate } from "../lib/format";
-import type { OrderLine, ValidationOrder } from "../types/order-validator.types";
+import type { OrderLine, OrderSort, OrderSortColumn, ValidationOrder } from "../types/order-validator.types";
 import ApprovalSummary from "./approval-summary";
 import OrderLines from "./order-lines";
 import OrderLinesTable from "./order-lines-table";
@@ -169,6 +170,70 @@ function OrderMeta({ order }: { order: ValidationOrder }) {
   return <p className="px-4 py-1.5 text-xs text-text-secondary">{parts.join(" · ")}</p>;
 }
 
+/**
+ * A header that sorts its column on the server, like the quoter's: the menu says it in words
+ * («Mayor a menor», «Menor a mayor») and «Quitar el orden» goes back to the API's default, the
+ * orders that need attention first. One column at a time; `aria-sort` says which.
+ */
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  numeric = false,
+}: {
+  label: string;
+  column: OrderSortColumn;
+  sort: OrderSort;
+  onSort: (sort: OrderSort) => void;
+  /** A column of figures: the header and its menu line up on the right. */
+  numeric?: boolean;
+}) {
+  const direction = sort === `${column}_asc` ? "asc" : sort === `${column}_desc` ? "desc" : null;
+  const Icon = direction === null ? ArrowUpDown : direction === "desc" ? ArrowDown : ArrowUp;
+  const words = direction === null ? null : direction === "desc" ? "mayor a menor" : "menor a mayor";
+  return (
+    <th
+      scope="col"
+      aria-sort={direction === null ? undefined : direction === "asc" ? "ascending" : "descending"}
+      className={cn("px-2 py-1", numeric && "text-right")}
+    >
+      <Menu
+        align={numeric ? "end" : "start"}
+        trigger={
+          <>
+            <span>{label}</span>
+            <Icon className={cn("size-3 shrink-0", direction ? "text-text-primary" : "text-text-secondary")} aria-hidden="true" />
+          </>
+        }
+        triggerLabel={`Ordenar por ${label.toLowerCase()}${words ? `. Ahora: ${words}` : ""}`}
+        triggerTitle={words ? `${label}, ordenado: ${words}` : `Ordenar por ${label.toLowerCase()}`}
+        triggerClassName={cn(
+          "inline-flex min-h-7 items-center gap-1 rounded-sm font-semibold uppercase tracking-[0.06em] hover:text-text-primary",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          numeric && "ml-auto",
+          direction && "text-text-primary"
+        )}
+      >
+        <MenuRadioGroup
+          value={direction ? `${column}_${direction}` : ""}
+          label={`Orden por ${label.toLowerCase()}`}
+          onValueChange={(next) => onSort(next as OrderSort)}
+        >
+          <MenuRadioItem value={`${column}_desc`}>Mayor a menor</MenuRadioItem>
+          <MenuRadioItem value={`${column}_asc`}>Menor a mayor</MenuRadioItem>
+        </MenuRadioGroup>
+        {direction && (
+          <>
+            <MenuSeparator />
+            <MenuItem onClick={() => onSort("attention")}>Quitar el orden</MenuItem>
+          </>
+        )}
+      </Menu>
+    </th>
+  );
+}
+
 /** Desktop: one dense row per order, its lines in a dense table when opened. */
 export function OrdersTable({
   rows,
@@ -183,7 +248,17 @@ export function OrdersTable({
   onSelectAll,
   onRevoke,
   onOpenSupport,
-}: OrdersViewProps & { allSelected: boolean; someSelected: boolean; hasSelectable: boolean; onSelectAll: () => void }) {
+  sort,
+  onSort,
+}: OrdersViewProps & {
+  allSelected: boolean;
+  someSelected: boolean;
+  hasSelectable: boolean;
+  onSelectAll: () => void;
+  /** The server's order; the order number and the margin sort from their headers. */
+  sort: OrderSort;
+  onSort: (sort: OrderSort) => void;
+}) {
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
       <table className="w-full min-w-[56rem] text-left text-[13px]">
@@ -201,10 +276,10 @@ export function OrdersTable({
                 />
               </th>
             )}
-            <th scope="col" className="px-2 py-1.5">Pedido</th>
+            <SortHeader label="Pedido" column="document" sort={sort} onSort={onSort} />
             <th scope="col" className="px-2 py-1.5">Estado</th>
             <th scope="col" className="px-2 py-1.5">Cliente</th>
-            <th scope="col" className="px-2 py-1.5 text-right">Margen pedido</th>
+            <SortHeader label="Margen pedido" column="margin" sort={sort} onSort={onSort} numeric />
             <th scope="col" className="px-2 py-1.5 text-right">Objetivo</th>
             <th scope="col" className="px-2 py-1.5">Líneas</th>
             <th scope="col" className="px-2 py-1.5 text-right">Valor</th>
