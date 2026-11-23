@@ -152,6 +152,22 @@ export function parseMarginInput(text: string): { value: string } | { error: str
   return { value: String(fraction) };
 }
 
+/**
+ * A supplier's minimum margin asked on a «% Margen Garantizado», "8", "-5" or "-2,5 %", as the
+ * fraction the API takes ("-0.05"). Unlike a JDH margin it may be 0 or negative: above -100 %.
+ * Whether it is under the one in force is checked by whoever calls.
+ */
+export function parseSupplierMarginInput(text: string): { value: string } | { error: string } {
+  const clean = text.replace(/\s|%/g, "").replace(",", ".").replace("−", "-");
+  if (clean === "") return { error: "Escribe el margen, por ejemplo 8 o -5." };
+  if (!/^-?\d+(\.\d{1,2})?$/.test(clean)) return { error: "Escribe el margen en puntos, por ejemplo 8, 0 o -5." };
+  const points = Number(clean);
+  if (points <= -100 || points >= 100) return { error: "El margen va entre -100 y 100 %." };
+  // Hundredths of a point, as in parseMarginInput; `+ 0` turns a -0 into 0.
+  const fraction = Math.round(points * 100) / 10000 + 0;
+  return { value: String(fraction) };
+}
+
 /** Two decimal strings that mean the same number ("100" and "100.0000"). */
 export function samePrice(a: string | null | undefined, b: string | null | undefined): boolean {
   if (a === null || a === undefined || a === "") return b === null || b === undefined || b === "";
