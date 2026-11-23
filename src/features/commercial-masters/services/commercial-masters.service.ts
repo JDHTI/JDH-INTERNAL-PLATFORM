@@ -35,6 +35,14 @@ export async function listCommercialMaster({
   return apiFetch<CommercialPage<MasterRow>>(def.endpoint, { query: { ...filters, q, page, size } });
 }
 
+/**
+ * Whether this person edits the products master (product, margins, margin and increase loads):
+ * `manage` on `maestros` in BI, or an administrator. Reading reaches any area with the module.
+ */
+export async function getCommercialPermissions(): Promise<{ can_manage: boolean }> {
+  return apiFetch<{ can_manage: boolean }>("/commercial/permissions");
+}
+
 /** The suppliers and categories the products master's dropdowns offer, from the master itself. */
 export async function getProductFilterOptions(): Promise<ProductFilterOptions> {
   return apiFetch<ProductFilterOptions>("/commercial/products/options");

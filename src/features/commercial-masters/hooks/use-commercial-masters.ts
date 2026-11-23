@@ -8,6 +8,7 @@ import {
   downloadMarginTemplate,
   getPriceIncreaseAnalysis,
   getPriceIncreaseOptions,
+  getCommercialPermissions,
   getProduct,
   getProductFilterOptions,
   listCommercialMaster,
@@ -40,6 +41,20 @@ export function useCommercialMaster(params: CommercialMasterParams) {
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === params.master ? keepPreviousData(previous) : undefined,
   });
+}
+
+/**
+ * Whether the products master offers its edits: the API's own rule (`manage` on `maestros` in BI,
+ * or admin). Not the supports' `can_manage`, which is another grant. False while it loads or fails.
+ */
+export function useCanManageProducts(): boolean {
+  const query = useQuery({
+    queryKey: [...commercialMasterKeys.all, "permissions"] as const,
+    queryFn: getCommercialPermissions,
+    staleTime: 5 * 60_000,
+    retry: retryTransient,
+  });
+  return query.data?.can_manage === true;
 }
 
 /** The options of the products master's supplier and category dropdowns; they change with the nightly sync. */
