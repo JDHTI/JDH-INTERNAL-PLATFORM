@@ -21,10 +21,13 @@ de la clave ve por qué, no una pantalla de 403. Los permisos nunca se deducen d
 
 ## Análisis de entradas
 
-- **Periodo:** por defecto los últimos 30 días. El API lee hasta 200 días a la vez; si el rango pasa
-  de eso, la vista lo dice y no consulta.
-- **Abre en «Solo novedades»** (`novelty=true`: con novedad y sin cotización), que es el trabajo
-  del día. Un chip de estado lo reemplaza; los conteos salen de `counts`.
+- **Periodo:** abre en el último día cargado, con todas sus líneas, para que la pantalla nunca
+  quede vacía. Ese día sale de la línea más reciente del periodo por defecto del API (`GET /entries`
+  sin fechas, `sort=date`, `size=1`); si esos 30 días no tienen entradas, la vista los muestra.
+  Más días se piden en el selector (sus atajos: 7 días, 30 días, mes); limpiarlo vuelve al último
+  día. El API lee hasta 200 días a la vez; si el rango pasa de eso, la vista lo dice y no consulta.
+- **«Solo novedades»** (`novelty=true`: con novedad y sin cotización) es un chip, apagado al
+  abrir. Un chip de estado lo reemplaza; los conteos salen de `counts`.
 - **Filtros:** búsqueda, proveedor (buscador de `GET /commercial/suppliers`, manda el `code`), C.O.,
   bodega y motivo. C.O. y bodega son desplegables con los del periodo (`GET /costs/entries/options`;
   Novedades usa `GET /costs/novelties/options` con el periodo de la bandeja, o todas sin fechas).

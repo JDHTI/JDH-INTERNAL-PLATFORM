@@ -28,8 +28,9 @@ export function listCostReasons(): Promise<CostReason[]> {
 export function listEntries(params: EntryParams): Promise<EntryPage> {
   return apiFetch<EntryPage>(`${COSTS}/entries`, {
     query: {
-      since: params.since,
-      until: params.until,
+      // Without dates the API reads its default period, the last 30 days.
+      since: params.since || undefined,
+      until: params.until || undefined,
       q: params.q || undefined,
       status: params.status || undefined,
       // `novelty` and `status` exclude each other: a status chip is the narrower one.
