@@ -91,7 +91,7 @@ export default function ReasonPicker({
         disabled={disabled || saving}
         aria-label={`${label}: ${currentName ?? "sin motivo"}`}
         className={cn(
-          "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md border border-border-control bg-transparent px-2 text-left text-[13px]",
+          "flex h-7 w-full min-w-0 items-center gap-1 rounded-md border border-border-control bg-transparent px-1.5 text-left text-xs",
           "transition-colors duration-150 outline-none hover:bg-canvas-subtle data-[popup-open]:bg-canvas-subtle",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-control",
           "disabled:cursor-not-allowed disabled:opacity-60 max-md:h-11",
