@@ -52,12 +52,43 @@ export function useCostReasons(enabled = true) {
   });
 }
 
-export function useEntries(params: EntryParams) {
+export function useEntries(params: EntryParams, enabled = true) {
   return useQuery({
     queryKey: costKeys.entries(params),
     queryFn: () => listEntries(params),
     retry: retryTransient,
     placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+/**
+ * The last day the DWH loaded entries for: the newest line of the API's
+ * default period (30 days). Null when that period has none.
+ */
+export function useLatestEntryDate() {
+  return useQuery({
+    queryKey: [...costKeys.all, "latest-entry-date"] as const,
+    queryFn: async () => {
+      const page = await listEntries({
+        since: "",
+        until: "",
+        q: "",
+        status: "",
+        novelty: false,
+        supplier: "",
+        co: "",
+        warehouse: "",
+        reasonId: "",
+        sort: "date",
+        order: "desc",
+        page: 1,
+        size: 1,
+      });
+      return page.items[0]?.entry_date.slice(0, 10) ?? null;
+    },
+    retry: retryTransient,
+    staleTime: 10 * 60_000,
   });
 }
 

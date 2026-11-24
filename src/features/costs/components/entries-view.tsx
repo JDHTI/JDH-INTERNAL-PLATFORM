@@ -18,7 +18,7 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useCostReasons, useEntries, useEntryOptions, useSetEntryReason } from "../hooks/use-costs";
+import { useCostReasons, useEntries, useEntryOptions, useLatestEntryDate, useSetEntryReason } from "../hooks/use-costs";
 import { ENTRY_STATUS, MAX_RANGE_DAYS, NOVELTY_STATUS, SUPPLIER_FILTER, addDays, rangeDays, today } from "../lib/format";
 import type { CostPermissions, CostReason, Entry, EntrySort, EntryStatus, SortOrder } from "../types/costs.types";
 import {
@@ -45,19 +45,24 @@ function defaultRange(): Required<IsoDateRange> {
 
 /**
  * Each purchase entry against the supplier's quotation in force on its day.
- * Opens on the novelties alone: that is the work; the other lines are a chip
- * away. Whoever manages the entries or the novelties gives each line its one
- * reason from the row itself.
+ * Opens on every line of the last day the DWH loaded, so the screen is never
+ * empty; a wider period is one pick away. Whoever manages the entries or the
+ * novelties gives each line its one reason from the row itself.
  */
 export default function EntriesView({ permissions }: { permissions: CostPermissions }) {
-  const [range, setRange] = useState<Required<IsoDateRange>>(defaultRange);
+  // Null until someone picks a period: then the view follows the last loaded day.
+  const [chosen, setChosen] = useState<Required<IsoDateRange> | null>(null);
+  const latest = useLatestEntryDate();
+  const latestRange = latest.data ? { from: latest.data, to: latest.data } : latest.isFetched || latest.isError ? defaultRange() : null;
+  const range = chosen ?? latestRange;
+  const onLatestDay = chosen === null && Boolean(latest.data);
   const [text, setText] = useState("");
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
   const [co, setCo] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [reasonId, setReasonId] = useState("");
   const [status, setStatus] = useState<EntryStatus | "">("");
-  const [noveltyOnly, setNoveltyOnly] = useState(true);
+  const [noveltyOnly, setNoveltyOnly] = useState(false);
   const [sort, setSort] = useState<EntrySort>("date");
   const [order, setOrder] = useState<SortOrder>("desc");
   const [page, setPage] = useState(1);
@@ -67,25 +72,30 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
   const warehouseQuery = warehouse;
   const canSetReasons = permissions.can_set_reasons;
   const reasons = useCostReasons();
-  const tooLong = rangeDays(range.from, range.to) > MAX_RANGE_DAYS;
-  const options = useEntryOptions(range.from, range.to, !tooLong);
+  const tooLong = range !== null && rangeDays(range.from, range.to) > MAX_RANGE_DAYS;
+  const ready = range !== null && !tooLong;
+  const options = useEntryOptions(range?.from ?? "", range?.to ?? "", ready);
 
-  const query = useEntries({
-    since: range.from,
-    until: range.to,
-    q,
-    status,
-    novelty: noveltyOnly,
-    supplier: supplier?.value ?? "",
-    co: coQuery,
-    warehouse: warehouseQuery,
-    reasonId,
-    sort,
-    order,
-    page,
-    size: PAGE_SIZE,
-  });
-  const result = tooLong ? undefined : query.data;
+  const query = useEntries(
+    {
+      since: range?.from ?? "",
+      until: range?.to ?? "",
+      q,
+      status,
+      novelty: noveltyOnly,
+      supplier: supplier?.value ?? "",
+      co: coQuery,
+      warehouse: warehouseQuery,
+      reasonId,
+      sort,
+      order,
+      page,
+      size: PAGE_SIZE,
+    },
+    ready
+  );
+  const result = ready ? query.data : undefined;
+  const period = range ? formatIsoRange(range) : "";
   const rows = result?.items ?? [];
   const counts = result?.counts;
   const filtered = q !== "" || supplier !== null || coQuery !== "" || warehouseQuery !== "" || reasonId !== "" || status !== "";
@@ -123,12 +133,14 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
         fields={
           <>
             <DateRangePicker
-              value={range}
+              value={range ?? {}}
               max={today()}
               label="Periodo de las entradas"
+              placeholder="Último día cargado"
               onChange={(next) =>
                 reset(() => {
-                  setRange(next.from && next.to ? { from: next.from, to: next.to } : defaultRange());
+                  // Clearing the period goes back to the last loaded day.
+                  setChosen(next.from && next.to ? { from: next.from, to: next.to } : null);
                   // The dropdowns list the period's own C.O. and warehouses.
                   setCo("");
                   setWarehouse("");
@@ -206,12 +218,12 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
         }
       />
 
-      {tooLong ? (
+      {range && tooLong ? (
         <StatePanel icon={FileX2} title={`El periodo pasa de ${MAX_RANGE_DAYS} días`}>
-          {formatIsoRange(range)} son {numberFormat.format(rangeDays(range.from, range.to))} días. Elige un periodo más corto: el análisis lee
+          {period} son {numberFormat.format(rangeDays(range.from, range.to))} días. Elige un periodo más corto: el análisis lee
           hasta {MAX_RANGE_DAYS} días a la vez.
         </StatePanel>
-      ) : query.isPending ? (
+      ) : !range || query.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando las entradas del periodo" />
       ) : query.isError && !result ? (
         <StatePanel
@@ -243,11 +255,11 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
               )
             }
           >
-            {formatIsoRange(range)}. Prueba con otro periodo o quita algún filtro.
+            {period}. Prueba con otro periodo o quita algún filtro.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="No hay entradas de compra en el periodo">
-            {formatIsoRange(range)}. El DWH publica las entradas de lunes a sábado hacia las 6:00 con lo movido hasta la noche anterior.
+            {period}. El DWH publica las entradas de lunes a sábado hacia las 6:00 con lo movido hasta la noche anterior.
           </StatePanel>
         )
       ) : (
@@ -262,7 +274,7 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
           {/* From md up, a fixed-layout table: each cell groups its data, so the row fits without scrolling sideways. */}
           <div className="relative hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
             <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
-              <caption className="sr-only">Entradas de compra contra la cotización vigente, {formatIsoRange(range)}</caption>
+              <caption className="sr-only">Entradas de compra contra la cotización vigente, {period}</caption>
               <colgroup>
                 <col style={{ width: "12%" }} />
                 <col />
@@ -310,6 +322,7 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
           {result && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="space-y-0.5 text-xs text-text-secondary">
+                {onLatestDay && <p>Último día cargado, {period}. Para ver más días, elige otro periodo.</p>}
                 <p className="tabular-nums">
                   {numberFormat.format(result.total)} {result.total === 1 ? "línea" : "líneas"} · {numberFormat.format(result.counts.with_reason)} con
                   motivo
