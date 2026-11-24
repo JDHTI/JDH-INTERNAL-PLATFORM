@@ -387,11 +387,11 @@
 }
 
 @layer utilities {
+  /* Pinned to the four edges, with no height of its own: a 100dvh height went stale
+     after some resizes and left a blank band under the app. */
   .app-shell {
     position: fixed;
     inset: 0;
-    height: 100vh;
-    height: 100dvh;
   }
 
   .no-scrollbar::-webkit-scrollbar {
