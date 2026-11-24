@@ -20,7 +20,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { useCostReasons, useNovelties, useSetNoveltyReason } from "../hooks/use-costs";
+import { useCostReasons, useEntryOptions, useNovelties, useSetNoveltyReason } from "../hooks/use-costs";
 import { NOVELTY_STATUS, SUPPLIER_FILTER, today } from "../lib/format";
 import type { CostPermissions, CostReason, Novelty, NoveltyKind, NoveltySort, NoveltyStatus, SortOrder } from "../types/costs.types";
 import CreditNoteDialog from "./credit-note-dialog";
@@ -28,15 +28,11 @@ import {
   DifferenceCell,
   EntryCell,
   ProductCell,
-  PurchaseCells,
-  PurchaseCols,
-  PurchaseFigures,
-  PurchaseGroupHeader,
-  PurchaseSubHeaders,
+  PurchaseCell,
   QuotationCell,
-  QuotationFigures,
 } from "./line-cells";
 import NoveltyDetailDialog from "./novelty-detail-dialog";
+import { CoFilter } from "./place-filters";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
 import SortHeader, { td, th } from "./sort-header";
@@ -71,8 +67,10 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
   const [noting, setNoting] = useState<Novelty | null>(null);
 
   const q = useDebouncedValue(text.trim());
-  const coQuery = useDebouncedValue(co.trim());
+  const coQuery = co;
   const reasons = useCostReasons();
+  // The C.O. with entries in the tray's period; without one, the API's default period.
+  const options = useEntryOptions(range.from ?? "", range.to ?? "");
   const manages = permissions.modules["novedades-compras"]?.can_manage === true;
   const query = useNovelties({
     status,
@@ -152,13 +150,7 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
               onSelect={(option) => reset(() => setSupplier(option))}
               onClear={() => reset(() => setSupplier(null))}
             />
-            <Input
-              value={co}
-              onChange={(event) => reset(() => setCo(event.target.value))}
-              placeholder="C.O."
-              aria-label="Centro de operación"
-              inputMode="numeric"
-            />
+            <CoFilter options={options.data} loading={options.isPending} value={co} onChange={(next) => reset(() => setCo(next))} />
             <ReasonFilter reasons={reasons.data} value={reasonId} onChange={(next) => reset(() => setReasonId(next))} />
             <Dropdown
               value={kind}
@@ -251,32 +243,29 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
             <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Novedades de las entradas de compra</caption>
               <colgroup>
-                <col style={{ width: "11%" }} />
-                <col />
-                <PurchaseCols />
                 <col style={{ width: "12%" }} />
+                <col />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "14%" }} />
                 <col style={{ width: "13%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "16%" }} />
                 <col style={{ width: 44 }} />
               </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} rowSpan={2} {...sortProps} />
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
                   <SortHeader
                     label="Producto"
                     fields={[
                       ["sku", "Referencia"],
                       ["supplier", "Proveedor"],
                     ]}
-                    rowSpan={2}
                     {...sortProps}
                   />
-                  <PurchaseGroupHeader />
+                  <SortHeader label="Precio de compra" {...sortProps} />
                   <SortHeader
                     label="Cotización"
-                    rowSpan={2}
-                    className="text-right"
-                    title="Lo que debió costar la entrada: la cotización vigente menos su Tasa 1"
+                    title="Neta: lo que debió costar la entrada, la cotización vigente menos su Tasa 1"
                     {...sortProps}
                   />
                   <SortHeader
@@ -285,15 +274,13 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
                       ["difference", "En pesos"],
                       ["difference_pct", "En %"],
                     ]}
-                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Estado, motivo y nota" rowSpan={2} {...sortProps} />
-                  <th scope="col" rowSpan={2} className={th}>
+                  <SortHeader label="Estado, motivo y nota" {...sortProps} />
+                  <th scope="col" className={th}>
                     <span className="sr-only">Detalle</span>
                   </th>
                 </tr>
-                <PurchaseSubHeaders />
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
@@ -352,7 +339,9 @@ function NoveltyRow({ row, reasons, canSetReasons, manages, onOpen, onRegisterNo
       <td className={td}>
         <ProductCell line={line} />
       </td>
-      <PurchaseCells line={line} />
+      <td className={td}>
+        <PurchaseCell line={line} />
+      </td>
       <td className={td}>
         <QuotationCell line={line} />
       </td>
@@ -383,9 +372,9 @@ function NoveltyCard(props: RowProps) {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <PurchaseFigures line={row.line} />
+        <PurchaseCell line={row.line} />
         <div className="space-y-2">
-          <QuotationFigures line={row.line} />
+          <QuotationCell line={row.line} />
           <DifferenceCell line={row.line} />
         </div>
       </div>

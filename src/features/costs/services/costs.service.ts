@@ -4,6 +4,7 @@ import type {
   CostPermissions,
   CostReason,
   CreditNoteInput,
+  EntryOptions,
   EntryPage,
   EntryParams,
   NoveltyDetail,
@@ -43,6 +44,12 @@ export function listEntries(params: EntryParams): Promise<EntryPage> {
       size: params.size,
     },
   });
+}
+
+/** The C.O. and warehouses that have entries in the period, for the filter dropdowns. */
+export function getEntryOptions(since: string, until: string): Promise<EntryOptions> {
+  // Without dates the API reads its default period, the last 30 days.
+  return apiFetch<EntryOptions>(`${COSTS}/entries/options`, { query: { since: since || undefined, until: until || undefined } });
 }
 
 /** The one reason of a line, or none; the line becomes a novelty if it was not one. */

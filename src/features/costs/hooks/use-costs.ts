@@ -8,6 +8,7 @@ import {
   attachCreditNote,
   detachCreditNote,
   getCostPermissions,
+  getEntryOptions,
   getNovelty,
   listCostReasons,
   listEntries,
@@ -56,6 +57,18 @@ export function useEntries(params: EntryParams) {
     queryFn: () => listEntries(params),
     retry: retryTransient,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The period's C.O. and warehouses; they change only when the period does. */
+export function useEntryOptions(since: string, until: string, enabled = true) {
+  return useQuery({
+    queryKey: [...costKeys.all, "entry-options", since, until] as const,
+    queryFn: () => getEntryOptions(since, until),
+    retry: retryTransient,
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
