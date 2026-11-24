@@ -26,18 +26,23 @@ de la clave ve por qué, no una pantalla de 403. Los permisos nunca se deducen d
 - **Abre en «Solo novedades»** (`novelty=true`: con novedad y sin cotización), que es el trabajo
   del día. Un chip de estado lo reemplaza; los conteos salen de `counts`.
 - **Filtros:** búsqueda, proveedor (buscador de `GET /commercial/suppliers`, manda el `code`), C.O.,
-  bodega y motivo.
+  bodega y motivo. C.O. y bodega son desplegables con los del periodo (`GET /costs/entries/options`;
+  Novedades usa `GET /costs/novelties/options` con el periodo de la bandeja, o todas sin fechas).
+  Al elegir un C.O., las bodegas se reducen a las suyas; cambiar el periodo limpia los dos.
+- **Campos resaltados:** C.O., bodega, proveedor y cantidad con unidad de compra van en chips
+  neutros (`tag` en `line-cells.tsx`), sin colores nuevos.
 - **Motivo por línea** (`ReasonPicker`): solo con `can_set_reasons`. Una lista filtrable de los
   motivos activos que guarda al elegir (`PUT /costs/entries/{line_key}/reason`); elegir el mismo o
   «Quitar el motivo» lo quita. Un motivo desactivado que la línea ya tenía se muestra, pero no se
   puede elegir.
-- **Columnas** (las mismas en Novedades): entrada, producto, el grupo **Precio de compra** con
-  Actual (`unit_price`), Anterior (`previous_price`) y Antepenúltimo (`antepenultimate_price`),
-  Cotización, Diferencia y estado con el motivo.
-- **Cotización** (`quotation`) es lo que debió costar la entrada: la cotización vigente menos su
-  Tasa 1. La diferencia se mide contra ella. Debajo, cuando hay Tasa 1, van la lista
-  (`quotation_list_price`) y la Tasa 1 (`discount_pct`, fracción: 0,2 se muestra 20 %); el
-  tooltip suma la fecha de vigencia.
+- **Columnas** (las mismas en Novedades): entrada, producto, **Precio de compra** (Actual en
+  negrita, Anterior y Antepenúltimo, uno debajo del otro: `unit_price`, `previous_price`,
+  `antepenultimate_price`), Cotización, Diferencia y estado con el motivo.
+- **Cotización:** arriba «Neta» (`quotation`), lo que debió costar la entrada: la cotización
+  vigente menos su Tasa 1; contra ella se mide la diferencia. Bajo un separador, «Lista»
+  (`quotation_list_price`) y «Tasa 1» (`discount_pct`, fracción: 0,2 se muestra 20 %) en filas
+  propias. Sin Tasa 1 la celda dice «Sin Tasa 1»: la lista es igual a la neta. Es el caso de
+  Team Foods, con todas sus cotizaciones en 0 (validado en el DWH el 2026-11-24).
 - Si `previous_from_warehouse` es `false`, una nota bajo la tabla avisa que las compras anteriores
   salen del periodo leído (el DWH aún no publica su PR #160).
 

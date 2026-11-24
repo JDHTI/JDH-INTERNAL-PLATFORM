@@ -97,7 +97,13 @@ export interface EntryPage {
   threshold: Decimal;
 }
 
-export type EntrySort = "date" | "difference" | "difference_pct" | "amount" | "sku" | "supplier";
+/** The C.O. and warehouses with entries in a period, for the filter dropdowns. */
+export interface EntryOptions {
+  cos: { code: string; name: string | null }[];
+  warehouses: { code: string; co: string | null }[];
+}
+
+export type EntrySort ="date" | "difference" | "difference_pct" | "amount" | "sku" | "supplier";
 
 export interface EntryParams {
   since: string;
@@ -171,6 +177,7 @@ export interface NoveltyParams {
   until: string;
   supplier: string;
   co: string;
+  warehouse: string;
   reasonId: string;
   kind: NoveltyKind | "";
   q: string;

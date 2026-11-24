@@ -18,21 +18,17 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useCostReasons, useEntries, useSetEntryReason } from "../hooks/use-costs";
+import { useCostReasons, useEntries, useEntryOptions, useSetEntryReason } from "../hooks/use-costs";
 import { ENTRY_STATUS, MAX_RANGE_DAYS, NOVELTY_STATUS, SUPPLIER_FILTER, addDays, rangeDays, today } from "../lib/format";
 import type { CostPermissions, CostReason, Entry, EntrySort, EntryStatus, SortOrder } from "../types/costs.types";
 import {
   DifferenceCell,
   EntryCell,
   ProductCell,
-  PurchaseCells,
-  PurchaseCols,
-  PurchaseFigures,
-  PurchaseGroupHeader,
-  PurchaseSubHeaders,
+  PurchaseCell,
   QuotationCell,
-  QuotationFigures,
 } from "./line-cells";
+import { CoFilter, WarehouseFilter } from "./place-filters";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
 import SortHeader, { td } from "./sort-header";
@@ -67,11 +63,12 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
   const [page, setPage] = useState(1);
 
   const q = useDebouncedValue(text.trim());
-  const coQuery = useDebouncedValue(co.trim());
-  const warehouseQuery = useDebouncedValue(warehouse.trim());
+  const coQuery = co;
+  const warehouseQuery = warehouse;
   const canSetReasons = permissions.can_set_reasons;
   const reasons = useCostReasons();
   const tooLong = rangeDays(range.from, range.to) > MAX_RANGE_DAYS;
+  const options = useEntryOptions(range.from, range.to, !tooLong);
 
   const query = useEntries({
     since: range.from,
@@ -130,7 +127,12 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
               max={today()}
               label="Periodo de las entradas"
               onChange={(next) =>
-                reset(() => setRange(next.from && next.to ? { from: next.from, to: next.to } : defaultRange()))
+                reset(() => {
+                  setRange(next.from && next.to ? { from: next.from, to: next.to } : defaultRange());
+                  // The dropdowns list the period's own C.O. and warehouses.
+                  setCo("");
+                  setWarehouse("");
+                })
               }
             />
             <div className="relative">
@@ -151,18 +153,24 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
               onSelect={(option) => reset(() => setSupplier(option))}
               onClear={() => reset(() => setSupplier(null))}
             />
-            <Input
+            <CoFilter
+              options={options.data}
+              loading={options.isPending && !tooLong}
               value={co}
-              onChange={(event) => reset(() => setCo(event.target.value))}
-              placeholder="C.O."
-              aria-label="Centro de operación"
-              inputMode="numeric"
+              onChange={(next) =>
+                reset(() => {
+                  setCo(next);
+                  // A warehouse belongs to one C.O.: changing it starts the warehouse over.
+                  setWarehouse("");
+                })
+              }
             />
-            <Input
+            <WarehouseFilter
+              options={options.data}
+              loading={options.isPending && !tooLong}
+              co={co}
               value={warehouse}
-              onChange={(event) => reset(() => setWarehouse(event.target.value))}
-              placeholder="Bodega"
-              aria-label="Bodega"
+              onChange={(next) => reset(() => setWarehouse(next))}
             />
             <ReasonFilter reasons={reasons.data} value={reasonId} onChange={(next) => reset(() => setReasonId(next))} />
           </>
@@ -256,31 +264,28 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
             <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Entradas de compra contra la cotización vigente, {formatIsoRange(range)}</caption>
               <colgroup>
-                <col style={{ width: "11%" }} />
-                <col />
-                <PurchaseCols />
                 <col style={{ width: "12%" }} />
+                <col />
+                <col style={{ width: "16%" }} />
                 <col style={{ width: "14%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "16%" }} />
               </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} rowSpan={2} {...sortProps} />
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
                   <SortHeader
                     label="Producto"
                     fields={[
                       ["sku", "Referencia"],
                       ["supplier", "Proveedor"],
                     ]}
-                    rowSpan={2}
                     {...sortProps}
                   />
-                  <PurchaseGroupHeader />
+                  <SortHeader label="Precio de compra" {...sortProps} />
                   <SortHeader
                     label="Cotización"
-                    rowSpan={2}
-                    className="text-right"
-                    title="Lo que debió costar la entrada: la cotización vigente menos su Tasa 1"
+                    title="Neta: lo que debió costar la entrada, la cotización vigente menos su Tasa 1"
                     {...sortProps}
                   />
                   <SortHeader
@@ -290,12 +295,10 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
                       ["difference_pct", "En %"],
                       ["amount", "Total por la cantidad"],
                     ]}
-                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Estado y motivo" rowSpan={2} {...sortProps} />
+                  <SortHeader label="Estado y motivo" {...sortProps} />
                 </tr>
-                <PurchaseSubHeaders />
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
@@ -379,7 +382,9 @@ function EntryRow({ row, reasons, canSetReasons }: { row: Entry; reasons: CostRe
       <td className={td}>
         <ProductCell line={row} />
       </td>
-      <PurchaseCells line={row} />
+      <td className={td}>
+        <PurchaseCell line={row} />
+      </td>
       <td className={td}>
         <QuotationCell line={row} />
       </td>
@@ -403,9 +408,9 @@ function EntryCard({ row, reasons, canSetReasons }: { row: Entry; reasons: CostR
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <PurchaseFigures line={row} />
+        <PurchaseCell line={row} />
         <div className="space-y-2">
-          <QuotationFigures line={row} />
+          <QuotationCell line={row} />
           <DifferenceCell line={row} />
         </div>
       </div>
