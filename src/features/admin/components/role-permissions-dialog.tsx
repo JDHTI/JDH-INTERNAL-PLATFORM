@@ -13,45 +13,66 @@ import type { CatalogModuleDto, RoleGrantDto } from "../types/admin.types";
 const WILDCARD = "*";
 type Level = "none" | ModuleAction;
 
+/**
+ * How «Toda el área» reads (2026-11-24): the whole area read only, the whole area managed, or
+ * each module on its own. Read for the whole area no longer lets a module go up to manage: a role
+ * that says «solo lectura» manages nothing.
+ */
+type Scope = "custom" | "read" | "manage";
+
+const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
+  { value: "custom", label: "Personalizado" },
+  { value: "read", label: "Solo lectura" },
+  { value: "manage", label: "Gestión" },
+];
+
 const LEVEL_OPTIONS: { value: Level; label: string }[] = [
   { value: "none", label: "Sin acceso" },
   { value: "read", label: "Lectura" },
   { value: "manage", label: "Gestión" },
 ];
 
-/** Grants as the API keeps them, as one level per module plus the whole-area level. */
-function toLevels(grants: RoleGrantDto[]): { area: Level; modules: Record<string, Level> } {
-  const modules: Record<string, Level> = {};
-  let area: Level = "none";
+/** The grants as the API keeps them: the wildcard's action, if any, and one level per module row. */
+function splitGrants(grants: RoleGrantDto[]): { wildcard: ModuleAction | null; rows: Record<string, ModuleAction> } {
+  const rows: Record<string, ModuleAction> = {};
+  let wildcard: ModuleAction | null = null;
   for (const grant of grants) {
-    if (grant.module === WILDCARD) area = grant.action;
-    else modules[grant.module] = grant.action;
+    if (grant.module === WILDCARD) wildcard = grant.action;
+    else rows[grant.module] = grant.action;
   }
-  return { area, modules };
+  return { wildcard, rows };
 }
 
 /**
- * Back to grants, without the module rows the whole-area level already covers, and only for
- * the modules switched on in the area (`active`). A grant on a module the area switched off is
- * not sent: the API keeps it as it is (it counts again when the module is switched back on),
- * and builds before that refused it on save with «no está activo en el área».
+ * The form's starting point. A role saved the old way, `*` read plus modules in manage, opens as
+ * «Personalizado» with every module of the area in read and those in manage: saved again, it
+ * keeps exactly what it could do, written out row by row.
  */
-function toGrants(area: Level, modules: Record<string, Level>, active: Set<string>): RoleGrantDto[] {
-  const grants: RoleGrantDto[] = [];
-  if (area !== "none") grants.push({ module: WILDCARD, action: area });
-  if (area === "manage") return grants;
-  for (const [module, level] of Object.entries(modules)) {
-    if (level === "none" || level === area || !active.has(module)) continue;
-    grants.push({ module, action: level });
+function toForm(grants: RoleGrantDto[], active: string[]): { scope: Scope; levels: Record<string, Level> } {
+  const { wildcard, rows } = splitGrants(grants);
+  const raised = Object.keys(rows).some((module) => rows[module] === "manage" && active.includes(module));
+  if (wildcard === "manage") return { scope: "manage", levels: rows };
+  if (wildcard === "read" && !raised) return { scope: "read", levels: {} };
+  if (wildcard === "read") {
+    return { scope: "custom", levels: { ...Object.fromEntries(active.map((module) => [module, "read" as Level])), ...rows } };
   }
-  return grants;
+  return { scope: "custom", levels: rows };
 }
 
 /**
- * What a role lets its members do, module by module. "Toda el área" is the
- * wildcard the API has; a module row can only add to it, so under full
- * management the rows are moot and under read they can only raise to manage.
+ * Back to grants. «Solo lectura» and «Gestión» are the wildcard alone; «Personalizado» is one row
+ * per module, never the wildcard, and only for the modules switched on in the area (`active`). A
+ * grant on a module the area switched off is not sent: the API keeps it as it is (it counts again
+ * when the module is switched back on), and builds before that refused it on save with «no está
+ * activo en el área».
  */
+function toGrants(scope: Scope, levels: Record<string, Level>, active: Set<string>): RoleGrantDto[] {
+  if (scope !== "custom") return [{ module: WILDCARD, action: scope }];
+  return Object.entries(levels)
+    .filter(([module, level]) => level !== "none" && active.has(module))
+    .map(([module, level]) => ({ module, action: level as ModuleAction }));
+}
+
 export const LEADER_ROLE_HELP =
   "El rol líder del área tiene todos sus permisos. No se elimina y sus permisos no cambian; sí se puede renombrar.";
 
@@ -106,7 +127,7 @@ export default function RolePermissionsDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`Permisos de ${roleName}`}
-      description="Lectura permite consultar y descargar. Gestión permite crear, editar, aprobar y configurar, e incluye la lectura."
+      description="Lectura permite consultar y descargar. Gestión permite crear, editar, aprobar y configurar, e incluye la lectura. «Solo lectura» y «Gestión» valen para todos los módulos del área; con «Personalizado» eliges módulo por módulo."
       isForm
     >
       {error && <DialogError message={error} />}
@@ -137,22 +158,25 @@ function PermissionsForm({
   onCancel: () => void;
   onSave: (grants: RoleGrantDto[]) => void;
 }) {
-  const initial = toLevels(grants);
-  const [area, setArea] = useState<Level>(initial.area);
-  const [levels, setLevels] = useState<Record<string, Level>>(initial.modules);
+  const active = modules.map((module) => module.key);
+  const [initial] = useState(() => toForm(grants, active));
+  const [scope, setScope] = useState<Scope>(initial.scope);
+  const [levels, setLevels] = useState<Record<string, Level>>(initial.levels);
+  const whole = scope !== "custom";
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(toGrants(area, levels, new Set(modules.map((module) => module.key))));
+    onSave(toGrants(scope, levels, new Set(active)));
   };
 
-  const moduleOptions =
-    area === "read"
-      ? [
-          { value: "none", label: "Lectura (por toda el área)" },
-          { value: "manage", label: "Gestión" },
-        ]
-      : LEVEL_OPTIONS;
+  const chooseScope = (next: Scope) => {
+    // From a whole-area level to «Personalizado» with nothing chosen yet: start from what the
+    // role had, every module at that level, and lower the ones it should not have.
+    if (next === "custom" && whole && active.every((module) => (levels[module] ?? "none") === "none")) {
+      setLevels(Object.fromEntries(active.map((module) => [module, scope])));
+    }
+    setScope(next);
+  };
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -164,38 +188,36 @@ function PermissionsForm({
           id="permissions-area"
           className="w-44"
           size="sm"
-          value={area}
-          onValueChange={(value) => setArea(value as Level)}
-          options={LEVEL_OPTIONS}
+          value={scope}
+          onValueChange={(value) => chooseScope(value as Scope)}
+          options={SCOPE_OPTIONS}
           aria-label="Permiso sobre toda el área"
         />
       </div>
 
+      {scope === "custom" && active.every((module) => (levels[module] ?? "none") === "none") && (
+        <p className="text-[13px] text-text-secondary">Con todos los módulos en «Sin acceso», el rol no abre nada.</p>
+      )}
+
       <ul className="divide-y divide-border rounded-md border border-border">
-        {modules.map((module) => {
-          const current = levels[module.key] ?? "none";
-          // Under read for the whole area a plain read grant is the same as none.
-          const value = area === "read" && current === "read" ? "none" : current;
-          return (
-            <li key={module.key} className="flex items-center justify-between gap-3 px-3 py-2">
-              <label htmlFor={`permissions-${module.key}`} className="min-w-0 truncate text-sm">
-                {module.label}
-              </label>
-              <Dropdown
-                id={`permissions-${module.key}`}
-                className="w-44"
-                size="sm"
-                value={area === "manage" ? "manage" : value}
-                onValueChange={(next) =>
-                  setLevels((previous) => ({ ...previous, [module.key]: next as Level }))
-                }
-                options={moduleOptions}
-                disabled={area === "manage"}
-                aria-label={`Permiso sobre ${module.label}`}
-              />
-            </li>
-          );
-        })}
+        {modules.map((module) => (
+          <li key={module.key} className="flex items-center justify-between gap-3 px-3 py-2">
+            <label htmlFor={`permissions-${module.key}`} className="min-w-0 truncate text-sm">
+              {module.label}
+            </label>
+            <Dropdown
+              id={`permissions-${module.key}`}
+              className="w-44"
+              size="sm"
+              // Under a whole-area level every module shows that level and cannot move.
+              value={whole ? scope : levels[module.key] ?? "none"}
+              onValueChange={(next) => setLevels((previous) => ({ ...previous, [module.key]: next as Level }))}
+              options={LEVEL_OPTIONS}
+              disabled={whole}
+              aria-label={`Permiso sobre ${module.label}`}
+            />
+          </li>
+        ))}
       </ul>
 
       <DialogFooter>
@@ -216,12 +238,13 @@ function PermissionsForm({
  */
 export function grantsSummary(grants: RoleGrantDto[] | undefined, active?: Set<string>): string {
   if (!grants) return "Cargando permisos…";
-  const { area, modules } = toLevels(grants);
-  if (area === "manage") return "Acceso completo";
-  const granted = Object.entries(modules).filter(([module, level]) => level !== "none" && (!active || active.has(module))).length;
-  if (area === "read") {
-    return granted > 0 ? `Lectura de toda el área y gestión en ${granted}` : "Lectura de toda el área";
-  }
-  if (granted === 0) return "Sin permisos: no abre ningún módulo";
-  return granted === 1 ? "1 módulo" : `${granted} módulos`;
+  const { wildcard, rows } = splitGrants(grants);
+  if (wildcard === "manage") return "Acceso completo";
+  const counted = Object.entries(rows).filter(([module]) => !active || active.has(module));
+  const managed = counted.filter(([, level]) => level === "manage").length;
+  if (wildcard === "read" && managed === 0) return "Solo lectura de toda el área";
+  // The old way, `*` read plus modules in manage, is a custom role: every module of the area opens.
+  const opened = wildcard === "read" && active ? active.size : counted.length;
+  if (opened === 0) return "Sin permisos: no abre ningún módulo";
+  return `Personalizado: ${opened} ${opened === 1 ? "módulo" : "módulos"} (${managed === 0 ? "solo lectura" : `${managed} con gestión`})`;
 }

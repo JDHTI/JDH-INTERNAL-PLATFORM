@@ -70,6 +70,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const [status, setStatus] = useState<ValidationStatus | typeof ALL>(ALL);
   const [text, setText] = useState("");
   const [operationCenter, setOperationCenter] = useState(ALL);
+  const [salesperson, setSalesperson] = useState(ALL);
   const [thresholdText, setThresholdText] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -93,7 +94,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       : "";
 
   // The rows come in the server's order (the pages are the server's too) and are never re-sorted here.
-  const orders = useBatchOrders({ batchId, sort, status, thresholdPreview, q, operationCenter, page, size: PAGE_SIZE });
+  const orders = useBatchOrders({ batchId, sort, status, thresholdPreview, q, operationCenter, salesperson, page, size: PAGE_SIZE });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
   // The API lists every C.O. of the file whatever the filters, so the options never shrink.
@@ -103,6 +104,15 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     ...centers.map((center) => ({
       value: center.code,
       label: `C.O. ${center.code} · ${numberFormat.format(center.order_count)} ${center.order_count === 1 ? "pedido" : "pedidos"}`,
+    })),
+  ];
+  // Likewise every salesperson of the file; a file can bring dozens, so the list takes a search box.
+  const salespeople = result?.salespeople ?? [];
+  const salespersonOptions = [
+    { value: ALL, label: "Todos los vendedores" },
+    ...salespeople.map((person) => ({
+      value: person.name,
+      label: `${person.name} (${numberFormat.format(person.order_count)})`,
     })),
   ];
 
@@ -116,7 +126,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
 
-  const filtered = status !== ALL || q !== "" || operationCenter !== ALL;
+  const filtered = status !== ALL || q !== "" || operationCenter !== ALL || salesperson !== ALL;
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -149,6 +159,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     setStatus(ALL);
     setText("");
     setOperationCenter(ALL);
+    setSalesperson(ALL);
     setPage(1);
     setSelected(new Set());
   };
@@ -249,6 +260,18 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             value={operationCenter}
             onValueChange={(next) => reset(() => setOperationCenter(next))}
             className="w-full lg:w-60"
+          />
+        )}
+        {(salespeople.length > 0 || salesperson !== ALL) && (
+          <Dropdown
+            aria-label="Filtrar por vendedor"
+            options={salespersonOptions}
+            value={salesperson}
+            onValueChange={(next) => reset(() => setSalesperson(next))}
+            className="w-full lg:w-72"
+            searchable
+            searchPlaceholder="Buscar vendedor"
+            emptyMessage="Ningún vendedor coincide."
           />
         )}
         {/* Phones only: from md up the table's headers sort. */}

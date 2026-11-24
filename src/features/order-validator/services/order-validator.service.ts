@@ -54,11 +54,21 @@ export async function listOrders({
   thresholdPreview,
   q,
   operationCenter,
+  salesperson,
   page,
   size,
 }: OrderParams): Promise<OrderPage> {
   return apiFetch<OrderPage>(`${BASE}/${encodeURIComponent(batchId)}/orders`, {
-    query: { sort, status, margin_threshold_points: thresholdPreview, q, operation_center: operationCenter, page, size },
+    query: {
+      sort,
+      status,
+      margin_threshold_points: thresholdPreview,
+      q,
+      operation_center: operationCenter,
+      salesperson,
+      page,
+      size,
+    },
   });
 }
 

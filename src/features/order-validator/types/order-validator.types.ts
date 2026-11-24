@@ -210,10 +210,17 @@ export interface OrderPage {
   counts: Partial<Record<ValidationStatus, number>>;
   /** Every operation center (C.O. factura) of the file, by code, whatever the filters. Older API builds send none. */
   operation_centers?: OperationCenterCount[];
+  /** Every salesperson of the file («Nombre vendedor cliente»), by name, whatever the filters. Older API builds send none. */
+  salespeople?: SalespersonCount[];
 }
 
 export interface OperationCenterCount {
   code: string;
+  order_count: number;
+}
+
+export interface SalespersonCount {
+  name: string;
   order_count: number;
 }
 
@@ -237,6 +244,8 @@ export interface OrderParams {
   q: string;
   /** One operation center's orders; empty for all. */
   operationCenter: string;
+  /** One salesperson's orders, by name (the API ignores case and repeated spaces); empty for all. */
+  salesperson: string;
   page: number;
   size: number;
 }
