@@ -42,3 +42,13 @@ export async function requireModule(areaSlug: string, segment: string): Promise<
     redirect(`/${areaSlug}?${ACCESS_DENIED_PARAM}=modulo`);
   }
 }
+
+/**
+ * A general master's page under Maestros: a 404 when the area's Maestros does
+ * not list it (`masters` of GET /areas/{slug}). Call it after `requireModule`.
+ * When the API did not answer, the page renders and the client gate shows the error.
+ */
+export async function requireGeneralMaster(areaSlug: string, master: string): Promise<void> {
+  const { area } = await lookupArea(areaSlug);
+  if (area && !(area.masters ?? []).includes(master)) notFound();
+}

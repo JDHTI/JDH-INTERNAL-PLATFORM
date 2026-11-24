@@ -45,9 +45,9 @@ Lo que cada persona hace dentro de un módulo no depende del área en la UI: lo 
 quien llama. Apoyos usa `GET /supplier-supports/permissions` (`can_manage` abre la escritura;
 `can_review` convierte `/{área}/solicitudes-apoyos` en la bandeja de revisión, y si no, son las
 solicitudes propias; `can_request` deja pedir desde el maestro). El cotizador usa
-`GET /quotations/permissions` y el validador `GET /order-validations/permissions`. BI conserva además
-las tablas tipadas de maestros comerciales (márgenes, edición de productos) bajo
-`/bi/maestros/{maestro}`. En el cotizador, Comercial y BI crean cotizaciones; quien no valida ve solo
+`GET /quotations/permissions` y el validador `GET /order-validations/permissions`. Los maestros
+generales (márgenes, edición de productos) son tablas tipadas bajo `/{área}/maestros/{maestro}`; cuáles
+ve cada área se explica en **Maestros**, más abajo. En el cotizador, Comercial y BI crean cotizaciones; quien no valida ve solo
 las que creó (`docs/cotizador.md`).
 
 | Módulo de la UI | Clave del API |
@@ -86,9 +86,20 @@ editor manda el `kind` de la cotización abierta. **Listas principales** hace lo
 solo viven en BI. En `/ti/administracion/modulos` las demás áreas muestran «Bloqueado» en lugar del
 interruptor, y el API rechaza encenderlo. Un comercial con `actualizacion-listas` nunca los recibe.
 
-**Maestros.** `/{área}/maestros` lista `GET /masters?area={slug}`: los maestros que TI eligió para el
-área (todos si no eligió). Cada maestro se busca y se ve registro por registro; no hay descarga. El API
-los lee del DWH en vivo, con caché por corrida:
+**Maestros.** El módulo `maestros` lista los maestros generales del estándar: Proveedores comerciales,
+Proveedores legales, Clientes y Productos, en ese orden (`COMMERCIAL_MASTERS` en
+`src/features/commercial-masters/config/masters.config.ts`, las mismas claves que `GENERAL_MASTERS` del
+API). No tiene pantalla propia: su fila del menú abre los maestros del área.
+- Cuáles ve cada área se elige en Módulos por área (más abajo). El API los devuelve en `masters` de
+  `GET /areas` y `GET /areas/{slug}`, en orden de menú.
+- `visibleModules` deja en el menú solo esos, y quita la fila si no queda ninguno.
+- `[area]/maestros/[master]` responde 404 si el área no lista ese maestro (`requireGeneralMaster`).
+- Un maestro general nuevo se agrega al estándar del API y a `COMMERCIAL_MASTERS`. Las áreas con
+  «Todos los maestros» lo reciben de una vez.
+
+El navegador de vistas del DWH es otra cosa: Administración → Maestros (`/ti/administracion/maestros`,
+`GET /masters`). Cada vista se busca y se ve registro por registro; no hay descarga. El API las lee del
+DWH en vivo, con caché por corrida:
 - «Publicado por el DWH» es `last_synced_at`, la fecha en que el DWH publicó lo que se ve.
 - Con `is_stale` en la página de registros, un aviso dice «Datos del {fecha}; el DWH se está
   actualizando».
@@ -144,7 +155,10 @@ guardadas no dependen del alcance: cada quien ve las que creó, y quien valida, 
   interruptor por área y módulo (`PUT /areas/{slug}/modules/{clave}`). Encender es inmediato; apagar
   pide confirmación porque saca el módulo a todos los miembros, también al líder (los permisos de los
   roles se conservan). En Maestros, el enlace bajo el interruptor elige «Todos los maestros» o una
-  lista (`config.masters`). Cada cambio invalida `["areas"]`, el catálogo de permisos y los maestros.
+  lista de los maestros generales (`general_masters` de la misma respuesta, con nombre y descripción).
+  Se guarda en `config.masters`, en orden de menú. Un valor viejo que no sea del estándar se descarta
+  al abrir el diálogo, porque el API responde 422 a cualquier otro. Cada cambio invalida `["areas"]`,
+  el catálogo de permisos y los maestros.
   En el teléfono se elige un área y se ven sus módulos en lista. Un moderador vería la matriz sin
   interruptores, pero hoy `AdminGate` solo deja entrar a owner y admin.
 - **Maestros (`/ti/administracion/maestros`):** el bloque «Sincronización con el DWH» (`GET /jobs`;
