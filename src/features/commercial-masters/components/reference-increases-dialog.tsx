@@ -9,7 +9,7 @@ import { formatCop } from "@/features/supports/lib/format";
 
 import { useReferenceIncreases } from "../hooks/use-commercial-masters";
 import type { PriceIncrease, ReferenceAnalysis } from "../types/price-increases.types";
-import CostStepChart, { type CostPoint } from "./cost-step-chart";
+import CostTrendChart, { type CostPoint } from "./cost-trend-chart";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay, rowChange } from "./increase-format";
 
 /** The cost a row leaves, on the analysis' basis: without the healthy-food tax when known. */
@@ -19,7 +19,7 @@ const costBefore = (row: PriceIncrease) => usable(toNumber(row.old_cost)) ?? usa
 const money = (value: number | null) => (value === null ? "—" : formatCop(String(value)));
 
 /**
- * One reference's whole history: how its cost moved (a step chart) and every
+ * One reference's whole history: how its cost moved (a trend line) and every
  * change under it, the chart's table view. The figures of the period come from
  * the analysis row that opened it.
  */
@@ -42,12 +42,14 @@ function History({ item, onClose }: { item: ReferenceAnalysis; onClose: () => vo
   const rows = [...(query.data?.items ?? [])]
     .filter((row) => row.increased_on)
     .sort((a, b) => (a.increased_on! < b.increased_on! ? -1 : a.increased_on! > b.increased_on! ? 1 : 0));
+  // One point per increase, at the cost it left; two on the same day keep the later one.
   const points: CostPoint[] = [];
-  const first = rows[0];
-  if (first && costBefore(first) !== null) points.push({ date: first.increased_on!, cost: costBefore(first)! });
   for (const row of rows) {
     const cost = costAfter(row);
-    if (cost !== null) points.push({ date: row.increased_on!, cost });
+    if (cost === null) continue;
+    const point = { date: row.increased_on!, cost, change: rowChange(row) };
+    if (points.at(-1)?.date === point.date) points[points.length - 1] = point;
+    else points.push(point);
   }
 
   return (
@@ -69,7 +71,7 @@ function History({ item, onClose }: { item: ReferenceAnalysis; onClose: () => vo
         </p>
       ) : (
         <>
-          {points.length > 1 && <CostStepChart points={points} label={`Costo de ${item.sku} en el tiempo`} />}
+          {points.length > 1 && <CostTrendChart points={points} label={`Costo de ${item.sku} en cada incremento`} />}
           <div className="max-h-64 overflow-auto rounded-lg border border-border">
             <table className="w-full text-left text-[13px]">
               <caption className="sr-only">Alzas de {item.sku}</caption>
