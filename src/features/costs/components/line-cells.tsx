@@ -58,8 +58,8 @@ export function ProductCell({ line }: { line: EntryLine }) {
 export function Figures({ rows }: { rows: { label: string; value: string | null; strong?: boolean; title?: string }[] }) {
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-baseline justify-between gap-2" title={row.title}>
+      {rows.map((row, index) => (
+        <div key={`${row.label}-${index}`} className="flex items-baseline justify-between gap-2" title={row.title}>
           <dt className="whitespace-nowrap text-xs text-text-secondary">{row.label}</dt>
           <dd className={cn("whitespace-nowrap", row.strong && "font-semibold")}>{row.value ?? dash}</dd>
         </div>

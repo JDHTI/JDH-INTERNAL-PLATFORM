@@ -3,13 +3,14 @@
 import { INCREASE_STATUS } from "@/features/commercial-masters/components/increase-format";
 import { formatCop, formatDay, formatPct } from "@/features/supports/lib/format";
 import { Badge } from "@/shared/components/ui/badge";
-import { toNumber } from "@/shared/lib/format";
+import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import { formatSignedCop, formatSignedPct } from "../lib/format";
 import { REGIONALS, type RequestLine } from "../types/increase-requests.types";
-
 import { regionalLabel } from "./discount-fields";
+import { Figures, secondary } from "./line-cells";
+import { th, td } from "./sort-header";
 
 /** «Regular 5 %; Antioquia 7 %, Bogotá…»: only the regionals that differ from the regular one. */
 export function discountsText(line: Pick<RequestLine, "regular_discount_pct" | "regional_discounts">): string {
@@ -18,14 +19,89 @@ export function discountsText(line: Pick<RequestLine, "regular_discount_pct" | "
     (regional) => `${regionalLabel(regional)} ${formatPct(line.regional_discounts[regional]!)}`
   );
   const parts = [regular !== null ? `Regular ${formatPct(regular)}` : null, regionals.length > 0 ? regionals.join(", ") : null].filter(Boolean);
-  return parts.length > 0 ? parts.join("; ") : "—";
+  return parts.length > 0 ? parts.join("; ") : "Sin descuentos";
+}
+
+const cop = (value: Decimal | null) => (toNumber(value) === null ? null : formatCop(value));
+
+/*
+ * The cells of a request line, compacted like the quoter's: a main line and
+ * quieter ones under it, so a row says product, costs, change, date and
+ * discounts without sideways scrolling.
+ */
+
+function ProductCell({ line, showRow }: { line: RequestLine; showRow: boolean }) {
+  const meta = [
+    showRow && line.row_number !== null ? `Fila ${line.row_number}` : null,
+    line.supplier_sku && `SKU proveedor ${line.supplier_sku}`,
+    line.ean && `EAN ${line.ean}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <span className="block font-mono text-[13px] font-semibold">{line.sku}</span>
+      {line.description && (
+        <span className="block truncate text-[13px]" title={line.description}>
+          {line.description}
+        </span>
+      )}
+      {meta && (
+        <span className={secondary} title={meta}>
+          {meta}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Old and new cost, each without and with the healthy-food tax; the new one leads. */
+function CostsCell({ line }: { line: RequestLine }) {
+  return (
+    <Figures
+      rows={[
+        { label: "Anterior", value: cop(line.old_cost) },
+        { label: "con imp.", value: cop(line.old_cost_with_tax), title: "Costo anterior con impuesto saludable" },
+        { label: "Nuevo", value: cop(line.new_cost), strong: true },
+        { label: "con imp.", value: cop(line.new_cost_with_tax), title: "Costo nuevo con impuesto saludable" },
+      ]}
+    />
+  );
+}
+
+function ChangeCell({ line }: { line: RequestLine }) {
+  const look = line.change ? INCREASE_STATUS[line.change] : null;
+  return (
+    <div className="space-y-1">
+      {look && <Badge tone={look.tone}>{line.change_label ?? look.label}</Badge>}
+      <Figures
+        rows={[
+          { label: "Pesos", value: toNumber(line.variation_amount) === null ? null : formatSignedCop(line.variation_amount), strong: true },
+          { label: "%", value: toNumber(line.variation_pct) === null ? null : formatSignedPct(line.variation_pct) },
+        ]}
+      />
+    </div>
+  );
+}
+
+/** When the increase starts, the discounts, and the MAESTRA's observation. */
+function TermsCell({ line }: { line: RequestLine }) {
+  const discounts = discountsText(line);
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <span className="block font-semibold tabular-nums">{formatDay(line.increased_on)}</span>
+      <span className="line-clamp-2 text-xs text-text-secondary" title={discounts}>
+        {discounts}
+      </span>
+      {line.observation && <span className="block truncate text-xs">{line.observation.replace(/_/g, " ")}</span>}
+    </div>
+  );
 }
 
 /**
- * The lines of a request the way the area reads the MAESTRA: old and new
- * cost with and without the healthy-food tax, the change and its status, the
- * increase date, the discounts and the observation. `actions` adds the review
- * column; a line left out stays listed, muted, and says so.
+ * The lines of a request the way the area reads the MAESTRA. `actions` adds
+ * the review column; a line left out stays listed, muted, and says so.
+ * Phones get one card per line.
  */
 export default function IncreaseLinesTable({
   lines,
@@ -40,79 +116,63 @@ export default function IncreaseLinesTable({
   actions?: (line: RequestLine) => React.ReactNode;
 }) {
   return (
-    <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
-      <table className="w-full min-w-max text-left text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
-          <tr>
-            {showRow && <th scope="col" className="px-3 py-2 text-right">Fila</th>}
-            <th scope="col" className="px-3 py-2">Referencia</th>
-            <th scope="col" className="px-3 py-2 text-right">Costo anterior</th>
-            <th scope="col" className="px-3 py-2 text-right">Costo nuevo</th>
-            <th scope="col" className="px-3 py-2 text-right">Variación</th>
-            <th scope="col" className="px-3 py-2">Incremento</th>
-            <th scope="col" className="px-3 py-2 text-right">Fecha</th>
-            <th scope="col" className="px-3 py-2">Descuentos</th>
-            <th scope="col" className="px-3 py-2">Observación</th>
-            {actions && (
-              <th scope="col" className="border-l border-border bg-canvas-subtle px-3 py-2 md:sticky md:right-0">
-                Revisión
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {lines.map((line) => {
-            const look = line.change ? INCREASE_STATUS[line.change] : null;
-            return (
-              <tr key={line.id} className={cn("group h-10 align-top hover:bg-primary-subtle", !line.accepted && "text-text-secondary")}>
-                {showRow && <td className="px-3 py-2 text-right tabular-nums">{line.row_number ?? "—"}</td>}
-                <td className="max-w-80 px-3 py-2">
-                  <span className="block truncate" title={line.description ?? undefined}>
-                    <span className="font-mono text-[13px]">{line.sku}</span>
-                    {line.description && <span className="text-text-secondary"> · {line.description}</span>}
-                  </span>
-                  {(line.supplier_sku || line.ean) && (
-                    <span className="block truncate text-xs text-text-secondary">
-                      {[line.supplier_sku && `SKU proveedor ${line.supplier_sku}`, line.ean && `EAN ${line.ean}`].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
+    <>
+      <ul className="space-y-2 md:hidden" aria-label={caption}>
+        {lines.map((line) => (
+          <li key={line.id} className={cn("space-y-3 rounded-lg border border-border bg-surface p-3 text-sm", !line.accepted && "text-text-secondary")}>
+            <ProductCell line={line} showRow={showRow} />
+            <div className="grid grid-cols-2 gap-3">
+              <CostsCell line={line} />
+              <ChangeCell line={line} />
+            </div>
+            <TermsCell line={line} />
+            {!line.accepted && <p className="text-xs font-medium">Por fuera de la solicitud</p>}
+            {actions && <div className="flex flex-wrap gap-2">{actions(line)}</div>}
+          </li>
+        ))}
+      </ul>
+
+      <div className="relative hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+        <table className="w-full min-w-[46rem] table-fixed text-left text-sm">
+          <caption className="sr-only">{caption}</caption>
+          <colgroup>
+            <col />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "20%" }} />
+            {actions && <col style={{ width: "9.5rem" }} />}
+          </colgroup>
+          <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
+            <tr>
+              <th scope="col" className={th}>Producto</th>
+              <th scope="col" className={th}>Costo sin y con impuesto</th>
+              <th scope="col" className={th}>Variación</th>
+              <th scope="col" className={th}>Fecha y descuentos</th>
+              {actions && <th scope="col" className={th}>Revisión</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {lines.map((line) => (
+              <tr key={line.id} className={cn("hover:bg-primary-subtle", !line.accepted && "text-text-secondary")}>
+                <td className={td}>
+                  <ProductCell line={line} showRow={showRow} />
+                  {!line.accepted && <span className="mt-1 block text-xs font-medium">Por fuera de la solicitud</span>}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                  {formatCop(line.old_cost)}
-                  <span className="block text-xs text-text-secondary">con imp. {formatCop(line.old_cost_with_tax)}</span>
+                <td className={td}>
+                  <CostsCell line={line} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
-                  {formatCop(line.new_cost)}
-                  <span className="block text-xs font-normal text-text-secondary">con imp. {formatCop(line.new_cost_with_tax)}</span>
+                <td className={td}>
+                  <ChangeCell line={line} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                  {formatSignedCop(line.variation_amount)}
-                  <span className="block text-xs text-text-secondary">{formatSignedPct(line.variation_pct)}</span>
+                <td className={td}>
+                  <TermsCell line={line} />
                 </td>
-                <td className="px-3 py-2">
-                  <span className="flex flex-col items-start gap-1">
-                    {look ? <Badge tone={look.tone}>{line.change_label ?? look.label}</Badge> : "—"}
-                    {!line.accepted && <span className="text-xs">Por fuera</span>}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatDay(line.increased_on)}</td>
-                <td className="max-w-72 px-3 py-2">
-                  <span className="block truncate" title={discountsText(line)}>
-                    {discountsText(line)}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2">{line.observation ?? "—"}</td>
-                {actions && (
-                  <td className="border-l border-border bg-surface px-2 py-1 group-hover:shadow-[inset_0_0_0_100vmax_var(--primary-subtle)] md:sticky md:right-0">
-                    {actions(line)}
-                  </td>
-                )}
+                {actions && <td className={cn(td, "px-1.5")}>{actions(line)}</td>}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

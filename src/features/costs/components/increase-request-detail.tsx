@@ -184,11 +184,11 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
         actions={
           reviewing
             ? (line) => (
-                <span className="flex items-center gap-1">
+                <span className="flex flex-wrap items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="max-md:size-11"
+                    className="size-7 max-md:size-11"
                     onClick={() => setEditing(line)}
                     aria-label={`Corregir ${line.sku}`}
                     title="Corregir"
@@ -198,7 +198,7 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="max-md:h-11"
+                    className="h-7 px-1.5 max-md:h-11"
                     disabled={toggle.isPending && toggle.variables?.lineId === line.id}
                     onClick={() => setAccepted(line, !line.accepted)}
                     aria-label={line.accepted ? `Dejar ${line.sku} por fuera` : `Incluir ${line.sku} de nuevo`}
