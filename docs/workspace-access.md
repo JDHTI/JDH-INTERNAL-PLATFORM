@@ -62,6 +62,7 @@ las que creó (`docs/cotizador.md`).
 | Listas principales (bloqueado a BI) | `listas-principales`; validar ítems pide además `validacion-listas`, y cambiar el impuesto licor y generar su plano, `impuesto-licor` (los dos sin pantalla) |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
+| Liquidación de apoyos (bloqueado a BI) | `liquidacion-apoyos`; `read` consulta y descarga, `manage` recalcula y cierra el mes; reabrir un mes cerrado es del líder de BI o de un administrador (`GET /support-settlements/permissions`) |
 | Solicitudes de apoyo (apoyo interno: pedir y revisar) | `solicitudes-apoyos` |
 | Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |
 | Maestros (`/{área}/maestros`) | `maestros` |
@@ -81,7 +82,7 @@ Los permisos salen de `GET /quotations/permissions?kind=lista` y el listado de `
 editor manda el `kind` de la cotización abierta. **Listas principales** hace lo mismo con
 `kind="principal"`.
 
-**Módulo bloqueado.** `listas-principales`, `validacion-listas` e `impuesto-licor` tienen `locked` en el catálogo del API:
+**Módulo bloqueado.** `listas-principales`, `validacion-listas`, `impuesto-licor` y `liquidacion-apoyos` tienen `locked` en el catálogo del API:
 solo viven en BI. En `/ti/administracion/modulos` las demás áreas muestran «Bloqueado» en lugar del
 interruptor, y el API rechaza encenderlo. Un comercial con `actualizacion-listas` nunca los recibe.
 
