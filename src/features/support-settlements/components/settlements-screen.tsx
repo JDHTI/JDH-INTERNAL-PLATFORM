@@ -10,7 +10,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { ViewTab } from "@/shared/components/ui/view-tab";
-import { ApiError, errorMessage } from "@/shared/lib/api-client";
+import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import {
@@ -72,7 +72,7 @@ export default function SettlementsScreen() {
 }
 
 function SettlementMonths({ permissions }: { permissions: SettlementPermissions }) {
-  const periods = useSettlementPeriods(true);
+  const periods = useSettlementPeriods();
   const [chosen, setChosen] = useState<Period | null>(null);
 
   if (periods.isPending) {
@@ -118,19 +118,15 @@ function SettlementMonths({ permissions }: { permissions: SettlementPermissions 
   );
 }
 
-/** Seconds since `running` turned on, for the long calculations. */
-function useElapsed(running: boolean): number {
-  const [seconds, setSeconds] = useState(0);
+/** Seconds since `startedAt`, ticking while it is set, for the long calculations. */
+function useElapsed(startedAt: number | null): number {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!running) return;
-    const started = Date.now();
-    const timer = window.setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
-    return () => {
-      window.clearInterval(timer);
-      setSeconds(0);
-    };
-  }, [running]);
-  return seconds;
+    if (startedAt === null) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+  return startedAt === null ? 0 : Math.max(0, Math.floor((now - startedAt) / 1000));
 }
 
 const ACTION_TEXT: Record<SettlementAction, { running: string; done: string }> = {
@@ -148,25 +144,27 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
   const action = useSettlementAction();
   const [confirm, setConfirm] = useState<"close" | "reopen" | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  // Set when the proxy cut the request (504) and the action waits for the calculation to land.
+  const [detached, setDetached] = useState(false);
   const running = action.isPending ? action.variables?.action ?? null : null;
-  const elapsed = useElapsed(running === "recalculate" || running === "close");
+  const long = running === "recalculate" || running === "close";
+  const elapsed = useElapsed(long ? startedAt : null);
   const settlement = month.settlement;
   const closed = settlement?.status === "cerrado";
   const label = periodLabel(month.period);
+  // The month being calculated, which may not be the one on screen if the selector changed.
+  const runningLabel = action.variables ? periodLabel(action.variables.period) : label;
 
   const run = (kind: SettlementAction) => {
     setConfirm(null);
+    setDetached(false);
+    setStartedAt(Date.now());
     action.mutate(
-      { action: kind, period: month.period },
+      { action: kind, period: month.period, since: settlement?.calculated_at ?? null, onDetached: () => setDetached(true) },
       {
         onSuccess: () => toast.success(`${ACTION_TEXT[kind].done}: ${label}.`),
-        onError: (failure) =>
-          toast.error(
-            failure instanceof ApiError && failure.status === 504
-              ? "La plataforma dejó de esperar, pero el cálculo puede seguir en curso. Vuelve a abrir el mes en unos minutos."
-              : errorMessage(failure),
-            { duration: Infinity }
-          ),
+        onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
       }
     );
   };
@@ -182,6 +180,7 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
     }
   };
 
+  // One calculation at a time, in any month: a second one would run after it and overwrite it.
   const busy = action.isPending;
   return (
     <>
@@ -212,9 +211,12 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
         )}
       </div>
 
-      {(running === "recalculate" || running === "close") && (
+      {long && (
         <p role="status" className="w-full rounded-md bg-info-surface px-3 py-2 text-sm text-info">
-          {ACTION_TEXT[running].running} {label}: se leen sus ventas del DWH y puede tardar de 1 a 3 minutos. No cierres esta página.{" "}
+          {ACTION_TEXT[running].running} {runningLabel}: se leen sus ventas del DWH y puede tardar de 1 a 3 minutos.{" "}
+          {detached
+            ? "La plataforma dejó de esperar la respuesta, pero el cálculo sigue: esta página revisa cada 15 segundos si ya terminó."
+            : "No cierres esta página."}{" "}
           <span className="tabular-nums">
             ({Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")})
           </span>

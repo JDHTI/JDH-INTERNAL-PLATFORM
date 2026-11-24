@@ -16,14 +16,14 @@ import { downloadSettlement } from "../services/support-settlements.service";
 import type { Period, ReferenceRow, SupplierRow } from "../types/support-settlements.types";
 import { MarginShift } from "./settlement-figures";
 import SettlementLines from "./settlement-lines";
+import { supplierFilterCode, supplierLabel } from "./supplier-options";
 
 const th = "px-2 py-1.5";
 const num = "whitespace-nowrap px-2 py-1.5 text-right tabular-nums";
 
-/** A supplier without a code in the masters still has a row; its key and label say so. */
-const supplierKey = (row: SupplierRow) => row.supplier_code ?? "sin-codigo";
-const supplierName = (row: { supplier_name: string | null; supplier_code: string | null }) =>
-  row.supplier_name ?? row.supplier_code ?? "Sin proveedor en el maestro";
+/** A supplier without a code in the masters is asked for with the API's `__none__`. */
+const supplierKey = supplierFilterCode;
+const supplierName = supplierLabel;
 
 /** Opened rows of a level: a click toggles one, the rest stay as they are. */
 function useOpenSet() {
@@ -65,7 +65,7 @@ export default function SuppliersTable({ period, rows }: { period: Period; rows:
   const download = async (row: SupplierRow) => {
     setDownloading(supplierKey(row));
     try {
-      await downloadSettlement(period, row.supplier_code);
+      await downloadSettlement(period, supplierFilterCode(row));
     } catch (failure) {
       toast.error(errorMessage(failure));
     } finally {
@@ -104,22 +104,14 @@ export default function SuppliersTable({ period, rows }: { period: Period; rows:
           const isOpen = open.has(key);
           const panelId = `settlement-supplier-${key}`;
           const name = supplierName(row);
-          // The API filters references by code: a supplier without one cannot be opened alone.
-          const canOpen = row.supplier_code !== null;
           return (
             <tbody key={key} className="border-t border-border">
-              <tr className={cn("hover:bg-primary-subtle", canOpen && "cursor-pointer")} onClick={canOpen ? () => toggle(key) : undefined}>
+              <tr className="cursor-pointer hover:bg-primary-subtle" onClick={() => toggle(key)}>
                 <td className="max-w-80 px-2 py-1.5">
-                  {canOpen ? (
-                    <ToggleCell open={isOpen} controls={panelId} label={`${isOpen ? "Ocultar" : "Ver"} las referencias de ${name}`}>
-                      <span className="block truncate font-medium" title={name}>{name}</span>
-                      <span className="block font-mono text-xs text-text-secondary">{row.supplier_code}</span>
-                    </ToggleCell>
-                  ) : (
-                    <span className="block truncate pl-5 font-medium" title="Sin código en el maestro: su detalle está en el Excel del mes">
-                      {name}
-                    </span>
-                  )}
+                  <ToggleCell open={isOpen} controls={panelId} label={`${isOpen ? "Ocultar" : "Ver"} las referencias de ${name}`}>
+                    <span className="block truncate font-medium" title={name}>{name}</span>
+                    {row.supplier_code && <span className="block font-mono text-xs text-text-secondary">{row.supplier_code}</span>}
+                  </ToggleCell>
                 </td>
                 <td className={num}>{formatCount(row.references)}</td>
                 <td className={num}>{formatCount(row.supported_lines)}</td>
@@ -142,10 +134,10 @@ export default function SuppliersTable({ period, rows }: { period: Period; rows:
                   </Button>
                 </td>
               </tr>
-              {isOpen && row.supplier_code !== null && (
+              {isOpen && (
                 <tr id={panelId}>
                   <td colSpan={8} className="bg-canvas-subtle p-3">
-                    <SupplierReferences period={period} supplierCode={row.supplier_code} supplierName={name} />
+                    <SupplierReferences period={period} supplierCode={key} supplierName={name} />
                   </td>
                 </tr>
               )}
