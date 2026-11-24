@@ -13,7 +13,7 @@ import { cn } from "@/shared/lib/utils";
 import { useSettlementReferences } from "../hooks/use-support-settlements";
 import { formatCount, formatPesos } from "../lib/format";
 import { downloadSettlement } from "../services/support-settlements.service";
-import type { Period, ReferenceRow, SupplierRow } from "../types/support-settlements.types";
+import type { CostBasis, Period, ReferenceRow, SupplierRow } from "../types/support-settlements.types";
 import { MarginShift } from "./settlement-figures";
 import SettlementLines from "./settlement-lines";
 import { supplierFilterCode, supplierLabel } from "./supplier-options";
@@ -58,14 +58,14 @@ function ToggleCell({ open, controls, label, children }: { open: boolean; contro
  * supported references, and a reference into its sale lines with each support applied. Every
  * supplier row downloads that supplier's workbook.
  */
-export default function SuppliersTable({ period, rows }: { period: Period; rows: SupplierRow[] }) {
+export default function SuppliersTable({ period, basis, rows }: { period: Period; basis: CostBasis; rows: SupplierRow[] }) {
   const { open, toggle } = useOpenSet();
   const [downloading, setDownloading] = useState<string | null>(null);
 
   const download = async (row: SupplierRow) => {
     setDownloading(supplierKey(row));
     try {
-      await downloadSettlement(period, supplierFilterCode(row));
+      await downloadSettlement(period, basis, supplierFilterCode(row));
     } catch (failure) {
       toast.error(errorMessage(failure));
     } finally {
@@ -137,7 +137,7 @@ export default function SuppliersTable({ period, rows }: { period: Period; rows:
               {isOpen && (
                 <tr id={panelId}>
                   <td colSpan={8} className="bg-canvas-subtle p-3">
-                    <SupplierReferences period={period} supplierCode={key} supplierName={name} />
+                    <SupplierReferences period={period} basis={basis} supplierCode={key} supplierName={name} />
                   </td>
                 </tr>
               )}
@@ -150,8 +150,18 @@ export default function SuppliersTable({ period, rows }: { period: Period; rows:
 }
 
 /** The supplier's supported references; `net` and `cost` are every sale of each one in the month. */
-function SupplierReferences({ period, supplierCode, supplierName: name }: { period: Period; supplierCode: string; supplierName: string }) {
-  const query = useSettlementReferences(period, supplierCode);
+function SupplierReferences({
+  period,
+  basis,
+  supplierCode,
+  supplierName: name,
+}: {
+  period: Period;
+  basis: CostBasis;
+  supplierCode: string;
+  supplierName: string;
+}) {
+  const query = useSettlementReferences(period, basis, supplierCode);
   const { open, toggle } = useOpenSet();
 
   if (query.isPending) {
@@ -219,6 +229,7 @@ function SupplierReferences({ period, supplierCode, supplierName: name }: { peri
                   <td colSpan={7} className="p-2">
                     <SettlementLines
                       period={period}
+                      basis={basis}
                       supplierCode={supplierCode}
                       sku={row.sku}
                       label={`Ventas apoyadas de ${row.sku}`}

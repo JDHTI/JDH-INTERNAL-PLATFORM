@@ -14,7 +14,7 @@ import { useCalcMethodLabel, useKindLabel } from "@/features/supports/hooks/use-
 
 import { useSettlementLines } from "../hooks/use-support-settlements";
 import { ITEM_STATUS, formatCount, formatDay, formatPercent, formatPesos } from "../lib/format";
-import type { ItemStatus, Period, SettlementItem, SettlementLine } from "../types/support-settlements.types";
+import type { CostBasis, ItemStatus, Period, SettlementItem, SettlementLine } from "../types/support-settlements.types";
 import { MarginShift } from "./settlement-figures";
 
 const PAGE_SIZE = 50;
@@ -27,6 +27,7 @@ const PAGE_SIZE = 50;
  */
 export default function SettlementLines({
   period,
+  basis,
   supplierCode = null,
   sku = null,
   status = null,
@@ -34,6 +35,7 @@ export default function SettlementLines({
   showProduct = false,
 }: {
   period: Period;
+  basis: CostBasis;
   supplierCode?: string | null;
   sku?: string | null;
   status?: ItemStatus | null;
@@ -43,7 +45,7 @@ export default function SettlementLines({
   showProduct?: boolean;
 }) {
   const [page, setPage] = useState(1);
-  const query = useSettlementLines(period, { supplierCode, sku, status, page, size: PAGE_SIZE });
+  const query = useSettlementLines(period, basis, { supplierCode, sku, status, page, size: PAGE_SIZE });
   const result = query.data;
   const rows = result?.items ?? [];
 
@@ -92,7 +94,7 @@ export default function SettlementLines({
             </tr>
           </thead>
           {rows.map((line) => (
-            <LineRows key={line.id} line={line} showProduct={showProduct} />
+            <LineRows key={line.id} line={line} basis={basis} showProduct={showProduct} />
           ))}
         </table>
       </div>
@@ -113,7 +115,7 @@ export default function SettlementLines({
   );
 }
 
-function LineRows({ line, showProduct }: { line: SettlementLine; showProduct: boolean }) {
+function LineRows({ line, basis, showProduct }: { line: SettlementLine; basis: CostBasis; showProduct: boolean }) {
   const columns = showProduct ? 8 : 7;
   return (
     <tbody className="border-t border-border">
@@ -145,10 +147,15 @@ function LineRows({ line, showProduct }: { line: SettlementLine; showProduct: bo
         <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{formatPesos(line.net)}</td>
         <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
           {formatPesos(line.cost)}
-          {line.cost_source === "factura" && (
-            <span className="block text-xs text-warning" title="Sin cotización del proveedor vigente: se usó el costo de la factura">
-              Costo de factura
-            </span>
+          {basis === "inventario" ? (
+            // On the inventory basis every line is the invoiced cost: a fact of the basis, not a warning.
+            <span className="block text-xs text-text-secondary">Inventario (factura)</span>
+          ) : (
+            line.cost_source === "factura" && (
+              <span className="block text-xs text-warning" title="Sin cotización del proveedor vigente: se usó el costo de la factura">
+                Costo de factura
+              </span>
+            )
           )}
         </td>
         <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums">{formatPesos(line.amount)}</td>

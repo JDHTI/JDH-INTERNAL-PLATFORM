@@ -3,6 +3,7 @@ import { apiDownload, apiFetch } from "@/shared/lib/api-client";
 import type {
   BreakdownBy,
   BreakdownRow,
+  CostBasis,
   LineParams,
   Period,
   Settlement,
@@ -16,27 +17,30 @@ import type {
 const BASE = "/support-settlements";
 const month = (period: Period) => `${BASE}/${encodeURIComponent(period)}`;
 
-/** Open: without access every flag is false, not a 403. */
+/** Open: without access every flag is false, not a 403. The only endpoint without a cost basis. */
 export function getSettlementPermissions(): Promise<SettlementPermissions> {
   return apiFetch<SettlementPermissions>(`${BASE}/permissions`);
 }
 
-export function listSettlementPeriods(): Promise<SettlementPeriod[]> {
-  return apiFetch<SettlementPeriod[]>(`${BASE}/periods`);
+export function listSettlementPeriods(basis: CostBasis): Promise<SettlementPeriod[]> {
+  return apiFetch<SettlementPeriod[]>(`${BASE}/periods`, { query: { cost_basis: basis } });
 }
 
-/** 404 while the month has not been calculated. */
-export function getSettlementSummary(period: Period): Promise<SettlementSummary> {
-  return apiFetch<SettlementSummary>(month(period));
+/** 404 while the month has not been calculated on that basis. */
+export function getSettlementSummary(period: Period, basis: CostBasis): Promise<SettlementSummary> {
+  return apiFetch<SettlementSummary>(month(period), { query: { cost_basis: basis } });
 }
 
-export function getSettlementReferences(period: Period, supplierCode: string | null): Promise<SettlementReferences> {
-  return apiFetch<SettlementReferences>(`${month(period)}/references`, { query: { supplier_code: supplierCode } });
+export function getSettlementReferences(period: Period, basis: CostBasis, supplierCode: string | null): Promise<SettlementReferences> {
+  return apiFetch<SettlementReferences>(`${month(period)}/references`, {
+    query: { cost_basis: basis, supplier_code: supplierCode },
+  });
 }
 
-export function listSettlementLines(period: Period, params: LineParams): Promise<SettlementLinePage> {
+export function listSettlementLines(period: Period, basis: CostBasis, params: LineParams): Promise<SettlementLinePage> {
   return apiFetch<SettlementLinePage>(`${month(period)}/lines`, {
     query: {
+      cost_basis: basis,
       supplier_code: params.supplierCode,
       sku: params.sku,
       status: params.status,
@@ -46,29 +50,39 @@ export function listSettlementLines(period: Period, params: LineParams): Promise
   });
 }
 
-export function getSettlementBreakdown(period: Period, by: BreakdownBy, supplierCode: string | null): Promise<BreakdownRow[]> {
-  return apiFetch<BreakdownRow[]>(`${month(period)}/breakdown`, { query: { by, supplier_code: supplierCode } });
-}
-
-/** The month's workbook: Resumen, Detalle ventas and No liquidados; one supplier or all. */
-export function downloadSettlement(period: Period, supplierCode: string | null): Promise<void> {
-  return apiDownload(`${month(period)}/export`, {
-    query: { supplier_code: supplierCode },
-    fallbackName: `liquidacion-apoyos-${period}${supplierCode ? `-${supplierCode}` : ""}.xlsx`,
+export function getSettlementBreakdown(
+  period: Period,
+  basis: CostBasis,
+  by: BreakdownBy,
+  supplierCode: string | null
+): Promise<BreakdownRow[]> {
+  return apiFetch<BreakdownRow[]>(`${month(period)}/breakdown`, {
+    query: { cost_basis: basis, by, supplier_code: supplierCode },
   });
 }
 
-/** Reads the month from the DWH again: 1 to 3 minutes. 409 when the month is closed. */
-export function recalculateSettlement(period: Period): Promise<Settlement> {
-  return apiFetch<Settlement>(`${month(period)}/recalculate`, { method: "POST" });
+/** The month's workbook on one basis: Resumen (with the basis), Detalle ventas and No liquidados. */
+export function downloadSettlement(period: Period, basis: CostBasis, supplierCode: string | null): Promise<void> {
+  return apiDownload(`${month(period)}/export`, {
+    query: { cost_basis: basis, supplier_code: supplierCode },
+    fallbackName: `liquidacion-apoyos-${period}-${basis}${supplierCode ? `-${supplierCode}` : ""}.xlsx`,
+  });
 }
 
-/** A finished month only (422 otherwise): calculated one last time and frozen. */
-export function closeSettlement(period: Period): Promise<Settlement> {
-  return apiFetch<Settlement>(`${month(period)}/close`, { method: "POST" });
+/**
+ * Reads the month from the DWH once and recalculates BOTH bases that are not closed: 1 to 3
+ * minutes. Returns the basis asked for; 409 only when that one is closed.
+ */
+export function recalculateSettlement(period: Period, basis: CostBasis): Promise<Settlement> {
+  return apiFetch<Settlement>(`${month(period)}/recalculate`, { method: "POST", query: { cost_basis: basis } });
 }
 
-/** BI's leader or an administrator; 403 for anyone else. */
-export function reopenSettlement(period: Period): Promise<Settlement> {
-  return apiFetch<Settlement>(`${month(period)}/reopen`, { method: "POST" });
+/** Only that basis, of a finished month (422 otherwise): calculated one last time and frozen. */
+export function closeSettlement(period: Period, basis: CostBasis): Promise<Settlement> {
+  return apiFetch<Settlement>(`${month(period)}/close`, { method: "POST", query: { cost_basis: basis } });
+}
+
+/** Only that basis. BI's leader or an administrator; 403 for anyone else. */
+export function reopenSettlement(period: Period, basis: CostBasis): Promise<Settlement> {
+  return apiFetch<Settlement>(`${month(period)}/reopen`, { method: "POST", query: { cost_basis: basis } });
 }

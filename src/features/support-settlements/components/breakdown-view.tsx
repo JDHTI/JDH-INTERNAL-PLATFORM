@@ -11,17 +11,17 @@ import { cn } from "@/shared/lib/utils";
 
 import { useSettlementBreakdown } from "../hooks/use-support-settlements";
 import { BREAKDOWN_LABELS, formatCount, formatPesos } from "../lib/format";
-import type { BreakdownBy, Period, SupplierRow } from "../types/support-settlements.types";
+import type { BreakdownBy, CostBasis, Period, SupplierRow } from "../types/support-settlements.types";
 import { MarginShift } from "./settlement-figures";
 import { supplierOptions } from "./supplier-options";
 
 const num = "whitespace-nowrap px-2 py-1.5 text-right tabular-nums";
 
 /** Where the suppliers' money goes back: by regional, business unit, salesperson or customer. */
-export default function BreakdownView({ period, suppliers }: { period: Period; suppliers: SupplierRow[] }) {
+export default function BreakdownView({ period, basis, suppliers }: { period: Period; basis: CostBasis; suppliers: SupplierRow[] }) {
   const [by, setBy] = useState<BreakdownBy>("regional");
   const [supplier, setSupplier] = useState("");
-  const query = useSettlementBreakdown(period, by, supplier || null);
+  const query = useSettlementBreakdown(period, basis, by, supplier || null);
   const rows = query.data ?? [];
   const dimension = BREAKDOWN_LABELS[by];
 

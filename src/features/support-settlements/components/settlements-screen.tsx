@@ -20,9 +20,19 @@ import {
   useSettlementSummary,
   type SettlementAction,
 } from "../hooks/use-support-settlements";
-import { defaultPeriod, formatCount, formatMoment, formatPesos, periodLabel, periodState } from "../lib/format";
+import {
+  COST_BASES,
+  basesStatus,
+  basisShort,
+  defaultPeriod,
+  formatCount,
+  formatMoment,
+  formatPesos,
+  periodLabel,
+  periodState,
+} from "../lib/format";
 import { downloadSettlement } from "../services/support-settlements.service";
-import type { Period, Settlement, SettlementPeriod, SettlementPermissions } from "../types/support-settlements.types";
+import type { CostBasis, Period, Settlement, SettlementPeriod, SettlementPermissions } from "../types/support-settlements.types";
 import BreakdownView from "./breakdown-view";
 import { MarginShift } from "./settlement-figures";
 import SuppliersTable from "./suppliers-table";
@@ -71,8 +81,35 @@ export default function SettlementsScreen() {
   return <SettlementMonths permissions={permissions.data} />;
 }
 
+/**
+ * The two cost bases as a segmented control: each is its own settlement, so everything below
+ * (figures, tables, Excel, close and reopen) follows the one chosen.
+ */
+function BasisSwitch({ value, onChange }: { value: CostBasis; onChange: (basis: CostBasis) => void }) {
+  return (
+    <div role="group" aria-label="Base de costo" className="flex w-full shrink-0 gap-1 rounded-md border border-border-control p-1 sm:w-auto">
+      {COST_BASES.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "h-7 flex-1 rounded-sm px-3 text-sm font-medium whitespace-nowrap transition-colors duration-150 max-md:h-10 sm:flex-none",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            value === option.value ? "bg-primary-subtle text-primary" : "text-text-secondary hover:text-text-primary"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SettlementMonths({ permissions }: { permissions: SettlementPermissions }) {
-  const periods = useSettlementPeriods();
+  const [basis, setBasis] = useState<CostBasis>("cotizacion");
+  const periods = useSettlementPeriods(basis);
   const [chosen, setChosen] = useState<Period | null>(null);
 
   if (periods.isPending) {
@@ -98,22 +135,30 @@ function SettlementMonths({ permissions }: { permissions: SettlementPermissions 
   const list = [...periods.data].sort((a, b) => b.period.localeCompare(a.period));
   const period = chosen && list.some((item) => item.period === chosen) ? chosen : defaultPeriod(list);
   const current = list.find((item) => item.period === period) ?? null;
+  // While the other basis' months load, the previous ones stand in: no figures from the wrong basis.
+  const switching = periods.isPlaceholderData;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Dropdown
-          className="w-full sm:w-80"
+          className="w-full sm:w-[26rem]"
           value={period ?? ""}
           onValueChange={setChosen}
-          options={list.map((item) => ({ value: item.period, label: `${periodLabel(item.period)} · ${periodState(item).label}` }))}
+          // Each basis has its own status: one can be closed while the other is still a draft.
+          options={list.map((item) => ({ value: item.period, label: `${periodLabel(item.period)} · ${basesStatus(item)}` }))}
           placeholder="No hay meses para liquidar"
           disabled={list.length === 0}
           aria-label="Mes de la liquidación"
         />
-        {current && <MonthActions month={current} permissions={permissions} />}
+        <BasisSwitch value={basis} onChange={setBasis} />
+        {current && !switching && <MonthActions month={current} basis={basis} permissions={permissions} />}
       </div>
-      {current && <MonthView key={current.period} month={current} permissions={permissions} />}
+      {switching ? (
+        <div className="h-96 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando la otra base de costo" />
+      ) : (
+        current && <MonthView key={`${current.period}-${basis}`} month={current} basis={basis} permissions={permissions} />
+      )}
     </div>
   );
 }
@@ -140,7 +185,15 @@ const ACTION_TEXT: Record<SettlementAction, { running: string; done: string }> =
  * month's workbook. Calculating reads the month from the DWH: 1 to 3 minutes, with the time
  * shown so nobody leaves thinking it froze.
  */
-function MonthActions({ month, permissions }: { month: SettlementPeriod; permissions: SettlementPermissions }) {
+function MonthActions({
+  month,
+  basis,
+  permissions,
+}: {
+  month: SettlementPeriod;
+  basis: CostBasis;
+  permissions: SettlementPermissions;
+}) {
   const action = useSettlementAction();
   const [confirm, setConfirm] = useState<"close" | "reopen" | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -155,15 +208,21 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
   const label = periodLabel(month.period);
   // The month being calculated, which may not be the one on screen if the selector changed.
   const runningLabel = action.variables ? periodLabel(action.variables.period) : label;
+  const basisName = basisShort(basis).toLowerCase();
 
   const run = (kind: SettlementAction) => {
     setConfirm(null);
     setDetached(false);
     setStartedAt(Date.now());
     action.mutate(
-      { action: kind, period: month.period, since: settlement?.calculated_at ?? null, onDetached: () => setDetached(true) },
+      { action: kind, period: month.period, basis, since: settlement?.calculated_at ?? null, onDetached: () => setDetached(true) },
       {
-        onSuccess: () => toast.success(`${ACTION_TEXT[kind].done}: ${label}.`),
+        onSuccess: () =>
+          toast.success(
+            kind === "recalculate"
+              ? `${ACTION_TEXT[kind].done}: ${label}, las bases de costo abiertas.`
+              : `${ACTION_TEXT[kind].done}: ${label}, base ${basisName}.`
+          ),
         onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
       }
     );
@@ -172,7 +231,7 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadSettlement(month.period, null);
+      await downloadSettlement(month.period, basis, null);
     } catch (failure) {
       toast.error(errorMessage(failure));
     } finally {
@@ -186,7 +245,12 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
     <>
       <div className="flex flex-wrap items-center gap-2">
         {permissions.can_manage && !closed && (
-          <Button variant={settlement ? "outline" : "primary"} onClick={() => run("recalculate")} disabled={busy}>
+          <Button
+            variant={settlement ? "outline" : "primary"}
+            onClick={() => run("recalculate")}
+            disabled={busy}
+            title="Lee el mes del DWH una vez y recalcula las dos bases de costo que no estén cerradas"
+          >
             {settlement ? <RefreshCw aria-hidden="true" /> : <Calculator aria-hidden="true" />}
             {running === "recalculate" ? "Calculando" : settlement ? "Recalcular" : "Calcular"}
           </Button>
@@ -214,6 +278,7 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
       {long && (
         <p role="status" className="w-full rounded-md bg-info-surface px-3 py-2 text-sm text-info">
           {ACTION_TEXT[running].running} {runningLabel}: se leen sus ventas del DWH y puede tardar de 1 a 3 minutos.{" "}
+          {running === "recalculate" && "Se recalculan las dos bases de costo que no estén cerradas. "}
           {detached
             ? "La plataforma dejó de esperar la respuesta, pero el cálculo sigue: esta página revisa cada 15 segundos si ya terminó."
             : "No cierres esta página."}{" "}
@@ -228,11 +293,11 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
         onOpenChange={(next) => {
           if (!next) setConfirm(null);
         }}
-        title={confirm === "reopen" ? `Reabrir ${label}` : `Cerrar ${label}`}
+        title={`${confirm === "reopen" ? "Reabrir" : "Cerrar"} ${label} · ${basisShort(basis)}`}
         description={
           confirm === "reopen"
-            ? "El mes vuelve a borrador: se puede recalcular y sus cifras pueden cambiar hasta que se cierre otra vez."
-            : "Se calcula una última vez con lo que tenga el DWH y queda congelado: ya no se recalcula. Solo el líder de BI o un administrador lo puede reabrir."
+            ? `Solo la base ${basisName} vuelve a borrador: se puede recalcular y sus cifras pueden cambiar hasta que se cierre otra vez. La otra base queda como está.`
+            : `Solo se cierra la base ${basisName}: se calcula una última vez con lo que tenga el DWH y queda congelada. La otra base queda como está. Solo el líder de BI o un administrador la puede reabrir.`
         }
       >
         <DialogFooter>
@@ -249,14 +314,14 @@ function MonthActions({ month, permissions }: { month: SettlementPeriod; permiss
   );
 }
 
-function MonthView({ month, permissions }: { month: SettlementPeriod; permissions: SettlementPermissions }) {
-  const summary = useSettlementSummary(month.settlement ? month.period : null);
+function MonthView({ month, basis, permissions }: { month: SettlementPeriod; basis: CostBasis; permissions: SettlementPermissions }) {
+  const summary = useSettlementSummary(month.settlement ? month.period : null, basis);
   const [tab, setTab] = useState<Tab>("proveedores");
   const panelId = useId();
 
   if (!month.settlement) {
     return (
-      <StatePanel icon={Calculator} title={`${periodLabel(month.period)} no se ha calculado`}>
+      <StatePanel icon={Calculator} title={`${periodLabel(month.period)} no se ha calculado con ${basisShort(basis).toLowerCase()}`}>
         {permissions.can_manage
           ? "Usa «Calcular» para leer las ventas del mes del DWH y aplicarles los apoyos del maestro."
           : "Cuando BI lo calcule, aquí verás lo que debe reconocer cada proveedor."}
@@ -302,9 +367,9 @@ function MonthView({ month, permissions }: { month: SettlementPeriod; permission
         ))}
       </div>
       <div id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.key === tab)?.label}>
-        {tab === "proveedores" && <SuppliersTable period={month.period} rows={suppliers} />}
-        {tab === "no-liquidados" && <UnsettledView period={month.period} suppliers={suppliers} />}
-        {tab === "desglose" && <BreakdownView period={month.period} suppliers={suppliers} />}
+        {tab === "proveedores" && <SuppliersTable period={month.period} basis={basis} rows={suppliers} />}
+        {tab === "no-liquidados" && <UnsettledView period={month.period} basis={basis} suppliers={suppliers} />}
+        {tab === "desglose" && <BreakdownView period={month.period} basis={basis} suppliers={suppliers} />}
       </div>
     </div>
   );
@@ -323,9 +388,15 @@ function Figure({ label, children, hint }: { label: string; children: React.Reac
 /** What the month comes to: owed, calculated but not claimed, the sale, the margin it recomposes. */
 function Figures({ settlement, month }: { settlement: Settlement; month: SettlementPeriod }) {
   const state = periodState(month);
+  // The same month on the other basis, when it was calculated: the two totals side by side.
+  const other = month.settlements?.find((entry) => entry.cost_basis !== settlement.cost_basis) ?? null;
+  const suppliers = `${formatCount(settlement.suppliers)} ${settlement.suppliers === 1 ? "proveedor" : "proveedores"}`;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <Figure label="Apoyo a reconocer" hint={`${formatCount(settlement.suppliers)} ${settlement.suppliers === 1 ? "proveedor" : "proveedores"}`}>
+      <Figure
+        label="Apoyo a reconocer"
+        hint={other ? `${suppliers} · con ${basisShort(other.cost_basis).toLowerCase()}: ${formatPesos(other.amount)}` : suppliers}
+      >
         {formatPesos(settlement.amount)}
       </Figure>
       <Figure label="Calculado no cobrado" hint="En revisión, con escalas, mínimo no cumplido…">
@@ -337,7 +408,7 @@ function Figures({ settlement, month }: { settlement: Settlement; month: Settlem
       <Figure label="Margen → recompuesto" hint="Con el apoyo del proveedor sumado">
         <MarginShift margin={settlement.margin} recomposed={settlement.recomposed_margin} />
       </Figure>
-      <Figure label="Estado">
+      <Figure label="Estado" hint={settlement.cost_basis_label}>
         <Badge tone={state.tone} className="text-sm">
           {settlement.status_label}
         </Badge>
