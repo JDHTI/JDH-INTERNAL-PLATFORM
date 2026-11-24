@@ -41,6 +41,7 @@ import RetireDialog from "./retire-dialog";
 import DeleteSupportsDialog from "./delete-supports-dialog";
 import { COLUMNS, groupWideName, PriceValue, SortHeader, td, th, type Column, type SortDirection } from "./supports-columns";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
+import BranchSelect, { useCustomerMasterBranches } from "@/shared/components/pickers/branch-select";
 import BulkAttachDialog, { type ExistingDocument } from "./bulk-attach-dialog";
 import SupportEditDialog from "./support-edit-dialog";
 import { SupportActions, SupportVoidDialog } from "./support-actions";
@@ -51,13 +52,16 @@ import SupportKpis from "./support-kpis";
 const PAGE_SIZE = 50;
 const ALL = "";
 
-/** `nit_y_grupo`: customer_nits (the NIT and its group's supports); `solo_nit`: plus customer_nit_only; `grupo`: business_groups. */
-type CustomerScope = "nit_y_grupo" | "solo_nit" | "grupo";
+/**
+ * `nit`: customer_nits, the NIT's supports for the whole NIT and for its branches; `grupo`:
+ * business_groups; `nit_sucursal`: customer_branches, one branch's own (API #124).
+ */
+type CustomerScope = "nit" | "grupo" | "nit_sucursal";
 
 const CUSTOMER_SCOPE_OPTIONS: { value: CustomerScope; label: string }[] = [
-  { value: "nit_y_grupo", label: "NIT y su grupo" },
-  { value: "solo_nit", label: "Solo el NIT" },
+  { value: "nit", label: "NIT" },
   { value: "grupo", label: "Grupo empresarial" },
+  { value: "nit_sucursal", label: "NIT-sucursal" },
 ];
 
 const numberFormat = new Intl.NumberFormat("es-CO");
@@ -89,10 +93,11 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   const catalogs = catalogsQuery.data;
 
   const [customer, setCustomer] = useState<AutocompleteOption | null>(null);
-  // How the customer filter reads (API #115): a NIT with its business group's supports, the NIT's
-  // own only, or a whole business group.
-  const [customerScope, setCustomerScope] = useState<CustomerScope>("nit_y_grupo");
+  // How the customer filter reads (API #124): a NIT, a whole business group, or one branch of a NIT.
+  const [customerScope, setCustomerScope] = useState<CustomerScope>("nit");
   const [group, setGroup] = useState<string | null>(null);
+  const [branch, setBranch] = useState("");
+  const branches = useCustomerMasterBranches(customerScope === "nit_sucursal" ? (customer?.value ?? null) : null);
   const scopeId = useId();
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
   const [product, setProduct] = useState<AutocompleteOption | null>(null);
@@ -146,8 +151,9 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       match: "all",
       conditions: quick,
       q: q || undefined,
-      customer_nits: customerScope !== "grupo" && customer ? [customer.value] : undefined,
-      customer_nit_only: customerScope === "solo_nit" && customer ? true : undefined,
+      // NIT-sucursal before its branch is chosen reads as the NIT.
+      customer_nits: customerScope !== "grupo" && customer && !(customerScope === "nit_sucursal" && branch) ? [customer.value] : undefined,
+      customer_branches: customerScope === "nit_sucursal" && customer && branch ? [{ nit: customer.value, branch_id: branch }] : undefined,
       business_groups: customerScope === "grupo" && group ? [group] : undefined,
       supplier_codes: supplier ? [supplier.value] : undefined,
       product_skus: product ? [product.value] : undefined,
@@ -161,7 +167,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
       page,
       size: PAGE_SIZE,
     };
-  }, [q, customer, customerScope, group, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
+  }, [q, customer, customerScope, group, branch, supplier, product, state, kind, view, needsReview, hasIssues, hasConflicts, withoutAttachments, sort, page, fields]);
 
   const search = useSupportSearch(body);
   // The KPIs and «Por vencer» belong to the general master, the tactical supports (decided 2026-11-20).
@@ -227,7 +233,8 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   const clearFilters = () => {
     setCustomer(null);
     setGroup(null);
-    setCustomerScope("nit_y_grupo");
+    setBranch("");
+    setCustomerScope("nit");
     setSupplier(null);
     setProduct(null);
     setText("");
@@ -307,6 +314,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
                 // A customer and a group are different pickers: switching between them starts empty.
                 if (scope === "grupo") setCustomer(null);
                 else setGroup(null);
+                setBranch("");
                 setCustomerScope(scope);
               })
             }
@@ -320,12 +328,35 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
             onClear={() => reset(() => setGroup(null))}
           />
         ) : (
-          <BasePicker
-            config={CUSTOMER_PICKER}
-            selected={customer}
-            onSelect={(option) => reset(() => setCustomer(option))}
-            onClear={() => reset(() => setCustomer(null))}
-          />
+          <div className="min-w-0 space-y-2">
+            <BasePicker
+              config={CUSTOMER_PICKER}
+              selected={customer}
+              onSelect={(option) =>
+                reset(() => {
+                  setCustomer(option);
+                  setBranch("");
+                })
+              }
+              onClear={() =>
+                reset(() => {
+                  setCustomer(null);
+                  setBranch("");
+                })
+              }
+            />
+            {customerScope === "nit_sucursal" && customer && (
+              <BranchSelect
+                branches={branches.data ?? []}
+                value={branch}
+                onValueChange={(next) => reset(() => setBranch(next))}
+                allLabel="Elige la sucursal"
+                isLoading={branches.isPending}
+                isError={branches.isError}
+                aria-label={`Sucursal de ${customer.label}`}
+              />
+            )}
+          </div>
         )}
         <BasePicker
           config={SUPPLIER_PICKER}
@@ -661,7 +692,9 @@ const MOBILE_PRICES = [
 /** Customer or product the support applies to, for the compact mobile row. */
 function subject(support: SupplierSupport): string {
   const group = groupWideName(support);
-  const parts = [group ? `Todo el grupo · ${group}` : (support.customer_name ?? support.customer_group), support.product_brand ?? support.brand].filter(Boolean);
+  const customer = support.customer_name ?? support.customer_group;
+  const branch = support.customer_branch_id ? `sucursal ${support.customer_branch_id}` : null;
+  const parts = [group ? `Todo el grupo · ${group}` : customer, !group && branch, support.product_brand ?? support.brand].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Aplica a todos los clientes y productos";
 }
 
@@ -672,7 +705,7 @@ function retireFiltersOf(body: SupportSearchBody): SupportSearchFilters {
     conditions: body.conditions,
     q: body.q,
     customer_nits: body.customer_nits,
-    customer_nit_only: body.customer_nit_only,
+    customer_branches: body.customer_branches,
     business_groups: body.business_groups,
     supplier_codes: body.supplier_codes,
     product_skus: body.product_skus,

@@ -23,6 +23,7 @@ import {
   getQuotationManual,
   getQuotationRules,
   listBillingCenters,
+  listQuotationCustomerBranches,
   listQuotations,
   markUploaded,
   refreshQuotation,
@@ -183,16 +184,27 @@ export function useCreateQuotation() {
   return useMutation({
     mutationFn: (
       input:
-        | { kind: "existing"; customerNit: string; windowMonths: WindowMonths; empty: boolean }
+        | { kind: "existing"; customerNit: string; branchId: string | null; windowMonths: WindowMonths; empty: boolean }
         | { kind: "group"; businessGroup: string; windowMonths: WindowMonths; empty: boolean }
         | ({ kind: "temporary" } & TemporaryQuotationInput)
     ) =>
       input.kind === "existing"
-        ? createQuotation(input.customerNit, input.windowMonths, input.empty)
+        ? createQuotation(input.customerNit, input.windowMonths, input.empty, input.branchId)
         : input.kind === "group"
           ? createGroupQuotation(input.businessGroup, input.windowMonths, input.empty)
           : createTemporaryQuotation({ temporary_customer: input.temporary_customer, billing_center_code: input.billing_center_code }),
     onSuccess: store,
+  });
+}
+
+/** The branches of the customer being quoted; asked only for one with more than one active. */
+export function useQuotationCustomerBranches(nit: string | null) {
+  return useQuery({
+    queryKey: [...quotationKeys.all, "customer-branches", nit] as const,
+    queryFn: () => listQuotationCustomerBranches(nit ?? ""),
+    enabled: nit !== null,
+    staleTime: 5 * 60_000,
+    retry: retryTransient,
   });
 }
 

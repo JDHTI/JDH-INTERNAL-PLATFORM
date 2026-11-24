@@ -205,3 +205,15 @@ La justificación completa se consulta en un Dialog separado; ya no ocupa una co
 El formulario batch también muestra solo JDH vigente por registro, su propuesta y justificación, evitando el desglose completo de acuerdo, proveedor, vigencias y referencias de cálculo. Mantiene las reglas de elegibilidad, proveedor/cliente, modalidades/unidades y atomicidad existentes.
 
 Validación: TypeScript, ESLint, build y `git diff --check` sin errores; 23 pruebas aprobadas. Las pruebas de presentación comprueban proveedor real/fallback, acciones y ausencia de textos extensos en filas/detalle, Dialog independiente, auditoría colapsada y comparación compacta de costo neto con todos los decimales. Pendiente recorrido visual integrado en Docker. El coordinador actualiza PR #38 y despliegue; no se publica un PR adicional desde este worktree.
+
+## Apoyos por NIT-sucursal (API #124)
+
+Un apoyo se crea para todo el grupo empresarial, para todo el NIT o para una sucursal del NIT. Manda el más específico: el de sucursal reemplaza al del NIT y al del grupo, y el del NIT reemplaza al del grupo.
+
+- **Filtro del maestro («Filtrar cliente por»):**
+  - **NIT:** envía `customer_nits` y trae los apoyos de todo el NIT y los de sus sucursales, nunca los del grupo.
+  - **Grupo empresarial:** envía `business_groups`.
+  - **NIT-sucursal:** pide el cliente y luego la sucursal, de `GET /commercial/customers?nit=&size=200`, y envía `customer_branches: [{nit, branch_id}]`. Mientras no se elija la sucursal, filtra como NIT.
+  - Se retiró «NIT y su grupo» y, con él, `customer_nit_only`. Anular, vencer, eliminar y adjuntar por filtro usan los mismos campos.
+- **Tabla:** junto al NIT va la sucursal, por ejemplo «800230447 · 681».
+- **Nuevo apoyo:** el campo «Sucursal» aparece cuando el NIT elegido tiene más de una. Es opcional: vacío, el apoyo vale para todo el NIT. Cambiar el NIT borra la sucursal, y con grupo empresarial no se pide.

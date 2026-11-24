@@ -371,6 +371,17 @@ export interface QuotationCustomer {
   business_group?: string | null;
 }
 
+/** `GET /quotations/customers/{nit}/branches`: active first, under the same portfolio rule. */
+export interface QuotationCustomerBranch {
+  branch_id: string;
+  branch_name: string | null;
+  establishment_name: string | null;
+  city: string | null;
+  channel: string | null;
+  salesperson_name: string | null;
+  is_active: boolean;
+}
+
 export interface QuotationWarning {
   code: string;
   label: string;
@@ -387,6 +398,11 @@ export interface QuotationSummary {
   id: string;
   customer_nit: string;
   customer_name: string;
+  /**
+   * Quoted for one branch of the NIT (API #124): that branch's supports replace the NIT's and the
+   * group's. Null for the whole NIT, where branch supports do not apply.
+   */
+  customer_branch_id?: string | null;
   channel: string | null;
   price_list_id: string | null;
   window_months: WindowMonths;

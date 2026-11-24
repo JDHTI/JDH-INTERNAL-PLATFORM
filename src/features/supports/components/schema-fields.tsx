@@ -16,6 +16,7 @@ import { choiceLabel, toOptions } from "../lib/format";
 import { isPercentField, type Draft } from "../lib/form-values";
 import type { CalcMethodRule, FormFieldSpec, SupportCatalogs } from "../types/support.types";
 import BasePicker, { CUSTOMER_PICKER, PRODUCT_PICKER, type BasePickerConfig } from "@/shared/components/pickers/base-picker";
+import BranchSelect, { useCustomerMasterBranches } from "@/shared/components/pickers/branch-select";
 import MultiSelect from "./multi-select";
 
 const PICKERS: Record<string, BasePickerConfig> = {
@@ -78,6 +79,7 @@ export default function SchemaFields({
                   rule={rule}
                   isRequired={required.has(spec.name)}
                   catalogs={catalogs}
+                  customerNit={typeof draft.customer_nit === "string" ? draft.customer_nit : ""}
                 />
                 {after[spec.name] && <div className="sm:col-span-2">{after[spec.name]}</div>}
               </Fragment>
@@ -112,6 +114,7 @@ function SchemaField({
   rule,
   isRequired,
   catalogs,
+  customerNit,
 }: {
   spec: FormFieldSpec;
   value: string | string[] | undefined;
@@ -120,6 +123,8 @@ function SchemaField({
   rule: CalcMethodRule | undefined;
   isRequired: boolean;
   catalogs: SupportCatalogs | undefined;
+  /** The NIT the form has; the branch field lists its branches. */
+  customerNit: string;
 }) {
   const id = useId();
   const methodLabel = useCalcMethodLabel();
@@ -141,6 +146,9 @@ function SchemaField({
   }
   if (spec.name === "customer_group") {
     return field(<GroupField {...common} value={text} onChange={onChange} />);
+  }
+  if (spec.name === "customer_branch_id" && customerNit !== "") {
+    return field(<NitBranchField {...common} nit={customerNit} value={text} onChange={onChange} />);
   }
 
   switch (spec.type) {
@@ -250,6 +258,35 @@ function GroupField({
       emptyText={query.length >= 2 && groups.isSuccess ? "Ningún grupo con ese nombre" : undefined}
       placeholder="Escribe al menos 2 letras"
       maxLength={200}
+    />
+  );
+}
+
+/** One branch of the chosen NIT, or none: the support then holds for the whole NIT. */
+function NitBranchField({
+  nit,
+  value,
+  onChange,
+  id,
+  ...aria
+}: {
+  nit: string;
+  value: string;
+  onChange: (value: string) => void;
+  id: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
+}) {
+  const branches = useCustomerMasterBranches(nit);
+  return (
+    <BranchSelect
+      id={id}
+      branches={branches.data ?? []}
+      value={value}
+      onValueChange={onChange}
+      isLoading={branches.isPending}
+      isError={branches.isError}
+      {...aria}
     />
   );
 }

@@ -112,7 +112,12 @@ function CustomerCell({ support }: { support: SupplierSupport }) {
       <span className="block truncate" title={support.customer_name ?? undefined}>
         {support.customer_name ?? support.customer_group ?? "Todos"}
       </span>
-      {support.customer_nit && <span className={cn(secondary, "font-mono tabular-nums")}>{support.customer_nit}</span>}
+      {support.customer_nit && (
+        // «800230447 · 681»: a branch's support holds for that branch only.
+        <span className={cn(secondary, "font-mono tabular-nums")} title={support.customer_branch_id ? `Solo la sucursal ${support.customer_branch_id}` : "Todo el NIT"}>
+          {support.customer_branch_id ? `${support.customer_nit} · ${support.customer_branch_id}` : support.customer_nit}
+        </span>
+      )}
       {scope && <span className={secondary} title={scope}>{scope}</span>}
       <ScopeChips support={support} />
     </div>

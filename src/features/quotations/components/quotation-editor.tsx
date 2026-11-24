@@ -645,7 +645,11 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       : undefined,
   };
   const totals = isList ? null : offerTotals(quotation);
-  const title = isList ? (quotation.price_list_name ?? `Lista ${quotation.price_list_id}`) : quotation.customer_name;
+  const title = isList
+    ? (quotation.price_list_name ?? `Lista ${quotation.price_list_id}`)
+    : quotation.customer_branch_id
+      ? `${quotation.customer_name} · Sucursal ${quotation.customer_branch_id}`
+      : quotation.customer_name;
 
   return (
     // A container: the cards, indicators and toolbar adapt to the room the sidebar leaves.
@@ -1173,6 +1177,17 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
             title: "Cliente",
             facts: [
               ["NIT", <span key="nit" className="font-mono">{quotation.customer_nit}</span>],
+              // Per branch (API #124): that branch's supports replace the NIT's and the group's.
+              [
+                "Sucursal",
+                quotation.customer_branch_id ? (
+                  <span key="branch" className="font-mono" title="Los apoyos de esta sucursal reemplazan a los del NIT y a los del grupo">
+                    {quotation.customer_branch_id}
+                  </span>
+                ) : (
+                  <span key="branch" title="Aplica el apoyo del NIT o, si no hay, el del grupo; los de sucursal no">Todo el NIT</span>
+                ),
+              ],
               ["Canal", quotation.channel ?? "Sin canal"],
               ["Vendedor", quotation.salesperson_name ?? "—"],
             ],

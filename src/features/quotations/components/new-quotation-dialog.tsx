@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Calculator, Loader2 } from "lucide-react";
 
 import BasePicker, { type BasePickerConfig } from "@/shared/components/pickers/base-picker";
+import BranchSelect from "@/shared/components/pickers/branch-select";
 import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Field } from "@/shared/components/ui/field";
@@ -13,7 +15,7 @@ import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useCreateQuotation, useQuotationPermissions } from "../hooks/use-quotations";
+import { useCreateQuotation, useQuotationCustomerBranches, useQuotationPermissions } from "../hooks/use-quotations";
 import { WINDOW_OPTIONS } from "../lib/format";
 import { QUOTATIONS_BASE } from "../services/quotations.service";
 import type { CustomerScope, WindowMonths } from "../types/quotations.types";
@@ -49,6 +51,8 @@ function customerPicker(scope: CustomerScope): BasePickerConfig {
         value: text(row.nit),
         label: text(row.name) || text(row.nit),
         hint: [`NIT ${text(row.nit)}`, group && `Grupo ${group}`, channel, seller].filter(Boolean).join(" · ") + inactive,
+        // A customer with several active branches can be quoted for one of them.
+        data: { active_branch_count: typeof row.active_branch_count === "number" ? row.active_branch_count : 0 },
       };
     },
   };
@@ -163,9 +167,20 @@ function NewQuotationForm({
   const kind = mode === "temporary" ? "temporary" : "existing";
   const scope: CustomerScope = mode === "all" && canChoose ? "all" : "mine";
 
+  // «Cotización por sucursal»: only a SIESA customer (not a group) with more than one active branch.
+  const [branch, setBranch] = useState("");
+  const activeBranches = Number(customer?.data?.active_branch_count ?? 0);
+  const byBranch = kind === "existing" && target === "customer" && customer !== null && activeBranches > 1;
+  const branches = useQuotationCustomerBranches(byBranch ? customer.value : null);
+
+  const chooseCustomer = (next: AutocompleteOption | null) => {
+    setCustomer(next);
+    setBranch("");
+  };
+
   const chooseMode = (next: Mode) => {
     setModeChoice(next);
-    setCustomer(null);
+    chooseCustomer(null);
     setError(null);
   };
   const noPortfolio = "Aún no tienes cartera asignada: pide a TI que te vincule con tu código de vendedor.";
@@ -186,7 +201,7 @@ function NewQuotationForm({
       create.mutate(
         target === "group"
           ? { kind: "group", businessGroup: customer.value, windowMonths, empty }
-          : { kind: "existing", customerNit: customer.value, windowMonths, empty },
+          : { kind: "existing", customerNit: customer.value, branchId: byBranch && branch ? branch : null, windowMonths, empty },
         done
       );
       return;
@@ -268,7 +283,7 @@ function NewQuotationForm({
                   aria-pressed={target === value}
                   onClick={() => {
                     setTarget(value);
-                    setCustomer(null);
+                    chooseCustomer(null);
                     setError(null);
                   }}
                   className={cn(
@@ -282,16 +297,47 @@ function NewQuotationForm({
               ))}
             </div>
 
-            <BasePicker
-              key={`${target}-${scope}`}
-              config={target === "group" ? groupPicker(scope) : customerPicker(scope)}
-              selected={customer}
-              onSelect={(option) => {
-                setCustomer(option);
-                setError(null);
-              }}
-              onClear={() => setCustomer(null)}
-            />
+            {/* The branch goes in the customer's row: it narrows the same choice. */}
+            <div className={cn("grid gap-3", byBranch && "sm:grid-cols-[minmax(0,1fr)_15rem]")}>
+              <BasePicker
+                key={`${target}-${scope}`}
+                config={target === "group" ? groupPicker(scope) : customerPicker(scope)}
+                selected={customer}
+                onSelect={(option) => {
+                  chooseCustomer(option);
+                  setError(null);
+                }}
+                onClear={() => chooseCustomer(null)}
+              />
+              {byBranch && (
+                <div className="min-w-0 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor={`${id}-branch`} className="text-[13px] font-medium">
+                      Cotización por sucursal
+                    </label>
+                    <Badge tone="info" className="py-0 text-xs tabular-nums">
+                      {activeBranches} sucursales
+                    </Badge>
+                  </div>
+                  <BranchSelect
+                    id={`${id}-branch`}
+                    branches={branches.data ?? []}
+                    value={branch}
+                    onValueChange={setBranch}
+                    isLoading={branches.isPending}
+                    isError={branches.isError}
+                    aria-describedby={`${id}-branch-hint`}
+                  />
+                </div>
+              )}
+            </div>
+            {byBranch && (
+              <p id={`${id}-branch-hint`} className="text-[13px] text-text-secondary" aria-live="polite">
+                {branch
+                  ? "Los apoyos de esta sucursal reemplazan a los del NIT y a los del grupo empresarial."
+                  : "Todo el NIT: aplica el apoyo del NIT y, si no hay, el del grupo. Los apoyos de una sucursal no aplican."}
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div role="radiogroup" aria-label="Ventana de ventas" className="flex items-center gap-2">
