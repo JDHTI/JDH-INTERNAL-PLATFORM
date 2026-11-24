@@ -4,6 +4,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { formatCo, formatSignedCop, formatSignedPct } from "../lib/format";
 import type { EntryLine } from "../types/costs.types";
+import { td, th } from "./sort-header";
 
 /*
  * The cells of an entry line, compacted the way the quoter and the supports
@@ -69,34 +70,132 @@ export function Figures({ rows }: { rows: { label: string; value: string | null;
 }
 
 const cop = (value: Decimal | null) => (toNumber(value) === null ? null : formatCop(value));
-const pct = (value: Decimal | null) => (toNumber(value) === null ? null : formatPct(value));
 
-/** What was paid against what was quoted, in the same base: before discounts and taxes. */
-export function PricesCell({ line }: { line: EntryLine }) {
+/** The three purchase prices of the reference, under the «Precio de compra» group. */
+export const PURCHASE_PRICES = [
+  { key: "unit_price", label: "Actual", help: "Precio unitario de esta entrada" },
+  { key: "previous_price", label: "Anterior", help: "Precio de la entrada de compra previa de la misma referencia y unidad" },
+  { key: "antepenultimate_price", label: "Antepenúltimo", help: "Precio de la entrada previa a la anterior" },
+] as const;
+
+/** One purchase price: this entry's leads in bold. */
+export function PurchasePriceCell({ line, field }: { line: EntryLine; field: (typeof PURCHASE_PRICES)[number]["key"] }) {
+  const value = cop(line[field]);
   return (
-    <Figures
-      rows={[
-        { label: "Precio", value: cop(line.unit_price), strong: true, title: "Precio unitario de la entrada" },
-        {
-          label: "Cotización",
-          value: line.status === "sin_cotizacion" ? "Sin cotización" : cop(line.quotation),
-          title: line.quotation_since ? `Cotización vigente desde el ${formatDay(line.quotation_since)}` : undefined,
-        },
-        { label: "Tasa", value: pct(line.discount_pct), title: "Tasa 1: descuento por escala de la cotización. Se muestra, no se resta." },
-      ]}
-    />
+    <span className={cn("block whitespace-nowrap text-right text-[13px] tabular-nums", field === "unit_price" && "font-semibold")}>
+      {value ?? dash}
+    </span>
   );
 }
 
-/** The two purchases before this one, of the same reference and unit. */
-export function PreviousCell({ line }: { line: EntryLine }) {
+/** The three columns of the «Precio de compra» group, narrow and equal. */
+export function PurchaseCols() {
   return (
-    <Figures
-      rows={[
-        { label: "Anterior", value: cop(line.previous_price) },
-        { label: "Hace 2", value: cop(line.previous_price_2) },
-      ]}
-    />
+    <>
+      <col style={{ width: "8%" }} />
+      <col style={{ width: "8%" }} />
+      <col style={{ width: "10%" }} />
+    </>
+  );
+}
+
+/** The group's header, over its three columns; the other headers span both rows. */
+export function PurchaseGroupHeader() {
+  return (
+    <th scope="colgroup" colSpan={3} className={cn(th, "h-7 border-b border-border pb-0 text-center")}>
+      Precio de compra
+    </th>
+  );
+}
+
+export function PurchaseSubHeaders() {
+  return (
+    <tr>
+      {PURCHASE_PRICES.map((price) => (
+        <th key={price.key} scope="col" title={price.help} className={cn(th, "h-8 text-right")}>
+          {price.label}
+        </th>
+      ))}
+    </tr>
+  );
+}
+
+export function PurchaseCells({ line }: { line: EntryLine }) {
+  return (
+    <>
+      {PURCHASE_PRICES.map((price) => (
+        <td key={price.key} className={td}>
+          <PurchasePriceCell line={line} field={price.key} />
+        </td>
+      ))}
+    </>
+  );
+}
+
+/** The same three prices as labelled figures, for a card. */
+export function PurchaseFigures({ line }: { line: EntryLine }) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">Precio de compra</span>
+      <Figures
+        rows={PURCHASE_PRICES.map((price) => ({
+          label: price.label,
+          value: cop(line[price.key]),
+          strong: price.key === "unit_price",
+          title: price.help,
+        }))}
+      />
+    </div>
+  );
+}
+
+/** The quotation as labelled figures, for a card. */
+export function QuotationFigures({ line }: { line: EntryLine }) {
+  if (line.status === "sin_cotizacion" || toNumber(line.quotation) === null) {
+    return <span className="block text-[13px] text-text-secondary">Sin cotización</span>;
+  }
+  return (
+    <div title={quotationHelp(line)}>
+      <Figures
+        rows={[
+          { label: "Cotización", value: cop(line.quotation), strong: true },
+          ...(toNumber(line.discount_pct) ? [{ label: "Tasa 1", value: formatPct(line.discount_pct) }] : []),
+        ]}
+      />
+    </div>
+  );
+}
+
+/** «Lista $ 8.246 · Tasa 1 20 % · vigente desde el 2 feb 2026». */
+export function quotationHelp(line: EntryLine): string | undefined {
+  const parts = [
+    toNumber(line.quotation_list_price) !== null ? `Lista ${formatCop(line.quotation_list_price)}` : null,
+    toNumber(line.discount_pct) !== null ? `Tasa 1 ${formatPct(line.discount_pct)}` : null,
+    line.quotation_since ? `vigente desde el ${formatDay(line.quotation_since)}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+/**
+ * What the entry should have cost: the quotation less its Tasa 1, the figure
+ * the difference is measured against. Its list price and Tasa 1 go under it,
+ * quieter, with the date it came into force in the tooltip.
+ */
+export function QuotationCell({ line }: { line: EntryLine }) {
+  if (line.status === "sin_cotizacion" || toNumber(line.quotation) === null) {
+    return <span className="text-[13px] text-text-secondary">Sin cotización</span>;
+  }
+  const tasa = toNumber(line.discount_pct);
+  return (
+    <div className="text-right tabular-nums" title={quotationHelp(line)}>
+      <span className="block whitespace-nowrap text-[13px] font-semibold">{formatCop(line.quotation)}</span>
+      {tasa !== null && tasa !== 0 && (
+        <>
+          <span className={secondary}>Lista {formatCop(line.quotation_list_price)}</span>
+          <span className={secondary}>Tasa 1 {formatPct(line.discount_pct)}</span>
+        </>
+      )}
+    </div>
   );
 }
 

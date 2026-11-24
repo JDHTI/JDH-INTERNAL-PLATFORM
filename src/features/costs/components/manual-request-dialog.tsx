@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { CopyPlus, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatCop } from "@/features/supports/lib/format";
@@ -16,17 +16,28 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useCreateIncreaseRequest, useSupplierItems } from "../hooks/use-increase-requests";
-import { parseAmount, today } from "../lib/format";
-import { OBSERVATIONS, type LineInput, type SupplierItem } from "../types/increase-requests.types";
-import DiscountFields, { discountsPayload, emptyDiscounts, type DiscountDraft } from "./discount-fields";
+import { parseAmount, parsePercent, today } from "../lib/format";
+import { REGIONAL_HELP, REGIONAL_OPTIONS, regionalList, regionalProblem, restCoverage } from "../lib/regionals";
+import { NATIONAL, OBSERVATIONS, REGIONALS, REST, type LineInput, type LineRegional, type SupplierItem } from "../types/increase-requests.types";
+import PercentInput from "./percent-input";
 
 interface Draft {
+  /** A reference can come in several lines, one per regional. */
+  key: number;
   item: SupplierItem;
+  regional: LineRegional;
   newCost: string;
   increasedOn: string;
-  discounts: DiscountDraft;
+  discount: string;
+  publicPrice: string;
   observation: string;
-  open: boolean;
+}
+
+interface DraftErrors {
+  cost: string | null;
+  date: string | null;
+  discount: string | null;
+  price: string | null;
 }
 
 const OBSERVATION_OPTIONS = [
@@ -36,8 +47,9 @@ const OBSERVATION_OPTIONS = [
 
 /**
  * A few references typed by hand instead of the workbook: search the
- * supplier's active products, add them, and give each its new cost, increase
- * date and discounts. It becomes a request in review, like a loaded MAESTRA.
+ * supplier's active products and give each line its regional, new cost,
+ * increase date, discount and PVP. A reference can repeat with other
+ * regionals. It becomes a request in review, like a loaded MAESTRA.
  */
 export default function ManualRequestDialog({
   supplier,
@@ -68,37 +80,52 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
   const searchId = useId();
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<Draft[]>([]);
+  const nextKey = useRef(1);
   const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const q = useDebouncedValue(text.trim());
   const items = useSupplierItems(supplierCode, q);
   const create = useCreateIncreaseRequest();
-  const chosen = new Set(drafts.map((draft) => draft.item.sku));
-  const results = (items.data ?? []).filter((item) => !chosen.has(item.sku)).slice(0, 8);
+  const results = (items.data ?? []).slice(0, 8);
 
-  const add = (item: SupplierItem) =>
-    setDrafts((current) => [
-      ...current,
-      {
+  const linesOf = (sku: string, list = drafts) => list.filter((draft) => draft.item.sku === sku);
+  const addLine = (item: SupplierItem, after?: Draft) => {
+    const key = nextKey.current++;
+    setDrafts((current) => {
+      const siblings = linesOf(item.sku, current);
+      // A second line of a reference starts on the first regional not taken yet.
+      const regional: LineRegional =
+        siblings.length === 0 ? NATIONAL : (REGIONALS.find((value) => !siblings.some((draft) => draft.regional === value)) ?? REST);
+      const draft: Draft = {
+        key,
         item,
+        regional,
         newCost: "",
         // The date of the line before: an increase usually covers the whole letter.
-        increasedOn: current.at(-1)?.increasedOn ?? today(),
-        discounts: emptyDiscounts(),
+        increasedOn: after?.increasedOn ?? current.at(-1)?.increasedOn ?? today(),
+        discount: after?.discount ?? "",
+        publicPrice: "",
         observation: "",
-        open: false,
-      },
-    ]);
-  const update = (sku: string, patch: Partial<Draft>) =>
-    setDrafts((current) => current.map((draft) => (draft.item.sku === sku ? { ...draft, ...patch } : draft)));
-  const remove = (sku: string) => setDrafts((current) => current.filter((draft) => draft.item.sku !== sku));
+      };
+      if (!after) return [...current, draft];
+      const index = current.findIndex((entry) => entry.key === after.key);
+      return [...current.slice(0, index + 1), draft, ...current.slice(index + 1)];
+    });
+  };
+  const update = (key: number, patch: Partial<Draft>) =>
+    setDrafts((current) => current.map((draft) => (draft.key === key ? { ...draft, ...patch } : draft)));
+  const remove = (key: number) => setDrafts((current) => current.filter((draft) => draft.key !== key));
 
-  const problems = (draft: Draft) => ({
+  const errorsOf = (draft: Draft): DraftErrors => ({
     cost: parseAmount(draft.newCost) === null ? "Escribe el costo nuevo sin impuesto saludable." : null,
     date: draft.increasedOn === "" ? "Elige la fecha del incremento." : null,
-    discounts: discountsPayload(draft.discounts) === null ? "Revisa los descuentos." : null,
+    discount: parsePercent(draft.discount) === undefined ? "De 0 a 100, con coma para los decimales." : null,
+    price: draft.publicPrice.trim() !== "" && parseAmount(draft.publicPrice) === null ? "Un PVP mayor que cero, o vacío." : null,
   });
-  const invalid = drafts.some((draft) => Object.values(problems(draft)).some(Boolean));
+  const skus = [...new Set(drafts.map((draft) => draft.item.sku))];
+  const regionalProblems = new Map(skus.map((sku) => [sku, regionalProblem(linesOf(sku).map((draft) => draft.regional))]));
+  const invalid =
+    drafts.some((draft) => Object.values(errorsOf(draft)).some(Boolean)) || [...regionalProblems.values()].some((problem) => problem !== null);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -106,16 +133,18 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
     if (drafts.length === 0 || invalid) return;
     const lines: LineInput[] = drafts.map((draft) => ({
       sku: draft.item.sku,
+      regional: draft.regional,
       new_cost: parseAmount(draft.newCost)!,
       increased_on: draft.increasedOn,
-      ...discountsPayload(draft.discounts)!,
+      regular_discount_pct: parsePercent(draft.discount) ?? null,
+      public_price: draft.publicPrice.trim() === "" ? null : parseAmount(draft.publicPrice),
       observation: draft.observation || null,
     }));
     create.mutate(
       { supplier: supplierCode, note, lines },
       {
         onSuccess: (request) => {
-          toast.success(`Solicitud creada con ${lines.length} ${lines.length === 1 ? "referencia" : "referencias"}, en revisión.`);
+          toast.success(`Solicitud creada con ${lines.length} ${lines.length === 1 ? "línea" : "líneas"}, en revisión.`);
           onClose();
           router.push(`${basePath}/${request.id}`);
         },
@@ -148,25 +177,26 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
             {errorMessage(items.error)}
           </p>
         ) : results.length === 0 ? (
-          <p className="text-sm text-text-secondary">
-            {q ? "Ningún producto activo del proveedor con ese texto." : "El proveedor no tiene más productos activos para agregar."}
-          </p>
+          <p className="text-sm text-text-secondary">{q ? "Ningún producto activo del proveedor con ese texto." : "El proveedor no tiene productos activos."}</p>
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border" aria-label="Productos para agregar">
-            {results.map((item) => (
-              <li key={item.sku} className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
-                <span className="min-w-0 truncate">
-                  <span className="font-mono text-[13px]">{item.sku}</span>
-                  {item.description && <span className="text-text-secondary"> · {item.description}</span>}
-                </span>
-                <span className="flex shrink-0 items-center gap-3">
-                  <span className="tabular-nums text-text-secondary">{formatCop(item.old_cost)}</span>
-                  <Button size="sm" variant="outline" className="max-md:h-11" onClick={() => add(item)} aria-label={`Agregar ${item.sku}`}>
-                    <Plus aria-hidden="true" /> Agregar
-                  </Button>
-                </span>
-              </li>
-            ))}
+            {results.map((item) => {
+              const count = linesOf(item.sku).length;
+              return (
+                <li key={item.sku} className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
+                  <span className="min-w-0 truncate">
+                    <span className="font-mono text-[13px]">{item.sku}</span>
+                    {item.description && <span className="text-text-secondary"> · {item.description}</span>}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="tabular-nums text-text-secondary">{formatCop(item.old_cost)}</span>
+                    <Button size="sm" variant="outline" className="max-md:h-11" onClick={() => addLine(item)} aria-label={`Agregar ${item.sku}`}>
+                      <Plus aria-hidden="true" /> {count > 0 ? `Agregar (${count})` : "Agregar"}
+                    </Button>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -175,21 +205,30 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
         <h3 id={`${searchId}-lines`} className="text-sm font-semibold">
           Alzas de la solicitud {drafts.length > 0 && <span className="font-normal text-text-secondary">({drafts.length})</span>}
         </h3>
+        <p className="text-[13px] text-text-secondary">{REGIONAL_HELP}</p>
         {drafts.length === 0 ? (
           <p className={cn("text-sm", submitted ? "text-danger" : "text-text-secondary")} role={submitted ? "alert" : undefined}>
             Agrega al menos una referencia de la lista de arriba.
           </p>
         ) : (
           <ol className="space-y-2">
-            {drafts.map((draft) => (
-              <DraftLine
-                key={draft.item.sku}
-                draft={draft}
-                errors={submitted ? problems(draft) : { cost: null, date: null, discounts: null }}
-                onChange={(patch) => update(draft.item.sku, patch)}
-                onRemove={() => remove(draft.item.sku)}
-              />
-            ))}
+            {drafts.map((draft) => {
+              const siblings = linesOf(draft.item.sku);
+              // The reference's regional problem is shown once, on its last line.
+              const problem = siblings.at(-1)?.key === draft.key ? regionalProblems.get(draft.item.sku) ?? null : null;
+              return (
+                <DraftLine
+                  key={draft.key}
+                  draft={draft}
+                  errors={submitted ? errorsOf(draft) : { cost: null, date: null, discount: errorsOf(draft).discount, price: null }}
+                  regionalProblem={problem}
+                  restCovers={draft.regional === REST ? restCoverage(siblings.map((line) => line.regional)) : []}
+                  onChange={(patch) => update(draft.key, patch)}
+                  onRemove={() => remove(draft.key)}
+                  onAnother={() => addLine(draft.item, siblings.at(-1))}
+                />
+              );
+            })}
           </ol>
         )}
       </section>
@@ -214,13 +253,19 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
 function DraftLine({
   draft,
   errors,
+  regionalProblem,
+  restCovers,
   onChange,
   onRemove,
+  onAnother,
 }: {
   draft: Draft;
-  errors: { cost: string | null; date: string | null; discounts: string | null };
+  errors: DraftErrors;
+  regionalProblem: string | null;
+  restCovers: string[];
   onChange: (patch: Partial<Draft>) => void;
   onRemove: () => void;
+  onAnother: () => void;
 }) {
   const id = useId();
   const item = draft.item;
@@ -236,11 +281,36 @@ function DraftLine({
             Costo anterior {formatCop(item.old_cost)} · con impuesto saludable {formatCop(item.old_cost_with_tax)}
           </p>
         </div>
-        <Button variant="ghost" size="icon-sm" className="max-md:size-11" onClick={onRemove} aria-label={`Quitar ${item.sku} de la solicitud`}>
-          <Trash2 aria-hidden="true" />
-        </Button>
+        <span className="flex shrink-0 gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="max-md:h-11"
+            onClick={onAnother}
+            aria-label={`Agregar otra regional para ${item.sku}`}
+            title="Otra línea de esta referencia con otra regional"
+          >
+            <CopyPlus aria-hidden="true" /> Otra regional
+          </Button>
+          <Button variant="ghost" size="icon-sm" className="max-md:size-11" onClick={onRemove} aria-label={`Quitar esta línea de ${item.sku}`}>
+            <Trash2 aria-hidden="true" />
+          </Button>
+        </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
+        <div className="min-w-0 space-y-1.5">
+          <span id={`${id}-regional`} className="block text-[13px] font-medium">
+            Regional
+          </span>
+          <Dropdown
+            value={draft.regional}
+            options={REGIONAL_OPTIONS}
+            onValueChange={(regional) => onChange({ regional: regional as LineRegional })}
+            aria-labelledby={`${id}-regional`}
+            aria-invalid={regionalProblem !== null || undefined}
+          />
+          {restCovers.length > 0 && <p className="text-xs text-text-secondary">Cubre {regionalList(restCovers)}.</p>}
+        </div>
         <Field label="Costo nuevo sin impuesto saludable" htmlFor={`${id}-cost`} error={errors.cost}>
           <Input
             id={`${id}-cost`}
@@ -261,6 +331,19 @@ function DraftLine({
             className="tabular-nums"
           />
         </Field>
+        <Field label="Descuento regular" htmlFor={`${id}-discount`} optional error={errors.discount}>
+          <PercentInput id={`${id}-discount`} value={draft.discount} onChange={(discount) => onChange({ discount })} />
+        </Field>
+        <Field label="PVP sin IVA" htmlFor={`${id}-pvp`} optional error={errors.price}>
+          <Input
+            id={`${id}-pvp`}
+            value={draft.publicPrice}
+            inputMode="decimal"
+            onChange={(event) => onChange({ publicPrice: event.target.value })}
+            aria-invalid={errors.price !== null || undefined}
+            className="tabular-nums"
+          />
+        </Field>
         <div className="min-w-0 space-y-1.5">
           <span id={`${id}-obs`} className="block text-[13px] font-medium">
             Observación
@@ -273,17 +356,11 @@ function DraftLine({
           />
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => onChange({ open: !draft.open })}
-        aria-expanded={draft.open}
-        className="inline-flex min-h-8 items-center gap-1 rounded-sm text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
-      >
-        {draft.open ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
-        Descuentos
-        {errors.discounts && <span className="font-normal text-danger"> · {errors.discounts}</span>}
-      </button>
-      {draft.open && <DiscountFields value={draft.discounts} onChange={(discounts) => onChange({ discounts })} compact />}
+      {regionalProblem && (
+        <p role="alert" className="text-sm text-danger">
+          {item.sku}: {regionalProblem}
+        </p>
+      )}
     </li>
   );
 }

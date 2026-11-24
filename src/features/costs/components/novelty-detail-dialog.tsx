@@ -118,12 +118,12 @@ function NoveltyBody({
     ["Documento", [line.document, line.purchase_order && `OC ${line.purchase_order}`, line.invoice_ref && `Factura ${line.invoice_ref}`].filter(Boolean).join(" · ") || "—"],
     ["Proveedor", `${line.supplier_name ?? "—"}${line.supplier_nit ? ` · NIT ${line.supplier_nit}` : ""}`],
     ["Cantidad", `${formatNumber(line.quantity)}${line.unit ? ` ${line.unit}` : ""}`],
-    ["Precio unitario", formatCop(line.unit_price)],
-    ["Cotización", `${formatCop(line.quotation)}${line.quotation_since ? `, vigente desde el ${formatDay(line.quotation_since)}` : ""}`],
-    ["Tasa", formatPct(line.discount_pct)],
+    ["Precio de compra: actual", formatCop(line.unit_price)],
+    ["Anterior y antepenúltimo", `${formatCop(line.previous_price)} · ${formatCop(line.antepenultimate_price)}`],
+    ["Cotización (menos Tasa 1)", `${formatCop(line.quotation)}${line.quotation_since ? `, vigente desde el ${formatDay(line.quotation_since)}` : ""}`],
+    ["Lista y Tasa 1", `${formatCop(line.quotation_list_price)} · ${formatPct(line.discount_pct)}`],
     ["Diferencia", `${formatSignedCop(line.difference)} (${formatSignedPct(line.difference_pct)})`],
     ["Diferencia por la cantidad", formatSignedCop(line.amount)],
-    ["Precio anterior y hace 2", `${formatCop(line.previous_price)} · ${formatCop(line.previous_price_2)}`],
   ];
 
   return (

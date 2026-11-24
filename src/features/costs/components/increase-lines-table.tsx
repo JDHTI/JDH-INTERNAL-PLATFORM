@@ -7,20 +7,10 @@ import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 import { formatSignedCop, formatSignedPct } from "../lib/format";
-import { REGIONALS, type RequestLine } from "../types/increase-requests.types";
-import { regionalLabel } from "./discount-fields";
+import { regionalLabel, regionalList } from "../lib/regionals";
+import { NATIONAL, REST, type RequestLine } from "../types/increase-requests.types";
 import { Figures, secondary } from "./line-cells";
 import { th, td } from "./sort-header";
-
-/** «Regular 5 %; Antioquia 7 %, Bogotá…»: only the regionals that differ from the regular one. */
-export function discountsText(line: Pick<RequestLine, "regular_discount_pct" | "regional_discounts">): string {
-  const regular = toNumber(line.regular_discount_pct);
-  const regionals = REGIONALS.filter((regional) => toNumber(line.regional_discounts[regional]) !== null).map(
-    (regional) => `${regionalLabel(regional)} ${formatPct(line.regional_discounts[regional]!)}`
-  );
-  const parts = [regular !== null ? `Regular ${formatPct(regular)}` : null, regionals.length > 0 ? regionals.join(", ") : null].filter(Boolean);
-  return parts.length > 0 ? parts.join("; ") : "Sin descuentos";
-}
 
 const cop = (value: Decimal | null) => (toNumber(value) === null ? null : formatCop(value));
 
@@ -40,7 +30,10 @@ function ProductCell({ line, showRow }: { line: RequestLine; showRow: boolean })
     .join(" · ");
   return (
     <div className="min-w-0 space-y-0.5">
-      <span className="block font-mono text-[13px] font-semibold">{line.sku}</span>
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <span className="font-mono text-[13px] font-semibold">{line.sku}</span>
+        <RegionalTag line={line} />
+      </span>
       {line.description && (
         <span className="block truncate text-[13px]" title={line.description}>
           {line.description}
@@ -84,15 +77,47 @@ function ChangeCell({ line }: { line: RequestLine }) {
   );
 }
 
-/** When the increase starts, the discounts, and the MAESTRA's observation. */
+/**
+ * Where the line's cost holds. A quiet tag beside the reference: the same
+ * reference can come in several lines, one per regional. RESTO names what it
+ * covers, since that depends on the other lines.
+ */
+export function RegionalTag({ line }: { line: Pick<RequestLine, "regional" | "regionals"> }) {
+  const covers = line.regional === REST && line.regionals.length > 0 ? `Cubre ${regionalList(line.regionals)}` : undefined;
+  return (
+    <span
+      className="max-w-full truncate rounded-sm border border-border px-1.5 text-xs leading-5 text-text-secondary"
+      title={covers ?? (line.regional === NATIONAL ? "El mismo costo en todo el país" : undefined)}
+    >
+      {regionalLabel(line.regional)}
+      {covers && <span className="sr-only">. {covers}</span>}
+    </span>
+  );
+}
+
+/** When the increase starts, the regular discount, the PVP, and the MAESTRA's observation. */
 function TermsCell({ line }: { line: RequestLine }) {
-  const discounts = discountsText(line);
+  const terms = [
+    toNumber(line.regular_discount_pct) !== null ? `Descuento ${formatPct(line.regular_discount_pct)}` : null,
+    toNumber(line.public_price) !== null ? `PVP sin IVA ${formatCop(line.public_price)}` : null,
+  ].filter(Boolean);
   return (
     <div className="min-w-0 space-y-0.5">
       <span className="block font-semibold tabular-nums">{formatDay(line.increased_on)}</span>
-      <span className="line-clamp-2 text-xs text-text-secondary" title={discounts}>
-        {discounts}
-      </span>
+      {line.regional === REST && line.regionals.length > 0 && (
+        <span className="line-clamp-2 text-xs text-text-secondary" title={`Resto de regionales: ${regionalList(line.regionals)}`}>
+          Resto: {regionalList(line.regionals)}
+        </span>
+      )}
+      {terms.length > 0 ? (
+        terms.map((term) => (
+          <span key={term} className={secondary}>
+            {term}
+          </span>
+        ))
+      ) : (
+        <span className={secondary}>Sin descuento ni PVP</span>
+      )}
       {line.observation && <span className="block truncate text-xs">{line.observation.replace(/_/g, " ")}</span>}
     </div>
   );
@@ -147,7 +172,7 @@ export default function IncreaseLinesTable({
               <th scope="col" className={th}>Producto</th>
               <th scope="col" className={th}>Costo sin y con impuesto</th>
               <th scope="col" className={th}>Variación</th>
-              <th scope="col" className={th}>Fecha y descuentos</th>
+              <th scope="col" className={th}>Fecha, descuento y PVP</th>
               {actions && <th scope="col" className={th}>Revisión</th>}
             </tr>
           </thead>

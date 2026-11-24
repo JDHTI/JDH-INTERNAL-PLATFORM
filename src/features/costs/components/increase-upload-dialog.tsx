@@ -76,7 +76,7 @@ function Uploader({ supplierCode, basePath, onClose }: { supplierCode: string; b
       { supplier: supplierCode, file, note, apply: true },
       {
         onSuccess: (applied) => {
-          toast.success(`Solicitud creada con ${numberFormat.format(applied.lines.length)} referencias, en revisión.`);
+          toast.success(`Solicitud creada con ${numberFormat.format(applied.lines.length)} líneas, en revisión.`);
           onClose();
           if (applied.request_id) router.push(`${basePath}/${applied.request_id}`);
         },
