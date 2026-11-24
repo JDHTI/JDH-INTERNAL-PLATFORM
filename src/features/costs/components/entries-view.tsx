@@ -17,25 +17,14 @@ import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-import { formatCop, formatDay, formatNumber, formatPct } from "@/features/supports/lib/format";
 
 import { useCostReasons, useEntries, useSetEntryReason } from "../hooks/use-costs";
-import {
-  ENTRY_STATUS,
-  MAX_RANGE_DAYS,
-  NOVELTY_STATUS,
-  SUPPLIER_FILTER,
-  addDays,
-  formatCo,
-  formatSignedCop,
-  formatSignedPct,
-  rangeDays,
-  today,
-} from "../lib/format";
+import { ENTRY_STATUS, MAX_RANGE_DAYS, NOVELTY_STATUS, SUPPLIER_FILTER, addDays, rangeDays, today } from "../lib/format";
 import type { CostPermissions, CostReason, Entry, EntrySort, EntryStatus, SortOrder } from "../types/costs.types";
+import { DifferenceCell, EntryCell, PreviousCell, PricesCell, ProductCell } from "./line-cells";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
-import SortHeader from "./sort-header";
+import SortHeader, { td } from "./sort-header";
 
 const PAGE_SIZE = 50;
 const numberFormat = new Intl.NumberFormat("es-CO");
@@ -111,15 +100,12 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
       setReasonId("");
       setStatus("");
     });
-  const changeSort = (column: EntrySort) =>
+  const changeSort = (field: EntrySort, direction: SortOrder) =>
     reset(() => {
-      if (column === sort) setOrder((current) => (current === "desc" ? "asc" : "desc"));
-      else {
-        setSort(column);
-        // Differences read largest first; text columns from A.
-        setOrder(column === "sku" || column === "supplier" ? "asc" : "desc");
-      }
+      setSort(field);
+      setOrder(direction);
     });
+  const sortProps = { sort, order, onSort: changeSort, onReset: () => changeSort("date", "desc") };
 
   return (
     <div className="space-y-3">
@@ -247,33 +233,48 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
         )
       ) : (
         <div className={cn("space-y-3", query.isPlaceholderData && "opacity-60")}>
-          <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
-            <table className="w-full min-w-max text-left text-sm">
+          {/* Phones: one card per line, the reason at hand. */}
+          <ul className="space-y-2 md:hidden" aria-label="Entradas de compra">
+            {rows.map((row) => (
+              <EntryCard key={row.line_key} row={row} reasons={reasons.data} canSetReasons={canSetReasons} />
+            ))}
+          </ul>
+
+          {/* From md up, a fixed-layout table: each cell groups its data, so the row fits without scrolling sideways. */}
+          <div className="relative hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+            <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Entradas de compra contra la cotización vigente, {formatIsoRange(range)}</caption>
+              <colgroup>
+                <col style={{ width: "12%" }} />
+                <col />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Fecha" column="date" sort={sort} order={order} onSort={changeSort} numeric />
-                  <th scope="col" className="px-3 py-2">C.O.</th>
-                  <th scope="col" className="px-3 py-2">Bodega</th>
-                  <th scope="col" className="px-3 py-2">Documento</th>
-                  <SortHeader label="Referencia" column="sku" sort={sort} order={order} onSort={changeSort} />
-                  <th scope="col" className="px-3 py-2">Descripción</th>
-                  <SortHeader label="Proveedor" column="supplier" sort={sort} order={order} onSort={changeSort} />
-                  <th scope="col" className="px-3 py-2 text-right">Cantidad</th>
-                  <th scope="col" className="px-3 py-2 text-right">Cotización</th>
-                  <th scope="col" className="px-3 py-2 text-right">Precio unitario</th>
-                  <th scope="col" className="px-3 py-2 text-right" title="Tasa 1: descuento por escala de la cotización. Se muestra, no se resta.">
-                    Tasa
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-right">Precio anterior</th>
-                  <th scope="col" className="px-3 py-2 text-right">Hace 2</th>
-                  <SortHeader label="Diferencia" column="difference" sort={sort} order={order} onSort={changeSort} numeric />
-                  <SortHeader label="Dif. %" column="difference_pct" sort={sort} order={order} onSort={changeSort} numeric />
-                  <th scope="col" className="px-3 py-2">Estado</th>
-                  {/* Pinned: giving the reason is the row's action, it never scrolls out of view. */}
-                  <th scope="col" className="w-60 border-l border-border bg-canvas-subtle px-3 py-2 md:sticky md:right-0">
-                    Motivo
-                  </th>
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
+                  <SortHeader
+                    label="Producto"
+                    fields={[
+                      ["sku", "Referencia"],
+                      ["supplier", "Proveedor"],
+                    ]}
+                    {...sortProps}
+                  />
+                  <SortHeader label="Precio y cotización" {...sortProps} />
+                  <SortHeader label="Compras anteriores" {...sortProps} />
+                  <SortHeader
+                    label="Diferencia"
+                    fields={[
+                      ["difference", "En pesos"],
+                      ["difference_pct", "En %"],
+                      ["amount", "Total por la cantidad"],
+                    ]}
+                    {...sortProps}
+                  />
+                  <SortHeader label="Estado y motivo" {...sortProps} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -293,8 +294,7 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
                 </p>
                 {!result.previous_from_warehouse && (
                   <p>
-                    Precio anterior y hace 2 salen de las compras de este periodo: las primeras compras de cada referencia pueden quedar sin
-                    precio anterior.
+                    Las compras anteriores salen de este periodo: las primeras compras de cada referencia pueden quedar sin precio anterior.
                   </p>
                 )}
               </div>
@@ -312,80 +312,83 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
   );
 }
 
-function EntryRow({ row, reasons, canSetReasons }: { row: Entry; reasons: CostReason[] | undefined; canSetReasons: boolean }) {
+/** The line's status, what the platform keeps of it, and its one reason. */
+function StatusReason({ row, reasons, canSetReasons }: { row: Entry; reasons: CostReason[] | undefined; canSetReasons: boolean }) {
   const look = ENTRY_STATUS[row.status];
   const novelty = row.novelty;
   const save = useSetEntryReason();
-  const setReason = (reasonId: string | null) =>
-    save.mutate(
-      { lineKey: row.line_key, reasonId },
-      { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
-    );
-  const where = [row.purchase_order && `OC ${row.purchase_order}`, row.invoice_ref && `Factura ${row.invoice_ref}`].filter(Boolean).join(" · ");
-
   return (
-    <tr className="group h-10 align-top hover:bg-primary-subtle">
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatDay(row.entry_date)}</td>
-      <td className="whitespace-nowrap px-3 py-2 tabular-nums" title={row.regional_name ?? undefined}>
-        {formatCo(row.co)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2">{row.warehouse ?? "—"}</td>
-      <td className="whitespace-nowrap px-3 py-2" title={where || undefined}>
-        <span className="font-mono text-[13px]">{row.document ?? "—"}</span>
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 font-mono text-[13px]">{row.sku}</td>
-      <td className="max-w-64 px-3 py-2">
-        <span className="block truncate" title={row.description ?? undefined}>
-          {row.description ?? "—"}
-        </span>
-      </td>
-      <td className="max-w-56 px-3 py-2">
-        <span className="block truncate" title={row.supplier_nit ? `NIT ${row.supplier_nit}` : undefined}>
-          {row.supplier_name ?? row.supplier_code ?? "—"}
-        </span>
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-        {formatNumber(row.quantity)}
-        {row.unit && <span className="text-xs text-text-secondary"> {row.unit}</span>}
-      </td>
-      <td
-        className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
-        title={row.quotation_since ? `Cotización vigente desde el ${formatDay(row.quotation_since)}` : undefined}
-      >
-        {formatCop(row.quotation)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{formatCop(row.unit_price)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatPct(row.discount_pct)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatCop(row.previous_price)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatCop(row.previous_price_2)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSignedCop(row.difference)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSignedPct(row.difference_pct)}</td>
-      <td className="px-3 py-2">
-        <span className="flex flex-col items-start gap-1">
-          <Badge tone={look.tone}>{look.label}</Badge>
-          {novelty && (
-            <span className="text-xs text-text-secondary" title={NOVELTY_STATUS[novelty.status].help}>
-              Novedad: {novelty.status_label.toLowerCase()}
-            </span>
-          )}
-        </span>
-      </td>
-      <td className="w-60 border-l border-border bg-surface px-3 py-1.5 md:sticky md:right-0 group-hover:shadow-[inset_0_0_0_100vmax_var(--primary-subtle)]">
-        {canSetReasons ? (
-          <ReasonPicker
-            reasons={reasons}
-            value={novelty?.reason_id ?? null}
-            valueName={novelty?.reason_name}
-            onChange={setReason}
-            saving={save.isPending}
-            label={`Motivo de ${row.document ?? "la entrada"}, referencia ${row.sku}`}
-          />
-        ) : (
-          <span className={cn("block truncate py-0.5", !novelty?.reason_name && "text-text-secondary")} title={novelty?.reason_name ?? undefined}>
-            {novelty?.reason_name ?? "Sin motivo"}
+    <div className="min-w-0 space-y-1">
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <Badge tone={look.tone}>{look.label}</Badge>
+        {novelty && (
+          <span className="text-xs text-text-secondary" title={NOVELTY_STATUS[novelty.status].help}>
+            {novelty.status_label}
           </span>
         )}
+      </span>
+      {canSetReasons ? (
+        <ReasonPicker
+          reasons={reasons}
+          value={novelty?.reason_id ?? null}
+          valueName={novelty?.reason_name}
+          saving={save.isPending}
+          label={`Motivo de ${row.document ?? "la entrada"}, referencia ${row.sku}`}
+          onChange={(reasonId) =>
+            save.mutate(
+              { lineKey: row.line_key, reasonId },
+              { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
+            )
+          }
+        />
+      ) : (
+        <span className={cn("block truncate text-xs", !novelty?.reason_name && "text-text-secondary")} title={novelty?.reason_name ?? undefined}>
+          {novelty?.reason_name ?? "Sin motivo"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function EntryRow({ row, reasons, canSetReasons }: { row: Entry; reasons: CostReason[] | undefined; canSetReasons: boolean }) {
+  return (
+    <tr className="hover:bg-primary-subtle">
+      <td className={td}>
+        <EntryCell line={row} />
+      </td>
+      <td className={td}>
+        <ProductCell line={row} />
+      </td>
+      <td className={td}>
+        <PricesCell line={row} />
+      </td>
+      <td className={td}>
+        <PreviousCell line={row} />
+      </td>
+      <td className={td}>
+        <DifferenceCell line={row} />
+      </td>
+      <td className={td}>
+        <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
       </td>
     </tr>
+  );
+}
+
+function EntryCard({ row, reasons, canSetReasons }: { row: Entry; reasons: CostReason[] | undefined; canSetReasons: boolean }) {
+  return (
+    <li className="space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+      <div className="grid grid-cols-[1fr_auto] gap-3">
+        <ProductCell line={row} />
+        <div className="text-right">
+          <EntryCell line={row} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <PricesCell line={row} />
+        <DifferenceCell line={row} />
+      </div>
+      <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
+    </li>
   );
 }

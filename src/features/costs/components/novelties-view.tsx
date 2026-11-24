@@ -18,16 +18,17 @@ import type { AutocompleteOption } from "@/shared/components/ui/autocomplete";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
-import { formatCop, formatDay } from "@/features/supports/lib/format";
+import { formatCop } from "@/features/supports/lib/format";
 
 import { useCostReasons, useNovelties, useSetNoveltyReason } from "../hooks/use-costs";
-import { NOVELTY_STATUS, SUPPLIER_FILTER, formatCo, formatSignedCop, formatSignedPct, today } from "../lib/format";
+import { NOVELTY_STATUS, SUPPLIER_FILTER, today } from "../lib/format";
 import type { CostPermissions, CostReason, Novelty, NoveltyKind, NoveltySort, NoveltyStatus, SortOrder } from "../types/costs.types";
 import CreditNoteDialog from "./credit-note-dialog";
+import { DifferenceCell, EntryCell, PricesCell, ProductCell } from "./line-cells";
 import NoveltyDetailDialog from "./novelty-detail-dialog";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
-import SortHeader from "./sort-header";
+import SortHeader, { td, th } from "./sort-header";
 
 const PAGE_SIZE = 50;
 const numberFormat = new Intl.NumberFormat("es-CO");
@@ -93,14 +94,20 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
       setReasonId("");
       setKind("");
     });
-  const changeSort = (column: NoveltySort) =>
+  const changeSort = (field: NoveltySort, direction: SortOrder) =>
     reset(() => {
-      if (column === sort) setOrder((current) => (current === "desc" ? "asc" : "desc"));
-      else {
-        setSort(column);
-        setOrder(column === "sku" || column === "supplier" ? "asc" : "desc");
-      }
+      setSort(field);
+      setOrder(direction);
     });
+  const sortProps = { sort, order, onSort: changeSort, onReset: () => changeSort("date", "desc") };
+  const rowProps = (row: Novelty) => ({
+    row,
+    reasons: reasons.data,
+    canSetReasons: permissions.can_set_reasons,
+    manages,
+    onOpen: () => setOpenId(row.id),
+    onRegisterNote: () => setNoting(row),
+  });
 
   return (
     <div className="space-y-3">
@@ -221,40 +228,56 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
         )
       ) : (
         <div className={cn("space-y-3", query.isPlaceholderData && "opacity-60")}>
-          {/* Relative so the sr-only header text stays inside the scroll area instead of widening the page. */}
-          <div className="relative overflow-x-auto rounded-lg border border-border bg-surface">
-            <table className="w-full min-w-max text-left text-sm">
+          {/* Phones: one card per novelty. */}
+          <ul className="space-y-2 md:hidden" aria-label="Novedades">
+            {rows.map((row) => (
+              <NoveltyCard key={row.id} {...rowProps(row)} />
+            ))}
+          </ul>
+
+          {/* From md up, a fixed-layout table: each cell groups its data, so the row fits without scrolling sideways. */}
+          <div className="relative hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+            <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Novedades de las entradas de compra</caption>
+              <colgroup>
+                <col style={{ width: "12%" }} />
+                <col />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: 52 }} />
+              </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Fecha" column="date" sort={sort} order={order} onSort={changeSort} numeric />
-                  <th scope="col" className="px-3 py-2">C.O.</th>
-                  <th scope="col" className="px-3 py-2">Documento</th>
-                  <SortHeader label="Referencia" column="sku" sort={sort} order={order} onSort={changeSort} />
-                  <SortHeader label="Proveedor" column="supplier" sort={sort} order={order} onSort={changeSort} />
-                  <th scope="col" className="px-3 py-2 text-right">Cotización</th>
-                  <th scope="col" className="px-3 py-2 text-right">Precio unitario</th>
-                  <SortHeader label="Diferencia" column="difference" sort={sort} order={order} onSort={changeSort} numeric />
-                  <SortHeader label="Dif. %" column="difference_pct" sort={sort} order={order} onSort={changeSort} numeric />
-                  <th scope="col" className="px-3 py-2">Estado</th>
-                  <th scope="col" className="w-60 px-3 py-2">Motivo</th>
-                  <th scope="col" className="px-3 py-2">Nota crédito</th>
-                  <th scope="col" className="w-14 px-3 py-2">
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
+                  <SortHeader
+                    label="Producto"
+                    fields={[
+                      ["sku", "Referencia"],
+                      ["supplier", "Proveedor"],
+                    ]}
+                    {...sortProps}
+                  />
+                  <SortHeader label="Precio y cotización" {...sortProps} />
+                  <SortHeader
+                    label="Diferencia"
+                    fields={[
+                      ["difference", "En pesos"],
+                      ["difference_pct", "En %"],
+                    ]}
+                    {...sortProps}
+                  />
+                  <SortHeader label="Estado y motivo" {...sortProps} />
+                  <SortHeader label="Nota crédito" {...sortProps} />
+                  <th scope="col" className={th}>
                     <span className="sr-only">Detalle</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
-                  <NoveltyRow
-                    key={row.id}
-                    row={row}
-                    reasons={reasons.data}
-                    canSetReasons={permissions.can_set_reasons}
-                    manages={manages}
-                    onOpen={() => setOpenId(row.id)}
-                    onRegisterNote={() => setNoting(row)}
-                  />
+                  <NoveltyRow key={row.id} {...rowProps(row)} />
                 ))}
               </tbody>
             </table>
@@ -290,63 +313,96 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
   );
 }
 
-function NoveltyRow({
-  row,
-  reasons,
-  canSetReasons,
-  manages,
-  onOpen,
-  onRegisterNote,
-}: {
+interface RowProps {
   row: Novelty;
   reasons: CostReason[] | undefined;
   canSetReasons: boolean;
   manages: boolean;
   onOpen: () => void;
   onRegisterNote: () => void;
-}) {
+}
+
+function NoveltyRow({ row, reasons, canSetReasons, manages, onOpen, onRegisterNote }: RowProps) {
+  const line = row.line;
+  return (
+    <tr className={cn("hover:bg-primary-subtle", row.voided && "text-text-secondary")}>
+      <td className={td}>
+        <EntryCell line={line} />
+      </td>
+      <td className={td}>
+        <ProductCell line={line} />
+      </td>
+      <td className={td}>
+        <PricesCell line={line} />
+      </td>
+      <td className={td}>
+        <DifferenceCell line={line} />
+      </td>
+      <td className={td}>
+        <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
+      </td>
+      <td className={td}>
+        <CreditNoteCell row={row} manages={manages} onOpen={onOpen} onRegisterNote={onRegisterNote} />
+      </td>
+      <td className={cn(td, "px-1.5")}>
+        <DetailButton row={row} onOpen={onOpen} />
+      </td>
+    </tr>
+  );
+}
+
+function NoveltyCard(props: RowProps) {
+  const { row, reasons, canSetReasons, manages, onOpen, onRegisterNote } = props;
+  return (
+    <li className={cn("space-y-3 rounded-lg border border-border bg-surface p-3 text-sm", row.voided && "text-text-secondary")}>
+      <div className="grid grid-cols-[1fr_auto] gap-3">
+        <ProductCell line={row.line} />
+        <div className="text-right">
+          <EntryCell line={row.line} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <PricesCell line={row.line} />
+        <DifferenceCell line={row.line} />
+      </div>
+      <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
+      <div className="flex items-center justify-between gap-2">
+        <CreditNoteCell row={row} manages={manages} onOpen={onOpen} onRegisterNote={onRegisterNote} />
+        <DetailButton row={row} onOpen={onOpen} />
+      </div>
+    </li>
+  );
+}
+
+function DetailButton({ row, onOpen }: { row: Novelty; onOpen: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="max-md:size-11"
+      onClick={onOpen}
+      aria-label={`Ver detalle e historial de ${row.line.document ?? "la novedad"}, referencia ${row.line.sku}`}
+      title="Detalle e historial"
+    >
+      <PanelRightOpen aria-hidden="true" />
+    </Button>
+  );
+}
+
+/** The status (it follows from the reason and the note), what the line was, and its one reason. */
+function StatusReason({ row, reasons, canSetReasons }: { row: Novelty; reasons: CostReason[] | undefined; canSetReasons: boolean }) {
   const line = row.line;
   const look = NOVELTY_STATUS[row.status];
   const save = useSetNoveltyReason();
-  const note = row.credit_note;
-
   return (
-    <tr className={cn("h-10 align-top hover:bg-primary-subtle", row.voided && "text-text-secondary")}>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatDay(line.entry_date)}</td>
-      <td className="whitespace-nowrap px-3 py-2 tabular-nums" title={line.regional_name ?? undefined}>
-        {formatCo(line.co)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 font-mono text-[13px]">{line.document ?? "—"}</td>
-      <td className="max-w-72 px-3 py-2">
-        <span className="block truncate" title={line.description ?? undefined}>
-          <span className="font-mono text-[13px]">{line.sku}</span>
-          {line.description && <span className="text-text-secondary"> · {line.description}</span>}
-        </span>
-      </td>
-      <td className="max-w-56 px-3 py-2">
-        <span className="block truncate" title={line.supplier_nit ? `NIT ${line.supplier_nit}` : undefined}>
-          {line.supplier_name ?? line.supplier_code ?? "—"}
-        </span>
-      </td>
-      <td
-        className="whitespace-nowrap px-3 py-2 text-right tabular-nums"
-        title={line.quotation_since ? `Cotización vigente desde el ${formatDay(line.quotation_since)}` : undefined}
-      >
-        {formatCop(line.quotation)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">{formatCop(line.unit_price)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSignedCop(line.difference)}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSignedPct(line.difference_pct)}</td>
-      <td className="px-3 py-2">
-        <span className="flex flex-col items-start gap-1">
-          <Badge tone={look.tone} title={look.help}>
-            {row.status_label}
-          </Badge>
-          <span className="text-xs text-text-secondary">{row.kind_label}</span>
-        </span>
-      </td>
-      <td className="w-60 px-3 py-1.5">
-        {canSetReasons && !row.voided ? (
+    <div className="min-w-0 space-y-1">
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <Badge tone={look.tone} title={look.help}>
+          {row.status_label}
+        </Badge>
+        <span className="text-xs text-text-secondary">{row.kind_label}</span>
+      </span>
+      {canSetReasons && !row.voided ? (
           <ReasonPicker
             reasons={reasons}
             value={row.reason?.id ?? null}
@@ -360,42 +416,56 @@ function NoveltyRow({
               )
             }
           />
-        ) : (
-          <span className={cn("block truncate py-0.5", !row.reason && "text-text-secondary")} title={row.reason?.name}>
-            {row.reason?.name ?? "Sin motivo"}
-          </span>
-        )}
-      </td>
-      <td className="whitespace-nowrap px-3 py-1.5">
-        {note ? (
-          <button
-            type="button"
-            onClick={onOpen}
-            aria-label={`Nota crédito ${note.number} por ${formatCop(note.amount)}: ver detalle`}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-sm text-left tabular-nums hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-md:min-h-11"
-          >
-            <FileText className="size-4 shrink-0 text-text-secondary" aria-hidden="true" />
-            {note.number} · {formatCop(note.amount)}
-          </button>
-        ) : manages && !row.voided ? (
-          <Button
-            variant={row.status === "espera_nota_credito" ? "outline" : "ghost"}
-            size="sm"
-            className="max-md:h-11"
-            onClick={onRegisterNote}
-            aria-label={`Registrar nota crédito de ${line.document ?? "la entrada"}, referencia ${line.sku}`}
-          >
-            <Plus aria-hidden="true" /> Registrar
-          </Button>
-        ) : (
-          <span className="text-text-secondary">—</span>
-        )}
-      </td>
-      <td className="w-14 px-2 py-1 text-right">
-        <Button variant="ghost" size="icon-sm" className="max-md:size-11" onClick={onOpen} aria-label={`Ver detalle e historial de ${line.document ?? "la novedad"}, referencia ${line.sku}`} title="Detalle e historial">
-          <PanelRightOpen aria-hidden="true" />
-        </Button>
-      </td>
-    </tr>
+      ) : (
+        <span className={cn("block truncate text-xs", !row.reason && "text-text-secondary")} title={row.reason?.name}>
+          {row.reason?.name ?? "Sin motivo"}
+        </span>
+      )}
+    </div>
   );
+}
+
+/** The note's number and amount (opens the detail with its file), or the way to register it. */
+function CreditNoteCell({
+  row,
+  manages,
+  onOpen,
+  onRegisterNote,
+}: {
+  row: Novelty;
+  manages: boolean;
+  onOpen: () => void;
+  onRegisterNote: () => void;
+}) {
+  const note = row.credit_note;
+  if (note) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Nota crédito ${note.number} por ${formatCop(note.amount)}: ver detalle`}
+        className="block max-w-full rounded-sm text-left text-[13px] tabular-nums hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <span className="flex items-center gap-1 font-semibold">
+          <FileText className="size-3.5 shrink-0 text-text-secondary" aria-hidden="true" />
+          <span className="truncate">{note.number}</span>
+        </span>
+        <span className="block text-xs text-text-secondary">{formatCop(note.amount)}</span>
+      </button>
+    );
+  }
+  if (manages && !row.voided) {
+    return (
+      <Button
+        variant={row.status === "espera_nota_credito" ? "outline" : "ghost"}
+        size="sm"
+        className="h-7 px-2 max-md:h-11"
+        onClick={onRegisterNote}
+        aria-label={`Registrar nota crédito de ${row.line.document ?? "la entrada"}, referencia ${row.line.sku}`}
+      >
+        <Plus aria-hidden="true" /> Registrar
+      </Button>
+    );
+  }
+  return <span className="text-xs text-text-secondary">Sin nota</span>;
 }
