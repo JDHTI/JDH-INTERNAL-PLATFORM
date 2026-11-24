@@ -4,7 +4,7 @@ import { requireModule } from "@/features/areas/server/area-access";
 import CommercialMasterTable from "@/features/commercial-masters/components/commercial-master-table";
 import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/price-increase-analysis-view";
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
-import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
+import { MASTERS_SEGMENT, commercialMastersFor } from "@/features/commercial-masters/config/masters.config";
 import { productsView, productsViews } from "@/features/commercial-masters/config/products-views";
 import PageHeader from "@/shared/components/page-header";
 
@@ -16,8 +16,8 @@ export default async function MaestroPage({
   searchParams: Promise<{ vista?: string }>;
 }) {
   const { area, master: key } = await params;
-  const master = findCommercialMaster(key);
-  // The same four tables in every area that has the Maestros module (decided 2026-11-23).
+  // BI has every general master; the other areas with the module, products only.
+  const master = commercialMastersFor(area).find((item) => item.key === key);
   if (!master) notFound();
   await requireModule(area, MASTERS_SEGMENT);
 

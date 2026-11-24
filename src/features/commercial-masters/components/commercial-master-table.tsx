@@ -16,7 +16,7 @@ import { cn } from "@/shared/lib/utils";
 
 import { findCommercialMaster, type MasterColumn } from "../config/masters.config";
 import { useCanManageProducts, useCommercialMaster, useProductFilterOptions } from "../hooks/use-commercial-masters";
-import type { CommercialMasterKey } from "../types/commercial-master.types";
+import type { CommercialMasterKey, SupplierNit } from "../types/commercial-master.types";
 import MarginEditDialog from "./margin-edit-dialog";
 import MarginUpdaterDialog from "./margin-updater-dialog";
 import ProductDialog from "./product-dialog";
@@ -290,9 +290,28 @@ function Cell({
       ) : (
         "—"
       );
+    case "nits":
+      return <Nits nits={Array.isArray(value) ? (value as SupplierNit[]) : []} />;
     default:
       return value === null || value === undefined || value === "" ? "—" : String(value);
   }
+}
+
+/** The primary NIT first; one that was never confirmed says so instead of looking settled. */
+function Nits({ nits }: { nits: SupplierNit[] }) {
+  if (nits.length === 0) return "—";
+  const ordered = [...nits].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+  return (
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      {ordered.map((item) => (
+        <span key={item.nit} className="whitespace-nowrap font-mono text-[13px]">
+          {item.nit}
+          {item.is_primary && <span className="font-sans text-xs text-text-secondary"> principal</span>}
+          {!item.confirmed && <span className="font-sans text-xs text-warning"> sin confirmar</span>}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function LoadError({ name, error, onRetry }: { name: string; error: Error; onRetry: () => void }) {

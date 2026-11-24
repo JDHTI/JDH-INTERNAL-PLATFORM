@@ -1,14 +1,14 @@
-import { Boxes, type LucideIcon } from "lucide-react";
+import { Boxes, Building, Factory, Users, type LucideIcon } from "lucide-react";
 
 import type { CommercialMasterKey } from "../types/commercial-master.types";
 
 /**
- * `sku` is the product code that opens the product's detail; `supplier` is the
+ * `nits` is a commercial supplier's NITs, the primary first; `sku` is the product code that opens the product's detail; `supplier` is the
  * commercial supplier's name with its code under it; `points` is a percentage
  * the API sends in points (19 is 19 %); `money` a peso amount, a dash at 0;
  * `tax_group` the consumption tax group with its name (0503 vino, 0509 licores).
  */
-export type ColumnKind = "text" | "mono" | "active" | "count" | "pct" | "sku" | "supplier" | "points" | "money" | "tax_group";
+export type ColumnKind = "text" | "mono" | "active" | "count" | "pct" | "nits" | "sku" | "supplier" | "points" | "money" | "tax_group";
 
 export interface MasterColumn {
   key: string;
@@ -91,12 +91,79 @@ export interface CommercialMasterDef {
 }
 
 /**
- * The general masters the Maestros module opens, the same in every area that
- * has it. Only products for now (decided 2026-11-23): suppliers and customers
- * come back here when they are needed. The route segment, the endpoint and the
- * columns live here so the table and the navigation cannot drift apart.
+ * The general masters, in the order the sidebar lists them. BI has all four;
+ * every other area with the Maestros module has products only (see
+ * `commercialMastersFor`). The route segment, the endpoint and the columns live
+ * here so the table and the navigation cannot drift apart.
  */
 export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
+  {
+    key: "proveedores-comerciales",
+    name: "Proveedores comerciales",
+    icon: Factory,
+    endpoint: "/commercial/suppliers",
+    description: "Proveedores con los que se negocia, con sus productos y los NIT que los respaldan.",
+    searchPlaceholder: "Buscar por código o nombre",
+    filters: [STATE_FILTER],
+    rowKey: ["code"],
+    columns: [
+      { key: "code", label: "Código", kind: "mono" },
+      { key: "name", label: "Nombre" },
+      { key: "is_active", label: "Estado", kind: "active" },
+      { key: "product_count", label: "Productos", kind: "count" },
+      { key: "active_product_count", label: "Activos", kind: "count" },
+      { key: "nits", label: "NIT", kind: "nits" },
+    ],
+  },
+  {
+    key: "proveedores-legales",
+    name: "Proveedores legales",
+    icon: Building,
+    endpoint: "/commercial/legal-suppliers",
+    description: "Terceros proveedores a quienes se les factura y paga, una fila por sucursal.",
+    searchPlaceholder: "Buscar por NIT o razón social",
+    filters: [STATE_FILTER],
+    rowKey: ["nit", "branch_id"],
+    columns: [
+      { key: "nit", label: "NIT", kind: "mono" },
+      { key: "branch_id", label: "Sucursal", kind: "mono" },
+      { key: "legal_name", label: "Razón social" },
+      { key: "branch_name", label: "Nombre de sucursal" },
+      { key: "supplier_class", label: "Clase" },
+      { key: "supplier_type", label: "Tipo" },
+      { key: "city", label: "Ciudad" },
+      { key: "payment_condition", label: "Condición de pago" },
+      { key: "state", label: "Estado del tercero" },
+      { key: "branch_state", label: "Estado de sucursal" },
+      { key: "is_active", label: "Activo", kind: "active" },
+    ],
+  },
+  {
+    key: "clientes",
+    name: "Clientes",
+    icon: Users,
+    endpoint: "/commercial/customers",
+    description: "Clientes con su canal, unidad de negocio y vendedor, una fila por sucursal.",
+    searchPlaceholder: "Buscar por NIT, razón social o establecimiento",
+    filters: [STATE_FILTER],
+    rowKey: ["nit", "branch_id"],
+    columns: [
+      { key: "nit", label: "NIT", kind: "mono" },
+      { key: "branch_id", label: "Sucursal", kind: "mono" },
+      { key: "legal_name", label: "Razón social" },
+      { key: "branch_name", label: "Nombre de sucursal" },
+      { key: "establishment_name", label: "Establecimiento" },
+      { key: "channel", label: "Canal" },
+      { key: "business_unit", label: "Unidad de negocio" },
+      { key: "business_group", label: "Grupo" },
+      { key: "billing_center", label: "Centro de facturación" },
+      { key: "logistics_zone", label: "Zona logística" },
+      { key: "department", label: "Departamento" },
+      { key: "city", label: "Ciudad" },
+      { key: "salesperson_name", label: "Vendedor" },
+      { key: "is_active", label: "Activo", kind: "active" },
+    ],
+  },
   {
     key: "productos",
     name: "Productos",
@@ -135,6 +202,16 @@ export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
     ],
   },
 ];
+
+/** The area that keeps every general master; the others get products only. */
+export const ALL_MASTERS_AREA_SLUG = "bi";
+
+/** The general masters an area's Maestros module lists, in sidebar order. */
+export function commercialMastersFor(areaSlug: string): CommercialMasterDef[] {
+  return areaSlug === ALL_MASTERS_AREA_SLUG
+    ? COMMERCIAL_MASTERS
+    : COMMERCIAL_MASTERS.filter((master) => master.key === "productos");
+}
 
 export function findCommercialMaster(key: string): CommercialMasterDef | undefined {
   return COMMERCIAL_MASTERS.find((master) => master.key === key);

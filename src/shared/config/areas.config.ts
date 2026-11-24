@@ -47,8 +47,8 @@ import {
 } from "lucide-react";
 
 import {
-  COMMERCIAL_MASTERS,
   MASTERS_SEGMENT,
+  commercialMastersFor,
 } from "@/features/commercial-masters/config/masters.config";
 
 /** Data warehouse monitoring: its summary and the pages under it. */
@@ -532,11 +532,11 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     available: true,
     permission: "maestros",
     // No landing (decided 2026-11-23): the row only opens its pages, the typed
-    // commercial tables (suppliers, customers, products), the same in every area
-    // that has the module. On the collapsed rail the row expands it and opens them.
+    // general masters. BI has all four; the other areas, products only. On the
+    // collapsed rail the row expands it and opens them.
     hasPage: false,
     subItems: (base, slug) =>
-      COMMERCIAL_MASTERS.map((master) => ({
+      commercialMastersFor(slug).map((master) => ({
         id: `${slug}-maestros-${master.key}`,
         name: master.name,
         path: `${base}/${master.key}`,

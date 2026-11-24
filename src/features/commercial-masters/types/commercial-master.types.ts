@@ -1,7 +1,10 @@
 import type { Decimal } from "@/shared/lib/format";
 
-/** The general masters with a table; only products since 2026-11-23 (suppliers and customers return when needed). */
-export type CommercialMasterKey = "productos";
+export type CommercialMasterKey =
+  | "proveedores-comerciales"
+  | "proveedores-legales"
+  | "clientes"
+  | "productos";
 
 export interface CommercialPage<T> {
   items: T[];
