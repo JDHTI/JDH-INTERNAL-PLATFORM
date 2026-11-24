@@ -20,7 +20,7 @@ import {
   uploadPriceIncreases,
 } from "../services/commercial-masters.service";
 import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
-import type { AnalysisParams, PriceIncreaseParams } from "../types/price-increases.types";
+import type { AnalysisParams, IncreaseScope, PriceIncreaseParams } from "../types/price-increases.types";
 
 export const commercialMasterKeys = {
   all: ["commercial-masters"] as const,
@@ -139,8 +139,8 @@ export function usePriceIncreaseOptions() {
 }
 
 /** One reference's whole history, for the analysis detail (24 rows at most in the real workbook). */
-export function useReferenceIncreases(sku: string | null) {
-  const params = { q: "", supplier: "", status: "", pending: false, sku: sku ?? "", page: 1, size: 100 } as const;
+export function useReferenceIncreases(sku: string | null, scope: IncreaseScope) {
+  const params = { q: "", supplier: "", status: "", pending: false, sku: sku ?? "", ...scope, page: 1, size: 100 } as const;
   return useQuery({
     queryKey: increaseKeys.list(params),
     queryFn: () => listPriceIncreases(params),

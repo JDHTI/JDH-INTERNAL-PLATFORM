@@ -42,6 +42,8 @@ export interface PriceIncrease {
   /** Loaded from the purchasing workbook, or approved from a supplier's increase request. */
   source: "libro" | "solicitud";
   request_line_id: string | null;
+  /** 1, or 2, 3… for increases chained on the same day. */
+  occurrence: number;
   is_pending: boolean;
   updated_by: string;
   updated_at: string;
@@ -75,6 +77,8 @@ export interface PriceIncreaseParams {
   pending: boolean;
   /** One reference's whole history (the analysis detail). */
   sku?: string;
+  co: string;
+  installation: string;
   page: number;
   size: number;
 }
@@ -93,11 +97,37 @@ export interface MonthOption {
   references: number;
 }
 
-/** What the supplier and month dropdowns offer (`/commercial/price-increases/options`). */
+/** A C.O. of SIESA, "003" with its description. */
+export interface CoOption {
+  code: string;
+  name: string | null;
+}
+
+/** An installation and the C.O. codes it belongs to. */
+export interface InstallationOption {
+  code: string;
+  name: string | null;
+  cos: string[];
+}
+
+/** What the dropdowns offer (`/commercial/price-increases/options`). */
 export interface IncreaseFilterOptions {
   suppliers: SupplierOption[];
   /** The latest month first. */
   months: MonthOption[];
+  /** Empty when the DWH does not answer: the two filters are then off. */
+  cos: CoOption[];
+  /** By name. */
+  installations: InstallationOption[];
+}
+
+/**
+ * Where the references are active. Each reference then counts its national
+ * rows and its C.O.'s regional ones; with both, they cross.
+ */
+export interface IncreaseScope {
+  co: string;
+  installation: string;
 }
 
 /** The last month, the last year (default), two years or the whole history, by increase date. */
@@ -164,6 +194,8 @@ export interface AnalysisParams {
   movement: IncreaseStatus | "";
   q: string;
   supplier: string;
+  co: string;
+  installation: string;
   sort: AnalysisSort;
   order: "asc" | "desc";
   page: number;

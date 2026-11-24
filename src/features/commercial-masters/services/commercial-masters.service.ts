@@ -76,11 +76,23 @@ export async function downloadMarginTemplate(withData: boolean): Promise<void> {
 const INCREASES = "/commercial/price-increases";
 
 /** The price increase history, the latest first, with the counts of the filter. */
-export async function listPriceIncreases({ q, supplier, status, pending, sku, page, size }: PriceIncreaseParams): Promise<PriceIncreasePage> {
+export async function listPriceIncreases({
+  q,
+  supplier,
+  status,
+  pending,
+  sku,
+  co,
+  installation,
+  page,
+  size,
+}: PriceIncreaseParams): Promise<PriceIncreasePage> {
   return apiFetch<PriceIncreasePage>(INCREASES, {
     query: {
       q: q || undefined,
       supplier: supplier || undefined,
+      co: co || undefined,
+      installation: installation || undefined,
       status: status || undefined,
       pending: pending ? "true" : undefined,
       sku,
@@ -108,6 +120,8 @@ export async function getPriceIncreaseAnalysis({
   movement,
   q,
   supplier,
+  co,
+  installation,
   sort,
   order,
   page,
@@ -120,7 +134,18 @@ export async function getPriceIncreaseAnalysis({
         ? monthDays(window.month)
         : { since: window.from, until: window.to };
   return apiFetch<AnalysisPage>(`${INCREASES}/analysis`, {
-    query: { ...period, movement: movement || undefined, q: q || undefined, supplier: supplier || undefined, sort, order, page, size },
+    query: {
+      ...period,
+      movement: movement || undefined,
+      q: q || undefined,
+      supplier: supplier || undefined,
+      co: co || undefined,
+      installation: installation || undefined,
+      sort,
+      order,
+      page,
+      size,
+    },
   });
 }
 

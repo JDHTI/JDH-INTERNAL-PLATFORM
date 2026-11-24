@@ -14,14 +14,16 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { useUploadIncreaseWorkbook } from "../hooks/use-increase-requests";
 import type { IncreaseUploadReport } from "../types/increase-requests.types";
 import IncreaseLinesTable from "./increase-lines-table";
+import { SupportPicker } from "./support-file";
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 
 /**
  * The supplier's MAESTRA, back with its new costs. Choosing the file reads it
  * and reports what it would create and every problem by sheet row; any
- * problem blocks it. «Crear solicitud» sends it again to create the request
- * in review, and opens it.
+ * problem blocks it. An optional support (PDF, picture, Excel or Word) goes
+ * with both. «Crear solicitud» sends it again to create the request in
+ * review, and opens it.
  */
 export default function IncreaseUploadDialog({
   supplier,
@@ -53,9 +55,17 @@ function Uploader({ supplierCode, basePath, onClose }: { supplierCode: string; b
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
+  const [support, setSupport] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [report, setReport] = useState<IncreaseUploadReport | null>(null);
   const upload = useUploadIncreaseWorkbook();
+
+  /** Reads the workbook again without saving; the support travels too, so a bad one shows here. */
+  const simulate = (workbook: File, nextSupport: File | null) => {
+    setReport(null);
+    upload.reset();
+    upload.mutate({ supplier: supplierCode, file: workbook, note, support: nextSupport, apply: false }, { onSuccess: setReport });
+  };
 
   const choose = (chosen: File | undefined) => {
     if (!chosen) return;
@@ -65,15 +75,18 @@ function Uploader({ supplierCode, basePath, onClose }: { supplierCode: string; b
     }
     setLocalError(null);
     setFile(chosen);
-    setReport(null);
-    upload.reset();
-    upload.mutate({ supplier: supplierCode, file: chosen, note, apply: false }, { onSuccess: setReport });
+    simulate(chosen, support);
+  };
+
+  const chooseSupport = (next: File | null) => {
+    setSupport(next);
+    if (file) simulate(file, next);
   };
 
   const apply = () => {
     if (!file) return;
     upload.mutate(
-      { supplier: supplierCode, file, note, apply: true },
+      { supplier: supplierCode, file, note, support, apply: true },
       {
         onSuccess: (applied) => {
           toast.success(`Solicitud creada con ${numberFormat.format(applied.lines.length)} líneas, en revisión.`);
@@ -113,6 +126,8 @@ function Uploader({ supplierCode, basePath, onClose }: { supplierCode: string; b
           </span>
         )}
       </div>
+
+      <SupportPicker file={support} onChange={chooseSupport} onProblem={setLocalError} disabled={upload.isPending} />
 
       <Field label="Nota para la revisión" htmlFor={noteId} optional>
         <Textarea id={noteId} value={note} maxLength={500} rows={2} onChange={(event) => setNote(event.target.value)} />

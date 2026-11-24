@@ -71,8 +71,18 @@ export interface RequestLine {
   ledger_id: string | null;
 }
 
+/** The supplier's support for a request: a PDF, picture, Excel or Word file. */
+export interface RequestSupport {
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
 export interface IncreaseRequest {
   id: string;
+  support: RequestSupport | null;
   supplier_code: string;
   supplier_name: string | null;
   source: "plantilla" | "manual";

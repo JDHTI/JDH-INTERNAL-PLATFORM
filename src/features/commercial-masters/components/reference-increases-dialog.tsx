@@ -8,7 +8,8 @@ import { toNumber } from "@/shared/lib/format";
 import { formatCop } from "@/features/supports/lib/format";
 
 import { useReferenceIncreases } from "../hooks/use-commercial-masters";
-import type { PriceIncrease, ReferenceAnalysis } from "../types/price-increases.types";
+import type { IncreaseScope, PriceIncrease, ReferenceAnalysis } from "../types/price-increases.types";
+import { ScopeNote } from "./increase-scope-filters";
 import CostTrendChart, { type CostPoint } from "./cost-trend-chart";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay, rowChange } from "./increase-format";
 
@@ -23,7 +24,16 @@ const money = (value: number | null) => (value === null ? "—" : formatCop(Stri
  * change under it, the chart's table view. The figures of the period come from
  * the analysis row that opened it.
  */
-export default function ReferenceIncreasesDialog({ item, onClose }: { item: ReferenceAnalysis | null; onClose: () => void }) {
+export default function ReferenceIncreasesDialog({
+  item,
+  scope,
+  onClose,
+}: {
+  item: ReferenceAnalysis | null;
+  /** The analysis' C.O. and installation: the chart and the table follow them. */
+  scope: IncreaseScope;
+  onClose: () => void;
+}) {
   return (
     <Dialog
       open={item !== null}
@@ -32,16 +42,17 @@ export default function ReferenceIncreasesDialog({ item, onClose }: { item: Refe
       title={item ? `${item.sku} · ${item.description ?? "Sin descripción"}` : ""}
       description={item?.supplier_name ?? undefined}
     >
-      {item && <History item={item} onClose={onClose} />}
+      {item && <History item={item} scope={scope} onClose={onClose} />}
     </Dialog>
   );
 }
 
-function History({ item, onClose }: { item: ReferenceAnalysis; onClose: () => void }) {
-  const query = useReferenceIncreases(item.sku);
+function History({ item, scope, onClose }: { item: ReferenceAnalysis; scope: IncreaseScope; onClose: () => void }) {
+  const query = useReferenceIncreases(item.sku, scope);
   const rows = [...(query.data?.items ?? [])]
     .filter((row) => row.increased_on)
-    .sort((a, b) => (a.increased_on! < b.increased_on! ? -1 : a.increased_on! > b.increased_on! ? 1 : 0));
+    // Oldest first; increases chained on one day by their occurrence.
+    .sort((a, b) => a.increased_on!.localeCompare(b.increased_on!) || a.occurrence - b.occurrence);
   // One point per increase, at the cost it left; two on the same day keep the later one.
   const points: CostPoint[] = [];
   for (const row of rows) {
@@ -59,6 +70,7 @@ function History({ item, onClose }: { item: ReferenceAnalysis; onClose: () => vo
         <Fact label="Alzas en el periodo">{item.increases}</Fact>
         <Fact label="Cada cuánto">{item.frequency_days === null ? "—" : `${item.frequency_days} días`}</Fact>
       </dl>
+      <ScopeNote scope={scope} />
 
       {query.isPending ? (
         <div className="h-48 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando el histórico de la referencia" />

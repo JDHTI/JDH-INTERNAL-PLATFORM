@@ -26,6 +26,7 @@ import type { CostPermissions } from "../types/costs.types";
 import type { IncreaseChange, IncreaseRequestDetail, RequestLine } from "../types/increase-requests.types";
 import IncreaseLinesTable from "./increase-lines-table";
 import LineEditDialog from "./line-edit-dialog";
+import RequestSupport from "./request-support";
 
 const numberFormat = new Intl.NumberFormat("es-CO");
 
@@ -170,6 +171,7 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
             {request.decision_note}
           </p>
         )}
+        <RequestSupport request={request} reviewing={reviewing} />
         {request.status === "aprobada" && (
           <p className="text-[13px] text-text-secondary">
             Las líneas incluidas están en el acumulado de alzas, una fila por regional, pendientes en SIESA: el cotizador ya compara su costo nuevo.
