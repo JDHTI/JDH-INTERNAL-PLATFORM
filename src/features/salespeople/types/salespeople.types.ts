@@ -1,7 +1,7 @@
 /*
  * Contract of /api/v1/salespeople (internal-platform-api docs/salespeople.md):
- * which SIESA salespeople and supervisors each platform user works as, and the
- * commercial scope that follows from it.
+ * which SIESA salespeople and which coordinators (the supervisors master) each
+ * platform user works as, and the commercial scope that follows from it.
  */
 
 /**
@@ -34,13 +34,21 @@ export interface SalespersonLink {
   updated_at: string;
 }
 
+/**
+ * A seller comes from SIESA. A coordinator (`supervisor`, API #121) comes from the
+ * consumo.supervisores master: `code` is their NIT, `email` the master's, and `is_active` is
+ * false when they have no team.
+ */
 export interface RosterEntry {
   kind: SalespersonKind;
   code: string;
   name: string | null;
-  /** The e-mail SIESA has for the code; most have none. */
+  /** The e-mail SIESA (sellers) or the supervisors master (coordinators) has; many sellers have none. */
   email: string | null;
+  /** For a seller, the coordinator of their team in the master. */
   supervisor_code: string | null;
+  /** The team's name in the supervisors master; older API builds send none. */
+  team?: string | null;
   is_active: boolean;
   /** Who works as this code now, by hand or by e-mail; null when nobody. */
   holder_email: string | null;
@@ -78,7 +86,7 @@ export const ROSTER_PAGE_SIZE = 50;
 
 export const KIND_LABELS: Record<SalespersonKind, string> = {
   seller: "Vendedor",
-  supervisor: "Supervisor",
+  supervisor: "Coordinador",
 };
 
 export const SOURCE_LABELS: Record<LinkSource, string> = {

@@ -88,7 +88,7 @@ const SECTION_COPY: Record<AdminSection, string> = {
     "Las personas del directorio, qué se muestra de cada una y la sincronización nocturna con Microsoft Entra.",
   sedes: "Las sedes físicas de la compañía, para el directorio y el perfil de cada persona.",
   vendedores:
-    "Qué vendedor o supervisor de SIESA es cada persona. De esto depende qué clientes y cotizaciones ve en el cotizador.",
+    "Qué vendedor de SIESA o qué coordinador es cada persona. De esto depende qué clientes y cotizaciones ve en el cotizador.",
   maestros:
     "Los maestros que la plataforma lee del DWH, cuándo se actualizan y todos sus registros. Qué maestros ve cada área se elige en Módulos por área.",
 };
