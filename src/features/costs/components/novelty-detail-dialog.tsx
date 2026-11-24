@@ -155,6 +155,7 @@ function NoveltyBody({
               valueName={novelty.reason?.name}
               saving={saveReason.isPending}
               label="Motivo de la novedad"
+              className="h-9 px-2 text-sm"
               onChange={(reasonId) =>
                 saveReason.mutate(
                   { id: novelty.id, reasonId },
