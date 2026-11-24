@@ -30,6 +30,8 @@ export interface AreaDto {
   is_responsible: boolean;
   /** Module key -> action the caller holds there. Admins get every module as `manage`. */
   my_modules: Record<string, ModuleAction>;
+  /** General masters the area's Maestros lists to the caller, in menu order; [] without `maestros`. */
+  masters?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +57,8 @@ export interface Area {
   isResponsible: boolean;
   /** Modules the caller may at least read here, by API module key. */
   myModules: Record<string, ModuleAction>;
+  /** General masters (`COMMERCIAL_MASTERS` keys) the area's Maestros lists, in menu order. */
+  masters: string[];
 }
 
 /** Whether the person may open a module of the area. A module with no key is open to every member. */

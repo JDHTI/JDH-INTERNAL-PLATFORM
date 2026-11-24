@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 
-import { requireModule } from "@/features/areas/server/area-access";
+import { requireGeneralMaster, requireModule } from "@/features/areas/server/area-access";
 import CommercialMasterTable from "@/features/commercial-masters/components/commercial-master-table";
 import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/price-increase-analysis-view";
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
-import { MASTERS_SEGMENT, commercialMastersFor } from "@/features/commercial-masters/config/masters.config";
+import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
 import { productsView, productsViews } from "@/features/commercial-masters/config/products-views";
 import PageHeader from "@/shared/components/page-header";
 
@@ -16,10 +16,11 @@ export default async function MaestroPage({
   searchParams: Promise<{ vista?: string }>;
 }) {
   const { area, master: key } = await params;
-  // BI has every general master; the other areas with the module, products only.
-  const master = commercialMastersFor(area).find((item) => item.key === key);
+  const master = findCommercialMaster(key);
   if (!master) notFound();
   await requireModule(area, MASTERS_SEGMENT);
+  // Each area lists the general masters chosen for it in Módulos por área.
+  await requireGeneralMaster(area, master.key);
 
   if (master.key === "productos") {
     // The module grants every view: the master, the increase history and its analysis.

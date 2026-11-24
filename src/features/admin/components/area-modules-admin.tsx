@@ -6,7 +6,7 @@ import { CloudOff, Loader2, Lock, RotateCcw, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { areaKeys } from "@/features/areas/hooks/use-areas";
-import { masterKeys, useMasters } from "@/features/masters/hooks/use-masters";
+import { masterKeys } from "@/features/masters/hooks/use-masters";
 import { useSession } from "@/features/session/hooks/use-session";
 import { isPlatformAdmin } from "@/features/session/types/session.types";
 import StatePanel from "@/shared/components/state-panel";
@@ -21,7 +21,13 @@ import { cn } from "@/shared/lib/utils";
 
 import { adminKeys, useModuleMatrix } from "../hooks/use-admin-data";
 import { resetAreaModule, setAreaModule } from "../services/admin.service";
-import type { AreaModuleConfig, AreaModuleStateDto, ModuleMatrixDto, PlatformModuleDto } from "../types/admin.types";
+import type {
+  AreaModuleConfig,
+  AreaModuleStateDto,
+  GeneralMasterDto,
+  ModuleMatrixDto,
+  PlatformModuleDto,
+} from "../types/admin.types";
 
 type MatrixArea = ModuleMatrixDto["areas"][number];
 
@@ -272,6 +278,7 @@ export default function AreaModulesAdmin() {
 
       <MastersConfigDialog
         toggle={configuring}
+        generalMasters={matrix.data.general_masters ?? []}
         busy={busy !== null}
         error={dialogError}
         onClose={() => setConfiguring(null)}
@@ -357,15 +364,20 @@ function ModuleCell({
   );
 }
 
-/** Which masters an area sees: all of them, or a list. An empty list is not "none", so it asks for one. */
+/**
+ * Which general masters an area's Maestros lists: every one of the standard, or
+ * a list. An empty list is not "none", so it asks for one.
+ */
 function MastersConfigDialog({
   toggle,
+  generalMasters,
   busy,
   error,
   onClose,
   onSave,
 }: {
   toggle: Toggle | null;
+  generalMasters: GeneralMasterDto[];
   busy: boolean;
   error: string | null;
   onClose: () => void;
@@ -384,6 +396,7 @@ function MastersConfigDialog({
       {toggle && (
         <MastersConfigForm
           key={`${toggle.area.slug}`}
+          generalMasters={generalMasters}
           initial={mastersOf(toggle.state.config)}
           busy={busy}
           error={error}
@@ -396,21 +409,24 @@ function MastersConfigDialog({
 }
 
 function MastersConfigForm({
+  generalMasters,
   initial,
   busy,
   error,
   onCancel,
   onSave,
 }: {
+  generalMasters: GeneralMasterDto[];
   initial: string[] | null;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
   onSave: (masters: string[] | null) => void;
 }) {
-  const masters = useMasters();
+  const standard = generalMasters.map((master) => master.slug);
   const [everything, setEverything] = useState(initial === null);
-  const [chosen, setChosen] = useState<Set<string>>(new Set(initial ?? []));
+  // A slug left from before the standard (a DWH view) is dropped: the API only takes the standard's.
+  const [chosen, setChosen] = useState<Set<string>>(new Set((initial ?? []).filter((slug) => standard.includes(slug))));
   const [localError, setLocalError] = useState<string | null>(null);
 
   const toggleMaster = (slug: string) =>
@@ -428,7 +444,7 @@ function MastersConfigForm({
       return;
     }
     setLocalError(null);
-    onSave(everything ? null : [...chosen].sort());
+    onSave(everything ? null : standard.filter((slug) => chosen.has(slug)));
   };
 
   const radioClass = "mt-0.5 size-4 accent-[var(--primary)]";
@@ -441,7 +457,9 @@ function MastersConfigForm({
           <input type="radio" name="scope" checked={everything} onChange={() => setEverything(true)} className={radioClass} />
           <span>
             <span className="block font-medium">Todos los maestros</span>
-            <span className="block text-[13px] text-text-secondary">Incluye los que se agreguen después.</span>
+            <span className="block text-[13px] text-text-secondary">
+              Los {generalMasters.length} del estándar, y los que se agreguen a él después.
+            </span>
           </span>
         </label>
         <label className="flex cursor-pointer gap-3 text-sm">
@@ -450,34 +468,29 @@ function MastersConfigForm({
         </label>
       </fieldset>
 
-      {!everything &&
-        (masters.isPending ? (
-          <TableSkeleton rows={4} label="Cargando maestros" />
-        ) : masters.isError ? (
-          <p role="alert" className="text-sm text-danger">{errorMessage(masters.error)}</p>
-        ) : (
-          <fieldset disabled={busy} className="min-w-0">
-            <legend className="sr-only">Maestros del área</legend>
-            <ul className="max-h-72 divide-y divide-border overflow-y-auto overscroll-contain rounded-md border border-border">
-              {masters.data.map((master) => (
-                <li key={master.slug}>
-                  <label className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-canvas-subtle">
-                    <input
-                      type="checkbox"
-                      checked={chosen.has(master.slug)}
-                      onChange={() => toggleMaster(master.slug)}
-                      className="size-4 accent-[var(--primary)]"
-                    />
-                    <span className="min-w-0 flex-1 truncate">{master.name}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-text-secondary">
-                      {master.record_count === null ? "—" : new Intl.NumberFormat("es-CO").format(master.record_count)}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </fieldset>
-        ))}
+      {!everything && (
+        <fieldset disabled={busy} className="min-w-0">
+          <legend className="sr-only">Maestros del área</legend>
+          <ul className="divide-y divide-border rounded-md border border-border">
+            {generalMasters.map((master) => (
+              <li key={master.slug}>
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2 text-sm hover:bg-canvas-subtle">
+                  <input
+                    type="checkbox"
+                    checked={chosen.has(master.slug)}
+                    onChange={() => toggleMaster(master.slug)}
+                    className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{master.label}</span>
+                    <span className="block text-[13px] text-text-secondary">{master.description}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+      )}
 
       <DialogError message={localError ?? error} />
       <DialogFooter>

@@ -91,10 +91,11 @@ export interface CommercialMasterDef {
 }
 
 /**
- * The general masters, in the order the sidebar lists them. BI has all four;
- * every other area with the Maestros module has products only (see
- * `commercialMastersFor`). The route segment, the endpoint and the columns live
- * here so the table and the navigation cannot drift apart.
+ * The general masters of the standard, in menu order: the same keys as the
+ * API's `GENERAL_MASTERS`. Which ones an area lists is set per area in
+ * Módulos por área (see `commercialMastersFor`). The route segment, the
+ * endpoint and the columns live here so the table and the navigation cannot
+ * drift apart. A new general master is added here and in the API's standard.
  */
 export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
   {
@@ -203,14 +204,13 @@ export const COMMERCIAL_MASTERS: CommercialMasterDef[] = [
   },
 ];
 
-/** The area that keeps every general master; the others get products only. */
-export const ALL_MASTERS_AREA_SLUG = "bi";
-
-/** The general masters an area's Maestros module lists, in sidebar order. */
-export function commercialMastersFor(areaSlug: string): CommercialMasterDef[] {
-  return areaSlug === ALL_MASTERS_AREA_SLUG
-    ? COMMERCIAL_MASTERS
-    : COMMERCIAL_MASTERS.filter((master) => master.key === "productos");
+/**
+ * The general masters an area's Maestros module lists, in the order the API
+ * gives them: `masters` of the area in GET /areas (from `PUT /areas/{slug}/modules/maestros`).
+ * A key the UI has no screen for is skipped.
+ */
+export function commercialMastersFor(masters: readonly string[]): CommercialMasterDef[] {
+  return masters.flatMap((key) => COMMERCIAL_MASTERS.find((master) => master.key === key) ?? []);
 }
 
 export function findCommercialMaster(key: string): CommercialMasterDef | undefined {

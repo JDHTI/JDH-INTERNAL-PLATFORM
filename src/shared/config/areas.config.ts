@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 
 import {
+  COMMERCIAL_MASTERS,
   MASTERS_SEGMENT,
   commercialMastersFor,
 } from "@/features/commercial-masters/config/masters.config";
@@ -131,6 +132,8 @@ export interface ModuleSubItem {
   managerOnly?: boolean;
   /** Shows a live count beside the label; the sidebar knows how to fetch each kind. */
   badge?: "feedback-unread";
+  /** A general master's page: listed only when the area's `masters` includes it. */
+  generalMaster?: string;
 }
 
 export interface ModuleItem {
@@ -166,17 +169,27 @@ export interface ModuleItem {
 /**
  * The modules of an area the person may see: the ones `my_modules` lists
  * (switched on in the area and granted by the role), the area's own rows, and
- * administration for admins. Unavailable rows stay as "Próximamente".
+ * administration for admins. Unavailable rows stay as "Próximamente". Maestros
+ * keeps only the general masters the area lists (`masters`), in that order, and
+ * leaves the menu when it lists none.
  */
 export function visibleModules(
-  area: { slug: string; myModules: Record<string, string> },
+  area: { slug: string; myModules: Record<string, string>; masters: readonly string[] },
   isAdmin: boolean
 ): ModuleItem[] {
-  return getModulesByArea(area.slug).filter(
-    (module) =>
-      (!module.adminOnly || isAdmin) &&
-      (module.permission === undefined || module.permission in area.myModules)
-  );
+  return getModulesByArea(area.slug)
+    .filter(
+      (module) =>
+        (!module.adminOnly || isAdmin) &&
+        (module.permission === undefined || module.permission in area.myModules)
+    )
+    .flatMap((module) => {
+      if (!module.subItems?.some((item) => item.generalMaster)) return [module];
+      const pages = commercialMastersFor(area.masters).flatMap(
+        (master) => module.subItems?.find((item) => item.generalMaster === master.key) ?? []
+      );
+      return pages.length > 0 ? [{ ...module, subItems: pages }] : [];
+    });
 }
 
 /** Slugs the UI routes itself, so an area can never take them. */
@@ -547,15 +560,17 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     available: true,
     permission: "maestros",
     // No landing (decided 2026-11-23): the row only opens its pages, the typed
-    // general masters. BI has all four; the other areas, products only. On the
-    // collapsed rail the row expands it and opens them.
+    // general masters. Every page of the standard is built here; `visibleModules`
+    // keeps the ones the area lists. On the collapsed rail the row expands it
+    // and opens them.
     hasPage: false,
     subItems: (base, slug) =>
-      commercialMastersFor(slug).map((master) => ({
+      COMMERCIAL_MASTERS.map((master) => ({
         id: `${slug}-maestros-${master.key}`,
         name: master.name,
         path: `${base}/${master.key}`,
         icon: master.icon,
+        generalMaster: master.key,
       })),
   },
   { key: "documentos", name: "Gestor documental", category: "Documentación", icon: FolderOpen, available: true, permission: "documentos" },

@@ -82,7 +82,7 @@ export interface PlatformModuleDto {
   area_slugs?: string[];
 }
 
-/** `maestros`: the masters the area sees; absent or empty means every master. */
+/** `maestros`: the general masters the area sees; absent or empty means every master. */
 export interface AreaModuleConfig {
   masters?: string[];
 }
@@ -94,9 +94,18 @@ export interface AreaModuleStateDto {
   is_default: boolean;
 }
 
+/** A general master of the standard: what the `maestros` module can list in an area. */
+export interface GeneralMasterDto {
+  slug: string;
+  label: string;
+  description: string;
+}
+
 /** GET /permissions/modules: every module and, per area, whether it is on. */
 export interface ModuleMatrixDto {
   modules: PlatformModuleDto[];
+  /** The standard's general masters, in menu order; the only ones `maestros` accepts. */
+  general_masters: GeneralMasterDto[];
   areas: {
     area_id: string;
     slug: string;

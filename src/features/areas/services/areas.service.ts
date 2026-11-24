@@ -15,6 +15,7 @@ export function toArea(dto: AreaDto): Area {
     myRole: dto.my_role,
     isResponsible: dto.is_responsible,
     myModules: dto.my_modules ?? {},
+    masters: dto.masters ?? [],
   };
 }
 
