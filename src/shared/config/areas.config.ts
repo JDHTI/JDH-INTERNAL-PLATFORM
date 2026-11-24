@@ -2,6 +2,7 @@ import {
   Activity,
   AppWindow,
   ArrowLeftRight,
+  BadgeDollarSign,
   Banknote,
   BarChart3,
   Blocks,
@@ -66,6 +67,9 @@ export const APPS_SEGMENT = "aplicativos";
  */
 export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
 
+/** The month's supplier support settlement (features/support-settlements); BI only. */
+export const SUPPORT_SETTLEMENTS_SEGMENT = "liquidacion-apoyos";
+
 /** Prospects on the map, commercial zones and visit routes (features/commercial-map). */
 export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
 
@@ -106,7 +110,9 @@ export const MODULE_CATEGORIES = [
   "Costos",
   "Reportes",
   "Monitoreo",
-  "Maestros",
+  // The supplier supports and what each supplier owes for them in the month.
+  "Apoyos proveedores",
+  "Maestros generales",
   // Not "Configuración": that label already belongs to the platform-wide
   // utility link in the footer, and two different things under one word in
   // the same sidebar is a coin toss for the user.
@@ -374,7 +380,7 @@ const AREA_ROWS: ModuleItem[] = [
     name: "Activos fijos",
     path: "/contabilidad/activos-fijos",
     areaSlug: "contabilidad",
-    category: "Maestros",
+    category: "Maestros generales",
     icon: Building2,
     available: false,
   },
@@ -522,12 +528,21 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
       { id: `${slug}-datawarehouse-extracciones`, name: "Extracciones", path: `${base}/extracciones`, icon: ListChecks },
     ],
   },
-  { key: "apoyos", name: "Maestro de apoyos", category: "Maestros", icon: HandCoins, available: true, permission: "apoyos" },
+  { key: "apoyos", name: "Maestro de apoyos", category: "Apoyos proveedores", icon: HandCoins, available: true, permission: "apoyos" },
+  {
+    // Locked to BI in the API's catalog: what each supplier owes for the month's supported sales.
+    key: SUPPORT_SETTLEMENTS_SEGMENT,
+    name: "Liquidación de apoyos",
+    category: "Apoyos proveedores",
+    icon: BadgeDollarSign,
+    available: true,
+    permission: "liquidacion-apoyos",
+  },
   {
     key: "maestros",
     segment: MASTERS_SEGMENT,
     name: "Maestros",
-    category: "Maestros",
+    category: "Maestros generales",
     icon: Database,
     available: true,
     permission: "maestros",
