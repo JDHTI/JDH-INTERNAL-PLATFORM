@@ -318,7 +318,17 @@ function CustomerSubline({ item }: { item: QuotationSummary }) {
       </span>
     );
   }
-  return <span className="block font-mono text-[13px] text-text-secondary">NIT {item.customer_nit}</span>;
+  return (
+    <span className="block text-[13px] text-text-secondary">
+      <span className="font-mono">NIT {item.customer_nit}</span>
+      {item.customer_branch_id && (
+        <>
+          {" · "}
+          <span className="font-mono">Sucursal {item.customer_branch_id}</span>
+        </>
+      )}
+    </span>
+  );
 }
 
 /**

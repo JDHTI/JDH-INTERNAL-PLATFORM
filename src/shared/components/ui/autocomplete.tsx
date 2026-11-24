@@ -11,6 +11,8 @@ export interface AutocompleteOption {
   label: string;
   /** Second line in the list, e.g. an email or a response time. */
   hint?: string;
+  /** The row the option came from, for a caller that needs more than the value (a branch count). */
+  data?: Readonly<Record<string, unknown>>;
 }
 
 type AutocompleteProps = Omit<

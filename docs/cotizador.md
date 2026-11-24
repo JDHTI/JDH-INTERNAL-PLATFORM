@@ -330,6 +330,23 @@ migración `0052`.
    (`lista_precio_id`) y el vendedor. Si las sucursales no coinciden, la cotización lo advierte
    (`listas_distintas`, `co_distintos`). Las referencias del histórico quedan atadas a la lista que
    el cliente tiene asignada.
+   - **Cotización por sucursal** (API #124):
+     - **Cuándo aparece:** en «Nueva cotización», en la misma fila del cliente, solo si el cliente
+       elegido tiene más de una sucursal activa (`active_branch_count` de `GET /quotations/customers`).
+       No aplica a grupo empresarial ni a cliente temporal.
+     - **Qué ofrece:** las sucursales salen de `GET /quotations/customers/{nit}/branches`, y una
+       insignia dice cuántas tiene el cliente. «Todo el NIT» es el valor por defecto.
+     - **Qué envía:** `customer_branch_id` en `POST /quotations`.
+     - **Cómo se muestra:** la cotización enseña la sucursal en el título, en la tarjeta Cliente y en
+       el listado.
+   - **Jerarquía de apoyos:** manda el más específico.
+     - Una cotización de todo el NIT toma el apoyo del NIT y, si no hay, el del grupo. Los de
+       sucursal no aplican.
+     - En una cotización por sucursal, el apoyo de esa sucursal reemplaza al del NIT y al del grupo.
+     - El que queda fuera sale en los candidatos de la línea, con el motivo «Hay un apoyo más
+       específico».
+     - La liquidación va por la sucursal de cada venta. El validador trata el pedido como general,
+       porque el archivo no trae sucursal.
    - **CO que factura** (`billing_center_code`, de `cod_co_factura`): si alguna sucursal activa
      factura desde un CO de la Costa (`004`), se toma el CO de la Costa más frecuente entre ellas
      (paga el impuesto de licores de la Costa); si no, el más frecuente. `co_distintos` sigue

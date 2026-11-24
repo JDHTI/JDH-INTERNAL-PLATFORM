@@ -348,10 +348,13 @@ export interface SupportSearchBody {
   /** Without a state, voided supports are hidden. */
   state?: SupportStateFilter;
   needs_review?: boolean;
-  /** Base search: each list ANDs with the others and with every other filter. */
+  /**
+   * Base search: each list ANDs with the others and with every other filter. A NIT brings its
+   * supports for the whole NIT and for its branches, never its business group's (API #124).
+   */
   customer_nits?: string[];
-  /** With `customer_nits`: only that NIT's own supports, without its business group's (API #115). */
-  customer_nit_only?: boolean;
+  /** One branch of a NIT: only the supports created for that branch (API #124). */
+  customer_branches?: { nit: string; branch_id: string }[];
   /** A business group's supports, the group's own row once; case and spaces do not count. */
   business_groups?: string[];
   supplier_codes?: string[];

@@ -11,6 +11,7 @@ import type {
   OfferSettings,
   PriceListLoad,
   Quotation,
+  QuotationCustomerBranch,
   QuotationListParams,
   QuotationKind,
   QuotationPage,
@@ -143,9 +144,25 @@ export function getQuotation(id: string): Promise<Quotation> {
  * comes back empty with the `sin_ventas` warning. The validity starts at the
  * API's default and is set while confirming.
  */
-/** `empty`: no lines from the sales history; the advisor adds the references, and a refresh never brings the history in. */
-export function createQuotation(customerNit: string, windowMonths: WindowMonths, empty = false): Promise<Quotation> {
-  return apiFetch<Quotation>(BASE, { method: "POST", body: { customer_nit: customerNit, window_months: windowMonths, with_history: !empty } });
+/**
+ * `empty`: no lines from the sales history; the advisor adds the references, and a refresh never
+ * brings the history in. `branchId`: quoted for that branch of the NIT (422 if it is not the NIT's).
+ */
+export function createQuotation(customerNit: string, windowMonths: WindowMonths, empty = false, branchId: string | null = null): Promise<Quotation> {
+  return apiFetch<Quotation>(BASE, {
+    method: "POST",
+    body: {
+      customer_nit: customerNit,
+      ...(branchId ? { customer_branch_id: branchId } : {}),
+      window_months: windowMonths,
+      with_history: !empty,
+    },
+  });
+}
+
+/** The branches of a customer the person may quote. */
+export function listQuotationCustomerBranches(nit: string): Promise<QuotationCustomerBranch[]> {
+  return apiFetch<QuotationCustomerBranch[]>(`${BASE}/customers/${encodeURIComponent(nit)}/branches`);
 }
 
 /**

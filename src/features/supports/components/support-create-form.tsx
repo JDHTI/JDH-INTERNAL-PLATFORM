@@ -31,6 +31,7 @@ import type {
   SupportOverlap,
 } from "../types/support.types";
 import BasePicker, { SUPPLIER_PICKER } from "@/shared/components/pickers/base-picker";
+import { useCustomerMasterBranches } from "@/shared/components/pickers/branch-select";
 import DiscardDialog from "./discard-dialog";
 import OverlapDialog from "./overlap-dialog";
 import PromoCheck from "./promo-check";
@@ -65,7 +66,7 @@ const CREATE_FIELDS: { name: string; section: "Apoyo" | "Alcance"; label?: strin
   { name: "valid_from", section: "Apoyo" },
   { name: "valid_to", section: "Apoyo" },
   { name: "customer_nit", section: "Alcance", label: "NIT y cliente" },
-  { name: "customer_branch_id", section: "Alcance" },
+  { name: "customer_branch_id", section: "Alcance", label: "Sucursal" },
   { name: "customer_group", section: "Alcance" },
   { name: "product_sku", section: "Alcance" },
   { name: "supplier_sku", section: "Alcance" },
@@ -88,6 +89,8 @@ const HELP: Record<string, string> = {
   supported_margin_pct: "Con él sale el precio apoyado mínimo: (costo − apoyo) / (1 − margen).",
   valid_to: "Vacía, sin fecha de fin.",
   customer_nit: "Vacío, todos los clientes.",
+  customer_branch_id:
+    "Vacía, vale para todo el NIT. Con una sucursal vale solo para ella, y en sus cotizaciones reemplaza al apoyo del NIT y al del grupo.",
   customer_group: "Crea un apoyo por cada cliente activo del grupo.",
   product_sku: "Vacío, el SKU del proveedor lo identifica.",
 };
@@ -218,12 +221,16 @@ function CreateForm({
   const methodsFor = (code: string) => methodsOfKind(catalogs, code);
   const hasGroup = !isEmptyValue(form.draft.customer_group);
   const hasCustomer = !isEmptyValue(form.draft.customer_nit);
+  const branches = useCustomerMasterBranches(hasCustomer ? String(form.draft.customer_nit) : null);
+  // The branch is asked only for a NIT with more than one; empty, the support holds for the whole NIT.
+  const asksBranch = hasCustomer && (branches.data?.length ?? 0) > 1;
   // Only the template's fields, in its order. A business group and a customer exclude each
-  // other: the group creates one support per customer.
+  // other: the group creates one support per customer, and a branch goes with a NIT only.
   const specs = CREATE_FIELDS.flatMap(({ name, section, label }) => {
     const spec = schema.fields.find((candidate) => candidate.name === name);
     if (!spec || !isFieldVisible(name, rule, gated)) return [];
     if (hasGroup && CUSTOMER_FIELDS.includes(name)) return [];
+    if (name === "customer_branch_id" && !asksBranch) return [];
     if (hasCustomer && name === "customer_group") return [];
     const shown = { ...spec, group: section, label: label ?? spec.label, help: HELP[name] ?? (API_HELP.has(name) ? spec.help : "") };
     // Only the rules v2 classes are created, each with its own types.
@@ -278,6 +285,8 @@ function CreateForm({
     onDirtyChange(true);
     setForm((current) => {
       const draft = { ...current.draft, [name]: value };
+      // A branch belongs to the NIT it was picked for.
+      if (name === "customer_nit") delete draft.customer_branch_id;
       // A type the new class does not admit is dropped, so it never reaches the API as a 422.
       const allowed = name === "kind" && typeof value === "string" ? methodsFor(value) : null;
       if (allowed && typeof draft.calc_method === "string" && draft.calc_method && !allowed.includes(draft.calc_method)) {
