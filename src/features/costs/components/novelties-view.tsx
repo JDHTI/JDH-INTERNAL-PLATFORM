@@ -24,7 +24,18 @@ import { useCostReasons, useNovelties, useSetNoveltyReason } from "../hooks/use-
 import { NOVELTY_STATUS, SUPPLIER_FILTER, today } from "../lib/format";
 import type { CostPermissions, CostReason, Novelty, NoveltyKind, NoveltySort, NoveltyStatus, SortOrder } from "../types/costs.types";
 import CreditNoteDialog from "./credit-note-dialog";
-import { DifferenceCell, EntryCell, PricesCell, ProductCell } from "./line-cells";
+import {
+  DifferenceCell,
+  EntryCell,
+  ProductCell,
+  PurchaseCells,
+  PurchaseCols,
+  PurchaseFigures,
+  PurchaseGroupHeader,
+  PurchaseSubHeaders,
+  QuotationCell,
+  QuotationFigures,
+} from "./line-cells";
 import NoveltyDetailDialog from "./novelty-detail-dialog";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
@@ -240,40 +251,49 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
             <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Novedades de las entradas de compra</caption>
               <colgroup>
-                <col style={{ width: "12%" }} />
+                <col style={{ width: "11%" }} />
                 <col />
-                <col style={{ width: "17%" }} />
+                <PurchaseCols />
+                <col style={{ width: "12%" }} />
                 <col style={{ width: "13%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: 52 }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: 44 }} />
               </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} rowSpan={2} {...sortProps} />
                   <SortHeader
                     label="Producto"
                     fields={[
                       ["sku", "Referencia"],
                       ["supplier", "Proveedor"],
                     ]}
+                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Precio y cotización" {...sortProps} />
+                  <PurchaseGroupHeader />
+                  <SortHeader
+                    label="Cotización"
+                    rowSpan={2}
+                    className="text-right"
+                    title="Lo que debió costar la entrada: la cotización vigente menos su Tasa 1"
+                    {...sortProps}
+                  />
                   <SortHeader
                     label="Diferencia"
                     fields={[
                       ["difference", "En pesos"],
                       ["difference_pct", "En %"],
                     ]}
+                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Estado y motivo" {...sortProps} />
-                  <SortHeader label="Nota crédito" {...sortProps} />
-                  <th scope="col" className={th}>
+                  <SortHeader label="Estado, motivo y nota" rowSpan={2} {...sortProps} />
+                  <th scope="col" rowSpan={2} className={th}>
                     <span className="sr-only">Detalle</span>
                   </th>
                 </tr>
+                <PurchaseSubHeaders />
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
@@ -332,19 +352,20 @@ function NoveltyRow({ row, reasons, canSetReasons, manages, onOpen, onRegisterNo
       <td className={td}>
         <ProductCell line={line} />
       </td>
+      <PurchaseCells line={line} />
       <td className={td}>
-        <PricesCell line={line} />
+        <QuotationCell line={line} />
       </td>
       <td className={td}>
         <DifferenceCell line={line} />
       </td>
       <td className={td}>
-        <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
+        <div className="space-y-1.5">
+          <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
+          <CreditNoteCell row={row} manages={manages} onOpen={onOpen} onRegisterNote={onRegisterNote} />
+        </div>
       </td>
-      <td className={td}>
-        <CreditNoteCell row={row} manages={manages} onOpen={onOpen} onRegisterNote={onRegisterNote} />
-      </td>
-      <td className={cn(td, "px-1.5")}>
+      <td className={cn(td, "px-1")}>
         <DetailButton row={row} onOpen={onOpen} />
       </td>
     </tr>
@@ -362,8 +383,11 @@ function NoveltyCard(props: RowProps) {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <PricesCell line={row.line} />
-        <DifferenceCell line={row.line} />
+        <PurchaseFigures line={row.line} />
+        <div className="space-y-2">
+          <QuotationFigures line={row.line} />
+          <DifferenceCell line={row.line} />
+        </div>
       </div>
       <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
       <div className="flex items-center justify-between gap-2">

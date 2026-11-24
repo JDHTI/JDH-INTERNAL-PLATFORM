@@ -31,8 +31,15 @@ de la clave ve por qué, no una pantalla de 403. Los permisos nunca se deducen d
   motivos activos que guarda al elegir (`PUT /costs/entries/{line_key}/reason`); elegir el mismo o
   «Quitar el motivo» lo quita. Un motivo desactivado que la línea ya tenía se muestra, pero no se
   puede elegir.
-- Si `previous_from_warehouse` es `false`, una nota bajo la tabla avisa que el precio anterior sale
-  del periodo leído (el DWH aún no publica su PR #160).
+- **Columnas** (las mismas en Novedades): entrada, producto, el grupo **Precio de compra** con
+  Actual (`unit_price`), Anterior (`previous_price`) y Antepenúltimo (`antepenultimate_price`),
+  Cotización, Diferencia y estado con el motivo.
+- **Cotización** (`quotation`) es lo que debió costar la entrada: la cotización vigente menos su
+  Tasa 1. La diferencia se mide contra ella. Debajo, cuando hay Tasa 1, van la lista
+  (`quotation_list_price`) y la Tasa 1 (`discount_pct`, fracción: 0,2 se muestra 20 %); el
+  tooltip suma la fecha de vigencia.
+- Si `previous_from_warehouse` es `false`, una nota bajo la tabla avisa que las compras anteriores
+  salen del periodo leído (el DWH aún no publica su PR #160).
 
 ## Novedades y notas crédito
 
@@ -61,16 +68,22 @@ digita, corrige, aprueba y rechaza.
   Un problema bloquea la carga (`blocked`). «Crear solicitud» la envía con `apply=true` y abre la
   solicitud creada.
 - **Digitar alzas** (`ManualRequestDialog`): busca entre los productos activos del proveedor
-  (`GET /items`), y cada referencia agregada lleva costo nuevo, fecha (la de la anterior por
-  defecto), observación (la lista de la MAESTRA) y descuentos.
-- **Descuentos** (`DiscountFields`): se escriben en puntos (`5`, `2,5`) y viajan como fracción. Una
-  regional vacía no se envía y toma el regular, así la referencia no se repite por regional.
+  (`GET /items`). Cada línea lleva regional, costo nuevo, fecha (la de la anterior por defecto),
+  descuento regular, PVP sin IVA (opcional) y observación (la lista de la MAESTRA).
+- **Regional** (desde el PR #118 de la API): `NACIONAL` (por defecto), una de las seis o
+  `RESTO DE REGIONALES`. Una referencia puede ir en varias líneas («Otra regional»). El formulario
+  replica las reglas que valida la API (`lib/regionals.ts`): Nacional va sola en su referencia,
+  una regional no se repite, y «Resto» necesita otra línea con una regional y debe dejar alguna por
+  cubrir. Para «Resto» muestra qué regionales cubre.
+- **Descuento regular:** se escribe en puntos (`5`, `2,5`) y viaja como fracción. Ya no hay
+  descuentos por regional: una regional con otro costo es otra línea.
 - **Bandeja:** abre en «En revisión», con chips por estado y sus `counts`.
-- **Detalle:** costo anterior y nuevo con y sin impuesto saludable, variación en pesos y en %,
-  estado del incremento (`change_label` con el color del acumulado), fecha, descuentos y
-  observación. Mientras está en revisión, quien gestiona corrige una línea (`LineEditDialog`), la
-  deja por fuera o la vuelve a incluir, aprueba (nota opcional) o rechaza (motivo obligatorio).
-  Con `has_file` se descarga el libro original.
+- **Detalle:** cada línea con su regional junto a la referencia (para «Resto», las que cubre según
+  `regionals`), costo anterior y nuevo con y sin impuesto saludable, variación en pesos y en %,
+  estado del incremento (`change_label` con el color del acumulado), fecha, descuento, PVP y
+  observación. Mientras está en revisión, quien gestiona corrige una línea (`LineEditDialog`; la
+  regional no se edita), la deja por fuera o la vuelve a incluir, aprueba (nota opcional) o
+  rechaza (motivo obligatorio). Con `has_file` se descarga el libro original.
 
 ## Acumulado de alzas
 

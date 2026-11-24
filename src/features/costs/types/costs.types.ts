@@ -42,16 +42,21 @@ export interface EntryLine {
   quantity: Decimal | null;
   unit: string | null;
   unit_price: Decimal;
+  /** What the entry should have cost: the quotation less its Tasa 1. The difference is against it. */
   quotation: Decimal | null;
+  /** The quotation's unit price before the Tasa 1. */
+  quotation_list_price: Decimal | null;
   quotation_since: string | null;
-  /** «Tasa 1»: the quotation's scale discount, shown but not subtracted. */
+  /** «Tasa 1»: the quotation's scale discount, as a fraction (0.2 is 20 %). */
   discount_pct: Decimal | null;
   difference: Decimal | null;
   /** A fraction: 0.05 is 5 %. */
   difference_pct: Decimal | null;
   amount: Decimal | null;
+  /** The purchase before this one, of the same reference and unit. */
   previous_price: Decimal | null;
-  previous_price_2: Decimal | null;
+  /** The purchase before the previous one. */
+  antepenultimate_price: Decimal | null;
   status: EntryStatus;
   status_label: string;
 }

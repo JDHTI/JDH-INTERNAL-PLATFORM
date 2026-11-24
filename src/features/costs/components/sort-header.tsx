@@ -32,7 +32,13 @@ export default function SortHeader<T extends string>({
   onSort,
   onReset,
   className,
+  rowSpan,
+  title,
 }: {
+  /** 2 when the header has a group row above and this column is not in a group. */
+  rowSpan?: number;
+  /** The full meaning, as the header's tooltip. */
+  title?: string;
   label: string;
   /** The API's sort fields this column holds, with their names in the menu. */
   fields?: [field: T, name: string][];
@@ -45,7 +51,7 @@ export default function SortHeader<T extends string>({
 }) {
   if (fields.length === 0) {
     return (
-      <th scope="col" className={cn(th, className)}>
+      <th scope="col" rowSpan={rowSpan} title={title} className={cn(th, className)}>
         {label}
       </th>
     );
@@ -54,7 +60,12 @@ export default function SortHeader<T extends string>({
   const Icon = !active ? ArrowUpDown : order === "desc" ? ArrowDown : ArrowUp;
   const words = active ? `${fields.length > 1 ? `${active[1]}: ` : ""}${orderWords(active[0])[order]}` : null;
   return (
-    <th scope="col" aria-sort={active ? (order === "asc" ? "ascending" : "descending") : undefined} className={cn(th, className)}>
+    <th
+      scope="col"
+      rowSpan={rowSpan}
+      aria-sort={active ? (order === "asc" ? "ascending" : "descending") : undefined}
+      className={cn(th, className)}
+    >
       <Menu
         trigger={
           <>

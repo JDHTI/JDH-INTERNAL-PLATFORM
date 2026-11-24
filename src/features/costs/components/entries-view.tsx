@@ -21,7 +21,18 @@ import { cn } from "@/shared/lib/utils";
 import { useCostReasons, useEntries, useSetEntryReason } from "../hooks/use-costs";
 import { ENTRY_STATUS, MAX_RANGE_DAYS, NOVELTY_STATUS, SUPPLIER_FILTER, addDays, rangeDays, today } from "../lib/format";
 import type { CostPermissions, CostReason, Entry, EntrySort, EntryStatus, SortOrder } from "../types/costs.types";
-import { DifferenceCell, EntryCell, PreviousCell, PricesCell, ProductCell } from "./line-cells";
+import {
+  DifferenceCell,
+  EntryCell,
+  ProductCell,
+  PurchaseCells,
+  PurchaseCols,
+  PurchaseFigures,
+  PurchaseGroupHeader,
+  PurchaseSubHeaders,
+  QuotationCell,
+  QuotationFigures,
+} from "./line-cells";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
 import SortHeader, { td } from "./sort-header";
@@ -245,26 +256,33 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
             <table className="w-full min-w-[50rem] table-fixed text-left text-sm">
               <caption className="sr-only">Entradas de compra contra la cotización vigente, {formatIsoRange(range)}</caption>
               <colgroup>
-                <col style={{ width: "12%" }} />
+                <col style={{ width: "11%" }} />
                 <col />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "13%" }} />
+                <PurchaseCols />
+                <col style={{ width: "12%" }} />
                 <col style={{ width: "14%" }} />
-                <col style={{ width: "17%" }} />
+                <col style={{ width: "15%" }} />
               </colgroup>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
-                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} {...sortProps} />
+                  <SortHeader label="Entrada" fields={[["date", "Fecha"]]} rowSpan={2} {...sortProps} />
                   <SortHeader
                     label="Producto"
                     fields={[
                       ["sku", "Referencia"],
                       ["supplier", "Proveedor"],
                     ]}
+                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Precio y cotización" {...sortProps} />
-                  <SortHeader label="Compras anteriores" {...sortProps} />
+                  <PurchaseGroupHeader />
+                  <SortHeader
+                    label="Cotización"
+                    rowSpan={2}
+                    className="text-right"
+                    title="Lo que debió costar la entrada: la cotización vigente menos su Tasa 1"
+                    {...sortProps}
+                  />
                   <SortHeader
                     label="Diferencia"
                     fields={[
@@ -272,10 +290,12 @@ export default function EntriesView({ permissions }: { permissions: CostPermissi
                       ["difference_pct", "En %"],
                       ["amount", "Total por la cantidad"],
                     ]}
+                    rowSpan={2}
                     {...sortProps}
                   />
-                  <SortHeader label="Estado y motivo" {...sortProps} />
+                  <SortHeader label="Estado y motivo" rowSpan={2} {...sortProps} />
                 </tr>
+                <PurchaseSubHeaders />
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
@@ -359,11 +379,9 @@ function EntryRow({ row, reasons, canSetReasons }: { row: Entry; reasons: CostRe
       <td className={td}>
         <ProductCell line={row} />
       </td>
+      <PurchaseCells line={row} />
       <td className={td}>
-        <PricesCell line={row} />
-      </td>
-      <td className={td}>
-        <PreviousCell line={row} />
+        <QuotationCell line={row} />
       </td>
       <td className={td}>
         <DifferenceCell line={row} />
@@ -385,8 +403,11 @@ function EntryCard({ row, reasons, canSetReasons }: { row: Entry; reasons: CostR
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <PricesCell line={row} />
-        <DifferenceCell line={row} />
+        <PurchaseFigures line={row} />
+        <div className="space-y-2">
+          <QuotationFigures line={row} />
+          <DifferenceCell line={row} />
+        </div>
       </div>
       <StatusReason row={row} reasons={reasons} canSetReasons={canSetReasons} />
     </li>

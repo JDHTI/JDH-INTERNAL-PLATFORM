@@ -1,8 +1,18 @@
 import type { Decimal } from "@/shared/lib/format";
 
-/** The six regionals of the MAESTRA, in the workbook's order. */
+/** The six regionals, in the workbook's order. */
 export const REGIONALS = ["ANTIOQUIA", "BOGOTA", "PEREIRA", "BUCARAMANGA", "CARTAGENA", "BARRANQUILLA"] as const;
 export type Regional = (typeof REGIONALS)[number];
+
+export const NATIONAL = "NACIONAL";
+export const REST = "RESTO DE REGIONALES";
+
+/**
+ * Where a line's cost holds: the whole country, one regional, or every
+ * regional the other lines of the reference do not name.
+ */
+export const LINE_REGIONALS = [NATIONAL, ...REGIONALS, REST] as const;
+export type LineRegional = (typeof LINE_REGIONALS)[number];
 
 /** The MAESTRA's OBSERVACIONES list. */
 export const OBSERVATIONS = ["DESCONTINUADO", "CAMBIO_DE_REFERENCIA", "DUPLICADO"] as const;
@@ -49,9 +59,13 @@ export interface RequestLine {
   change: IncreaseChange | null;
   change_label: string | null;
   increased_on: string | null;
-  /** Fractions; an empty regional takes the regular one. */
+  /** A fraction: 0.05 is 5 %. */
   regular_discount_pct: Decimal | null;
-  regional_discounts: Partial<Record<Regional, Decimal>>;
+  regional: LineRegional;
+  /** The regionals the line covers: all six for NACIONAL; for RESTO, the ones the other lines do not name. */
+  regionals: string[];
+  /** Retail price without VAT (PVP). */
+  public_price: Decimal | null;
   observation: string | null;
   accepted: boolean;
   ledger_id: string | null;
@@ -109,16 +123,18 @@ export interface LineInput {
   sku: string;
   new_cost: string;
   increased_on: string;
+  regional: LineRegional;
+  public_price?: string | null;
   regular_discount_pct?: string | null;
-  regional_discounts?: Partial<Record<Regional, string>>;
   observation?: string | null;
 }
 
+/** The regional is not edited in review. */
 export interface LinePatch {
   accepted?: boolean;
   new_cost?: string;
   increased_on?: string;
   regular_discount_pct?: string | null;
-  regional_discounts?: Partial<Record<Regional, string>>;
+  public_price?: string | null;
   observation?: string | null;
 }

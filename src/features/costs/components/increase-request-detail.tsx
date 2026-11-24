@@ -147,7 +147,7 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
           </div>
         </div>
         <p className="text-sm tabular-nums">
-          {numberFormat.format(accepted.length)} de {numberFormat.format(request.lines.length)} referencias incluidas ·{" "}
+          {numberFormat.format(accepted.length)} de {numberFormat.format(request.lines.length)} líneas incluidas ·{" "}
           {(["subio", "bajo", "estable"] as const).map((change, index) => (
             <span key={change}>
               {index > 0 && ", "}
@@ -172,7 +172,7 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
         )}
         {request.status === "aprobada" && (
           <p className="text-[13px] text-text-secondary">
-            Las referencias incluidas están en el acumulado de alzas, pendientes en SIESA: el cotizador ya compara su costo nuevo.
+            Las líneas incluidas están en el acumulado de alzas, una fila por regional, pendientes en SIESA: el cotizador ya compara su costo nuevo.
           </p>
         )}
       </section>
