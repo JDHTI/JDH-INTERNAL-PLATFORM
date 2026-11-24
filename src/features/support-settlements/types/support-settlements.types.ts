@@ -14,12 +14,20 @@ export interface SettlementPermissions {
 export type SettlementStatus = "borrador" | "cerrado";
 
 /**
+ * What the margin is measured against (API #122): the supplier's quotation in SIESA, or the
+ * inventory cost invoiced on the line. Each basis is its own settlement, closed on its own.
+ */
+export type CostBasis = "cotizacion" | "inventario";
+
+/**
  * A stored month. `amount` is what the suppliers owe; `flagged_amount` what was calculated but
  * not claimed. `net` and `cost` are every sale of the supported references in the month; the
  * margins are fractions (0.18 is 18 %).
  */
 export interface Settlement {
   period: Period;
+  cost_basis: CostBasis;
+  cost_basis_label: string;
   status: SettlementStatus;
   status_label: string;
   amount: Decimal;
@@ -44,7 +52,10 @@ export interface SettlementPeriod {
   period: Period;
   is_finished: boolean;
   is_current: boolean;
+  /** The settlement of the basis asked for; null when that one is not calculated. */
   settlement: Settlement | null;
+  /** Every basis calculated for the month, each with its own status. */
+  settlements?: Settlement[];
 }
 
 interface Totals {

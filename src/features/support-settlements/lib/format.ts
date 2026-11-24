@@ -1,7 +1,7 @@
 import type { BadgeTone } from "@/shared/components/ui/badge";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 
-import type { BreakdownBy, ItemStatus, Period, SettlementPeriod } from "../types/support-settlements.types";
+import type { BreakdownBy, CostBasis, ItemStatus, Period, SettlementPeriod } from "../types/support-settlements.types";
 
 const pesos = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 const percent = new Intl.NumberFormat("es-CO", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -63,6 +63,26 @@ export function periodState(item: SettlementPeriod): { label: string; tone: Badg
 export function defaultPeriod(periods: SettlementPeriod[]): Period | null {
   const finished = periods.filter((item) => item.is_finished).sort((a, b) => b.period.localeCompare(a.period));
   return finished[0]?.period ?? periods[0]?.period ?? null;
+}
+
+/** The two cost bases (API #122): the long name for the selector, the short one for a month's status. */
+export const COST_BASES: { value: CostBasis; label: string; short: string }[] = [
+  { value: "cotizacion", label: "Costo cotización proveedor", short: "Cotización" },
+  { value: "inventario", label: "Costo inventario (facturado)", short: "Inventario" },
+];
+
+export const basisShort = (basis: CostBasis) => COST_BASES.find((item) => item.value === basis)?.short ?? basis;
+
+/**
+ * A month's status on each basis, which can differ: «Cotización: Cerrado · Inventario: Borrador».
+ * The current month is a preview on both.
+ */
+export function basesStatus(item: SettlementPeriod): string {
+  if (item.is_current) return "En curso · vista previa";
+  return COST_BASES.map(({ value, short }) => {
+    const settlement = item.settlements?.find((entry) => entry.cost_basis === value);
+    return `${short}: ${settlement ? (settlement.status === "cerrado" ? "Cerrado" : "Borrador") : "Sin calcular"}`;
+  }).join(" · ");
 }
 
 /** Settled is the only status that adds to the total; the rest are calculated but not claimed. */

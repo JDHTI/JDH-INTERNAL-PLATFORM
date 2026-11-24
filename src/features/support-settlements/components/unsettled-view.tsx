@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 
 import { ITEM_STATUS, UNSETTLED_STATUSES } from "../lib/format";
-import type { ItemStatus, Period, SupplierRow } from "../types/support-settlements.types";
+import type { CostBasis, ItemStatus, Period, SupplierRow } from "../types/support-settlements.types";
 import SettlementLines from "./settlement-lines";
 import { supplierOptions } from "./supplier-options";
 
@@ -13,7 +13,7 @@ import { supplierOptions } from "./supplier-options";
  * The supports that were calculated but not claimed, one status at a time: in review, with tiers
  * (settled by hand), minimum not met, not calculable, already discounted on the invoice.
  */
-export default function UnsettledView({ period, suppliers }: { period: Period; suppliers: SupplierRow[] }) {
+export default function UnsettledView({ period, basis, suppliers }: { period: Period; basis: CostBasis; suppliers: SupplierRow[] }) {
   const [status, setStatus] = useState<ItemStatus>(UNSETTLED_STATUSES[0]);
   const [supplier, setSupplier] = useState("");
 
@@ -42,6 +42,7 @@ export default function UnsettledView({ period, suppliers }: { period: Period; s
         // Keyed so the page starts over with each filter.
         key={`${status}-${supplier}`}
         period={period}
+        basis={basis}
         status={status}
         supplierCode={supplier || null}
         showProduct
