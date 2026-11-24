@@ -85,13 +85,22 @@ digita, corrige, aprueba y rechaza.
   cubrir. Para «Resto» muestra qué regionales cubre.
 - **Descuento regular:** se escribe en puntos (`5`, `2,5`) y viaja como fracción. Ya no hay
   descuentos por regional: una regional con otro costo es otra línea.
-- **Bandeja:** abre en «En revisión», con chips por estado y sus `counts`.
+- **Soporte del proveedor** (PR #125 del API): opcional, PDF, imagen, Excel o Word hasta 10 MB
+  (`support-file.tsx` lo valida antes; el API decide). En la carga viaja como `support` en la
+  simulación y en el apply, así que un archivo inválido se ve antes de crear. En el formulario
+  manual se adjunta con `PUT /{id}/support` justo después de crear; si falla, la solicitud queda
+  creada y un aviso pide adjuntarlo desde el detalle.
+- **Bandeja:** abre en «En revisión», con chips por estado y sus `counts`. Un clip marca las
+  solicitudes con soporte.
 - **Detalle:** cada línea con su regional junto a la referencia (para «Resto», las que cubre según
   `regionals`), costo anterior y nuevo con y sin impuesto saludable, variación en pesos y en %,
   estado del incremento (`change_label` con el color del acumulado), fecha, descuento, PVP y
   observación. Mientras está en revisión, quien gestiona corrige una línea (`LineEditDialog`; la
   regional no se edita), la deja por fuera o la vuelve a incluir, aprueba (nota opcional) o
   rechaza (motivo obligatorio). Con `has_file` se descarga el libro original.
+- **Soporte en el detalle** (`RequestSupport`): nombre y tamaño, «Ver» (`?inline=true`, en una
+  pestaña nueva) y «Descargar», para cualquiera con `read`. En revisión, quien gestiona adjunta,
+  reemplaza o quita (con confirmación); decidida la solicitud, solo se ve y se descarga.
 
 ## Acumulado de alzas
 
@@ -100,3 +109,14 @@ Las mismas vistas que BI tiene en Maestros > Productos (que se quedan ahí). Los
 libro, poner la fecha de SIESA) lo responde el mismo endpoint. El histórico muestra el origen de
 cada alza (`source`): el libro de alzas o una solicitud de proveedor aprobada, que llega sin fecha
 de SIESA.
+
+- **C.O. e instalación** (PR #125 del API): dos desplegables filtrables en el histórico y el
+  análisis (`increase-scope-filters.tsx`), con las opciones de `GET /options` (`cos`,
+  `installations`). Elegir un C.O. reduce las instalaciones a las suyas. Viajan como `co` e
+  `installation` y quedan en la URL (`?co=003&instalacion=…`), así que el detalle de una referencia
+  usa los mismos y su gráfica y su tabla cambian con ellos. Una nota bajo los filtros explica el
+  efecto: solo referencias activas ahí; cuentan las alzas nacionales y las de su regional.
+- Sin DWH las opciones llegan vacías y los dos filtros quedan deshabilitados; si ya había uno en la
+  URL, el API responde 503 y la vista muestra el mensaje con «Quitar C.O. e instalación».
+- Las alzas encadenadas el mismo día traen `occurrence` (1, 2, 3); no se muestra, pero ordena las
+  del mismo día en el detalle.

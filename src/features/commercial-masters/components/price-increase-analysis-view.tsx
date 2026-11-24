@@ -19,8 +19,9 @@ import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
 import { usePriceIncreaseAnalysis, usePriceIncreaseOptions } from "../hooks/use-commercial-masters";
-import type { AnalysisPeriod, AnalysisSort, AnalysisWindow, IncreaseStatus, ReferenceAnalysis } from "../types/price-increases.types";
+import type { AnalysisPeriod, AnalysisSort, AnalysisWindow, IncreaseScope, IncreaseStatus, ReferenceAnalysis } from "../types/price-increases.types";
 import { INCREASE_STATUS, describePeriod, formatChange, formatIncreaseDay, formatMonth } from "./increase-format";
+import { IncreaseScopeFilters, ScopeNote, useIncreaseScope } from "./increase-scope-filters";
 import IncreaseSupplierFilter from "./increase-supplier-filter";
 import ReferenceIncreasesDialog from "./reference-increases-dialog";
 
@@ -59,13 +60,15 @@ export default function PriceIncreaseAnalysisView() {
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<ReferenceAnalysis | null>(null);
+  const [scope, setScope] = useIncreaseScope();
   const q = useDebouncedValue(text.trim());
-  const query = usePriceIncreaseAnalysis({ window: period, movement, q, supplier, sort, order, page, size: PAGE_SIZE });
+  const query = usePriceIncreaseAnalysis({ window: period, movement, q, supplier, ...scope, sort, order, page, size: PAGE_SIZE });
   const options = usePriceIncreaseOptions();
   const result = query.data;
   const rows = result?.items ?? [];
   const summary = result?.summary;
-  const filtered = q !== "" || supplier !== "" || movement !== "";
+  const scoped = scope.co !== "" || scope.installation !== "";
+  const filtered = q !== "" || supplier !== "" || movement !== "" || scoped;
   const supplierName = options.data?.suppliers.find((item) => item.code === supplier)?.name ?? supplier;
   const monthId = useId();
   const months = (options.data?.months ?? []).map((item) => ({
@@ -86,10 +89,15 @@ export default function PriceIncreaseAnalysisView() {
     }
     setPage(1);
   };
+  const changeScope = (next: IncreaseScope) => {
+    setScope(next);
+    setPage(1);
+  };
   const clear = () => {
     setText("");
     setSupplier("");
     setMovement("");
+    if (scoped) setScope({ co: "", installation: "" });
     setPage(1);
   };
 
@@ -99,6 +107,7 @@ export default function PriceIncreaseAnalysisView() {
           chips, one group at each end. */}
       <FilterPanel
         label="Filtros del análisis"
+        columns="md:grid-cols-3 2xl:grid-cols-6"
         fields={
           <>
           <div className="relative">
@@ -145,6 +154,7 @@ export default function PriceIncreaseAnalysisView() {
             value={period.kind === "range" ? { from: period.from, to: period.to } : {}}
             onChange={({ from, to }) => choose(from && to ? { kind: "range", from, to } : DEFAULT_WINDOW)}
           />
+          <IncreaseScopeFilters options={options.data} scope={scope} onChange={changeScope} />
           </>
         }
         chips={
@@ -184,6 +194,8 @@ export default function PriceIncreaseAnalysisView() {
         }
       />
 
+      <ScopeNote scope={scope} />
+
       {result && (
         <p className="text-sm" aria-live="polite">
           Alzas con fecha de incremento {describePeriod(result.since, result.until)}
@@ -215,9 +227,17 @@ export default function PriceIncreaseAnalysisView() {
           tone="danger"
           title="No se pudo calcular el análisis de alzas"
           action={
-            <Button variant="outline" onClick={() => query.refetch()}>
-              <RefreshCw aria-hidden="true" /> Reintentar
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => query.refetch()}>
+                <RefreshCw aria-hidden="true" /> Reintentar
+              </Button>
+              {/* With a C.O. or installation the API needs the DWH (503 when it is down). */}
+              {scoped && (
+                <Button variant="outline" onClick={() => changeScope({ co: "", installation: "" })}>
+                  Quitar C.O. e instalación
+                </Button>
+              )}
+            </div>
           }
         >
           {errorMessage(query.error)}
@@ -271,7 +291,7 @@ export default function PriceIncreaseAnalysisView() {
         </div>
       )}
 
-      <ReferenceIncreasesDialog item={open} onClose={() => setOpen(null)} />
+      <ReferenceIncreasesDialog item={open} scope={scope} onClose={() => setOpen(null)} />
     </div>
   );
 }

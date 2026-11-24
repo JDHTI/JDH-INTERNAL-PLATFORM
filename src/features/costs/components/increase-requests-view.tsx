@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CloudOff, Download, FileX2, Keyboard, Loader2, RefreshCw, Upload } from "lucide-react";
+import { CloudOff, Download, FileX2, Keyboard, Loader2, Paperclip, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatWhen } from "@/features/supports/lib/format";
@@ -177,7 +177,15 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
                         >
                           {row.supplier_name ?? row.supplier_code}
                         </Link>
-                        <span className="block text-xs text-text-secondary">Código {row.supplier_code}</span>
+                        <span className="flex items-center gap-1.5 text-xs text-text-secondary">
+                          Código {row.supplier_code}
+                          {row.support && (
+                            <span className="inline-flex items-center" title={`Con soporte: ${row.support.file_name}`}>
+                              <Paperclip className="size-3.5" aria-hidden="true" />
+                              <span className="sr-only">, con soporte del proveedor</span>
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-2">
                         {row.source === "plantilla" ? "MAESTRA cargada" : "Digitada"}

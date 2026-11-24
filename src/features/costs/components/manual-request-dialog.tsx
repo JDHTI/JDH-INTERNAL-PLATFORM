@@ -15,11 +15,12 @@ import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useCreateIncreaseRequest, useSupplierItems } from "../hooks/use-increase-requests";
+import { useCreateIncreaseRequest, usePutRequestSupport, useSupplierItems } from "../hooks/use-increase-requests";
 import { parseAmount, parsePercent, today } from "../lib/format";
 import { REGIONAL_HELP, REGIONAL_OPTIONS, regionalList, regionalProblem, restCoverage } from "../lib/regionals";
 import { NATIONAL, OBSERVATIONS, REGIONALS, REST, type LineInput, type LineRegional, type SupplierItem } from "../types/increase-requests.types";
 import PercentInput from "./percent-input";
+import { SupportPicker } from "./support-file";
 
 interface Draft {
   /** A reference can come in several lines, one per regional. */
@@ -86,6 +87,9 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
   const q = useDebouncedValue(text.trim());
   const items = useSupplierItems(supplierCode, q);
   const create = useCreateIncreaseRequest();
+  const attach = usePutRequestSupport();
+  const [support, setSupport] = useState<File | null>(null);
+  const [supportError, setSupportError] = useState<string | null>(null);
   const results = (items.data ?? []).slice(0, 8);
 
   const linesOf = (sku: string, list = drafts) => list.filter((draft) => draft.item.sku === sku);
@@ -143,7 +147,17 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
     create.mutate(
       { supplier: supplierCode, note, lines },
       {
-        onSuccess: (request) => {
+        onSuccess: async (request) => {
+          // The JSON create takes no file: the support goes right after, to the new request.
+          if (support) {
+            try {
+              await attach.mutateAsync({ id: request.id, file: support });
+            } catch (failure) {
+              toast.error(`La solicitud se creó, pero el soporte no se adjuntó: ${errorMessage(failure)} Adjúntalo desde el detalle.`, {
+                duration: Infinity,
+              });
+            }
+          }
           toast.success(`Solicitud creada con ${lines.length} ${lines.length === 1 ? "línea" : "líneas"}, en revisión.`);
           onClose();
           router.push(`${basePath}/${request.id}`);
@@ -151,6 +165,7 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
       }
     );
   };
+  const busy = create.isPending || attach.isPending;
 
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
@@ -233,17 +248,19 @@ function ManualForm({ supplierCode, basePath, onClose }: { supplierCode: string;
         )}
       </section>
 
+      <SupportPicker file={support} onChange={setSupport} onProblem={setSupportError} disabled={busy} />
+
       <Field label="Nota para la revisión" htmlFor={noteId} optional>
         <Textarea id={noteId} value={note} maxLength={500} rows={2} onChange={(event) => setNote(event.target.value)} />
       </Field>
 
-      <DialogError message={create.isError ? errorMessage(create.error) : null} />
+      <DialogError message={supportError ?? (create.isError ? errorMessage(create.error) : null)} />
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={create.isPending}>
-          {create.isPending ? "Creando…" : "Crear solicitud"}
+        <Button type="submit" disabled={busy}>
+          {busy ? "Creando…" : "Crear solicitud"}
         </Button>
       </DialogFooter>
     </form>

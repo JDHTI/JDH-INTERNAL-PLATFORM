@@ -8,7 +8,9 @@ import { ApiError } from "@/shared/lib/api-client";
 import {
   approveIncreaseRequest,
   createIncreaseRequest,
+  deleteRequestSupport,
   downloadRequestFile,
+  putRequestSupport,
   downloadTemplate,
   getIncreaseRequest,
   listIncreaseRequests,
@@ -66,8 +68,8 @@ export function useDownloadRequestFile() {
 export function useUploadIncreaseWorkbook() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ supplier, file, note, apply }: { supplier: string; file: File; note: string; apply: boolean }) =>
-      uploadIncreaseWorkbook(supplier, file, note, apply),
+    mutationFn: ({ supplier, file, note, support, apply }: { supplier: string; file: File; note: string; support: File | null; apply: boolean }) =>
+      uploadIncreaseWorkbook(supplier, file, note, support, apply),
     onSuccess: (report) => {
       if (report.applied) return client.invalidateQueries({ queryKey: requestKeys.all });
     },
@@ -111,4 +113,12 @@ export function useApproveIncreaseRequest() {
 
 export function useRejectIncreaseRequest() {
   return useRequestMutation(({ id, note }: { id: string; note: string }) => rejectIncreaseRequest(id, note));
+}
+
+export function usePutRequestSupport() {
+  return useRequestMutation(({ id, file }: { id: string; file: File }) => putRequestSupport(id, file));
+}
+
+export function useDeleteRequestSupport() {
+  return useRequestMutation((id: string) => deleteRequestSupport(id));
 }

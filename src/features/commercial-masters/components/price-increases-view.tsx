@@ -18,8 +18,9 @@ import { formatCop } from "@/features/supports/lib/format";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 import { usePriceIncreaseOptions, usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
-import type { IncreaseStatus, PriceIncrease } from "../types/price-increases.types";
+import type { IncreaseScope, IncreaseStatus, PriceIncrease } from "../types/price-increases.types";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
+import { IncreaseScopeFilters, ScopeNote, useIncreaseScope } from "./increase-scope-filters";
 import IncreaseSupplierFilter from "./increase-supplier-filter";
 import PriceIncreasesUploadDialog from "./price-increases-upload-dialog";
 
@@ -44,13 +45,19 @@ export default function PriceIncreasesView() {
   const [pending, setPending] = useState(false);
   const [page, setPage] = useState(1);
   const [uploading, setUploading] = useState(false);
+  const [scope, setScope] = useIncreaseScope();
   const q = useDebouncedValue(text.trim());
-  const query = usePriceIncreases({ q, supplier, status, pending, page, size: PAGE_SIZE });
+  const query = usePriceIncreases({ q, supplier, status, pending, ...scope, page, size: PAGE_SIZE });
   const options = usePriceIncreaseOptions();
   const result = query.data;
   const rows = result?.items ?? [];
   const counts = result?.counts;
-  const filtered = q !== "" || supplier !== "" || status !== "" || pending;
+  const scoped = scope.co !== "" || scope.installation !== "";
+  const filtered = q !== "" || supplier !== "" || status !== "" || pending || scoped;
+  const changeScope = (next: IncreaseScope) => {
+    setScope(next);
+    setPage(1);
+  };
 
   const chooseStatus = (next: IncreaseStatus | "") => {
     setStatus((current) => (current === next ? "" : next));
@@ -61,6 +68,7 @@ export default function PriceIncreasesView() {
     setSupplier("");
     setStatus("");
     setPending(false);
+    if (scoped) setScope({ co: "", installation: "" });
     setPage(1);
   };
 
@@ -70,7 +78,7 @@ export default function PriceIncreasesView() {
           states as chips below and, at the other end, clearing and loading. */}
       <FilterPanel
         label="Filtros del histórico"
-        columns="md:grid-cols-2"
+        columns="md:grid-cols-4"
         fields={
           <>
             <div className="relative">
@@ -96,6 +104,7 @@ export default function PriceIncreasesView() {
                 setPage(1);
               }}
             />
+            <IncreaseScopeFilters options={options.data} scope={scope} onChange={changeScope} />
           </>
         }
         chips={
@@ -134,6 +143,8 @@ export default function PriceIncreasesView() {
         }
       />
 
+      <ScopeNote scope={scope} />
+
       {query.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando el histórico de alzas" />
       ) : query.isError && !result ? (
@@ -142,9 +153,17 @@ export default function PriceIncreasesView() {
           tone="danger"
           title="No se pudo cargar el histórico de alzas"
           action={
-            <Button variant="outline" onClick={() => query.refetch()}>
-              <RefreshCw aria-hidden="true" /> Reintentar
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => query.refetch()}>
+                <RefreshCw aria-hidden="true" /> Reintentar
+              </Button>
+              {/* With a C.O. or installation the API needs the DWH (503 when it is down). */}
+              {scoped && (
+                <Button variant="outline" onClick={() => changeScope({ co: "", installation: "" })}>
+                  Quitar C.O. e instalación
+                </Button>
+              )}
+            </div>
           }
         >
           {errorMessage(query.error)}

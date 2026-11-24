@@ -1,4 +1,4 @@
-import { apiDownload, apiFetch } from "@/shared/lib/api-client";
+import { apiBlob, apiDownload, apiFetch } from "@/shared/lib/api-client";
 
 import type {
   IncreaseRequestDetail,
@@ -26,11 +26,21 @@ export function downloadTemplate(supplierCode: string): Promise<void> {
   });
 }
 
-/** Without `apply` it only reads the workbook and reports; with it, it creates the request. */
-export function uploadIncreaseWorkbook(supplierCode: string, file: File, note: string, apply: boolean): Promise<IncreaseUploadReport> {
+/**
+ * Without `apply` it only reads the workbook and reports (and checks the
+ * support's type and size); with it, it creates the request.
+ */
+export function uploadIncreaseWorkbook(
+  supplierCode: string,
+  file: File,
+  note: string,
+  support: File | null,
+  apply: boolean
+): Promise<IncreaseUploadReport> {
   const body = new FormData();
   body.append("file", file);
   if (note.trim()) body.append("note", note.trim());
+  if (support) body.append("support", support);
   return apiFetch<IncreaseUploadReport>(`${REQUESTS}/upload`, {
     method: "POST",
     query: { supplier_code: supplierCode, apply: apply ? "true" : "false" },
@@ -62,6 +72,22 @@ export function getIncreaseRequest(id: string): Promise<IncreaseRequestDetail> {
 
 export function downloadRequestFile(id: string, fallbackName: string): Promise<void> {
   return apiDownload(`${requestPath(id)}/file`, { fallbackName });
+}
+
+/** The support's file; `inline` serves it to show in the browser. */
+export function getRequestSupport(id: string, inline: boolean): Promise<{ blob: Blob; filename: string | null }> {
+  return apiBlob(`${requestPath(id)}/support`, inline ? { inline: "true" } : undefined);
+}
+
+/** Attaches or replaces the support while the request is in review. */
+export function putRequestSupport(id: string, file: File): Promise<IncreaseRequestDetail> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<IncreaseRequestDetail>(`${requestPath(id)}/support`, { method: "PUT", body });
+}
+
+export function deleteRequestSupport(id: string): Promise<IncreaseRequestDetail> {
+  return apiFetch<IncreaseRequestDetail>(`${requestPath(id)}/support`, { method: "DELETE" });
 }
 
 export function updateRequestLine(id: string, lineId: string, patch: LinePatch): Promise<IncreaseRequestDetail> {
