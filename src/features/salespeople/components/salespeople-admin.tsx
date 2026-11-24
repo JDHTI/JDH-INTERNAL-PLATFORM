@@ -38,11 +38,12 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 type LinkedFilter = "all" | "unlinked";
 
 /**
- * Who works as each SIESA salesperson and supervisor. The quoter and every
- * commercial list follow these links: a salesperson sees their portfolio, a
- * supervisor their team's, and a member of Comercial without a link sees
- * nothing. Linking by hand wins over the e-mail match; unlinking keeps the
- * e-mail from linking the code again.
+ * Who works as each SIESA salesperson and each coordinator. Coordinators come
+ * from the consumo.supervisores master, by NIT and with its e-mail (API #121).
+ * The quoter and every commercial list follow these links: a salesperson sees
+ * their portfolio, a coordinator their team's, and a member of Comercial without
+ * a link sees nothing. Linking by hand wins over the e-mail match; unlinking
+ * keeps the e-mail from linking the code again.
  */
 export default function SalespeopleAdmin() {
   const { data: user } = useSession();
@@ -67,7 +68,7 @@ export default function SalespeopleAdmin() {
       onSuccess: (result) =>
         toast.success(
           `${numberFormat.format(result.created)} vinculados nuevos por correo, ${numberFormat.format(result.matched)} ya lo estaban. ` +
-            `${numberFormat.format(result.without_user)} con correo en SIESA no tienen usuario en la plataforma.`
+            `${numberFormat.format(result.without_user)} con correo no tienen usuario en la plataforma.`
         ),
       onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
     });
@@ -79,10 +80,11 @@ export default function SalespeopleAdmin() {
       <section className="space-y-4 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
-            <h2 className="font-semibold">Códigos de SIESA</h2>
+            <h2 className="font-semibold">Vendedores y coordinadores</h2>
             <p className="max-w-prose text-sm text-text-secondary">
-              Un vendedor vinculado ve su cartera en el cotizador; un supervisor, la de su equipo. Los supervisores
-              siempre se vinculan a mano: en SIESA no tienen correo.
+              Un vendedor vinculado ve su cartera en el cotizador; un coordinador, la de su equipo. Los vendedores salen de
+              SIESA. Los coordinadores salen del maestro de supervisores, por su NIT, y se vinculan solos con el correo que
+              tiene el maestro.
             </p>
           </div>
           {canEdit && (
@@ -107,7 +109,7 @@ export default function SalespeopleAdmin() {
                   kind === option ? "bg-primary-subtle text-primary" : "text-text-secondary hover:text-text-primary"
                 )}
               >
-                {option === "seller" ? "Vendedores" : "Supervisores"}
+                {option === "seller" ? "Vendedores" : "Coordinadores"}
               </button>
             ))}
           </div>
@@ -120,7 +122,7 @@ export default function SalespeopleAdmin() {
                 setText(event.target.value);
                 setPage(1);
               }}
-              placeholder="Código o nombre"
+              placeholder={kind === "seller" ? "Código o nombre" : "NIT o nombre"}
               aria-label="Buscar códigos"
               className="pl-9 max-md:h-11"
             />
@@ -177,11 +179,12 @@ export default function SalespeopleAdmin() {
         ) : (
           <div className="space-y-3">
             <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[46rem] text-left text-sm">
+              <table className="w-full min-w-[54rem] text-left text-sm">
                 <thead className="bg-canvas-subtle text-xs text-text-secondary">
                   <tr>
-                    <th scope="col" className="px-3 py-2 font-medium">Código</th>
-                    <th scope="col" className="px-3 py-2 font-medium">{KIND_LABELS[kind]} en SIESA</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{kind === "seller" ? "Código" : "NIT"}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">{kind === "seller" ? "Vendedor en SIESA" : "Coordinador"}</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Equipo</th>
                     <th scope="col" className="px-3 py-2 font-medium">Persona en la plataforma</th>
                     {canEdit && <th scope="col" className="px-3 py-2 text-right font-medium">Acción</th>}
                   </tr>
@@ -230,10 +233,19 @@ function RosterRow({
       <td className="px-3 py-2">
         <span className="block font-medium">{entry.name ?? "Sin nombre"}</span>
         <span className="block text-xs text-text-secondary">
-          {[entry.email?.toLowerCase(), entry.supervisor_code ? `Supervisor ${entry.supervisor_code}` : null]
+          {[entry.email?.toLowerCase(), entry.supervisor_code ? `Coordinador ${entry.supervisor_code}` : null]
             .filter(Boolean)
-            .join(" · ") || "Sin correo en SIESA"}
+            .join(" · ") || (entry.kind === "seller" ? "Sin correo en SIESA" : "Sin correo en el maestro")}
         </span>
+      </td>
+      <td className="px-3 py-2">
+        {entry.team ? (
+          <span className="block">{entry.team}</span>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        )}
+        {/* A coordinator with nobody under them in the master: linked, they would see no customers. */}
+        {entry.kind === "supervisor" && !entry.is_active && <Badge tone="warning" className="mt-0.5">Sin equipo</Badge>}
       </td>
       <td className="px-3 py-2">
         {entry.holder_email ? (
