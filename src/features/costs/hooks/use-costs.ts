@@ -9,6 +9,7 @@ import {
   detachCreditNote,
   getCostPermissions,
   getEntryOptions,
+  getNoveltyOptions,
   getNovelty,
   listCostReasons,
   listEntries,
@@ -69,6 +70,17 @@ export function useEntryOptions(since: string, until: string, enabled = true) {
     staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     enabled,
+  });
+}
+
+/** The novelties' C.O. and warehouses in the tray's period. */
+export function useNoveltyOptions(since: string, until: string) {
+  return useQuery({
+    queryKey: [...costKeys.all, "novelty-options", since, until] as const,
+    queryFn: () => getNoveltyOptions(since, until),
+    retry: retryTransient,
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 

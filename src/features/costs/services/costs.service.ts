@@ -52,6 +52,11 @@ export function getEntryOptions(since: string, until: string): Promise<EntryOpti
   return apiFetch<EntryOptions>(`${COSTS}/entries/options`, { query: { since: since || undefined, until: until || undefined } });
 }
 
+/** The C.O. and warehouses of the novelties (any status) in the period; without dates, of all of them. */
+export function getNoveltyOptions(since: string, until: string): Promise<EntryOptions> {
+  return apiFetch<EntryOptions>(`${COSTS}/novelties/options`, { query: { since: since || undefined, until: until || undefined } });
+}
+
 /** The one reason of a line, or none; the line becomes a novelty if it was not one. */
 export function setEntryReason(lineKey: string, reasonId: string | null): Promise<NoveltyDetail> {
   return apiFetch<NoveltyDetail>(`${COSTS}/entries/${encodeURIComponent(lineKey)}/reason`, {
@@ -68,6 +73,7 @@ export function listNovelties(params: NoveltyParams): Promise<NoveltyPage> {
       until: params.until || undefined,
       supplier: params.supplier || undefined,
       co: params.co || undefined,
+      warehouse: params.warehouse || undefined,
       reason_id: params.reasonId || undefined,
       kind: params.kind || undefined,
       q: params.q || undefined,

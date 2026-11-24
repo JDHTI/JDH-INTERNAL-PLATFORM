@@ -177,6 +177,7 @@ export interface NoveltyParams {
   until: string;
   supplier: string;
   co: string;
+  warehouse: string;
   reasonId: string;
   kind: NoveltyKind | "";
   q: string;

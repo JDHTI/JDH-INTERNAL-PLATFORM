@@ -20,7 +20,7 @@ import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 
-import { useCostReasons, useEntryOptions, useNovelties, useSetNoveltyReason } from "../hooks/use-costs";
+import { useCostReasons, useNovelties, useNoveltyOptions, useSetNoveltyReason } from "../hooks/use-costs";
 import { NOVELTY_STATUS, SUPPLIER_FILTER, today } from "../lib/format";
 import type { CostPermissions, CostReason, Novelty, NoveltyKind, NoveltySort, NoveltyStatus, SortOrder } from "../types/costs.types";
 import CreditNoteDialog from "./credit-note-dialog";
@@ -32,7 +32,7 @@ import {
   QuotationCell,
 } from "./line-cells";
 import NoveltyDetailDialog from "./novelty-detail-dialog";
-import { CoFilter } from "./place-filters";
+import { CoFilter, WarehouseFilter } from "./place-filters";
 import ReasonFilter from "./reason-filter";
 import ReasonPicker from "./reason-picker";
 import SortHeader, { td, th } from "./sort-header";
@@ -58,6 +58,7 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
   const [text, setText] = useState("");
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
   const [co, setCo] = useState("");
+  const [warehouse, setWarehouse] = useState("");
   const [reasonId, setReasonId] = useState("");
   const [kind, setKind] = useState<NoveltyKind | "">("");
   const [sort, setSort] = useState<NoveltySort>("date");
@@ -67,17 +68,17 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
   const [noting, setNoting] = useState<Novelty | null>(null);
 
   const q = useDebouncedValue(text.trim());
-  const coQuery = co;
   const reasons = useCostReasons();
-  // The C.O. with entries in the tray's period; without one, the API's default period.
-  const options = useEntryOptions(range.from ?? "", range.to ?? "");
+  // The novelties' own C.O. and warehouses in the tray's period; without one, of all of them.
+  const options = useNoveltyOptions(range.from ?? "", range.to ?? "");
   const manages = permissions.modules["novedades-compras"]?.can_manage === true;
   const query = useNovelties({
     status,
     since: range.from ?? "",
     until: range.to ?? "",
     supplier: supplier?.value ?? "",
-    co: coQuery,
+    co,
+    warehouse,
     reasonId,
     kind,
     q,
@@ -88,7 +89,7 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
   });
   const result = query.data;
   const rows = result?.items ?? [];
-  const filtered = Boolean(range.from) || q !== "" || supplier !== null || coQuery !== "" || reasonId !== "" || kind !== "";
+  const filtered = Boolean(range.from) || q !== "" || supplier !== null || co !== "" || warehouse !== "" || reasonId !== "" || kind !== "";
 
   const reset = (apply: () => void) => {
     apply();
@@ -100,6 +101,7 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
       setText("");
       setSupplier(null);
       setCo("");
+      setWarehouse("");
       setReasonId("");
       setKind("");
     });
@@ -122,7 +124,7 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
     <div className="space-y-3">
       <FilterPanel
         label="Filtros de las novedades"
-        columns="md:grid-cols-3 2xl:grid-cols-6"
+        columns="md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7"
         fields={
           <>
             <div className="relative">
@@ -141,7 +143,14 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
               max={today()}
               label="Fecha de la entrada"
               placeholder="Cualquier fecha de entrada"
-              onChange={(next) => reset(() => setRange(next))}
+              onChange={(next) =>
+                reset(() => {
+                  setRange(next);
+                  // The dropdowns list the period's own C.O. and warehouses.
+                  setCo("");
+                  setWarehouse("");
+                })
+              }
             />
             <BasePicker
               config={SUPPLIER_FILTER}
@@ -150,7 +159,24 @@ export default function NoveltiesView({ permissions }: { permissions: CostPermis
               onSelect={(option) => reset(() => setSupplier(option))}
               onClear={() => reset(() => setSupplier(null))}
             />
-            <CoFilter options={options.data} loading={options.isPending} value={co} onChange={(next) => reset(() => setCo(next))} />
+            <CoFilter
+              options={options.data}
+              loading={options.isPending}
+              value={co}
+              onChange={(next) =>
+                reset(() => {
+                  setCo(next);
+                  setWarehouse("");
+                })
+              }
+            />
+            <WarehouseFilter
+              options={options.data}
+              loading={options.isPending}
+              co={co}
+              value={warehouse}
+              onChange={(next) => reset(() => setWarehouse(next))}
+            />
             <ReasonFilter reasons={reasons.data} value={reasonId} onChange={(next) => reset(() => setReasonId(next))} />
             <Dropdown
               value={kind}
