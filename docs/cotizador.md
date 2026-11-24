@@ -236,7 +236,8 @@ queries): una columna, luego filtros de a dos, luego una sola fila desde 72rem.
     cada cuánto, última variación (estado, porcentaje y fecha) y si está pendiente en SIESA. Las
     columnas ordenan.
   - **Detalle:** una fila abre su histórico completo (`reference-increases-dialog.tsx`): gráfica
-    escalonada del costo (`cost-step-chart.tsx`, SVG propio, una serie, hover y foco en cada
+    de la tendencia del costo (`cost-trend-chart.tsx`, SVG propio: línea delgada monótona, un
+    punto pequeño por alza, cuadrícula horizontal, ejes con título en pesos y fechas; hover y foco en cada
     alza) y la tabla de alzas.
 - **Histórico de alza de precios** (`price-increases-view.tsx`): chips con conteo que
   filtran (Subió, Bajó, Estable, «Pendientes en SIESA»), buscador de referencia o descripción, el

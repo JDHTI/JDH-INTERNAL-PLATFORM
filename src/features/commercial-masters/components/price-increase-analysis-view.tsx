@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, CloudOff, FileX2, RefreshCw, Search } from "lucide-react";
 
 import FilterPanel from "@/shared/components/filter-panel";
@@ -9,7 +9,7 @@ import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DateRangePicker } from "@/shared/components/ui/date-range-picker";
-import { Dropdown } from "@/shared/components/ui/dropdown";
+import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -67,14 +67,10 @@ export default function PriceIncreaseAnalysisView() {
   const summary = result?.summary;
   const filtered = q !== "" || supplier !== "" || movement !== "";
   const supplierName = options.data?.suppliers.find((item) => item.code === supplier)?.name ?? supplier;
+  const monthId = useId();
   const months = (options.data?.months ?? []).map((item) => ({
     value: item.month,
-    label: (
-      <>
-        {capitalize(formatMonth(item.month))}
-        <span className="text-text-secondary"> · {numberFormat.format(item.references)} ref.</span>
-      </>
-    ),
+    label: `${capitalize(formatMonth(item.month))} · ${numberFormat.format(item.references)} ref.`,
   }));
 
   const choose = (next: AnalysisWindow) => {
@@ -128,16 +124,21 @@ export default function PriceIncreaseAnalysisView() {
               setPage(1);
             }}
           />
-          <Dropdown
-            aria-label="Un mes"
-            options={months}
-            value={period.kind === "month" ? period.month : ""}
-            onValueChange={(month) => choose(month ? { kind: "month", month } : DEFAULT_WINDOW)}
-            placeholder={options.data ? "Un mes" : "Cargando meses…"}
-            disabled={months.length === 0}
-            clearable
-            clearLabel="Quitar el mes"
-          />
+          <div>
+            <label htmlFor={monthId} className="sr-only">
+              Un mes
+            </label>
+            <SearchableDropdown
+              id={monthId}
+              options={months}
+              value={period.kind === "month" ? period.month : ""}
+              onValueChange={(month) => choose(month ? { kind: "month", month } : DEFAULT_WINDOW)}
+              placeholder={options.data ? "Un mes" : "Cargando meses…"}
+              emptyMessage="Ningún mes con ese nombre."
+              disabled={months.length === 0}
+              clearLabel="Quitar el mes"
+            />
+          </div>
           <DateRangePicker
             label="Rango de fechas"
             placeholder="Rango de fechas"
