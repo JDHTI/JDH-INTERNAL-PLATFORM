@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { DayPicker, type DateRange } from "@daypicker/react";
 import { es } from "@daypicker/react/locale";
-import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CalendarDays, X } from "lucide-react";
 
 import { formatIso, toDate, toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
 
 import { Button } from "./button";
+import { CALENDAR_LABELS, CalendarChevron, calendarBounds, calendarClassNames, dateTextError } from "./calendar-parts";
 
 /** Calendar dates travel as "YYYY-MM-DD", the way the API and the URL carry them. */
 export interface IsoDateRange {
@@ -48,14 +49,14 @@ function presets(today: Date): { label: string; range: DateRange }[] {
   ];
 }
 
-const dayButton =
-  "flex size-9 items-center justify-center rounded-md text-sm tabular-nums outline-none " +
-  "hover:bg-canvas-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring";
+type End = "from" | "to";
 
 /**
  * One control for a from–to filter: a trigger that reads like the dropdowns
- * next to it, and a one-month calendar with the usual shortcuts. The range is
- * applied with «Aplicar», so a half-picked range never fires a search.
+ * next to it, and a one-month calendar with the usual shortcuts. Both ends can
+ * also be typed (dd/mm/aaaa) above the calendar, and the month and the year
+ * are dropdowns besides the arrows. The range is applied with «Aplicar», so a
+ * half-picked range never fires a search.
  */
 export function DateRangePicker({
   id,
@@ -74,23 +75,53 @@ export function DateRangePicker({
   /** Accessible name of the trigger, when the visible label is elsewhere. */
   label?: string;
 }) {
+  const inputsId = useId();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>();
   const [month, setMonth] = useState<Date>(new Date());
+  // The ends being typed; null shows the draft's day.
+  const [typed, setTyped] = useState<Record<End, string | null>>({ from: null, to: null });
+  const [errors, setErrors] = useState<Record<End, string | null>>({ from: null, to: null });
   const maxDate = toDate(max);
   const today = maxDate ?? toDate(toIso(new Date()))!;
   const hasValue = Boolean(value.from || value.to);
   const summary = formatIsoRange(value);
+  const bounds = calendarBounds({ max: maxDate, include: [draft?.from, draft?.to] });
 
   const openChange = (next: boolean) => {
     if (next) {
       const from = toDate(value.from);
       setDraft(hasValue ? { from, to: toDate(value.to) } : undefined);
+      setTyped({ from: null, to: null });
+      setErrors({ from: null, to: null });
       // Open on the month where the chosen range ends.
       const anchor = toDate(value.to) ?? from ?? today;
       setMonth(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
     }
     setOpen(next);
+  };
+
+  const textOf = (end: End) => typed[end] ?? (draft?.[end] ? formatIso(toIso(draft[end]!)) : "");
+
+  /** A typed end applies to the draft when it is a real day, not after `max` and in order with the other end. */
+  const commit = (end: End) => {
+    const text = typed[end];
+    if (text === null) return;
+    const fail = (message: string) => setErrors((current) => ({ ...current, [end]: message }));
+    let date: Date | undefined;
+    if (text.trim() !== "") {
+      const checked = dateTextError(text, undefined, max);
+      if (!checked.iso) return fail(checked.error ?? "");
+      date = toDate(checked.iso);
+    }
+    const next: DateRange = { from: draft?.from, to: draft?.to, [end]: date };
+    if (next.from && next.to && next.from > next.to) {
+      return fail(end === "from" ? "«Desde» no puede ser después de «Hasta»." : "«Hasta» no puede ser antes de «Desde».");
+    }
+    setDraft(next.from || next.to ? { from: next.from ?? next.to!, to: next.from ? next.to : undefined } : undefined);
+    setTyped((current) => ({ ...current, [end]: null }));
+    setErrors((current) => ({ ...current, [end]: null }));
+    if (date) setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
   };
 
   const apply = (range: DateRange | undefined) => {
@@ -154,50 +185,77 @@ export function DateRangePicker({
                 ))}
               </ul>
               <div className="p-3">
+                {/* Both ends can be typed; a good one moves the calendar to it. */}
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  {(["from", "to"] as const).map((end) => {
+                    const inputId = `${inputsId}-${end}`;
+                    const error = errors[end];
+                    return (
+                      <div key={end} className="min-w-0 space-y-1">
+                        <label htmlFor={inputId} className="block text-xs font-medium text-text-secondary">
+                          {end === "from" ? "Desde" : "Hasta"}
+                        </label>
+                        <input
+                          id={inputId}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder="dd/mm/aaaa"
+                          value={textOf(end)}
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={error ? `${inputId}-error` : undefined}
+                          onChange={(event) => {
+                            const text = event.target.value;
+                            setTyped((current) => ({ ...current, [end]: text }));
+                            setErrors((current) => ({ ...current, [end]: null }));
+                          }}
+                          onBlur={() => commit(end)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              commit(end);
+                            }
+                          }}
+                          className={cn(
+                            "h-8 w-full min-w-0 rounded-md border border-border-control bg-transparent px-2 text-sm tabular-nums outline-none max-md:h-11",
+                            "placeholder:text-text-secondary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+                            error && "border-danger"
+                          )}
+                        />
+                        {error && (
+                          <p id={`${inputId}-error`} role="alert" className="text-xs text-danger">
+                            {error}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
                 <DayPicker
                   mode="range"
                   locale={es}
+                  labels={CALENDAR_LABELS}
+                  captionLayout="dropdown"
                   numberOfMonths={1}
                   month={month}
                   onMonthChange={setMonth}
                   selected={draft}
-                  onSelect={setDraft}
-                  disabled={maxDate ? { after: maxDate } : undefined}
-                  endMonth={maxDate}
-                  showOutsideDays={false}
-                  components={{
-                    Chevron: ({ orientation }) =>
-                      orientation === "left" ? (
-                        <ChevronLeft className="size-4" aria-hidden="true" />
-                      ) : (
-                        <ChevronRight className="size-4" aria-hidden="true" />
-                      ),
+                  onSelect={(range) => {
+                    setDraft(range);
+                    setTyped({ from: null, to: null });
+                    setErrors({ from: null, to: null });
                   }}
-                  classNames={{
-                    root: "relative",
-                    months: "flex",
-                    month: "space-y-2",
-                    month_caption: "flex h-8 items-center justify-center",
-                    caption_label: "text-sm font-semibold capitalize",
-                    nav: "absolute inset-x-0 top-0 z-10 flex h-8 items-center justify-between",
-                    button_previous:
-                      "flex size-8 items-center justify-center rounded-md text-text-secondary hover:bg-canvas-subtle hover:text-text-primary disabled:opacity-40",
-                    button_next:
-                      "flex size-8 items-center justify-center rounded-md text-text-secondary hover:bg-canvas-subtle hover:text-text-primary disabled:opacity-40",
-                    month_grid: "border-collapse",
-                    weekday: "size-9 text-[11px] font-semibold text-text-secondary uppercase",
-                    day: "size-9 p-0 text-center",
-                    day_button: dayButton,
-                    today: "font-semibold [&>button]:underline [&>button]:underline-offset-4",
-                    disabled: "text-text-disabled [&>button]:pointer-events-none",
-                    hidden: "invisible",
-                    selected:
-                      "[&>button]:bg-primary [&>button]:text-text-on-primary [&>button]:hover:bg-primary-hover",
+                  disabled={maxDate ? { after: maxDate } : undefined}
+                  startMonth={bounds.startMonth}
+                  endMonth={bounds.endMonth}
+                  showOutsideDays={false}
+                  components={{ Chevron: CalendarChevron }}
+                  classNames={calendarClassNames("size-9", {
                     range_start: "rounded-l-md bg-primary-subtle",
                     range_end: "rounded-r-md bg-primary-subtle",
                     range_middle:
                       "bg-primary-subtle [&>button]:bg-transparent! [&>button]:text-text-primary! [&>button]:rounded-none",
-                  }}
+                  })}
                 />
                 <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
                   {/* Only the next step; the chosen range already shows in the
