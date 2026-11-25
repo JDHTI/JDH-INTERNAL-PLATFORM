@@ -25,6 +25,7 @@ import type {
   StockTotals,
   TemporaryQuotationInput,
   ValidateOptions,
+  WarehouseGroup,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -207,13 +208,21 @@ export function createTemporaryQuotation(input: TemporaryQuotationInput): Promis
  * (the highest sum of their unit costs), before choosing them. No amounts:
  * the advisors do not see costs. `highest` is null when they cost the same.
  */
-export function compareCostCenters(id: string, codes: string[], warehouses: string[]): Promise<{ highest: string | null }> {
-  return apiFetch<{ highest: string | null }>(`${one(id)}/cost-centers/compare`, { query: { codes, warehouses } });
+export function compareCostCenters(id: string, codes: string[], groups: WarehouseGroup[]): Promise<{ highest: string | null }> {
+  return apiFetch<{ highest: string | null }>(`${one(id)}/cost-centers/compare`, {
+    query: { codes, groups: groups.map(groupParam) },
+  });
 }
 
-/** No centers is Nacional, alone. Centers sent without warehouses clear the ticked ones. */
-export function updateCostCenters(id: string, version: number, codes: string[], warehouses: string[]): Promise<Quotation> {
-  const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes, cost_warehouses: warehouses };
+/** `001:BSP`, as the compare endpoint takes a group. */
+const groupParam = (group: WarehouseGroup) => `${group.center_code}:${group.classification}`;
+
+/**
+ * No centers is Nacional, alone. The warehouses go by whole groups; the API opens each one into its
+ * warehouses, and a 422 says when a center has no such group. Centers sent without groups clear them.
+ */
+export function updateCostCenters(id: string, version: number, codes: string[], groups: WarehouseGroup[]): Promise<Quotation> {
+  const body = codes.length === 0 ? { version, national: true } : { version, cost_centers: codes, cost_warehouse_groups: groups };
   return apiFetch<Quotation>(`${one(id)}/billing-center`, { method: "PATCH", body });
 }
 
