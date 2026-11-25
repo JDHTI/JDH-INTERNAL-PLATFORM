@@ -53,8 +53,9 @@ const PAGE_SIZE = 50;
 const ALL = "";
 
 /**
- * `nit`: customer_nits, the NIT's supports for the whole NIT and for its branches; `grupo`:
- * business_groups; `nit_sucursal`: customer_branches, one branch's own (API #124).
+ * `nit` is the general one: customer_nits, the NIT's supports for the whole NIT, for its branches
+ * and its business group's. The specific ones bring only their own: `grupo`, business_groups;
+ * `nit_sucursal`, customer_branches, one branch's (decided 2026-11-25).
  */
 type CustomerScope = "nit" | "grupo" | "nit_sucursal";
 

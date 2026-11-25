@@ -224,12 +224,23 @@ export interface BoardRow extends QuotationLine {
 
 export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion" | "existencia";
 
+/**
+ * Where the new price leaves the item against the list's current one: `sube` and `baja` by the
+ * new price, `estable` when it is the same or there is none yet. An item without a current price
+ * is in neither: `without_list_price` finds those.
+ */
+export type BoardTrend = "sube" | "baja" | "estable";
+
 export interface BoardFilters {
   lists: string[];
   q: string;
   suppliers: string[];
   categories: string[];
   chip: BoardChip | null;
+  /** Combines with the chip and the rest; one group with `withoutListPrice`, so never both. */
+  trend: BoardTrend | null;
+  /** Items with stock and no list price (the board only lists items with stock). */
+  withoutListPrice: boolean;
   sort: BoardSort;
   desc: boolean;
 }

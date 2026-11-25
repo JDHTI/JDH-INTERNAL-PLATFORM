@@ -47,7 +47,7 @@ export default function LiquorTaxesView() {
   if (overview.isError && !overview.data) {
     return <QuotationLoadError error={overview.error} onRetry={() => void overview.refetch()} subject="el impuesto licor" />;
   }
-  const { items, suspects, coast_lists: coastLists } = overview.data;
+  const { items, suspects, coast_lists: coastLists, excluded_lists: excludedLists = [] } = overview.data;
   const chosen = items.filter((item) => selected.has(item.sku));
   const toggle = (sku: string) =>
     setSelected((current) => {
@@ -66,6 +66,7 @@ export default function LiquorTaxesView() {
             </h2>
             <p className="text-[13px] text-text-secondary">
               Las listas {coastLists.join(", ")} pagan el valor Costa; todas las demás, el Nacional. Valores por unidad, en las listas activas.
+              {excludedLists.length > 0 && ` No entran ${excludedLists.length === 1 ? "la lista" : "las listas"} ${excludedLists.join(", ")}.`}
             </p>
           </div>
           {canManage && (

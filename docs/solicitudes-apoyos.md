@@ -211,7 +211,7 @@ Validación: TypeScript, ESLint, build y `git diff --check` sin errores; 23 prue
 Un apoyo se crea para todo el grupo empresarial, para todo el NIT o para una sucursal del NIT. Manda el más específico: el de sucursal reemplaza al del NIT y al del grupo, y el del NIT reemplaza al del grupo.
 
 - **Filtro del maestro («Filtrar cliente por»):**
-  - **NIT:** envía `customer_nits` y trae los apoyos de todo el NIT y los de sus sucursales, nunca los del grupo.
+  - **NIT:** es el filtro general. Envía `customer_nits` y trae los apoyos de todo el NIT, los de sus sucursales y los de su grupo empresarial (decisión del 2026-11-25). Los filtros específicos no agrupan lo demás.
   - **Grupo empresarial:** envía `business_groups`.
   - **NIT-sucursal:** pide el cliente y luego la sucursal, de `GET /commercial/customers?nit=&size=200`, y envía `customer_branches: [{nit, branch_id}]`. Mientras no se elija la sucursal, filtra como NIT.
   - Se retiró «NIT y su grupo» y, con él, `customer_nit_only`. Anular, vencer, eliminar y adjuntar por filtro usan los mismos campos.
