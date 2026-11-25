@@ -42,6 +42,8 @@ export interface LiquorOverview {
   suspects: LiquorSuspect[];
   /** Lists that pay the Coast value; every other list pays the national one. */
   coast_lists: string[];
+  /** Lists the liquor tax leaves out: 25, EMP and PRM (API #131). Missing on older API builds. */
+  excluded_lists?: string[];
   /** The caller is one of the collaborators who change the liquor tax (`impuesto-licor`). */
   can_manage: boolean;
 }

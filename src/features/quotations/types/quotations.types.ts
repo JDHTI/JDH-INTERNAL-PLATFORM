@@ -237,7 +237,7 @@ export interface BoardFilters {
   suppliers: string[];
   categories: string[];
   chip: BoardChip | null;
-  /** Combines with the chip and the rest. */
+  /** Combines with the chip and the rest; one group with `withoutListPrice`, so never both. */
   trend: BoardTrend | null;
   /** Items with stock and no list price (the board only lists items with stock). */
   withoutListPrice: boolean;

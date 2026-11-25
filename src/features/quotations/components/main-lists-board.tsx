@@ -52,8 +52,9 @@ const TRENDS: { key: BoardTrend; label: string; help: string }[] = [
 
 /**
  * Where each item's price goes: up, down or the same, by its new price against the list's
- * current one; and the items with stock that have no list price at all. They add to the review
- * and margin figures above, and to every other filter.
+ * current one; or the items with stock that have no list price at all. The four are one group
+ * (one at a time, counted without it, so a figure never drops to 0 when another is picked); the
+ * group adds to the review and margin figures above and to every other filter.
  */
 function TrendFilters({
   counts,
@@ -80,7 +81,7 @@ function TrendFilters({
             label="Todas"
             count={total ?? 0}
             help="Suban, bajen o sigan iguales, con los demás filtros."
-            pressed={trend === null}
+            pressed={trend === null && !withoutListPrice}
             onClick={() => onTrend(null)}
           />
           {TRENDS.map((item) => (
@@ -303,8 +304,9 @@ export default function MainListsBoard() {
             total={page_?.counts.todos}
             trend={filters.trend}
             withoutListPrice={filters.withoutListPrice}
-            onTrend={(trend) => change({ trend })}
-            onWithoutListPrice={(withoutListPrice) => change({ withoutListPrice })}
+            // One group of options in the API (API #131): picking one side turns the other off.
+            onTrend={(trend) => change({ trend, withoutListPrice: false })}
+            onWithoutListPrice={(withoutListPrice) => change({ withoutListPrice, trend: null })}
           />
 
           {canManage && (
