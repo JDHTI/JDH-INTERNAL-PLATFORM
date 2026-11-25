@@ -113,11 +113,17 @@ export default function PriceIncreasesView() {
         }
       : { increase_ids: [...selection.ids] };
   const pickedCount = selection.all ? Math.min(counts?.pendientes ?? 0, MAX_LOAD) : selection.ids.size;
-  const download = () =>
+  const download = () => {
+    // The whole history takes about 20 s to build: say so while it does.
+    const notice = toast.loading("Preparando el acumulado de alzas…");
     exporter.mutate(
       { q, supplier, status, pending, co: scope.co, installation: scope.installation },
-      { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
+      {
+        onSuccess: () => toast.success("Acumulado de alzas descargado.", { id: notice }),
+        onError: (failure) => toast.error(errorMessage(failure), { id: notice, duration: Infinity }),
+      }
     );
+  };
   const changeScope = (next: IncreaseScope) => {
     setScope(next);
     setPage(1);
