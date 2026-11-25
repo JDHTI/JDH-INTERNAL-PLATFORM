@@ -113,8 +113,16 @@ digita, corrige, aprueba y rechaza.
 Las mismas vistas que BI tiene en Maestros > Productos (que se quedan ahí), con tres pestañas:
 histórico, análisis y **Lotes de cargue** (`?vista=lotes`). Los endpoints
 `/commercial/price-increases*` aceptan `maestros` o `acumulado-alzas`, y `can_manage` (generar
-lotes, confirmarlos, poner la fecha de SIESA) lo responde el mismo endpoint. **El libro ya no se
-carga** (desde el PR #127 del API): las alzas entran al aprobar solicitudes de proveedor.
+lotes, confirmarlos, poner la fecha de SIESA) lo responde el mismo endpoint. Las alzas entran al
+aprobar solicitudes de proveedor y, mientras el área siga llevando el libro «Acumulado Alza Precios»
+en un sheet aparte, también con **«Cargar acumulado»** (`POST /upload`, simula y aplica; volvió el
+2026-11-25 tras quitarse en el #127). **«Descargar acumulado»** (`GET /export`, con los filtros del
+histórico) lo baja en ese mismo formato.
+
+- **Marcar como cargadas** (barra de pendientes): las alzas elegidas, o todas las pendientes del
+  filtro, toman la fecha de SIESA que se elija (hoy por defecto, sin futuras) sin lote ni archivo
+  (`POST /system-date`). Es para ponerse al día con lo cargado por fuera; las que están en un lote
+  abierto quedan por fuera y se avisa cuántas.
 
 - **Cargue a SIESA** (`siesa-load-*.tsx`), con el patrón del cotizador:
   1. En el histórico, quien gestiona marca alzas pendientes sin lote abierto (las demás no tienen

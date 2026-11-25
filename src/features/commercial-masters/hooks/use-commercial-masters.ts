@@ -8,6 +8,7 @@ import {
   confirmSiesaLoad,
   downloadMarginTemplate,
   downloadSiesaLoadFile,
+  exportPriceIncreases,
   generateSiesaLoad,
   getPriceIncreaseAnalysis,
   getPriceIncreaseOptions,
@@ -18,16 +19,19 @@ import {
   listCommercialMaster,
   listPriceIncreases,
   listSiesaLoads,
+  markPriceIncreasesLoaded,
   setPriceIncreaseDate,
   setProductMargins,
   updateProduct,
   uploadMargins,
+  uploadPriceIncreases,
   voidSiesaLoad,
 } from "../services/commercial-masters.service";
 import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
 import type {
   AnalysisParams,
   IncreaseScope,
+  PriceIncreaseFilters,
   PriceIncreaseParams,
   SiesaLoadDetail,
   SiesaLoadSelection,
@@ -158,6 +162,30 @@ export function useReferenceIncreases(sku: string | null, scope: IncreaseScope) 
     queryFn: () => listPriceIncreases(params),
     enabled: sku !== null,
     retry: retryTransient,
+  });
+}
+
+/** Simulating writes nothing; applying refreshes the history. */
+export function useUploadPriceIncreases() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, apply }: { file: File; apply: boolean }) => uploadPriceIncreases(file, apply),
+    onSuccess: (report) => {
+      if (report.applied) return client.invalidateQueries({ queryKey: increaseKeys.all });
+    },
+  });
+}
+
+export function useExportPriceIncreases() {
+  return useMutation({ mutationFn: (filters: PriceIncreaseFilters) => exportPriceIncreases(filters) });
+}
+
+/** The marked increases stop being pending: the history and the analysis read again. */
+export function useMarkPriceIncreasesLoaded() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ selection, day }: { selection: SiesaLoadSelection; day: string }) => markPriceIncreasesLoaded(selection, day),
+    onSuccess: () => client.invalidateQueries({ queryKey: increaseKeys.all }),
   });
 }
 

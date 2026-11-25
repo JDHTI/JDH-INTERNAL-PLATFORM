@@ -204,6 +204,32 @@ export interface AnalysisParams {
   size: number;
 }
 
+/** What reading (or applying) the area's «Acumulado Alza Precios» workbook did. */
+export interface PriceIncreaseReport {
+  applied: boolean;
+  rows_read: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  duplicated: number;
+  /** References the product master does not have (kept anyway). */
+  unknown_skus: number;
+  /** Rows without a system update date: the quoter compares them. */
+  pending: number;
+  issues: { row_number: number; sku: string | null; problem: string }[];
+  issues_truncated: boolean;
+}
+
+/** The history's filters, as the export takes them. */
+export interface PriceIncreaseFilters {
+  q: string;
+  supplier: string;
+  status: IncreaseStatus | "";
+  pending: boolean;
+  co: string;
+  installation: string;
+}
+
 /** Generated (its files can be loaded), loaded in SIESA (confirmed) or voided. */
 export type SiesaLoadStatus = "generado" | "cargado" | "anulado";
 
