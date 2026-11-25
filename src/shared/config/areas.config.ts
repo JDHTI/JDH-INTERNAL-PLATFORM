@@ -107,10 +107,19 @@ export type AdminSection = (typeof ADMIN_SECTIONS)[number]["key"];
 
 /**
  * Sidebar order, top to bottom. Documentación closes the list: it is in every
- * area, so it goes last and the area's own modules stay together above it.
+ * area, so it goes last and the area's own modules stay together above it. A
+ * section shows in an area only while one of its modules is visible there
+ * (`visibleModules`): switching Actualización de listas on for another area
+ * brings «Listas de precios» with it.
  */
 export const MODULE_CATEGORIES = [
   "Operación",
+  // Quoting a customer and checking its orders (decided 2026-11-25).
+  "Cotización y pedidos",
+  // The list engine: a list update and the 14 main lists.
+  "Listas de precios",
+  // The internal support requests and the rules the cost is calculated with.
+  "Solicitudes y costos",
   // Abastecimiento's purchase cost control: four views, each with its own key.
   "Costos",
   "Reportes",
@@ -421,7 +430,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   {
     key: "cotizador",
     name: "Cotizador",
-    category: "Operación",
+    category: "Cotización y pedidos",
     icon: Calculator,
     available: true,
     permission: "cotizador",
@@ -429,7 +438,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   {
     key: "actualizacion-listas",
     name: "Actualización de listas",
-    category: "Operación",
+    category: "Listas de precios",
     icon: ListRestart,
     available: true,
     permission: "actualizacion-listas",
@@ -438,7 +447,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     // Locked to BI in the API's catalog: it only ever reaches BI's `my_modules`.
     key: "listas-principales",
     name: "Listas principales",
-    category: "Operación",
+    category: "Listas de precios",
     icon: ListOrdered,
     available: true,
     permission: "listas-principales",
@@ -447,7 +456,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     // On by default in BI, not locked: the factors and branch rules the quoter costs with.
     key: COST_SETTINGS_SEGMENT,
     name: "Ajuste de costos",
-    category: "Operación",
+    category: "Solicitudes y costos",
     icon: SlidersHorizontal,
     available: true,
     permission: "ajuste-costos",
@@ -455,7 +464,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   {
     key: "validador-pedidos",
     name: "Validador de pedidos",
-    category: "Operación",
+    category: "Cotización y pedidos",
     icon: ClipboardCheck,
     available: true,
     permission: "validador-pedidos",
@@ -463,7 +472,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   {
     key: SUPPORT_REQUESTS_SEGMENT,
     name: "Solicitudes de apoyo",
-    category: "Operación",
+    category: "Solicitudes y costos",
     icon: ClipboardList,
     available: true,
     permission: "solicitudes-apoyos",

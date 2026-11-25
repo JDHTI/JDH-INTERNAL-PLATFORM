@@ -41,6 +41,22 @@ módulo del API una vez y `getModulesByArea(slug)` lo genera para cualquier slug
 un área fija vive en `AREA_ROWS`: «Solicitudes de soporte» y Administración en TI, y los
 `Próximamente`; esas filas no llevan clave y se muestran a todo miembro del área.
 
+**Secciones del menú** (`MODULE_CATEGORIES`, reordenadas el 2026-11-25):
+- **Operación**
+- **Cotización y pedidos:** Cotizador y Validador de pedidos.
+- **Listas de precios:** Actualización de listas y Listas principales.
+- **Solicitudes y costos:** Solicitudes de apoyo y Ajuste de costos.
+- **Costos**, **Reportes**, **Monitoreo**, **Apoyos proveedores**, **Maestros generales**, **Administración** y **Documentación**.
+
+La categoría va en la plantilla, y el menú solo arma las secciones que tienen al menos un módulo visible. Por eso una sección aparece en un área en cuanto se le enciende uno de sus módulos; por ejemplo, Actualización de listas trae «Listas de precios».
+
+**Favoritos.** La estrella al final de la ruta del encabezado (`favorite-toggle.tsx`) fija el módulo actual en la sección «Favoritos», arriba del menú (`sidebar-favorites.tsx`).
+- **Dónde se guardan:** en el navegador (`localStorage`, llave `jdh-favorites:{id del usuario}`), como `{área, segmento}`, en el orden en que se fijaron y hasta 8.
+- **Pestañas:** se sincronizan con el evento `storage`. Sin storage, el menú funciona igual, solo sin favoritos.
+- **Otras áreas:** un módulo de otra área a la que se tiene acceso también se puede fijar, y su fila dice el área.
+- **Poda:** al leer las áreas, `useFavorites` borra del storage los favoritos cuyo módulo ya no es visible (apagado, desvinculado o sin permiso). Si la lectura de las áreas falla, no borra nada.
+- **Sin favoritos:** la sección no existe.
+
 Lo que cada persona hace dentro de un módulo no depende del área en la UI: lo responde el API por
 quien llama. Apoyos usa `GET /supplier-supports/permissions` (`can_manage` abre la escritura;
 `can_review` convierte `/{área}/solicitudes-apoyos` en la bandeja de revisión, y si no, son las

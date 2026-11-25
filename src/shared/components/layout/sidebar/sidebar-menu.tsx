@@ -14,9 +14,11 @@ import {
 } from "@/shared/config/areas.config";
 import { ScrollCue } from "@/shared/components/ui/scroll-cue";
 import { useRailCollapsed } from "@/shared/hooks/use-rail-collapsed";
+import { useFavorites } from "@/shared/hooks/use-favorites";
 import { useScrollHints } from "@/shared/hooks/use-scroll-hints";
 import { cn } from "@/shared/lib/utils";
 import { useUiStore } from "@/shared/store/use-ui-store";
+import SidebarFavorites from "./sidebar-favorites";
 import SidebarModuleGroup from "./sidebar-module-group";
 import SidebarRow from "./sidebar-row";
 
@@ -29,11 +31,17 @@ export default function SidebarMenu() {
   const { data: user } = useSession();
   const isAdmin = isPlatformAdmin(user?.role);
   const { attach, hints, style, scrollPage } = useScrollHints<HTMLElement>();
+  const { favorites } = useFavorites();
+  const closeDrawer = () => setMobileMenuOpen(false);
+  const favoritesSection = (
+    <SidebarFavorites favorites={favorites} activeAreaSlug={activeArea?.slug} isCollapsed={isSidebarCollapsed} onNavigate={closeDrawer} />
+  );
 
-  // No area in the URL (the guide): say where the modules will appear.
+  // No area in the URL (the guide): the favorites, and where the modules will appear.
   if (!activeArea) {
     return (
       <div className="flex-1 space-y-2 px-3 py-2" aria-busy={isPending}>
+        {favoritesSection}
         {isPending
           ? [0, 1, 2].map((row) => (
               <div key={row} className="h-9 animate-pulse rounded-md bg-sidebar-subtle" />
@@ -59,8 +67,6 @@ export default function SidebarMenu() {
     modules: areaModules.filter((module) => module.category === category),
   })).filter((group) => group.modules.length > 0);
 
-  const closeDrawer = () => setMobileMenuOpen(false);
-
   return (
     // The list hides its scrollbar; the faded edge and the chevron say there is more.
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -70,8 +76,9 @@ export default function SidebarMenu() {
       aria-label={`Módulos de ${activeArea.name}`}
       className="min-h-0 flex-1 space-y-4 overflow-y-auto no-scrollbar px-3 py-2"
     >
-      {/* The area overview is always the first stop, above the module groups. */}
-      <ul className="space-y-0.5">
+      {/* The pinned modules lead, from any area; then the area overview, above its module groups. */}
+      {favoritesSection}
+      <ul className={cn("space-y-0.5", favorites.length > 0 && "border-t border-sidebar-border pt-3")}>
         <li>
           <SidebarRow
             href={activeArea.path}

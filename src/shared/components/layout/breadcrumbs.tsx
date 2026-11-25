@@ -12,6 +12,8 @@ import { WORKSPACE_PATH } from "@/shared/config/general.config";
 import { cn } from "@/shared/lib/utils";
 import { useBreadcrumbStore } from "@/shared/store/use-breadcrumb-store";
 
+import FavoriteToggle from "./favorite-toggle";
+
 /** The name of a page under a module, as the sidebar shows it. */
 function findModulePageByPath(href: string): string | undefined {
   const [, areaSlug, segment] = href.split("/");
@@ -79,8 +81,8 @@ export default function Breadcrumbs() {
   });
 
   return (
-    <nav aria-label="Ruta de navegación" className="min-w-0 flex-1">
-      <ol className="flex items-center gap-2 overflow-hidden">
+    <nav aria-label="Ruta de navegación" className="flex min-w-0 flex-1 items-center gap-1.5">
+      <ol className="flex min-w-0 items-center gap-2 overflow-hidden">
         {/* The mark opens every trail and is a real link home, not an
             ornament parked in front of the crumbs. */}
         <li className={cn("flex shrink-0 items-center", inArea && "max-md:hidden")}>
@@ -137,6 +139,8 @@ export default function Breadcrumbs() {
           </li>
         ))}
       </ol>
+      {/* Right after the trail, by the module's name: pin it to «Favoritos». */}
+      <FavoriteToggle />
     </nav>
   );
 }
