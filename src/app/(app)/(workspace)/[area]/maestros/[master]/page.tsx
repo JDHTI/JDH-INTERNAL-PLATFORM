@@ -4,6 +4,7 @@ import { requireGeneralMaster, requireModule } from "@/features/areas/server/are
 import CommercialMasterTable from "@/features/commercial-masters/components/commercial-master-table";
 import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/price-increase-analysis-view";
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
+import SiesaLoadsView from "@/features/commercial-masters/components/siesa-loads-view";
 import { MASTERS_SEGMENT, findCommercialMaster } from "@/features/commercial-masters/config/masters.config";
 import { productsView, productsViews } from "@/features/commercial-masters/config/products-views";
 import PageHeader from "@/shared/components/page-header";
@@ -36,6 +37,8 @@ export default async function MaestroPage({
           <PriceIncreasesView />
         ) : view === "analisis" ? (
           <PriceIncreaseAnalysisView />
+        ) : view === "lotes" ? (
+          <SiesaLoadsView />
         ) : (
           <CommercialMasterTable key={master.key} masterKey={master.key} />
         )}

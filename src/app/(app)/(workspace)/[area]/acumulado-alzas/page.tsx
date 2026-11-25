@@ -18,7 +18,8 @@ export default async function AcumuladoAlzasPage({
 }) {
   const { area } = await params;
   await requireModule(area, SEGMENT);
-  const analysis = (await searchParams).vista === "analisis";
+  const vista = (await searchParams).vista;
+  const current = vista === "analisis" || vista === "lotes" ? vista : "historico";
   const path = `/${area}/${SEGMENT}`;
 
   return (
@@ -37,11 +38,17 @@ export default async function AcumuladoAlzasPage({
             href: `${path}?vista=analisis`,
             description: INCREASE_VIEW_DESCRIPTIONS.analysis,
           },
+          {
+            key: "lotes",
+            label: "Lotes de cargue",
+            href: `${path}?vista=lotes`,
+            description: INCREASE_VIEW_DESCRIPTIONS.loads,
+          },
         ]}
-        current={analysis ? "analisis" : "historico"}
+        current={current}
         viewsLabel="Vistas del acumulado de alzas"
       />
-      <CostsScreen view={{ kind: analysis ? "ledger-analysis" : "ledger" }} />
+      <CostsScreen view={{ kind: current === "analisis" ? "ledger-analysis" : current === "lotes" ? "ledger-loads" : "ledger" }} />
     </div>
   );
 }

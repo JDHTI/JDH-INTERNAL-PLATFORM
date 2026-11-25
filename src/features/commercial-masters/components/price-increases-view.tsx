@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CloudOff, FileX2, RefreshCw, Search, Upload, X } from "lucide-react";
+import { CloudOff, FileX2, RefreshCw, Search, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 import FilterPanel from "@/shared/components/filter-panel";
@@ -18,13 +18,15 @@ import { formatCop } from "@/features/supports/lib/format";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
 import { usePriceIncreaseOptions, usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
-import type { IncreaseScope, IncreaseStatus, PriceIncrease } from "../types/price-increases.types";
+import type { IncreaseScope, IncreaseStatus, PriceIncrease, SiesaLoadSelection } from "../types/price-increases.types";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
 import { IncreaseScopeFilters, ScopeNote, useIncreaseScope } from "./increase-scope-filters";
 import IncreaseSupplierFilter from "./increase-supplier-filter";
-import PriceIncreasesUploadDialog from "./price-increases-upload-dialog";
+import SiesaLoadDialog from "./siesa-load-dialog";
 
 const PAGE_SIZE = 50;
+/** What one load takes when it is every pending one of the filter. */
+const MAX_LOAD = 2000;
 const numberFormat = new Intl.NumberFormat("es-CO");
 const STATUS = INCREASE_STATUS;
 const formatDay = formatIncreaseDay;
@@ -32,11 +34,16 @@ const money = (value: Decimal | null) => (toNumber(value) === null ? "—" : for
 /** The cost the supplier charges: with the healthy-food tax when the row has it. */
 const charged = (withTax: Decimal | null, without: Decimal | null) => (toNumber(withTax) !== null ? withTax : without);
 
+/** A pending increase that is in no open load: the only kind a SIESA load takes. */
+const loadable = (row: PriceIncrease) => row.is_pending && row.open_load === null;
+
 /**
  * The purchasing area's price increase history, under the product master: what
  * went up, down or stayed, and what SIESA does not have yet (no system update
  * date: the quoter compares its new cost). The counts are chips that filter.
- * Managers upload the workbook and set the system date row by row.
+ * Increases come in when a supplier's request is approved; managers send the
+ * pending ones to SIESA in a load (one by one or every one of the filter) and
+ * can still set the system date row by row.
  */
 export default function PriceIncreasesView() {
   const [text, setText] = useState("");
@@ -44,7 +51,6 @@ export default function PriceIncreasesView() {
   const [status, setStatus] = useState<IncreaseStatus | "">("");
   const [pending, setPending] = useState(false);
   const [page, setPage] = useState(1);
-  const [uploading, setUploading] = useState(false);
   const [scope, setScope] = useIncreaseScope();
   const q = useDebouncedValue(text.trim());
   const query = usePriceIncreases({ q, supplier, status, pending, ...scope, page, size: PAGE_SIZE });
@@ -52,8 +58,46 @@ export default function PriceIncreasesView() {
   const result = query.data;
   const rows = result?.items ?? [];
   const counts = result?.counts;
+  const canManage = result?.can_manage === true;
   const scoped = scope.co !== "" || scope.installation !== "";
   const filtered = q !== "" || supplier !== "" || status !== "" || pending || scoped;
+
+  // The selection belongs to the filter it was made under: another filter starts empty.
+  const filterKey = JSON.stringify([q, supplier, status, scope.co, scope.installation]);
+  const [picked, setPicked] = useState<{ key: string; ids: Set<string>; all: boolean }>({ key: "", ids: new Set(), all: false });
+  const selection = picked.key === filterKey ? picked : { key: filterKey, ids: new Set<string>(), all: false };
+  const [loading, setLoading] = useState<SiesaLoadSelection | null>(null);
+  const toggle = (id: string) => {
+    const ids = new Set(selection.ids);
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    setPicked({ key: filterKey, ids, all: false });
+  };
+  const pageLoadable = rows.filter(loadable).map((row) => row.id);
+  const togglePage = (on: boolean) => {
+    const ids = new Set(selection.ids);
+    for (const id of pageLoadable) {
+      if (on) ids.add(id);
+      else ids.delete(id);
+    }
+    setPicked({ key: filterKey, ids, all: false });
+  };
+  const clearSelection = () => setPicked({ key: filterKey, ids: new Set(), all: false });
+  const openLoad = () =>
+    setLoading(
+      selection.all
+        ? {
+            all: true,
+            filters: {
+              q: q || undefined,
+              status: status || undefined,
+              supplier: supplier || undefined,
+              co: scope.co || undefined,
+              installation: scope.installation || undefined,
+            },
+          }
+        : { increase_ids: [...selection.ids] }
+    );
   const changeScope = (next: IncreaseScope) => {
     setScope(next);
     setPage(1);
@@ -128,22 +172,25 @@ export default function PriceIncreasesView() {
           </div>
         }
         end={
-          <>
-            {filtered && (
-              <Button variant="ghost" size="sm" onClick={clear}>
-                Limpiar filtros
-              </Button>
-            )}
-            {result?.can_manage && (
-              <Button variant="outline" onClick={() => setUploading(true)}>
-                <Upload aria-hidden="true" /> Cargar alzas
-              </Button>
-            )}
-          </>
+          filtered && (
+            <Button variant="ghost" size="sm" onClick={clear}>
+              Limpiar filtros
+            </Button>
+          )
         }
       />
 
       <ScopeNote scope={scope} />
+
+      {canManage && (counts?.pendientes ?? 0) > 0 && (
+        <LoadBar
+          count={selection.all ? null : selection.ids.size}
+          pendingInFilter={counts?.pendientes ?? 0}
+          onSelectAll={() => setPicked({ key: filterKey, ids: new Set(), all: true })}
+          onClear={clearSelection}
+          onGenerate={openLoad}
+        />
+      )}
 
       {query.isPending ? (
         <div className="h-72 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando el histórico de alzas" />
@@ -174,8 +221,8 @@ export default function PriceIncreasesView() {
             Prueba con otro texto, otro proveedor o quita algún filtro.
           </StatePanel>
         ) : (
-          <StatePanel icon={FileX2} title="Aún no hay alzas cargadas">
-            {result?.can_manage ? "Carga el acumulado de alzas con «Cargar alzas»." : "Las carga quien gestiona el acumulado de alzas."}
+          <StatePanel icon={FileX2} title="Aún no hay alzas">
+            Entran solas cuando se aprueba una solicitud en Alzas de proveedor.
           </StatePanel>
         )
       ) : (
@@ -185,6 +232,22 @@ export default function PriceIncreasesView() {
               <caption className="sr-only">Histórico de alza de precios</caption>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
+                  {canManage && (
+                    <th scope="col" className="w-10 py-2 pl-3 pr-0">
+                      <input
+                        type="checkbox"
+                        checked={selection.all || (pageLoadable.length > 0 && pageLoadable.every((id) => selection.ids.has(id)))}
+                        ref={(element) => {
+                          if (element) element.indeterminate = !selection.all && pageLoadable.some((id) => selection.ids.has(id)) && !pageLoadable.every((id) => selection.ids.has(id));
+                        }}
+                        onChange={(event) => togglePage(event.target.checked)}
+                        disabled={selection.all || pageLoadable.length === 0}
+                        aria-label="Seleccionar las alzas pendientes de esta página"
+                        title="Solo se marcan las pendientes en SIESA que no están en un lote abierto"
+                        className="size-4 accent-[var(--primary)]"
+                      />
+                    </th>
+                  )}
                   <th scope="col" className="px-3 py-2">Producto</th>
                   <th scope="col" className="px-3 py-2">Incremento</th>
                   <th scope="col" className="px-3 py-2 text-right">Costo anterior</th>
@@ -197,7 +260,13 @@ export default function PriceIncreasesView() {
               </thead>
               <tbody className="divide-y divide-border">
                 {rows.map((row) => (
-                  <IncreaseRow key={row.id} row={row} canManage={result?.can_manage === true} />
+                  <IncreaseRow
+                    key={row.id}
+                    row={row}
+                    canManage={canManage}
+                    checked={loadable(row) && (selection.all || selection.ids.has(row.id))}
+                    onToggle={selection.all ? undefined : () => toggle(row.id)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -218,16 +287,90 @@ export default function PriceIncreasesView() {
         </div>
       )}
 
-      <PriceIncreasesUploadDialog open={uploading} onClose={() => setUploading(false)} />
+      <SiesaLoadDialog selection={loading} onClose={() => setLoading(null)} onGenerated={clearSelection} />
     </div>
   );
 }
 
-function IncreaseRow({ row, canManage }: { row: PriceIncrease; canManage: boolean }) {
+/**
+ * The SIESA load's action bar: how many are picked, taking every pending one of
+ * the filter, and «Generar cargue a SIESA». Without a selection it says how to make one.
+ */
+function LoadBar({
+  count,
+  pendingInFilter,
+  onSelectAll,
+  onClear,
+  onGenerate,
+}: {
+  /** Null: every pending one of the filter. */
+  count: number | null;
+  pendingInFilter: number;
+  onSelectAll: () => void;
+  onClear: () => void;
+  onGenerate: () => void;
+}) {
+  const any = count === null || count > 0;
+  return (
+    <div role="region" aria-label="Cargue a SIESA" className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+      <span className="text-sm tabular-nums" aria-live="polite">
+        {count === null ? (
+          <span className="font-medium">Todas las pendientes del filtro ({numberFormat.format(Math.min(pendingInFilter, MAX_LOAD))})</span>
+        ) : count > 0 ? (
+          <span className="font-medium">
+            {numberFormat.format(count)} {count === 1 ? "alza seleccionada" : "alzas seleccionadas"}
+          </span>
+        ) : (
+          <span className="text-text-secondary">Marca las alzas pendientes que van a SIESA, o toma todas las del filtro.</span>
+        )}
+      </span>
+      {count !== null && (
+        <Button variant="ghost" size="sm" onClick={onSelectAll} className="max-md:h-11" title="Hasta 2.000; las que ya están en un lote abierto quedan por fuera">
+          Seleccionar las {numberFormat.format(Math.min(pendingInFilter, MAX_LOAD))} pendientes del filtro
+        </Button>
+      )}
+      {any && (
+        <Button variant="ghost" size="sm" onClick={onClear} className="max-md:h-11">
+          <X aria-hidden="true" /> Quitar selección
+        </Button>
+      )}
+      <Button onClick={onGenerate} disabled={!any} className="ml-auto max-md:h-11">
+        <Send aria-hidden="true" /> Generar cargue a SIESA
+      </Button>
+    </div>
+  );
+}
+
+function IncreaseRow({
+  row,
+  canManage,
+  checked,
+  onToggle,
+}: {
+  row: PriceIncrease;
+  canManage: boolean;
+  checked: boolean;
+  /** Undefined while every pending one of the filter is taken. */
+  onToggle?: () => void;
+}) {
   const look = row.status ? STATUS[row.status] : null;
   const variation = toNumber(row.variation_pct);
   return (
-    <tr className="h-10 align-top hover:bg-primary-subtle">
+    <tr className={cn("h-10 align-top hover:bg-primary-subtle", checked && "bg-primary-subtle")}>
+      {canManage && (
+        <td className="py-2 pl-3 pr-0">
+          {loadable(row) && (
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={onToggle}
+              disabled={!onToggle}
+              aria-label={`Seleccionar el alza de ${row.sku} para el cargue a SIESA`}
+              className="size-4 accent-[var(--primary)]"
+            />
+          )}
+        </td>
+      )}
       <td className="max-w-80 px-3 py-2">
         <span className="block truncate" title={row.description ?? undefined}>
           <span className="font-mono text-[13px]">{row.sku}</span>
@@ -249,7 +392,14 @@ function IncreaseRow({ row, canManage }: { row: PriceIncrease; canManage: boolea
       <td className="px-3 py-2">{look ? <Badge tone={look.tone}>{look.label}</Badge> : "—"}</td>
       <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{row.source === "solicitud" ? "Solicitud del proveedor" : "Libro de alzas"}</td>
       <td className="px-3 py-2">
-        <SystemDate row={row} canManage={canManage} />
+        <span className="flex flex-col items-start gap-1">
+          <SystemDate row={row} canManage={canManage} />
+          {row.open_load !== null && (
+            <Badge tone="info" title="Está en un lote de cargue generado y aún no confirmado">
+              En lote {row.open_load}
+            </Badge>
+          )}
+        </span>
       </td>
     </tr>
   );

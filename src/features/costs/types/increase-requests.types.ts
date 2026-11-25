@@ -98,7 +98,12 @@ export interface IncreaseRequest {
   decision_note: string | null;
   line_count: number;
   accepted_count: number;
+  /** Approved lines SIESA already has (their load confirmed): what the notice takes. */
+  loaded_count: number;
 }
+
+/** Approved requests picked one by one, or every approved one (of a supplier). */
+export type NoticeSelection = { request_ids: string[] } | { all: true; supplier: string | null };
 
 export interface IncreaseRequestDetail extends IncreaseRequest {
   lines: RequestLine[];

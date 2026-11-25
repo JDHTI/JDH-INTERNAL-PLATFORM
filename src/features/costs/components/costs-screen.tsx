@@ -2,6 +2,7 @@
 
 import PriceIncreaseAnalysisView from "@/features/commercial-masters/components/price-increase-analysis-view";
 import PriceIncreasesView from "@/features/commercial-masters/components/price-increases-view";
+import SiesaLoadsView from "@/features/commercial-masters/components/siesa-loads-view";
 
 import CostsAccess from "./costs-access";
 import EntriesView from "./entries-view";
@@ -15,7 +16,8 @@ export type CostsView =
   | { kind: "requests"; basePath: string }
   | { kind: "request"; basePath: string; requestId: string }
   | { kind: "ledger" }
-  | { kind: "ledger-analysis" };
+  | { kind: "ledger-analysis" }
+  | { kind: "ledger-loads" };
 
 /**
  * The client side of each Costos page: the permission check of its key, then
@@ -44,5 +46,7 @@ export default function CostsScreen({ view }: { view: CostsView }) {
       return <CostsAccess module="acumulado-alzas">{() => <PriceIncreasesView />}</CostsAccess>;
     case "ledger-analysis":
       return <CostsAccess module="acumulado-alzas">{() => <PriceIncreaseAnalysisView />}</CostsAccess>;
+    case "ledger-loads":
+      return <CostsAccess module="acumulado-alzas">{() => <SiesaLoadsView />}</CostsAccess>;
   }
 }

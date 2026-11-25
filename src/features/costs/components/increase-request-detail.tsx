@@ -13,6 +13,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
 import { Field, Textarea } from "@/shared/components/ui/field";
 import { ApiError, errorMessage } from "@/shared/lib/api-client";
+import { cn } from "@/shared/lib/utils";
 
 import {
   useApproveIncreaseRequest,
@@ -174,7 +175,11 @@ function Detail({ request, manages, back }: { request: IncreaseRequestDetail; ma
         <RequestSupport request={request} reviewing={reviewing} />
         {request.status === "aprobada" && (
           <p className="text-[13px] text-text-secondary">
-            Las líneas incluidas están en el acumulado de alzas, una fila por regional, pendientes en SIESA: el cotizador ya compara su costo nuevo.
+            <span className={cn("font-medium tabular-nums", request.loaded_count < accepted.length ? "text-text-primary" : "text-success")}>
+              {numberFormat.format(request.loaded_count)} de {numberFormat.format(accepted.length)} en SIESA.
+            </span>{" "}
+            Las líneas incluidas están en el acumulado de alzas, una fila por regional; llegan a SIESA con un lote de cargue y, mientras no,
+            el cotizador compara su costo nuevo. El comunicado lleva solo las que SIESA ya tiene.
           </p>
         )}
       </section>
