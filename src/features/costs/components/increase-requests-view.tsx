@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CloudOff, Download, FileX2, Keyboard, Loader2, Paperclip, RefreshCw, Upload } from "lucide-react";
+import { CloudOff, Download, FileDown, FileX2, Keyboard, Loader2, Paperclip, RefreshCw, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatWhen } from "@/features/supports/lib/format";
@@ -16,7 +16,7 @@ import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
-import { useDownloadTemplate, useIncreaseRequests } from "../hooks/use-increase-requests";
+import { useDownloadTemplate, useGenerateNotice, useIncreaseRequests } from "../hooks/use-increase-requests";
 import { REQUEST_STATUS } from "../lib/format";
 import type { CostPermissions } from "../types/costs.types";
 import type { RequestStatus } from "../types/increase-requests.types";
@@ -29,7 +29,9 @@ const numberFormat = new Intl.NumberFormat("es-CO");
 /**
  * Where a supplier's increases come in: pick the supplier, hand them their
  * MAESTRA, load it back or type a few references, and review the requests.
- * The tray opens on the ones in review; the supplier narrows it too.
+ * The tray opens on the ones in review; the supplier narrows it too. Once SIESA
+ * has the approved increases, anyone who reads the tray builds the notice to
+ * email, from the approved requests picked or all of them.
  */
 export default function IncreaseRequestsView({ permissions, basePath }: { permissions: CostPermissions; basePath: string }) {
   const [supplier, setSupplier] = useState<AutocompleteOption | null>(null);
@@ -42,6 +44,42 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
   const result = query.data;
   const rows = result?.items ?? [];
   const chosen = supplier ? { code: supplier.value, name: supplier.label } : null;
+  const approvedInFilter = result?.counts.aprobada ?? 0;
+
+  // The notice's selection belongs to the supplier it was made under.
+  const selectionKey = supplier?.value ?? "";
+  const [picked, setPicked] = useState<{ key: string; ids: Set<string>; all: boolean }>({ key: "", ids: new Set(), all: false });
+  const selection = picked.key === selectionKey ? picked : { key: selectionKey, ids: new Set<string>(), all: false };
+  const pageApproved = rows.filter((row) => row.status === "aprobada").map((row) => row.id);
+  const pick = (ids: Set<string>, all = false) => setPicked({ key: selectionKey, ids, all });
+  const toggle = (id: string) => {
+    const ids = new Set(selection.ids);
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    pick(ids);
+  };
+  const togglePage = (on: boolean) => {
+    const ids = new Set(selection.ids);
+    for (const id of pageApproved) {
+      if (on) ids.add(id);
+      else ids.delete(id);
+    }
+    pick(ids);
+  };
+  const notice = useGenerateNotice();
+  const generate = () =>
+    notice.mutate(selection.all ? { all: true, supplier: supplier?.value ?? null } : { request_ids: [...selection.ids] }, {
+      onSuccess: ({ rows: count, skipped }) => {
+        toast.success(`Comunicado descargado con ${numberFormat.format(count)} ${count === 1 ? "alza" : "alzas"}.`);
+        if (skipped > 0) {
+          toast.warning(
+            `${numberFormat.format(skipped)} ${skipped === 1 ? "alza aún no está cargada" : "alzas aún no están cargadas"} en SIESA y no van en el comunicado.`,
+            { duration: 10_000 }
+          );
+        }
+      },
+      onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }),
+    });
 
   const download = () =>
     supplier &&
@@ -105,6 +143,42 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
         ))}
       </div>
 
+      {approvedInFilter > 0 && (
+        <div role="region" aria-label="Comunicado del alza" className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <span className="text-sm tabular-nums" aria-live="polite">
+            {selection.all ? (
+              <span className="font-medium">
+                Todas las aprobadas{supplier ? " del proveedor" : ""} ({numberFormat.format(approvedInFilter)})
+              </span>
+            ) : selection.ids.size > 0 ? (
+              <span className="font-medium">
+                {numberFormat.format(selection.ids.size)} {selection.ids.size === 1 ? "solicitud seleccionada" : "solicitudes seleccionadas"}
+              </span>
+            ) : (
+              <span className="text-text-secondary">Marca las solicitudes aprobadas que van en el comunicado, o toma todas.</span>
+            )}
+          </span>
+          {!selection.all && (
+            <Button variant="ghost" size="sm" className="max-md:h-11" onClick={() => pick(new Set(), true)}>
+              Seleccionar las {numberFormat.format(approvedInFilter)} aprobadas{supplier ? " del proveedor" : ""}
+            </Button>
+          )}
+          {(selection.all || selection.ids.size > 0) && (
+            <Button variant="ghost" size="sm" className="max-md:h-11" onClick={() => pick(new Set())}>
+              <X aria-hidden="true" /> Quitar selección
+            </Button>
+          )}
+          <Button
+            className="ml-auto max-md:h-11"
+            onClick={generate}
+            disabled={notice.isPending || (!selection.all && selection.ids.size === 0)}
+            title="Solo van las alzas que SIESA ya tiene"
+          >
+            {notice.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileDown aria-hidden="true" />} Generar comunicado
+          </Button>
+        </div>
+      )}
+
       {query.isPending ? (
         <div className="h-64 animate-pulse rounded-lg bg-canvas-subtle" aria-busy="true" aria-label="Cargando las solicitudes" />
       ) : query.isError && !result ? (
@@ -153,6 +227,23 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
               <caption className="sr-only">Solicitudes de alza de los proveedores</caption>
               <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
                 <tr>
+                  <th scope="col" className="w-10 py-2 pl-3 pr-0">
+                    {pageApproved.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={selection.all || pageApproved.every((id) => selection.ids.has(id))}
+                        ref={(element) => {
+                          if (element)
+                            element.indeterminate =
+                              !selection.all && pageApproved.some((id) => selection.ids.has(id)) && !pageApproved.every((id) => selection.ids.has(id));
+                        }}
+                        onChange={(event) => togglePage(event.target.checked)}
+                        disabled={selection.all}
+                        aria-label="Seleccionar las solicitudes aprobadas de esta página para el comunicado"
+                        className="size-4 accent-[var(--primary)]"
+                      />
+                    )}
+                  </th>
                   <th scope="col" className="px-3 py-2 text-right">Creada</th>
                   <th scope="col" className="px-3 py-2">Proveedor</th>
                   <th scope="col" className="px-3 py-2">Origen</th>
@@ -164,8 +255,22 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
               <tbody className="divide-y divide-border">
                 {rows.map((row) => {
                   const look = REQUEST_STATUS[row.status];
+                  const approved = row.status === "aprobada";
+                  const checked = approved && (selection.all || selection.ids.has(row.id));
                   return (
-                    <tr key={row.id} className="h-10 align-top hover:bg-primary-subtle">
+                    <tr key={row.id} className={cn("h-10 align-top hover:bg-primary-subtle", checked && "bg-primary-subtle")}>
+                      <td className="py-2 pl-3 pr-0">
+                        {approved && (
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggle(row.id)}
+                            disabled={selection.all}
+                            aria-label={`Incluir en el comunicado la solicitud de ${row.supplier_name ?? row.supplier_code}`}
+                            className="size-4 accent-[var(--primary)]"
+                          />
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                         {formatWhen(row.created_at)}
                         <span className="block text-xs text-text-secondary">{row.created_by}</span>
@@ -199,6 +304,14 @@ export default function IncreaseRequestsView({ permissions, basePath }: { permis
                         {row.accepted_count === row.line_count
                           ? numberFormat.format(row.line_count)
                           : `${numberFormat.format(row.accepted_count)} de ${numberFormat.format(row.line_count)}`}
+                        {approved && (
+                          <span
+                            className={cn("block text-xs", row.loaded_count < row.accepted_count ? "text-text-secondary" : "text-success")}
+                            title="Líneas aprobadas que SIESA ya tiene: las que van en el comunicado"
+                          >
+                            {numberFormat.format(row.loaded_count)} de {numberFormat.format(row.accepted_count)} en SIESA
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <Badge tone={look.tone}>{row.status_label}</Badge>

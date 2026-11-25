@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { commercialMasterKeys } from "@/features/commercial-masters/hooks/use-commercial-masters";
-import { ApiError } from "@/shared/lib/api-client";
+import { ApiError, saveBlob } from "@/shared/lib/api-client";
 
 import {
   approveIncreaseRequest,
@@ -12,6 +12,7 @@ import {
   downloadRequestFile,
   putRequestSupport,
   downloadTemplate,
+  generateNotice,
   getIncreaseRequest,
   listIncreaseRequests,
   listSupplierItems,
@@ -19,7 +20,7 @@ import {
   updateRequestLine,
   uploadIncreaseWorkbook,
 } from "../services/increase-requests.service";
-import type { LineInput, LinePatch, RequestStatus } from "../types/increase-requests.types";
+import type { LineInput, LinePatch, NoticeSelection, RequestStatus } from "../types/increase-requests.types";
 import { costKeys } from "./use-costs";
 
 export const requestKeys = {
@@ -58,6 +59,17 @@ export function useSupplierItems(supplier: string | null, q: string) {
 
 export function useDownloadTemplate() {
   return useMutation({ mutationFn: (supplierCode: string) => downloadTemplate(supplierCode) });
+}
+
+/** Builds the notice and hands it to the browser; answers how many rows went and how many lines were left out. */
+export function useGenerateNotice() {
+  return useMutation({
+    mutationFn: async (selection: NoticeSelection) => {
+      const notice = await generateNotice(selection);
+      saveBlob(notice.blob, notice.filename ?? "Comunicado Alza de precios proveedor.xlsx");
+      return { rows: notice.rows, skipped: notice.skipped };
+    },
+  });
 }
 
 export function useDownloadRequestFile() {

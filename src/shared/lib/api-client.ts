@@ -107,14 +107,24 @@ function buildUrl(path: string, query: Query | undefined): URL {
   return url;
 }
 
-/** A file the API streams, with the name its Content-Disposition gives. */
+/**
+ * A file the API streams, with the name its Content-Disposition gives and the
+ * response headers (some answer counts next to the file). A `body` makes it a
+ * JSON POST, for files built from a selection.
+ */
 export async function apiBlob(
   path: string,
-  query?: Query
-): Promise<{ blob: Blob; filename: string | null }> {
+  query?: Query,
+  { method, body }: { method?: string; body?: unknown } = {}
+): Promise<{ blob: Blob; filename: string | null; headers: Headers }> {
   let response: Response;
   try {
-    response = await fetch(buildUrl(path, query), { credentials: "include" });
+    response = await fetch(buildUrl(path, query), {
+      method: method ?? (body === undefined ? "GET" : "POST"),
+      credentials: "include",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   } catch {
     throw new ApiError(
       0,
@@ -131,7 +141,22 @@ export async function apiBlob(
   return {
     blob: await response.blob(),
     filename: encoded ? decodeURIComponent(encoded) : null,
+    headers: response.headers,
   };
+}
+
+/** Hands a blob to the browser as a download under `name`. */
+export function saveBlob(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked on the next tick: some browsers start reading the blob only
+  // after the click handler returns.
+  setTimeout(() => URL.revokeObjectURL(href), 0);
 }
 
 /**
@@ -144,16 +169,7 @@ export async function apiDownload(
   { query, fallbackName }: { query?: Query; fallbackName: string }
 ): Promise<void> {
   const { blob, filename } = await apiBlob(path, query);
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = filename ?? fallbackName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoked on the next tick: some browsers start reading the blob only
-  // after the click handler returns.
-  setTimeout(() => URL.revokeObjectURL(href), 0);
+  saveBlob(blob, filename ?? fallbackName);
 }
 
 export async function apiFetch<T>(
