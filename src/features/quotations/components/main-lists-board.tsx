@@ -14,6 +14,7 @@ import { Dropdown } from "@/shared/components/ui/dropdown";
 import { InfoPopover } from "@/shared/components/ui/info-popover";
 import { Input } from "@/shared/components/ui/input";
 import { MultiSelect } from "@/shared/components/ui/multi-select";
+import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber } from "@/shared/lib/format";
@@ -39,77 +40,23 @@ import type {
 } from "../types/quotations.types";
 import LineDetailDialog from "./line-detail-dialog";
 import { CostBreakdown, MarginMark, NewMargin, type ReviewControl, ReviewSelect, SaleMark } from "./lines-table";
-import { FilterButton, ListFilters } from "./list-review-controls";
+import { ListFilters } from "./list-review-controls";
 import { QuotationLoadError } from "./quotations-gate";
 
 const PAGE_SIZE = 100;
 
-const TRENDS: { key: BoardTrend; label: string; help: string }[] = [
-  { key: "sube", label: "Suben", help: "El precio nuevo es mayor que el precio actual de la lista." },
-  { key: "baja", label: "Bajan", help: "El precio nuevo es menor que el precio actual de la lista." },
-  { key: "estable", label: "Estables", help: "Sin precio nuevo, o con el mismo precio actual de la lista." },
+/** The new price against the list's current one; without a new price the item is stable. */
+const TRENDS: { key: BoardTrend; label: string }[] = [
+  { key: "sube", label: "Sube" },
+  { key: "baja", label: "Baja" },
+  { key: "estable", label: "Estable" },
 ];
 
-/**
- * Where each item's price goes: up, down or the same, by its new price against the list's
- * current one; or the items with stock that have no list price at all. The four are one group
- * (one at a time, counted without it, so a figure never drops to 0 when another is picked); the
- * group adds to the review and margin figures above and to every other filter.
- */
-function TrendFilters({
-  counts,
-  total,
-  trend,
-  withoutListPrice,
-  onTrend,
-  onWithoutListPrice,
-}: {
-  counts: Record<string, number> | undefined;
-  total: number | undefined;
-  trend: BoardTrend | null;
-  withoutListPrice: boolean;
-  onTrend: (trend: BoardTrend | null) => void;
-  onWithoutListPrice: (on: boolean) => void;
-}) {
-  const count = (key: string) => counts?.[key] ?? 0;
-  return (
-    <section aria-label="Precio nuevo contra el actual" className="grid gap-3 rounded-lg border border-border bg-surface p-3 @4xl:grid-cols-[2fr_1fr]">
-      <div className="space-y-1">
-        <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">Precio nuevo contra el actual</h2>
-        <div className="grid grid-cols-2 gap-1 @lg:grid-cols-4">
-          <FilterButton
-            label="Todas"
-            count={total ?? 0}
-            help="Suban, bajen o sigan iguales, con los demás filtros."
-            pressed={trend === null && !withoutListPrice}
-            onClick={() => onTrend(null)}
-          />
-          {TRENDS.map((item) => (
-            <FilterButton
-              key={item.key}
-              label={item.label}
-              count={count(item.key)}
-              help={item.help}
-              pressed={trend === item.key}
-              onClick={() => onTrend(trend === item.key ? null : item.key)}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="space-y-1">
-        <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">Precio de lista</h2>
-        <FilterButton
-          label="Con existencia y sin precio de lista"
-          count={count("sin_precio")}
-          help="Referencias con existencia en las bodegas de la lista que no tienen precio en ella."
-          tone="warning"
-          pressed={withoutListPrice}
-          onClick={() => onWithoutListPrice(!withoutListPrice)}
-        />
-      </div>
-    </section>
-  );
-}
+const ALL_TRENDS = "todas";
+
+/** " (1.234)" after an option's label, once the API sent its count. */
+const counted = (count: number | undefined) => (count === undefined ? "" : ` (${formatCount(count)})`);
+
 const keyOf = (key: BoardKey) => `${key.quotation_id}|${key.sku}`;
 const quantity = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 
@@ -145,6 +92,7 @@ export default function MainListsBoard() {
     chip: null,
     trend: null,
     withoutListPrice: false,
+    inStock: true,
     sort: "lista",
     desc: false,
   }));
@@ -194,10 +142,11 @@ export default function MainListsBoard() {
     filters.categories.length > 0 ||
     filters.chip !== null ||
     filters.trend !== null ||
-    filters.withoutListPrice;
+    filters.withoutListPrice ||
+    !filters.inStock;
   const clear = () => {
     setText("");
-    change({ lists: [], suppliers: [], categories: [], chip: null, trend: null, withoutListPrice: false });
+    change({ lists: [], suppliers: [], categories: [], chip: null, trend: null, withoutListPrice: false, inStock: true });
   };
 
   if (overview.isPending) return <TableSkeleton rows={8} label="Cargando las listas principales" />;
@@ -287,8 +236,42 @@ export default function MainListsBoard() {
               }}
               className="min-w-0 @3xl:flex-[1.2]"
             />
+          </div>
+
+          {/* The quick filters, in the filter bar, not as more figures: the figures below stay one block. */}
+          <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap items-center gap-2">
+            <Dropdown
+              aria-label="Tendencia del precio nuevo"
+              value={filters.trend ?? ALL_TRENDS}
+              // One group of options with «Sin precio de lista» in the API (API #131): a trend turns it off.
+              onValueChange={(next) => change({ trend: next === ALL_TRENDS ? null : (next as BoardTrend), withoutListPrice: false })}
+              options={[
+                { value: ALL_TRENDS, label: `Precio nuevo: todas${counted(page_?.counts.todos)}` },
+                ...TRENDS.map((item) => ({ value: item.key, label: `Precio nuevo: ${item.label.toLowerCase()}${counted(page_?.counts[item.key])}` })),
+              ]}
+              className="w-full @lg:w-60"
+            />
+            <ToggleChip
+              active={filters.inStock}
+              onClick={() => change({ inStock: !filters.inStock })}
+              title={
+                filters.inStock
+                  ? "Solo las referencias con existencia en las bodegas de la lista. Apágalo para ver también las que la sincronización leyó en 0."
+                  : "Se ven también las referencias sin existencia."
+              }
+            >
+              Con existencia
+            </ToggleChip>
+            <ToggleChip
+              active={filters.withoutListPrice}
+              onClick={() => change({ withoutListPrice: !filters.withoutListPrice, trend: null })}
+              count={page_?.counts.sin_precio ?? null}
+              title="Referencias que no tienen precio en la lista."
+            >
+              Sin precio de lista
+            </ToggleChip>
             {/* Said in words, not an icon alone: it also clears the figures below. */}
-            <Button variant="outline" onClick={clear} disabled={!filtered} className="shrink-0 max-md:h-11">
+            <Button variant="outline" onClick={clear} disabled={!filtered} className="ml-auto shrink-0 max-md:h-11">
               <FilterX aria-hidden="true" /> Limpiar filtros
             </Button>
           </div>
@@ -298,15 +281,6 @@ export default function MainListsBoard() {
             total={page_?.counts.todos}
             active={(filters.chip ?? "all") as ListFilter}
             onSelect={(next) => change({ chip: next === "all" ? null : (next as BoardChip) })}
-          />
-          <TrendFilters
-            counts={page_?.counts}
-            total={page_?.counts.todos}
-            trend={filters.trend}
-            withoutListPrice={filters.withoutListPrice}
-            // One group of options in the API (API #131): picking one side turns the other off.
-            onTrend={(trend) => change({ trend, withoutListPrice: false })}
-            onWithoutListPrice={(withoutListPrice) => change({ withoutListPrice, trend: null })}
           />
 
           {canManage && (
@@ -363,8 +337,9 @@ export default function MainListsBoard() {
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs tabular-nums text-text-secondary">
-                  {/* The API leaves out the references without stock (API #106): the total counts only the ones with it. */}
-                  {formatCount(page_?.total ?? 0)} {page_?.total === 1 ? "referencia con existencia" : "referencias con existencia"} en{" "}
+                  {/* With «Con existencia» on (the default) the API leaves out the references without stock. */}
+                  {formatCount(page_?.total ?? 0)} {page_?.total === 1 ? "referencia" : "referencias"}
+                  {filters.inStock ? " con existencia" : ""} en{" "}
                   {filters.lists.length === 0 ? "todas las listas" : `${filters.lists.length} ${filters.lists.length === 1 ? "lista" : "listas"}`}
                 </span>
                 <Pager page={page} size={PAGE_SIZE} total={page_?.total ?? 0} count={pageRows.length} onPageChange={setPage} />

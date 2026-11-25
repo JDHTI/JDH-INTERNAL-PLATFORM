@@ -239,8 +239,13 @@ export interface BoardFilters {
   chip: BoardChip | null;
   /** Combines with the chip and the rest; one group with `withoutListPrice`, so never both. */
   trend: BoardTrend | null;
-  /** Items with stock and no list price (the board only lists items with stock). */
+  /** Items with no list price. */
   withoutListPrice: boolean;
+  /**
+   * Only items with stock in the list's warehouses (the default, API #133). Off, the board also
+   * lists the ones the sync read at 0, in the counts and in `/keys` too.
+   */
+  inStock: boolean;
   sort: BoardSort;
   desc: boolean;
 }
