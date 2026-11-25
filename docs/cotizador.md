@@ -105,11 +105,18 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   mismos chips y acciones sobre filas seleccionadas de cualquier lista (óptimo, mínimo, limpiar
   precio); el estado va en el chip de cada fila. El orden incluye «existencia, mayor primero» (la
   existencia la guarda la sincronización). La vista no lleva descripción bajo el título.
-  - **Precio nuevo contra el actual** (decisión del 2026-11-25): bajo los chips, «Suben», «Bajan»
-    y «Estables» comparan el precio nuevo con el precio actual de la lista (sin precio nuevo cuenta
-    como estable). Al lado, «Con existencia y sin precio de lista» es un solo filtro. Se combinan
-    con los chips y con los demás filtros. El API recibe `trend=sube|baja|estable` y
-    `without_list_price=true`, y devuelve los conteos `sube`, `baja`, `estable` y `sin_precio`.
+  - **Filtros rápidos** (decisión del 2026-11-25): van en una segunda fila de la barra de filtros,
+    no como más cifras. Las cifras de revisión y margen son un solo bloque.
+    - **Desplegable de tendencia:** «Precio nuevo: todas / sube / baja / estable», con el conteo en
+      cada opción. Compara el precio nuevo con el actual de la lista; sin precio nuevo cuenta como
+      estable. Envía `trend` y lee `counts.sube|baja|estable`.
+    - **«Con existencia»:** encendido por defecto. Al apagarlo envía `in_stock=false` (API #133) y
+      aparecen también las referencias que la sincronización leyó en 0.
+    - **«Sin precio de lista»:** envía `without_list_price=true`, con `counts.sin_precio` en el botón.
+      Va en el mismo grupo que la tendencia, así que elegir uno apaga el otro.
+    - **«Limpiar filtros»:** cierra la fila.
+    - **En `/keys`:** van los tres, así que las acciones sobre «todas las del filtro» respetan la
+      selección.
   - **Todo es inmediato:** un precio nuevo se ve en la fila al salir del campo o con Enter, y la
     fila pasa a «Por validar» en ese momento; el campo no se bloquea mientras guarda. El estado del
     chip también cambia al instante. Las cachés de la página se cambian antes de la respuesta

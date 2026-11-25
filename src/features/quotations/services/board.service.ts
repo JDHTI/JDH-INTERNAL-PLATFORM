@@ -35,6 +35,8 @@ function filterQuery(filters: BoardFilters) {
     chip: filters.chip ?? undefined,
     trend: filters.trend ?? undefined,
     without_list_price: filters.withoutListPrice ? "true" : undefined,
+    // True is the API's default; only the change is sent.
+    in_stock: filters.inStock ? undefined : "false",
   };
 }
 
