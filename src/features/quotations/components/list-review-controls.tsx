@@ -9,7 +9,8 @@ import type { QuotationLine } from "../types/quotations.types";
 const TONE_TEXT = { success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
 const MARGIN_TONE: Record<string, keyof typeof TONE_TEXT | undefined> = { alza: "danger", objetivo: "success", alerta: "warning" };
 
-function FilterButton({
+/** A figure that filters: its count over its label, pressed while its filter is on. */
+export function FilterButton({
   label,
   count,
   help,

@@ -68,10 +68,15 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   bloqueado a BI. Su vista principal es **un solo tablero con las 14 listas juntas**
   (`main-lists-board.tsx`, `GET /price-list-updates/main/rows`): una fila por referencia y lista,
   los filtros en una sola fila (buscador, desplegable con buscador para una o varias listas,
-  proveedores, categorías, orden y «Borrar filtros» como icono), los mismos chips y acciones sobre
-  filas seleccionadas de cualquier lista (óptimo, mínimo, limpiar precio); el estado va en el chip
-  de cada fila. El orden incluye «existencia, mayor primero» (la existencia la guarda la
-  sincronización). La vista no lleva descripción bajo el título.
+  proveedores, categorías, orden y el botón «Limpiar filtros», que también apaga las cifras), los
+  mismos chips y acciones sobre filas seleccionadas de cualquier lista (óptimo, mínimo, limpiar
+  precio); el estado va en el chip de cada fila. El orden incluye «existencia, mayor primero» (la
+  existencia la guarda la sincronización). La vista no lleva descripción bajo el título.
+  - **Precio nuevo contra el actual** (decisión del 2026-11-25): bajo los chips, «Suben», «Bajan»
+    y «Estables» comparan el precio nuevo con el precio actual de la lista (sin precio nuevo cuenta
+    como estable). Al lado, «Con existencia y sin precio de lista» es un solo filtro. Se combinan
+    con los chips y con los demás filtros. El API recibe `trend=sube|baja|estable` y
+    `without_list_price=true`, y devuelve los conteos `sube`, `baja`, `estable` y `sin_precio`.
   - **Todo es inmediato:** un precio nuevo se ve en la fila al salir del campo o con Enter, y la
     fila pasa a «Por validar» en ese momento; el campo no se bloquea mientras guarda. El estado del
     chip también cambia al instante. Las cachés de la página se cambian antes de la respuesta
@@ -91,7 +96,9 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   licores activos con su valor Nacional y Costa en las listas, lo que no cuadra, los licores sin
   llave y los cambios masivos. Un cambio **no pasa por validación**: lo hacen los colaboradores con
   `impuesto-licor`, eligen la fecha de activación y el Excel y el plano (las dos hojas de SIESA)
-  quedan listos al guardar; después se marca cargado o se anula. El contrato está en
+  quedan listos al guardar; después se marca cargado o se anula. Las listas 25, EMP y PRM no
+  entran en el impuesto licor: el API las deja fuera de la lectura, de lo que no cuadra, de los
+  cambios y de sus archivos (decisión del 2026-11-25). El contrato está en
   `docs/listas-principales.md` del repo del API.
 
 ## Interfaz

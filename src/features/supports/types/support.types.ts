@@ -349,8 +349,8 @@ export interface SupportSearchBody {
   state?: SupportStateFilter;
   needs_review?: boolean;
   /**
-   * Base search: each list ANDs with the others and with every other filter. A NIT brings its
-   * supports for the whole NIT and for its branches, never its business group's (API #124).
+   * Base search: each list ANDs with the others and with every other filter. A NIT is the general
+   * filter: its supports for the whole NIT, for its branches and its business group's.
    */
   customer_nits?: string[];
   /** One branch of a NIT: only the supports created for that branch (API #124). */

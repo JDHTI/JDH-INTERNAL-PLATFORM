@@ -35,13 +35,80 @@ import type {
   BoardRow,
   BoardSort,
   BoardSync,
+  BoardTrend,
 } from "../types/quotations.types";
 import LineDetailDialog from "./line-detail-dialog";
 import { CostBreakdown, MarginMark, NewMargin, type ReviewControl, ReviewSelect, SaleMark } from "./lines-table";
-import { ListFilters } from "./list-review-controls";
+import { FilterButton, ListFilters } from "./list-review-controls";
 import { QuotationLoadError } from "./quotations-gate";
 
 const PAGE_SIZE = 100;
+
+const TRENDS: { key: BoardTrend; label: string; help: string }[] = [
+  { key: "sube", label: "Suben", help: "El precio nuevo es mayor que el precio actual de la lista." },
+  { key: "baja", label: "Bajan", help: "El precio nuevo es menor que el precio actual de la lista." },
+  { key: "estable", label: "Estables", help: "Sin precio nuevo, o con el mismo precio actual de la lista." },
+];
+
+/**
+ * Where each item's price goes: up, down or the same, by its new price against the list's
+ * current one; and the items with stock that have no list price at all. They add to the review
+ * and margin figures above, and to every other filter.
+ */
+function TrendFilters({
+  counts,
+  total,
+  trend,
+  withoutListPrice,
+  onTrend,
+  onWithoutListPrice,
+}: {
+  counts: Record<string, number> | undefined;
+  total: number | undefined;
+  trend: BoardTrend | null;
+  withoutListPrice: boolean;
+  onTrend: (trend: BoardTrend | null) => void;
+  onWithoutListPrice: (on: boolean) => void;
+}) {
+  const count = (key: string) => counts?.[key] ?? 0;
+  return (
+    <section aria-label="Precio nuevo contra el actual" className="grid gap-3 rounded-lg border border-border bg-surface p-3 @4xl:grid-cols-[2fr_1fr]">
+      <div className="space-y-1">
+        <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">Precio nuevo contra el actual</h2>
+        <div className="grid grid-cols-2 gap-1 @lg:grid-cols-4">
+          <FilterButton
+            label="Todas"
+            count={total ?? 0}
+            help="Suban, bajen o sigan iguales, con los demás filtros."
+            pressed={trend === null}
+            onClick={() => onTrend(null)}
+          />
+          {TRENDS.map((item) => (
+            <FilterButton
+              key={item.key}
+              label={item.label}
+              count={count(item.key)}
+              help={item.help}
+              pressed={trend === item.key}
+              onClick={() => onTrend(trend === item.key ? null : item.key)}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1">
+        <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">Precio de lista</h2>
+        <FilterButton
+          label="Con existencia y sin precio de lista"
+          count={count("sin_precio")}
+          help="Referencias con existencia en las bodegas de la lista que no tienen precio en ella."
+          tone="warning"
+          pressed={withoutListPrice}
+          onClick={() => onWithoutListPrice(!withoutListPrice)}
+        />
+      </div>
+    </section>
+  );
+}
 const keyOf = (key: BoardKey) => `${key.quotation_id}|${key.sku}`;
 const quantity = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
 
@@ -75,6 +142,8 @@ export default function MainListsBoard() {
     suppliers: [],
     categories: [],
     chip: null,
+    trend: null,
+    withoutListPrice: false,
     sort: "lista",
     desc: false,
   }));
@@ -117,10 +186,17 @@ export default function MainListsBoard() {
     setFilters((current) => ({ ...current, ...next }));
     setPage(1);
   };
-  const filtered = filters.lists.length > 0 || q !== "" || filters.suppliers.length > 0 || filters.categories.length > 0 || filters.chip !== null;
+  const filtered =
+    filters.lists.length > 0 ||
+    q !== "" ||
+    filters.suppliers.length > 0 ||
+    filters.categories.length > 0 ||
+    filters.chip !== null ||
+    filters.trend !== null ||
+    filters.withoutListPrice;
   const clear = () => {
     setText("");
-    change({ lists: [], suppliers: [], categories: [], chip: null });
+    change({ lists: [], suppliers: [], categories: [], chip: null, trend: null, withoutListPrice: false });
   };
 
   if (overview.isPending) return <TableSkeleton rows={8} label="Cargando las listas principales" />;
@@ -210,16 +286,9 @@ export default function MainListsBoard() {
               }}
               className="min-w-0 @3xl:flex-[1.2]"
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={clear}
-              disabled={!filtered}
-              aria-label="Borrar filtros"
-              title="Borrar filtros"
-              className="shrink-0 self-end @3xl:self-auto max-md:size-11"
-            >
-              <FilterX aria-hidden="true" />
+            {/* Said in words, not an icon alone: it also clears the figures below. */}
+            <Button variant="outline" onClick={clear} disabled={!filtered} className="shrink-0 max-md:h-11">
+              <FilterX aria-hidden="true" /> Limpiar filtros
             </Button>
           </div>
 
@@ -228,6 +297,14 @@ export default function MainListsBoard() {
             total={page_?.counts.todos}
             active={(filters.chip ?? "all") as ListFilter}
             onSelect={(next) => change({ chip: next === "all" ? null : (next as BoardChip) })}
+          />
+          <TrendFilters
+            counts={page_?.counts}
+            total={page_?.counts.todos}
+            trend={filters.trend}
+            withoutListPrice={filters.withoutListPrice}
+            onTrend={(trend) => change({ trend })}
+            onWithoutListPrice={(withoutListPrice) => change({ withoutListPrice })}
           />
 
           {canManage && (
@@ -247,7 +324,7 @@ export default function MainListsBoard() {
             <StatePanel
               icon={FilterX}
               title="Ninguna referencia coincide"
-              action={filtered ? <Button variant="outline" onClick={clear}>Borrar filtros</Button> : undefined}
+              action={filtered ? <Button variant="outline" onClick={clear}>Limpiar filtros</Button> : undefined}
             >
               Prueba con otra referencia, otra lista u otro filtro.
             </StatePanel>
