@@ -30,6 +30,7 @@ import {
   Sheet,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -77,7 +78,14 @@ import MoreFilters from "./more-filters";
 import CustomizeFilters from "./customize-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
-import CostCentersSelect, { type CostChoice, costCentersLabel, costChoiceCodes, sameChoice } from "./cost-centers-select";
+import CostCentersSelect, {
+  type CostChoice,
+  NATIONAL_LABEL,
+  costCentersLabel,
+  costChoiceCodes,
+  quotationChoice,
+  sameChoice,
+} from "./cost-centers-select";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection, type ReviewControl } from "./lines-table";
 import LocalProductDialog from "./local-product-dialog";
@@ -1146,7 +1154,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
             title: "Centro de operación y despacho",
             facts: [
               ["C.O.", <CostCentersField key="co" quotation={quotation} editable={canChangeCenter} />],
-              ["Regional", quotation.regional_label ?? "—"],
+              ["Regional", <RegionalFact key="regional" quotation={quotation} />],
               ["Bodega", quotation.stock_source ?? "—"],
             ],
           },
@@ -1215,7 +1223,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
       title: "Centro de operación y despacho",
       facts: [
         ["C.O.", <CostCentersField key="co" quotation={quotation} editable={canChangeCenter} />],
-        ["Regional", quotation.regional_label ?? "—"],
+        ["Regional", <RegionalFact key="regional" quotation={quotation} />],
         ["Bodega", quotation.stock_source ?? "—"],
       ],
     },
@@ -1245,7 +1253,7 @@ function CustomerCards({ quotation, canChangeCenter }: { quotation: Quotation; c
 /**
  * Where the cost of every line comes from: Nacional or one or more operation
  * centers (a customer billed from several centers starts Nacional), each one
- * narrowed to some of its BP/BSP warehouses if ticked. While several centers
+ * narrowed to some of its warehouse groups if ticked. While several centers
  * are ticked, the dropdown marks the costliest before applying.
  * Changing it recalculates every line, keeps the new prices and sends the
  * quotation back to draft, so it asks first. No notes under it: the card stays
@@ -1257,13 +1265,14 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
   const centers = useBillingCenters();
   const [choice, setChoice] = useState<CostChoice | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const current: CostChoice = { centers: quotation.cost_centers, warehouses: quotation.cost_warehouses ?? [] };
+  const current = quotationChoice(quotation, centers.data);
 
   if (!editable) {
+    const groups = costChoiceCodes(current);
     return (
-      <span>
+      <span title={quotation.cost_warehouses?.length ? `Bodegas: ${quotation.cost_warehouses.join(", ")}` : undefined}>
         {costCentersLabel(current.centers, centers.data)}
-        {current.warehouses.length > 0 && <span className="text-text-secondary"> · {current.warehouses.join(", ")}</span>}
+        {current.groups.length > 0 && <span className="text-text-secondary"> · {groups}</span>}
       </span>
     );
   }
@@ -1272,7 +1281,7 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
     if (!choice) return;
     setError(null);
     update.mutate(
-      { version: quotation.version, codes: choice.centers, warehouses: choice.warehouses },
+      { version: quotation.version, codes: choice.centers, groups: choice.groups },
       {
         onSuccess: () => {
           setChoice(null);
@@ -1284,31 +1293,84 @@ function CostCentersField({ quotation, editable }: { quotation: Quotation; edita
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <label htmlFor={id} className="sr-only">C.O. del que sale el costo</label>
-      <CostCentersSelect
-        id={id}
-        quotation={quotation}
-        value={choice ?? current}
-        onChange={(next) => setChoice(sameChoice(next, current) ? null : next)}
-        disabled={update.isPending}
-      />
-      {choice && (
-        <div role="group" aria-label="Cambiar el C.O." className="space-y-1.5 rounded-md bg-canvas-subtle p-2 text-[13px]">
-          <p>Recalcula todas las líneas y vuelve a borrador.</p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={apply} disabled={update.isPending} className="max-md:h-11">
-              {update.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
-              Cambiar a {costChoiceCodes(choice, centers.data)}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setChoice(null)} disabled={update.isPending} className="max-md:h-11">
-              Cancelar
-            </Button>
-          </div>
+      {/* Apply and cancel sit beside the dropdown, as two icons: the card stays as compact as the others. */}
+      <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <CostCentersSelect
+            id={id}
+            quotation={quotation}
+            value={choice ?? current}
+            onChange={(next) => setChoice(sameChoice(next, current) ? null : next)}
+            disabled={update.isPending}
+          />
         </div>
+        {choice && (
+          <>
+            <Button
+              size="icon-sm"
+              onClick={apply}
+              disabled={update.isPending}
+              aria-label={`Cambiar a ${costChoiceCodes(choice)}`}
+              aria-describedby={`${id}-apply`}
+              title={`Cambiar a ${costChoiceCodes(choice)}`}
+              className="max-md:size-11"
+            >
+              {update.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => setChoice(null)}
+              disabled={update.isPending}
+              aria-label="Cancelar el cambio de C.O."
+              title="Cancelar"
+              className="max-md:size-11"
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </>
+        )}
+      </div>
+      {choice && (
+        <p id={`${id}-apply`} className="text-xs text-text-secondary">
+          Al cambiarlo se recalculan todas las líneas y vuelve a borrador.
+        </p>
       )}
       {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
     </div>
+  );
+}
+
+/** "EJE CAFETERO" → "Eje Cafetero". */
+const titleCase = (text: string) =>
+  text.toLocaleLowerCase("es-CO").replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => space + letter.toLocaleUpperCase("es-CO"));
+
+/**
+ * The regionals of the centers the cost comes from, from the centers master (Antioquia, Oriente…),
+ * or Nacional with none. `quotation.regional_label` is only the liquor tax regional (Costa when
+ * billed from 004, Nacional otherwise), so it shows apart when it says Costa and no center does.
+ */
+function RegionalFact({ quotation }: { quotation: Quotation }) {
+  const centers = useBillingCenters();
+  if (quotation.cost_centers.length === 0 && quotation.regional !== "costa") return <>{NATIONAL_LABEL}</>;
+  const byCode = new Map((centers.data ?? []).map((center) => [center.code, center]));
+  const names = [
+    ...new Set(
+      quotation.cost_centers.map((code) => {
+        const center = byCode.get(code);
+        return titleCase(center?.regional_name || center?.name || code);
+      })
+    ),
+  ];
+  const shown = names.length > 0 ? names.join(", ") : NATIONAL_LABEL;
+  const costaTax = quotation.regional === "costa" && !names.some((name) => name.toLocaleLowerCase("es-CO") === "costa");
+  return (
+    <span>
+      {shown}
+      {costaTax && <span className="text-text-secondary"> · impuesto licores: Costa</span>}
+    </span>
   );
 }
 

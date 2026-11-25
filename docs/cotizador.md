@@ -153,9 +153,27 @@ desde un solo C.O., en ese. Quien edita lo cambia en un desplegable de casillas
 **Nacional** va solo (marcarlo desmarca los C.O.; marcar un C.O. desmarca Nacional; sin ningún C.O.
 marcado vuelve a Nacional) o **uno o varios C.O.** Ninguna opción lleva descripción. Con dos o más
 marcados, el panel pregunta al API (`GET /cost-centers/compare`) y marca **«Más costoso»** junto al
-C.O. que más cuesta, **antes de aplicar**; no da montos. Aplicar pide confirmar «Cambiar a …»
-(recalcula todas las líneas y vuelve a borrador; `PATCH /billing-center`). Los precios nuevos y las
-cantidades se conservan.
+C.O. que más cuesta, **antes de aplicar**; no da montos.
+- **Grupos de bodegas** (decisión del 2026-11-25): dentro de cada C.O. marcado no se eligen bodegas
+  sueltas, sino sus grupos: «Bodegas principales», «Bodegas solicitudes puntuales» y «Bodegas
+  promocionales».
+  - Cada grupo muestra los códigos de sus bodegas en texto secundario.
+  - Sin principales ni puntuales marcadas, el C.O. usa sus bodegas de siempre. Las promocionales se
+    suman a ellas.
+  - El `PATCH` envía `cost_warehouse_groups: [{center_code, classification}]`, y el API abre cada
+    grupo en sus bodegas (`cost_warehouses` sigue trayendo ese desglose). El comparativo envía
+    `groups=001:BSP`.
+  - Una cotización de antes del cambio trae bodegas sueltas y `cost_warehouse_groups` vacío. La UI
+    marca los grupos de esas bodegas, según la clase que da `GET /billing-centers`, y al aplicar se
+    envían los grupos completos.
+- **Aplicar:** al cambiar la elección aparecen dos íconos junto al desplegable, ✓ («Cambiar a …») y ✕
+  (cancelar), con una línea corta debajo: recalcula todas las líneas y vuelve a borrador
+  (`PATCH /billing-center`). Los precios nuevos y las cantidades se conservan.
+- **Regional:** son las regionales de los C.O. elegidos según su maestro (`regional_name` de
+  `GET /billing-centers`, por ejemplo Antioquia u Oriente). Sin C.O. dice Nacional.
+  - `regional_label` de la cotización es solo la regional del impuesto de licores (Costa o
+    Nacional). Por eso, si es Costa y ninguna regional mostrada lo es, se agrega «impuesto licores:
+    Costa».
 
 **Nueva cotización.** Modal compacto, sin descripción ni textos de ayuda. Una fila de chips:
 «Todos los clientes» (solo quien ve toda la base), «Mis clientes» («Clientes de mi equipo» para un
@@ -665,7 +683,7 @@ Decimales en texto; márgenes y variación como fracción (`0.18` = 18 %).
 | `GET /quotations/rules` | Reglas vigentes por secciones (`precio`, `margen`, `regla`, `formato`) |
 | `GET /quotations/customers` | Clientes para cotizar: `scope=mine` (defecto) o `all`, `q`, `page`, `size` (≤ 100) |
 | `POST /quotations` | `{customer_nit, window_months: 6 \| 12, validity_days?: 1..365 (30), billing_center_code?, with_history?: true}` (`with_history: false` empieza vacía) o, para un cliente temporal, `{temporary_customer: {name, legal_name, trade_name?, nit?}, billing_center_code, window_months?, validity_days?}` → 201 con la cotización (borrador). 422 si llegan los dos, ninguno, falta el CO del cliente temporal o el CO no existe |
-| `GET /quotations/billing-centers` | `[{code, name, regional, regional_label}]`: los CO activos del maestro `centros-operacion` (`consumo.centros_operacion`), por código; `regional` es la del impuesto de licores (`costa` para `004`) |
+| `GET /quotations/billing-centers` | `[{code, name, regional, regional_label, regional_code, regional_name, warehouses}]`: los CO activos del maestro `centros-operacion` (`consumo.centros_operacion`), por código; `regional` es la del impuesto de licores (`costa` para `004`) y `regional_name`, la regional del C.O. en su maestro |
 | `GET /quotations` | `mine` (defecto `true`; quien valida usa `mine=false`), `status` (`borrador`, `pendiente_validacion`, `pendiente_carga`, `cargada`), `customer_nit`, `q`, `page`, `size` |
 | `GET /quotations/{id}` | Cotización completa |
 | `PUT /quotations/{id}/lines` | `{version, lines: [{sku, new_price?, margin_pct?, quantity?}]}`. `quantity` (texto o número; `null` la quita) va sola o con `new_price`, nunca con `margin_pct`. Un lote con **solo** cantidades se acepta en cualquier estado, no cambia el estado y sube la versión; uno que toca precios sigue las reglas de siempre. `new_price: null` quita el precio; `margin_pct` (fracción) le pone a esa referencia el precio de ese margen: así se lleva una **selección** a un margen estándar. Las que no se pueden calcular (sin costo, o un producto solo para cotización) vuelven en `skipped: [{sku, reason}]`; 422 si ninguna. 409 por versión o si está pendiente de validación |
