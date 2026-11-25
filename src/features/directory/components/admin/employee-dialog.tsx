@@ -129,7 +129,7 @@ export default function EmployeeDialog({
                 <Input id="employee-department" value={draft.department} onChange={(e) => set("department", e.target.value)} maxLength={200} />
               </Field>
               <Field label="Fecha de ingreso" htmlFor="employee-hire" optional>
-                <DatePicker id="employee-hire" value={draft.hire_date} onChange={(value) => set("hire_date", value)} clearable />
+                <DatePicker id="employee-hire" value={draft.hire_date} onChange={(value) => set("hire_date", value)} clearable yearsBack={50} yearsAhead={1} />
               </Field>
             </>
           )}
@@ -140,7 +140,7 @@ export default function EmployeeDialog({
             <Dropdown id="employee-site" value={draft.site_id} onValueChange={(value) => set("site_id", value)} options={siteOptions} aria-label="Sede" />
           </Field>
           <Field label="Fecha de nacimiento" htmlFor="employee-birth" optional hint="El directorio muestra el día y el mes, nunca el año.">
-            <DatePicker id="employee-birth" value={draft.birth_date} onChange={(value) => set("birth_date", value)} clearable />
+            <DatePicker id="employee-birth" value={draft.birth_date} onChange={(value) => set("birth_date", value)} clearable yearsBack={90} yearsAhead={0} />
           </Field>
           <Field
             label="Visibilidad"
