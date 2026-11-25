@@ -7,6 +7,7 @@ import type {
   LineImport,
   LineInsight,
   ListKind,
+  ListTemplateResult,
   LocalLineInput,
   OfferSettings,
   PriceListLoad,
@@ -311,6 +312,27 @@ export function downloadQuotationExcel(id: string): Promise<void> {
  */
 export function downloadLinesTemplate(id: string): Promise<void> {
   return apiDownload(`${one(id)}/lines.xlsx`, { fallbackName: "plantilla-cotizacion.xlsx" });
+}
+
+/**
+ * A list update's template: its references, to delete the rows that do not belong and upload it
+ * back. No costs, so whoever sees the update may download it. The API names the file.
+ */
+export function downloadListTemplate(id: string): Promise<void> {
+  return apiDownload(`${one(id)}/list-template.xlsx`, { fallbackName: "Plantilla.xlsx" });
+}
+
+/**
+ * Takes out the references the template no longer has. `apply` false only previews; true removes
+ * them (409 if the version changed). Only the «Referencia» column counts; 422 with the reason
+ * when the file is not this list's template or leaves nothing.
+ */
+export function uploadListTemplate(id: string, file: File, version: number, apply: boolean): Promise<ListTemplateResult> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("version", String(version));
+  form.append("apply", String(apply));
+  return apiFetch<ListTemplateResult>(`${one(id)}/list-template`, { method: "POST", body: form });
 }
 
 export function downloadQuotationFlatFile(id: string): Promise<void> {

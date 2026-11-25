@@ -382,6 +382,22 @@ export interface QuotationCustomerBranch {
   is_active: boolean;
 }
 
+/**
+ * `POST /quotations/{id}/list-template`: what the uploaded template takes out. With `apply`
+ * false it is a preview and `quotation` is null; with true the lines are gone and `quotation`
+ * is the update, back in draft with a new version.
+ */
+export interface ListTemplateResult {
+  removed: { sku: string; description: string | null }[];
+  removed_count: number;
+  /** References in the file that are not in the update: ignored. */
+  unknown: string[];
+  unknown_count: number;
+  kept: number;
+  applied: boolean;
+  quotation: Quotation | null;
+}
+
 export interface QuotationWarning {
   code: string;
   label: string;
@@ -709,6 +725,11 @@ export interface Quotation extends QuotationSummary {
   cost_centers: string[];
   /** The warehouses ticked inside those centers, in the centers' order. A center with none ticked uses its usual ones. */
   cost_warehouses?: string[];
+  /**
+   * List updates: the references taken out with the template (API #128). A refresh does not
+   * bring them back; adding them again does. In SIESA their price simply does not change.
+   */
+  excluded_skus?: string[];
   /**
    * False when the list has its own warehouses: the centers then change only the liquor tax regional.
    * Ticked warehouses make it true again.

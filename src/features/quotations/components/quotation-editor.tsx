@@ -77,6 +77,7 @@ import MoreFilters from "./more-filters";
 import CustomizeFilters from "./customize-filters";
 import AddProductsDialog, { EMPTY_DRAFT, type ImportDraft } from "./add-products-dialog";
 import BulkPricingPanel from "./bulk-pricing-panel";
+import { ExcludedSkus, ListTemplateMenu } from "./list-template";
 import CostCentersSelect, { type CostChoice, costCentersLabel, costChoiceCodes, sameChoice } from "./cost-centers-select";
 import LineDetailDialog from "./line-detail-dialog";
 import { LinesList, LinesTable, type LineSelection, type ReviewControl } from "./lines-table";
@@ -688,6 +689,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             )}
             <span>Creada por {quotation.created_by}</span>
             <QuotationHistory quotation={quotation} />
+            <ExcludedSkus quotation={quotation} />
           </div>
         </div>
 
@@ -749,6 +751,10 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
             <Button variant="outline" onClick={() => void saveDraft()} disabled={savingDraft} className="max-md:h-11">
               {savingDraft ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />} Guardar borrador
             </Button>
+          )}
+          {/* Only a list update (not the main lists): take references out with its template. */}
+          {quotation.kind === "lista" && (
+            <ListTemplateMenu quotation={quotation} canUpload={canManage && quotation.status === "borrador" && !busy} />
           )}
           {isList && (
             <Link href={`${basePath}/por-cargar`} className={cn(buttonVariants({ variant: "outline" }), "max-md:h-11")}>
