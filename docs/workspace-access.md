@@ -62,6 +62,7 @@ las que creó (`docs/cotizador.md`).
 | Listas principales (bloqueado a BI) | `listas-principales`; validar ítems pide además `validacion-listas`, y cambiar el impuesto licor y generar su plano, `impuesto-licor` (los dos sin pantalla) |
 | Validador de pedidos | `validador-pedidos` |
 | Maestro de apoyos | `apoyos` |
+| Ajuste de costos (encendido por defecto en BI) | `ajuste-costos`; `read` consulta los parámetros del costo, las reglas de sucursal por C.O. y el historial, `manage` los cambia (`GET /cost-settings/permissions`) |
 | Liquidación de apoyos (bloqueado a BI) | `liquidacion-apoyos`; `read` consulta y descarga, `manage` recalcula y cierra el mes; reabrir un mes cerrado es del líder de BI o de un administrador (`GET /support-settlements/permissions`) |
 | Solicitudes de apoyo (apoyo interno: pedir y revisar) | `solicitudes-apoyos` |
 | Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |

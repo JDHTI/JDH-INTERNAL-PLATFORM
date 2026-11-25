@@ -41,6 +41,7 @@ import {
   Target,
   TrendingUp,
   ShieldCheck,
+  SlidersHorizontal,
   ThumbsUp,
   Users,
   Workflow,
@@ -70,6 +71,9 @@ export const SUPPORT_REQUESTS_SEGMENT = "solicitudes-apoyos";
 
 /** The month's supplier support settlement (features/support-settlements); BI only. */
 export const SUPPORT_SETTLEMENTS_SEGMENT = "liquidacion-apoyos";
+
+/** The quoter's cost rules in one place, edited by BI with their history (features/cost-settings). */
+export const COST_SETTINGS_SEGMENT = "ajuste-costos";
 
 /** Prospects on the map, commercial zones and visit routes (features/commercial-map). */
 export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
@@ -438,6 +442,15 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: ListOrdered,
     available: true,
     permission: "listas-principales",
+  },
+  {
+    // On by default in BI, not locked: the factors and branch rules the quoter costs with.
+    key: COST_SETTINGS_SEGMENT,
+    name: "Ajuste de costos",
+    category: "Operación",
+    icon: SlidersHorizontal,
+    available: true,
+    permission: "ajuste-costos",
   },
   {
     key: "validador-pedidos",

@@ -24,6 +24,23 @@ Las reglas de costo, bodega, redondeo e impuesto son las del área de listas de 
 en la skill `lista-precios` del repo del API y centralizadas en
 `app/modules/quotations/domain/pricing.py`.
 
+## Ajuste de costos (BI)
+
+Las reglas con las que el cotizador calcula el costo se editan en el módulo **Ajuste de costos**
+(`ajuste-costos`, `/bi/ajuste-costos`, `src/features/cost-settings`, API #132, `/cost-settings`).
+Tiene tres bloques:
+- **Parámetros del costo:** cada uno con su valor, su rango y si sigue por defecto o quién lo ajustó.
+  - Los factores se muestran como «1,004 (+0,4 %)» y los márgenes en puntos: se escribe 1 y se
+    envía 0.01.
+  - Quien gestiona los edita en línea, con una nota opcional, y un solo «Guardar cambios» envía
+    solo lo que cambió.
+  - Aplica a las cotizaciones que se armen o refresquen desde ese momento.
+- **Sucursal del proveedor por C.O.:** de qué sucursal del proveedor se toma la cotización en cada
+  C.O. (si no está, la general; Nacional toma la mayor). Se agregan, editan, apagan y eliminan reglas.
+- **Historial:** los últimos 50 cambios, con quién, antes → después y la nota.
+
+Sin `can_manage` todo es de solo lectura.
+
 ## Actualización de listas (BI)
 
 El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-listas`, en
