@@ -36,6 +36,15 @@ services:
       STRAPI_PUBLIC_URL: https://${PUBLIC_HOST:-intranet.jdh.com.co}/cms
       # Same value as the edge stack's STRAPI_WEBHOOK_SECRET (CMS revalidation webhook).
       STRAPI_WEBHOOK_SECRET: ${STRAPI_WEBHOOK_SECRET:?set STRAPI_WEBHOOK_SECRET in ~/apps/platform/ui.env}
+    # deploy.sh brings the UI up with `up -d --wait`: with this check the container is
+    # "healthy" only once the server actually answers, so a recreate does not report done
+    # while it is still starting and the edge proxy never catches an empty window.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     volumes:
       # The basemap of the commercial map: colombia.pmtiles (about 600 MB) and
       # the Centrale Sans glyphs. Too big for the image and for git, so it is
