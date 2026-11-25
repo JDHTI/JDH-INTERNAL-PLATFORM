@@ -16,7 +16,9 @@ import type {
   IncreaseFilterOptions,
   PriceIncrease,
   PriceIncreasePage,
+  PriceIncreaseFilters,
   PriceIncreaseParams,
+  PriceIncreaseReport,
   SiesaLoadDetail,
   SiesaLoadPage,
   SiesaLoadResult,
@@ -150,6 +152,48 @@ export async function getPriceIncreaseAnalysis({
       page,
       size,
     },
+  });
+}
+
+/**
+ * The area's «Acumulado Alza Precios» workbook, kept in a sheet of its own:
+ * upserted by reference, increase date and notification date. Without
+ * `apply` it only reads and reports. Managers only.
+ */
+export async function uploadPriceIncreases(file: File, apply: boolean): Promise<PriceIncreaseReport> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<PriceIncreaseReport>(`${INCREASES}/upload`, {
+    method: "POST",
+    query: { apply: apply ? "true" : "false" },
+    body,
+  });
+}
+
+/** The history of the filters in the workbook's own format, to edit in the sheet and upload again. */
+export async function exportPriceIncreases(filters: PriceIncreaseFilters): Promise<void> {
+  return apiDownload(`${INCREASES}/export`, {
+    query: {
+      q: filters.q || undefined,
+      supplier: filters.supplier || undefined,
+      status: filters.status || undefined,
+      pending: filters.pending ? "true" : undefined,
+      co: filters.co || undefined,
+      installation: filters.installation || undefined,
+    },
+    fallbackName: "Acumulado Alza Precios.xlsx",
+  });
+}
+
+/**
+ * Marks pending increases as loaded in SIESA on `day` without a load or a
+ * file: to catch up with what was loaded outside the platform. Increases in an
+ * open load are left out (`skipped`).
+ */
+export async function markPriceIncreasesLoaded(selection: SiesaLoadSelection, day: string): Promise<{ updated: number; skipped: number }> {
+  return apiFetch<{ updated: number; skipped: number }>(`${INCREASES}/system-date`, {
+    method: "POST",
+    body: { ...selection, system_updated_on: day },
   });
 }
 

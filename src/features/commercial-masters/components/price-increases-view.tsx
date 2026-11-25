@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { CloudOff, FileX2, RefreshCw, Search, Send, X } from "lucide-react";
+import { useId, useState } from "react";
+import { CheckCheck, CloudOff, Download, FileX2, Loader2, RefreshCw, Search, Send, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import FilterPanel from "@/shared/components/filter-panel";
@@ -9,19 +9,30 @@ import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { DatePicker } from "@/shared/components/ui/date-picker";
+import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog";
+import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 import { errorMessage } from "@/shared/lib/api-client";
 import { toNumber, type Decimal } from "@/shared/lib/format";
+import { toIso } from "@/shared/lib/iso-date";
 import { cn } from "@/shared/lib/utils";
 import { formatCop } from "@/features/supports/lib/format";
 import { ToggleChip } from "@/shared/components/ui/toggle-chip";
 
-import { usePriceIncreaseOptions, usePriceIncreases, useSetPriceIncreaseDate } from "../hooks/use-commercial-masters";
+import {
+  useExportPriceIncreases,
+  useMarkPriceIncreasesLoaded,
+  usePriceIncreaseOptions,
+  usePriceIncreases,
+  useSetPriceIncreaseDate,
+} from "../hooks/use-commercial-masters";
 import type { IncreaseScope, IncreaseStatus, PriceIncrease, SiesaLoadSelection } from "../types/price-increases.types";
 import { INCREASE_STATUS, formatChange, formatIncreaseDay } from "./increase-format";
 import { IncreaseScopeFilters, ScopeNote, useIncreaseScope } from "./increase-scope-filters";
 import IncreaseSupplierFilter from "./increase-supplier-filter";
+import PriceIncreasesUploadDialog from "./price-increases-upload-dialog";
 import SiesaLoadDialog from "./siesa-load-dialog";
 
 const PAGE_SIZE = 50;
@@ -41,9 +52,10 @@ const loadable = (row: PriceIncrease) => row.is_pending && row.open_load === nul
  * The purchasing area's price increase history, under the product master: what
  * went up, down or stayed, and what SIESA does not have yet (no system update
  * date: the quoter compares its new cost). The counts are chips that filter.
- * Increases come in when a supplier's request is approved; managers send the
- * pending ones to SIESA in a load (one by one or every one of the filter) and
- * can still set the system date row by row.
+ * Increases come in when a supplier's request is approved, or from the area's
+ * workbook (still kept in a sheet: downloaded in its format and uploaded back).
+ * Managers send the pending ones to SIESA in a load, mark the ones already
+ * loaded outside (no file), or set the system date row by row.
  */
 export default function PriceIncreasesView() {
   const [text, setText] = useState("");
@@ -83,20 +95,28 @@ export default function PriceIncreasesView() {
     setPicked({ key: filterKey, ids, all: false });
   };
   const clearSelection = () => setPicked({ key: filterKey, ids: new Set(), all: false });
-  const openLoad = () =>
-    setLoading(
-      selection.all
-        ? {
-            all: true,
-            filters: {
-              q: q || undefined,
-              status: status || undefined,
-              supplier: supplier || undefined,
-              co: scope.co || undefined,
-              installation: scope.installation || undefined,
-            },
-          }
-        : { increase_ids: [...selection.ids] }
+  const [marking, setMarking] = useState<SiesaLoadSelection | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const exporter = useExportPriceIncreases();
+  /** The picked increases, or every pending one of the filter, as the API takes them. */
+  const picks = (): SiesaLoadSelection =>
+    selection.all
+      ? {
+          all: true,
+          filters: {
+            q: q || undefined,
+            status: status || undefined,
+            supplier: supplier || undefined,
+            co: scope.co || undefined,
+            installation: scope.installation || undefined,
+          },
+        }
+      : { increase_ids: [...selection.ids] };
+  const pickedCount = selection.all ? Math.min(counts?.pendientes ?? 0, MAX_LOAD) : selection.ids.size;
+  const download = () =>
+    exporter.mutate(
+      { q, supplier, status, pending, co: scope.co, installation: scope.installation },
+      { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
     );
   const changeScope = (next: IncreaseScope) => {
     setScope(next);
@@ -172,11 +192,26 @@ export default function PriceIncreasesView() {
           </div>
         }
         end={
-          filtered && (
-            <Button variant="ghost" size="sm" onClick={clear}>
-              Limpiar filtros
+          <>
+            {filtered && (
+              <Button variant="ghost" size="sm" onClick={clear}>
+                Limpiar filtros
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={download}
+              disabled={exporter.isPending}
+              title="El histórico de los filtros en el formato del libro «Acumulado Alza Precios»"
+            >
+              {exporter.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />} Descargar acumulado
             </Button>
-          )
+            {canManage && (
+              <Button variant="outline" onClick={() => setUploading(true)} title="Sube el libro «Acumulado Alza Precios» que se lleva en el sheet aparte">
+                <Upload aria-hidden="true" /> Cargar acumulado
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -188,7 +223,8 @@ export default function PriceIncreasesView() {
           pendingInFilter={counts?.pendientes ?? 0}
           onSelectAll={() => setPicked({ key: filterKey, ids: new Set(), all: true })}
           onClear={clearSelection}
-          onGenerate={openLoad}
+          onGenerate={() => setLoading(picks())}
+          onMark={() => setMarking(picks())}
         />
       )}
 
@@ -222,7 +258,7 @@ export default function PriceIncreasesView() {
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Aún no hay alzas">
-            Entran solas cuando se aprueba una solicitud en Alzas de proveedor.
+            Entran al aprobar una solicitud en Alzas de proveedor o al cargar el acumulado de alzas.
           </StatePanel>
         )
       ) : (
@@ -288,13 +324,16 @@ export default function PriceIncreasesView() {
       )}
 
       <SiesaLoadDialog selection={loading} onClose={() => setLoading(null)} onGenerated={clearSelection} />
+      <MarkLoadedDialog selection={marking} count={pickedCount} onClose={() => setMarking(null)} onDone={clearSelection} />
+      <PriceIncreasesUploadDialog open={uploading} onClose={() => setUploading(false)} />
     </div>
   );
 }
 
 /**
- * The SIESA load's action bar: how many are picked, taking every pending one of
- * the filter, and «Generar cargue a SIESA». Without a selection it says how to make one.
+ * The action bar of the pending increases: how many are picked, taking every
+ * pending one of the filter, and the two ways to SIESA: a load with its files,
+ * or marking them as already loaded (to catch up, no file).
  */
 function LoadBar({
   count,
@@ -302,6 +341,7 @@ function LoadBar({
   onSelectAll,
   onClear,
   onGenerate,
+  onMark,
 }: {
   /** Null: every pending one of the filter. */
   count: number | null;
@@ -309,23 +349,27 @@ function LoadBar({
   onSelectAll: () => void;
   onClear: () => void;
   onGenerate: () => void;
+  onMark: () => void;
 }) {
   const any = count === null || count > 0;
+  const hint = any ? undefined : "Marca las alzas pendientes en la tabla, o toma todas las del filtro";
   return (
-    <div role="region" aria-label="Cargue a SIESA" className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-      <span className="text-sm tabular-nums" aria-live="polite">
-        {count === null ? (
-          <span className="font-medium">Todas las pendientes del filtro ({numberFormat.format(Math.min(pendingInFilter, MAX_LOAD))})</span>
-        ) : count > 0 ? (
-          <span className="font-medium">
-            {numberFormat.format(count)} {count === 1 ? "alza seleccionada" : "alzas seleccionadas"}
-          </span>
-        ) : (
-          <span className="text-text-secondary">Marca las alzas pendientes que van a SIESA, o toma todas las del filtro.</span>
-        )}
-      </span>
+    <div role="region" aria-label="Alzas pendientes en SIESA" className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+      {any && (
+        <span className="text-sm font-medium tabular-nums" aria-live="polite">
+          {count === null
+            ? `Todas las pendientes del filtro (${numberFormat.format(Math.min(pendingInFilter, MAX_LOAD))})`
+            : `${numberFormat.format(count)} ${count === 1 ? "alza seleccionada" : "alzas seleccionadas"}`}
+        </span>
+      )}
       {count !== null && (
-        <Button variant="ghost" size="sm" onClick={onSelectAll} className="max-md:h-11" title="Hasta 2.000; las que ya están en un lote abierto quedan por fuera">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSelectAll}
+          className="max-md:h-11"
+          title="Marca las pendientes en la tabla, o toma todas las del filtro (hasta 2.000; las que están en un lote abierto quedan por fuera)"
+        >
           Seleccionar las {numberFormat.format(Math.min(pendingInFilter, MAX_LOAD))} pendientes del filtro
         </Button>
       )}
@@ -334,10 +378,91 @@ function LoadBar({
           <X aria-hidden="true" /> Quitar selección
         </Button>
       )}
-      <Button onClick={onGenerate} disabled={!any} className="ml-auto max-md:h-11">
-        <Send aria-hidden="true" /> Generar cargue a SIESA
-      </Button>
+      <span className="ml-auto flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          onClick={onMark}
+          disabled={!any}
+          className="max-md:h-11"
+          title={hint ?? "Ya están en SIESA: toman la fecha que elijas, sin lote ni archivos"}
+        >
+          <CheckCheck aria-hidden="true" /> Marcar como cargadas
+        </Button>
+        <Button onClick={onGenerate} disabled={!any} className="max-md:h-11" title={hint}>
+          <Send aria-hidden="true" /> Generar cargue a SIESA
+        </Button>
+      </span>
     </div>
+  );
+}
+
+/**
+ * Pending increases that SIESA already has, loaded outside the platform: they
+ * take the chosen day as their SIESA date, without a load or a file.
+ */
+function MarkLoadedDialog({
+  selection,
+  count,
+  onClose,
+  onDone,
+}: {
+  selection: SiesaLoadSelection | null;
+  /** How many the selection holds, to say it; null when unknown. */
+  count: number | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const dateId = useId();
+  const today = toIso(new Date());
+  const [day, setDay] = useState(today);
+  const mark = useMarkPriceIncreasesLoaded();
+  const problem = day === "" ? "Elige el día en que se cargaron." : day > today ? "No puede ser un día futuro." : null;
+  const close = () => {
+    mark.reset();
+    setDay(today);
+    onClose();
+  };
+  return (
+    <Dialog
+      open={selection !== null}
+      onOpenChange={(open) => !open && close()}
+      title="Marcar como cargadas en SIESA"
+      description={`${count === null ? "Las alzas elegidas" : `${numberFormat.format(count)} ${count === 1 ? "alza" : "alzas"}`} dejan de estar pendientes con esta fecha de SIESA. No se genera lote ni archivo: úsalo para lo que ya se cargó por fuera.`}
+    >
+      <Field label="Día del cargue en SIESA" htmlFor={dateId} error={problem}>
+        <DatePicker id={dateId} value={day} max={today} onChange={setDay} className="w-44" aria-invalid={problem !== null} />
+      </Field>
+      <DialogError message={mark.isError ? errorMessage(mark.error) : null} />
+      <DialogFooter>
+        <Button variant="outline" onClick={close}>
+          Cancelar
+        </Button>
+        <Button
+          disabled={problem !== null || mark.isPending || selection === null}
+          onClick={() =>
+            selection &&
+            mark.mutate(
+              { selection, day },
+              {
+                onSuccess: ({ updated, skipped }) => {
+                  toast.success(`${numberFormat.format(updated)} ${updated === 1 ? "alza marcada" : "alzas marcadas"} como cargadas en SIESA.`);
+                  if (skipped > 0) {
+                    toast.warning(
+                      `${numberFormat.format(skipped)} ${skipped === 1 ? "quedó" : "quedaron"} por fuera: ${skipped === 1 ? "está" : "están"} en un lote abierto o ya no ${skipped === 1 ? "estaba pendiente" : "estaban pendientes"}.`,
+                      { duration: 10_000 }
+                    );
+                  }
+                  onDone();
+                  close();
+                },
+              }
+            )
+          }
+        >
+          {mark.isPending ? "Marcando…" : "Marcar como cargadas"}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 }
 
