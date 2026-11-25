@@ -49,6 +49,10 @@ export interface CostChange {
   entity: "parametro" | "regla_sucursal";
   /** The parameter's key or the supplier's NIT. */
   ref: string;
+  /**
+   * A parameter: `{value, default}` before (whether it was the default) and `{value}` after, as
+   * strings with 6 decimals. A rule: the whole rule, null before when created, null after when deleted.
+   */
   before: unknown;
   after: unknown;
   note: string | null;

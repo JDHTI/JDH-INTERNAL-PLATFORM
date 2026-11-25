@@ -21,13 +21,22 @@ function describeRule(state: unknown): string {
   return parts.length > 0 ? parts.join(" · ") : JSON.stringify(state);
 }
 
-/** A parameter's value, in its unit; a wrapped `{value}` reads the same. */
+/** A parameter's value, in its unit: `{value, default?}`, where `default` marks the default value. */
 function describeValue(state: unknown, parameter: CostParameter | undefined): string {
   if (state === null || state === undefined) return "—";
-  const raw = typeof state === "object" && "value" in (state as object) ? (state as { value: unknown }).value : state;
-  if ((typeof raw === "string" || typeof raw === "number") && parameter) return formatParameter(raw, parameter.unit);
-  return typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+  const wrapped = typeof state === "object" && "value" in (state as object) ? (state as { value: unknown; default?: unknown }) : null;
+  const raw = wrapped ? wrapped.value : state;
+  const text =
+    (typeof raw === "string" || typeof raw === "number") && parameter
+      ? formatParameter(raw, parameter.unit)
+      : typeof raw === "object"
+        ? JSON.stringify(raw)
+        : String(raw);
+  return wrapped?.default === true ? `${text} (por defecto)` : text;
 }
+
+/** The migration that loaded the first rules signs as `migracion-0092`. */
+const actorName = (actor: string | null) => (!actor ? "—" : actor.startsWith("migracion") ? "Migración" : actor);
 
 /** The latest changes to the parameters and the branch rules, newest first, with who and why. */
 export default function ChangesBlock({ changes, parameters }: { changes: CostChange[]; parameters: CostParameter[] }) {
@@ -51,15 +60,30 @@ export default function ChangesBlock({ changes, parameters }: { changes: CostCha
               <li key={change.id} className="grid gap-1 px-3 py-2.5 text-sm md:grid-cols-[11rem_minmax(0,1fr)] md:gap-4">
                 <div className="text-[13px] text-text-secondary">
                   <span className="block tabular-nums">{formatMoment(change.at)}</span>
-                  <span className="block">{change.actor ?? "—"}</span>
+                  <span className="block">{actorName(change.actor)}</span>
                 </div>
                 <div className="min-w-0 space-y-0.5">
                   <p className="font-medium">{what}</p>
                   <p className="text-[13px]">
-                    <span className="text-text-secondary">{describe(change.before)}</span>
-                    <span aria-hidden="true"> → </span>
-                    <span className="sr-only"> pasó a </span>
-                    <span>{describe(change.after)}</span>
+                    {/* A rule has no «before» when it was created and no «after» when it was deleted. */}
+                    {change.before === null ? (
+                      <>
+                        <span className="text-text-secondary">Creada: </span>
+                        {describe(change.after)}
+                      </>
+                    ) : change.after === null ? (
+                      <>
+                        <span className="text-text-secondary">Eliminada. Era: </span>
+                        {describe(change.before)}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-text-secondary">{describe(change.before)}</span>
+                        <span aria-hidden="true"> → </span>
+                        <span className="sr-only"> pasó a </span>
+                        <span>{describe(change.after)}</span>
+                      </>
+                    )}
                   </p>
                   {change.note && <p className="text-[13px] text-text-secondary">«{change.note}»</p>}
                 </div>
