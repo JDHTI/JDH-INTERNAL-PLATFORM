@@ -5,22 +5,34 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { ApiError } from "@/shared/lib/api-client";
 
 import {
+  confirmSiesaLoad,
   downloadMarginTemplate,
+  downloadSiesaLoadFile,
+  generateSiesaLoad,
   getPriceIncreaseAnalysis,
   getPriceIncreaseOptions,
   getCommercialPermissions,
   getProduct,
   getProductFilterOptions,
+  getSiesaLoad,
   listCommercialMaster,
   listPriceIncreases,
+  listSiesaLoads,
   setPriceIncreaseDate,
   setProductMargins,
   updateProduct,
   uploadMargins,
-  uploadPriceIncreases,
+  voidSiesaLoad,
 } from "../services/commercial-masters.service";
 import type { CommercialMasterParams, ProductMarginsInput, ProductPatch } from "../types/commercial-master.types";
-import type { AnalysisParams, IncreaseScope, PriceIncreaseParams } from "../types/price-increases.types";
+import type {
+  AnalysisParams,
+  IncreaseScope,
+  PriceIncreaseParams,
+  SiesaLoadDetail,
+  SiesaLoadSelection,
+  SiesaLoadStatus,
+} from "../types/price-increases.types";
 
 export const commercialMasterKeys = {
   all: ["commercial-masters"] as const,
@@ -149,15 +161,71 @@ export function useReferenceIncreases(sku: string | null, scope: IncreaseScope) 
   });
 }
 
-/** Simulating writes nothing; applying refreshes the history. */
-export function useUploadPriceIncreases() {
+const loadKeys = {
+  all: [...increaseKeys.all, "siesa-loads"] as const,
+  list: (params: object) => [...loadKeys.all, "list", params] as const,
+  detail: (id: string) => [...loadKeys.all, "detail", id] as const,
+};
+
+/**
+ * The review writes nothing; generating puts the increases in an open load
+ * (`open_load` in the history) and adds it to the loads.
+ */
+export function useGenerateSiesaLoad() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, apply }: { file: File; apply: boolean }) => uploadPriceIncreases(file, apply),
-    onSuccess: (report) => {
-      if (report.applied) return client.invalidateQueries({ queryKey: increaseKeys.all });
+    mutationFn: ({ selection, apply }: { selection: SiesaLoadSelection; apply: boolean }) => generateSiesaLoad(selection, apply),
+    onSuccess: (result) => {
+      if (result.applied) return client.invalidateQueries({ queryKey: increaseKeys.all });
     },
   });
+}
+
+export function useSiesaLoads(params: { status: SiesaLoadStatus | ""; page: number; size: number }) {
+  return useQuery({
+    queryKey: loadKeys.list(params),
+    queryFn: () => listSiesaLoads(params),
+    retry: retryTransient,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSiesaLoad(id: string | null) {
+  return useQuery({
+    queryKey: loadKeys.detail(id ?? ""),
+    queryFn: () => getSiesaLoad(id!),
+    enabled: id !== null,
+    retry: retryTransient,
+  });
+}
+
+export function useDownloadSiesaLoadFile() {
+  return useMutation({
+    mutationFn: ({ id, number, kind }: { id: string; number: number; kind: "txt" | "xlsx" }) => downloadSiesaLoadFile(id, number, kind),
+  });
+}
+
+/**
+ * Confirming or voiding answers the load; the history and the analysis read
+ * again (confirmed increases stop being pending, voided ones leave the load).
+ */
+function useLoadDecision<T>(mutationFn: (input: T) => Promise<SiesaLoadDetail>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (load) => {
+      client.setQueryData(loadKeys.detail(load.id), load);
+      return client.invalidateQueries({ queryKey: increaseKeys.all });
+    },
+  });
+}
+
+export function useConfirmSiesaLoad() {
+  return useLoadDecision(({ id, loadedOn }: { id: string; loadedOn: string }) => confirmSiesaLoad(id, loadedOn));
+}
+
+export function useVoidSiesaLoad() {
+  return useLoadDecision((id: string) => voidSiesaLoad(id));
 }
 
 export function useSetPriceIncreaseDate() {

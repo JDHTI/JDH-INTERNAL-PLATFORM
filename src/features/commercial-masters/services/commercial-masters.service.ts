@@ -17,7 +17,11 @@ import type {
   PriceIncrease,
   PriceIncreasePage,
   PriceIncreaseParams,
-  PriceIncreaseReport,
+  SiesaLoadDetail,
+  SiesaLoadPage,
+  SiesaLoadResult,
+  SiesaLoadSelection,
+  SiesaLoadStatus,
 } from "../types/price-increases.types";
 
 /** Rows stay untyped here: the table is driven by each master's column list. */
@@ -149,19 +153,40 @@ export async function getPriceIncreaseAnalysis({
   });
 }
 
+const LOADS = `${INCREASES}/siesa-loads`;
+const loadPath = (id: string) => `${LOADS}/${encodeURIComponent(id)}`;
+
 /**
- * The purchasing area's `Acumulado Alza Precios`, upserted by reference,
- * increase date and notification date. Without `apply` it only simulates.
- * Masters managers only.
+ * The selection as SIESA supplier quotations: what goes and what is left out,
+ * and why. With `apply` the load is stored (managers only) and its files can
+ * be downloaded.
  */
-export async function uploadPriceIncreases(file: File, apply: boolean): Promise<PriceIncreaseReport> {
-  const body = new FormData();
-  body.append("file", file);
-  return apiFetch<PriceIncreaseReport>(`${INCREASES}/upload`, {
-    method: "POST",
-    query: { apply: apply ? "true" : "false" },
-    body,
-  });
+export async function generateSiesaLoad(selection: SiesaLoadSelection, apply: boolean): Promise<SiesaLoadResult> {
+  return apiFetch<SiesaLoadResult>(LOADS, { method: "POST", query: { apply: apply ? "true" : undefined }, body: selection });
+}
+
+/** The loads, the latest first, with the counts by status. */
+export async function listSiesaLoads(params: { status: SiesaLoadStatus | ""; page: number; size: number }): Promise<SiesaLoadPage> {
+  return apiFetch<SiesaLoadPage>(LOADS, { query: { status: params.status || undefined, page: params.page, size: params.size } });
+}
+
+export async function getSiesaLoad(id: string): Promise<SiesaLoadDetail> {
+  return apiFetch<SiesaLoadDetail>(loadPath(id));
+}
+
+/** `txt`: the Impodatos 0212 file for SIESA; `xlsx`: the area's «IncrementoCostos Entradas» workbook. */
+export async function downloadSiesaLoadFile(id: string, number: number, kind: "txt" | "xlsx"): Promise<void> {
+  return apiDownload(`${loadPath(id)}/file`, { query: { kind }, fallbackName: `IncrementoCostos Entradas L${number}.${kind}` });
+}
+
+/** Its increases take `loadedOn` as their SIESA date and stop being pending. 409 once confirmed or voided. */
+export async function confirmSiesaLoad(id: string, loadedOn: string): Promise<SiesaLoadDetail> {
+  return apiFetch<SiesaLoadDetail>(`${loadPath(id)}/confirm`, { method: "POST", body: { loaded_on: loadedOn } });
+}
+
+/** A load that was not loaded: its increases are free for another one. */
+export async function voidSiesaLoad(id: string): Promise<SiesaLoadDetail> {
+  return apiFetch<SiesaLoadDetail>(`${loadPath(id)}/void`, { method: "POST" });
 }
 
 /** The day SIESA got the increase; null marks it pending again (the quoter compares it). */

@@ -268,8 +268,12 @@ export interface TemporaryCustomer {
 export interface BillingCenter {
   code: string;
   name: string;
+  /** The liquor tax regional (costa or nacional), not the center's own regional. */
   regional: string | null;
   regional_label: string | null;
+  /** The center's regional in the operation centers master: ANTIOQUIA, ORIENTE, CENTRO, COSTA… */
+  regional_code?: string | null;
+  regional_name?: string | null;
   /** Its BP, BSP and promotional warehouses, by class and code. Empty when it has none or the DWH master did not answer. */
   warehouses?: CenterWarehouse[];
 }
@@ -282,8 +286,16 @@ export interface BillingCenter {
 export interface CenterWarehouse {
   code: string;
   name: string;
-  classification: "BP" | "BSP" | "PROMO";
+  classification: WarehouseClass;
   classification_label: string;
+}
+
+export type WarehouseClass = "BP" | "BSP" | "PROMO";
+
+/** A whole group of a center's warehouses: what the cost selector picks; the API opens it into its warehouses. */
+export interface WarehouseGroup {
+  center_code: string;
+  classification: WarehouseClass;
 }
 
 /** Write into the customer's SIESA list, or create a new one. List 1 always creates. */
@@ -723,8 +735,13 @@ export interface Quotation extends QuotationSummary {
    * every warehouse, reference by reference. With several, each line takes the costliest.
    */
   cost_centers: string[];
-  /** The warehouses ticked inside those centers, in the centers' order. A center with none ticked uses its usual ones. */
+  /** The warehouses of the ticked groups, in the centers' order (the breakdown of `cost_warehouse_groups`). */
   cost_warehouses?: string[];
+  /**
+   * The warehouse groups ticked inside those centers. A center with none ticked uses its usual ones.
+   * Empty on quotations from before the groups, which may carry loose `cost_warehouses`.
+   */
+  cost_warehouse_groups?: (WarehouseGroup & { classification_label: string })[];
   /**
    * List updates: the references taken out with the template (API #128). A refresh does not
    * bring them back; adding them again does. In SIESA their price simply does not change.
@@ -739,6 +756,7 @@ export interface Quotation extends QuotationSummary {
   with_history: boolean;
   /** `auto`: the customer's branches decided `cost_centers`. `manual`: someone chose them; a refresh keeps them. */
   billing_center_source: "auto" | "manual";
+  /** The liquor tax regional: `costa` (billed from 004) or `nacional`. Not the centers' own regionals. */
   regional: string | null;
   regional_label: string | null;
   price_family: string | null;

@@ -102,13 +102,33 @@ digita, corrige, aprueba y rechaza.
   pestaña nueva) y «Descargar», para cualquiera con `read`. En revisión, quien gestiona adjunta,
   reemplaza o quita (con confirmación); decidida la solicitud, solo se ve y se descarga.
 
+- **Comunicado** (PR #127 del API): cada solicitud trae `loaded_count`, las líneas aprobadas que
+  SIESA ya tiene; la bandeja y el detalle lo muestran («3 de 5 en SIESA»). Cualquiera con `read`
+  marca solicitudes aprobadas (o toma todas las aprobadas, del proveedor elegido si hay uno) y
+  «Generar comunicado» descarga el xlsx (`POST /notice`). Si `X-Notice-Skipped` es mayor que cero,
+  un aviso dice cuántas alzas aún no están en SIESA; si ninguna lo está, el 422 del API.
+
 ## Acumulado de alzas
 
-Las mismas vistas que BI tiene en Maestros > Productos (que se quedan ahí). Los endpoints
-`/commercial/price-increases*` aceptan `maestros` o `acumulado-alzas`, y `can_manage` (cargar el
-libro, poner la fecha de SIESA) lo responde el mismo endpoint. El histórico muestra el origen de
-cada alza (`source`): el libro de alzas o una solicitud de proveedor aprobada, que llega sin fecha
-de SIESA.
+Las mismas vistas que BI tiene en Maestros > Productos (que se quedan ahí), con tres pestañas:
+histórico, análisis y **Lotes de cargue** (`?vista=lotes`). Los endpoints
+`/commercial/price-increases*` aceptan `maestros` o `acumulado-alzas`, y `can_manage` (generar
+lotes, confirmarlos, poner la fecha de SIESA) lo responde el mismo endpoint. **El libro ya no se
+carga** (desde el PR #127 del API): las alzas entran al aprobar solicitudes de proveedor.
+
+- **Cargue a SIESA** (`siesa-load-*.tsx`), con el patrón del cotizador:
+  1. En el histórico, quien gestiona marca alzas pendientes sin lote abierto (las demás no tienen
+     casilla) o toma «las pendientes del filtro» (hasta 2.000). La selección se pierde al cambiar
+     de filtro. Una alza en un lote abierto lleva el chip «En lote N».
+  2. «Generar cargue a SIESA» abre la revisión (`POST /siesa-loads` sin `apply`): lo que va (NIT,
+     sucursal, unidad, precio, activación; aviso si otro NIT también la cotiza) y lo que queda por
+     fuera con su motivo.
+  3. «Generar lote» (`apply=true`) guarda el lote y ofrece el TXT y el libro Excel.
+  4. Lotes de cargue: chips por estado; el detalle muestra sus cotizaciones y archivos y, si está
+     generado, «Confirmar cargue en SIESA» (día del cargue, hoy por defecto, sin fechas futuras) o
+     «Anular» (con confirmación). Confirmar o anular vuelve a leer el histórico y el análisis.
+- **Origen:** el histórico muestra de dónde vino cada alza (`source`): el libro de alzas (las
+  históricas) o una solicitud de proveedor aprobada, que llega sin fecha de SIESA.
 
 - **C.O. e instalación** (PR #125 del API): dos desplegables filtrables en el histórico y el
   análisis (`increase-scope-filters.tsx`), con las opciones de `GET /options` (`cos`,

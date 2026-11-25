@@ -6,6 +6,7 @@ import type {
   IncreaseUploadReport,
   LineInput,
   LinePatch,
+  NoticeSelection,
   RequestStatus,
   SupplierItem,
 } from "../types/increase-requests.types";
@@ -72,6 +73,21 @@ export function getIncreaseRequest(id: string): Promise<IncreaseRequestDetail> {
 
 export function downloadRequestFile(id: string, fallbackName: string): Promise<void> {
   return apiDownload(`${requestPath(id)}/file`, { fallbackName });
+}
+
+/**
+ * «Comunicado Alza de precios proveedor»: one row per approved line SIESA
+ * already has. `skipped` counts the lines left out because SIESA does not have
+ * them yet; 422 when none is in SIESA.
+ */
+export async function generateNotice(selection: NoticeSelection): Promise<{ blob: Blob; filename: string | null; rows: number; skipped: number }> {
+  const { blob, filename, headers } = await apiBlob(`${REQUESTS}/notice`, undefined, { body: selection });
+  return {
+    blob,
+    filename,
+    rows: Number(headers.get("X-Notice-Rows") ?? 0),
+    skipped: Number(headers.get("X-Notice-Skipped") ?? 0),
+  };
 }
 
 /** The support's file; `inline` serves it to show in the browser. */

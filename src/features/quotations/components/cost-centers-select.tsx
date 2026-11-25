@@ -9,21 +9,64 @@ import { useDismissablePanel } from "@/shared/hooks/use-dismissable-panel";
 import { cn } from "@/shared/lib/utils";
 
 import { useBillingCenters, useCostCentersComparison } from "../hooks/use-quotations";
-import type { BillingCenter, CenterWarehouse, Quotation } from "../types/quotations.types";
+import type { BillingCenter, Quotation, WarehouseClass, WarehouseGroup } from "../types/quotations.types";
 import { centerLabel } from "./billing-center-select";
 
 export const NATIONAL_LABEL = "Nacional";
 /** From this many centers on, the panel gets a search box. */
 const SEARCH_FROM = 8;
 
-/** Where the cost comes from: the centers by code (none is Nacional) and the warehouses ticked inside them. */
+/** Where the cost comes from: the centers by code (none is Nacional) and the warehouse groups ticked inside them. */
 export interface CostChoice {
   centers: string[];
-  warehouses: string[];
+  groups: WarehouseGroup[];
 }
 
-export const sameChoice = (a: CostChoice, b: CostChoice) =>
-  a.centers.join() === b.centers.join() && a.warehouses.join() === b.warehouses.join();
+const groupKey = (group: WarehouseGroup) => `${group.center_code}:${group.classification}`;
+const groupKeys = (choice: CostChoice) => choice.groups.map(groupKey).sort().join();
+
+export const sameChoice = (a: CostChoice, b: CostChoice) => a.centers.join() === b.centers.join() && groupKeys(a) === groupKeys(b);
+
+/** The groups in the order the panel lists them. */
+const CLASS_ORDER: WarehouseClass[] = ["BP", "BSP", "PROMO"];
+
+const GROUP_LABELS: Record<WarehouseClass, { full: string; short: string }> = {
+  BP: { full: "Bodegas principales", short: "principales" },
+  BSP: { full: "Bodegas solicitudes puntuales", short: "puntuales" },
+  PROMO: { full: "Bodegas promocionales", short: "promocionales" },
+};
+
+/** The groups a center has, each with its warehouses' codes. */
+function centerGroups(center: BillingCenter): { classification: WarehouseClass; codes: string[] }[] {
+  return CLASS_ORDER.flatMap((classification) => {
+    const codes = (center.warehouses ?? []).filter((warehouse) => warehouse.classification === classification).map((warehouse) => warehouse.code);
+    return codes.length > 0 ? [{ classification, codes }] : [];
+  });
+}
+
+/**
+ * What the quotation has chosen. Before the groups existed a quotation kept loose warehouses
+ * (`cost_warehouses`, `cost_warehouse_groups` empty): each one turns its group on, by the class
+ * the centers master gives it. Applying again sends the whole groups.
+ */
+export function quotationChoice(
+  quotation: Pick<Quotation, "cost_centers" | "cost_warehouses" | "cost_warehouse_groups">,
+  centers: BillingCenter[] | undefined
+): CostChoice {
+  const chosen = quotation.cost_warehouse_groups ?? [];
+  if (chosen.length > 0 || (quotation.cost_warehouses ?? []).length === 0) {
+    return { centers: quotation.cost_centers, groups: chosen.map(({ center_code, classification }) => ({ center_code, classification })) };
+  }
+  const loose = new Set(quotation.cost_warehouses);
+  const groups = (centers ?? [])
+    .filter((center) => quotation.cost_centers.includes(center.code))
+    .flatMap((center) =>
+      centerGroups(center)
+        .filter((group) => group.codes.some((code) => loose.has(code)))
+        .map((group) => ({ center_code: center.code, classification: group.classification }))
+    );
+  return { centers: quotation.cost_centers, groups };
+}
 
 /** How a choice reads: "Nacional", "001 · ANTIOQUIA" or "001 · ANTIOQUIA, 003 · CENTRO". */
 export function costCentersLabel(codes: string[], centers: BillingCenter[] | undefined): string {
@@ -32,41 +75,24 @@ export function costCentersLabel(codes: string[], centers: BillingCenter[] | und
   return codes.map((code) => (byCode.has(code) ? centerLabel(byCode.get(code)!) : code)).join(", ");
 }
 
-/** The short form, by code, with each center's ticked warehouses: "001 (MDE1, MDE4), 003". */
-export function costChoiceCodes(choice: CostChoice, centers: BillingCenter[] | undefined): string {
-  if (choice.centers.length === 0) return NATIONAL_LABEL;
-  const ticked = new Set(choice.warehouses);
-  const byCode = new Map((centers ?? []).map((center) => [center.code, center]));
-  return choice.centers
-    .map((code) => {
-      const own = (byCode.get(code)?.warehouses ?? []).filter((warehouse) => ticked.has(warehouse.code)).map((warehouse) => warehouse.code);
-      return own.length > 0 ? `${code} (${own.join(", ")})` : code;
-    })
+/** A center's ticked groups, short: "principales, promocionales". */
+function groupsText(choice: CostChoice, code: string): string {
+  return CLASS_ORDER.filter((classification) =>
+    choice.groups.some((group) => group.center_code === code && group.classification === classification)
+  )
+    .map((classification) => GROUP_LABELS[classification].short)
     .join(", ");
 }
 
-const PROMO = "PROMO";
-
-/** The warehouses of one center by class, in the API's order (BP first). */
-function byClass(warehouses: CenterWarehouse[]): { label: string; items: CenterWarehouse[] }[] {
-  const groups = new Map<string, { label: string; items: CenterWarehouse[] }>();
-  for (const warehouse of warehouses) {
-    const group = groups.get(warehouse.classification) ?? { label: warehouse.classification_label, items: [] };
-    group.items.push(warehouse);
-    groups.set(warehouse.classification, group);
-  }
-  return [...groups.values()];
-}
-
-function WarehouseCheck({ warehouse, checked, onToggle }: { warehouse: CenterWarehouse; checked: boolean; onToggle: (code: string) => void }) {
-  return (
-    <label className="flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] hover:bg-canvas-subtle max-md:min-h-11">
-      <input type="checkbox" checked={checked} onChange={() => onToggle(warehouse.code)} className="size-4 shrink-0 accent-[var(--primary)]" />
-      <span className="min-w-0 flex-1 truncate" title={`${warehouse.code} · ${warehouse.name}`}>
-        <span className="font-mono">{warehouse.code}</span> · {warehouse.name}
-      </span>
-    </label>
-  );
+/** The short form, by code, with each center's ticked groups: "001 · principales, promocionales; 003". */
+export function costChoiceCodes(choice: CostChoice): string {
+  if (choice.centers.length === 0) return NATIONAL_LABEL;
+  return choice.centers
+    .map((code) => {
+      const groups = groupsText(choice, code);
+      return groups ? `${code} · ${groups}` : code;
+    })
+    .join("; ");
 }
 
 /**
@@ -74,9 +100,10 @@ function WarehouseCheck({ warehouse, checked, onToggle }: { warehouse: CenterWar
  * operation centers. Nacional and the centers exclude each other: ticking
  * Nacional clears the centers, ticking a center clears Nacional, and leaving
  * no center ticked is Nacional again. A ticked center that has warehouses
- * opens them underneath. Ticking BP/BSP ones narrows the center to those,
- * ticking none keeps its usual ones; the promotional ones add on top, all at
- * once with «Incluir bodegas promocionales» or one by one. With two or more centers ticked, the
+ * opens its groups underneath (principales, solicitudes puntuales,
+ * promocionales), never single warehouses: the API opens each group into its
+ * warehouses. Ticking principal or one-off groups narrows the center to them,
+ * ticking none keeps its usual ones; the promotional group adds on top. With two or more centers ticked, the
  * panel asks the API which one costs the most for this quotation's references
  * and marks it, before anything is applied. The panel is a group of real
  * checkboxes, so Tab, Space and screen readers work as anywhere else; Escape
@@ -97,59 +124,52 @@ export default function CostCentersSelect({
 }) {
   const panelId = useId();
   const centers = useBillingCenters();
-  const comparison = useCostCentersComparison(quotation.id, quotation.version, value.centers, value.warehouses);
+  const comparison = useCostCentersComparison(quotation.id, quotation.version, value.centers, value.groups);
   const costliest = value.centers.length > 1 ? comparison.data?.highest ?? null : null;
   const { containerRef, triggerRef, isOpen, setIsOpen } = useDismissablePanel<HTMLDivElement>();
   const [query, setQuery] = useState("");
   const options = centers.data ?? [];
   const selected = new Set(value.centers);
-  const ticked = new Set(value.warehouses);
+  const ticked = new Set(value.groups.map(groupKey));
   const q = query.trim().toLowerCase();
   const shown = q === "" ? options : options.filter((center) => centerLabel(center).toLowerCase().includes(q));
   const national = value.centers.length === 0;
   const withWarehouses = options.some((center) => selected.has(center.code) && (center.warehouses?.length ?? 0) > 0);
 
-  // Keep the master's order (centers by code, warehouses by class and code), not the clicking order.
-  const emit = (nextCenters: Set<string>, nextWarehouses: Set<string>) => {
+  // Keep the master's order (centers by code, groups BP, BSP, PROMO), not the clicking order.
+  const emit = (nextCenters: Set<string>, nextGroups: Set<string>) => {
     const chosen = options.filter((center) => nextCenters.has(center.code));
     onChange({
       centers: chosen.map((center) => center.code),
-      warehouses: chosen.flatMap((center) => (center.warehouses ?? []).filter((w) => nextWarehouses.has(w.code)).map((w) => w.code)),
+      groups: chosen.flatMap((center) =>
+        centerGroups(center)
+          .map((group) => ({ center_code: center.code, classification: group.classification }))
+          .filter((group) => nextGroups.has(groupKey(group)))
+      ),
     });
   };
 
-  // A center left unticked takes its warehouses with it: `emit` only keeps those of ticked centers.
+  // A center left unticked takes its groups with it: `emit` only keeps those of ticked centers.
   const toggleCenter = (code: string) => {
     const next = new Set(selected);
     if (!next.delete(code)) next.add(code);
     emit(next, ticked);
   };
 
-  const toggleWarehouse = (code: string) => {
+  const toggleGroup = (key: string) => {
     const next = new Set(ticked);
-    if (!next.delete(code)) next.add(code);
+    if (!next.delete(key)) next.add(key);
     emit(selected, next);
   };
 
-  /** «Incluir bodegas promocionales»: all of the center's on, or all off when they already are. */
-  const toggleAll = (codes: string[]) => {
-    const next = new Set(ticked);
-    const allOn = codes.every((code) => next.has(code));
-    for (const code of codes) {
-      if (allOn) next.delete(code);
-      else next.add(code);
-    }
-    emit(selected, next);
-  };
-
-  const warehousesNote = value.warehouses.length > 0 ? ` · ${value.warehouses.length === 1 ? "1 bodega" : `${value.warehouses.length} bodegas`}` : "";
+  const groupsNote = value.centers.length === 1 && groupsText(value, value.centers[0]) ? ` · ${groupsText(value, value.centers[0])}` : "";
   const summary = centers.isPending
     ? "Cargando los C.O.…"
     : centers.isError
       ? "No se pudieron cargar los C.O."
       : value.centers.length > 1
-        ? `${value.centers.length} C.O.: ${value.centers.join(", ")}${warehousesNote}`
-        : `${costCentersLabel(value.centers, options)}${warehousesNote}`;
+        ? `${value.centers.length} C.O.: ${costChoiceCodes(value)}`
+        : `${costCentersLabel(value.centers, options)}${groupsNote}`;
 
   return (
     <div ref={containerRef} className="relative">
@@ -164,7 +184,7 @@ export default function CostCentersSelect({
           setQuery("");
           setIsOpen(!isOpen);
         }}
-        title={value.centers.length > 1 || value.warehouses.length > 0 ? costChoiceCodes(value, options) : undefined}
+        title={value.centers.length > 1 || value.groups.length > 0 ? costChoiceCodes(value) : undefined}
         className={cn(
           "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border-control bg-transparent px-2.5 text-left text-sm",
           "transition-colors duration-150 hover:bg-canvas-subtle max-md:h-11",
@@ -187,7 +207,7 @@ export default function CostCentersSelect({
             <input
               type="checkbox"
               checked={national}
-              onChange={() => onChange({ centers: [], warehouses: [] })}
+              onChange={() => onChange({ centers: [], groups: [] })}
               className="size-4 shrink-0 accent-[var(--primary)]"
             />
             {NATIONAL_LABEL}
@@ -209,10 +229,8 @@ export default function CostCentersSelect({
           )}
           <ul className="max-h-80 overflow-y-auto">
             {shown.map((center) => {
-              const open = selected.has(center.code) && (center.warehouses?.length ?? 0) > 0;
-              const usual = (center.warehouses ?? []).filter((warehouse) => warehouse.classification !== PROMO);
-              const promos = (center.warehouses ?? []).filter((warehouse) => warehouse.classification === PROMO);
-              const promosOn = promos.filter((warehouse) => ticked.has(warehouse.code)).length;
+              const groups = centerGroups(center);
+              const open = selected.has(center.code) && groups.length > 0;
               return (
                 <li key={center.code}>
                   <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-canvas-subtle max-md:min-h-11">
@@ -232,35 +250,28 @@ export default function CostCentersSelect({
                   </label>
                   {open && (
                     <div role="group" aria-label={`Bodegas de ${centerLabel(center)}`} className="mb-1 ml-4 border-l border-border pl-2">
-                      {byClass(usual).map((group) => (
-                        <div key={group.label} role="group" aria-label={group.label}>
-                          <p className="px-2 pt-1 text-xs text-text-secondary" aria-hidden="true">{group.label}</p>
-                          {group.items.map((warehouse) => (
-                            <WarehouseCheck key={warehouse.code} warehouse={warehouse} checked={ticked.has(warehouse.code)} onToggle={toggleWarehouse} />
-                          ))}
-                        </div>
-                      ))}
-                      {promos.length > 0 && (
-                        <div role="group" aria-label={promos[0].classification_label}>
-                          <label className="mt-1 flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] font-medium hover:bg-canvas-subtle max-md:min-h-11">
+                      {groups.map((group) => {
+                        const key = groupKey({ center_code: center.code, classification: group.classification });
+                        const codes = group.codes.join(", ");
+                        return (
+                          <label
+                            key={key}
+                            className="flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 text-[13px] hover:bg-canvas-subtle max-md:min-h-11"
+                          >
                             <input
                               type="checkbox"
-                              checked={promosOn === promos.length}
-                              ref={(input) => {
-                                if (input) input.indeterminate = promosOn > 0 && promosOn < promos.length;
-                              }}
-                              onChange={() => toggleAll(promos.map((warehouse) => warehouse.code))}
+                              checked={ticked.has(key)}
+                              onChange={() => toggleGroup(key)}
                               className="size-4 shrink-0 accent-[var(--primary)]"
                             />
-                            Incluir bodegas promocionales
+                            <span className="shrink-0">{GROUP_LABELS[group.classification].full}</span>
+                            {/* Which warehouses the group opens into; the API keeps that breakdown. */}
+                            <span className="min-w-0 flex-1 truncate text-right font-mono text-xs text-text-secondary" title={codes}>
+                              {codes}
+                            </span>
                           </label>
-                          <div className="ml-4">
-                            {promos.map((warehouse) => (
-                              <WarehouseCheck key={warehouse.code} warehouse={warehouse} checked={ticked.has(warehouse.code)} onToggle={toggleWarehouse} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
                   )}
                 </li>
@@ -270,7 +281,7 @@ export default function CostCentersSelect({
           </ul>
           {withWarehouses && (
             <p className="mx-2 mt-1 border-t border-border pt-1.5 pb-1 text-xs text-text-secondary">
-              Sin bodegas principales ni puntuales marcadas, el C.O. usa sus bodegas de siempre. Las promocionales se suman a ellas:
+              Sin grupos principales ni puntuales marcados, el C.O. usa sus bodegas de siempre. Las promocionales se suman a ellas:
               cuentan en las existencias y, si tienen existencia, entran al mayor costo. En SIESA el costo promedio es por
               instalación, así que las bodegas cambian sobre todo qué existencias cuentan.
             </p>

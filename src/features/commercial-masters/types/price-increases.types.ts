@@ -45,6 +45,8 @@ export interface PriceIncrease {
   /** 1, or 2, 3… for increases chained on the same day. */
   occurrence: number;
   is_pending: boolean;
+  /** The number of the SIESA load it is in, generated and not confirmed yet; null otherwise. */
+  open_load: number | null;
   updated_by: string;
   updated_at: string;
 }
@@ -202,17 +204,73 @@ export interface AnalysisParams {
   size: number;
 }
 
-export interface PriceIncreaseReport {
+/** Generated (its files can be loaded), loaded in SIESA (confirmed) or voided. */
+export type SiesaLoadStatus = "generado" | "cargado" | "anulado";
+
+/**
+ * Which pending increases go into a SIESA load: picked one by one, or every
+ * pending one of the history's filters (the API forces `pending`; 2.000 at most).
+ */
+export type SiesaLoadSelection =
+  | { increase_ids: string[] }
+  | {
+      all: true;
+      filters: { q?: string; status?: IncreaseStatus; sku?: string; supplier?: string; co?: string; installation?: string };
+    };
+
+/** One supplier quotation the load writes into SIESA (Impodatos 0212). */
+export interface SiesaLoadRow {
+  increase_id: string;
+  sku: string;
+  description: string | null;
+  /** The supplier and branch of the reference's quotation in force, in its inventory unit. */
+  nit: string;
+  branch: string;
+  currency: string;
+  unit: string;
+  /** The new cost without the healthy-food tax. */
+  price: Decimal;
+  /** The increase date, or the day the load was generated when that already passed. */
+  activation_date: string;
+  delivery_days: number;
+  increased_on: string | null;
+  /** Other suppliers with a quotation in force for the reference. */
+  other_nits: string[];
+}
+
+export interface SiesaLoad {
+  id: string;
+  number: number;
+  status: SiesaLoadStatus;
+  status_label: string;
+  row_count: number;
+  created_by: string;
+  created_at: string;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  /** The day it was loaded in SIESA: its increases' system update date. */
+  loaded_on: string | null;
+  voided_by: string | null;
+  voided_at: string | null;
+}
+
+export interface SiesaLoadDetail extends SiesaLoad {
+  rows: SiesaLoadRow[];
+}
+
+/** What a selection loads and leaves out; `load` once it is generated (`apply`). */
+export interface SiesaLoadResult {
   applied: boolean;
-  rows_read: number;
-  inserted: number;
-  updated: number;
-  unchanged: number;
-  duplicated: number;
-  /** References the product master does not have (kept anyway). */
-  unknown_skus: number;
-  /** Rows without a system update date: the quoter compares them. */
-  pending: number;
-  issues: { row_number: number; sku: string | null; problem: string }[];
-  issues_truncated: boolean;
+  rows: SiesaLoadRow[];
+  excluded: { increase_id: string; sku: string; reason: string }[];
+  load: SiesaLoadDetail | null;
+}
+
+export interface SiesaLoadPage {
+  items: SiesaLoad[];
+  total: number;
+  page: number;
+  size: number;
+  counts: Partial<Record<SiesaLoadStatus, number>>;
+  can_manage: boolean;
 }

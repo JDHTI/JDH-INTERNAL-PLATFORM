@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { formatWhen } from "@/features/supports/lib/format";
 import { Button } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
-import { errorMessage } from "@/shared/lib/api-client";
+import { errorMessage, saveBlob } from "@/shared/lib/api-client";
 import { formatBytes } from "@/shared/lib/format";
 
 import { useDeleteRequestSupport, usePutRequestSupport } from "../hooks/use-increase-requests";
@@ -54,14 +54,7 @@ export default function RequestSupport({ request, reviewing }: { request: Increa
     setBusy("descargar");
     try {
       const { blob, filename } = await getRequestSupport(request.id, false);
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = filename ?? support?.file_name ?? "soporte";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 0);
+      saveBlob(blob, filename ?? support?.file_name ?? "soporte");
     } catch (failure) {
       failed(failure);
     } finally {

@@ -46,6 +46,7 @@ import type {
   QuotationListParams,
   TemporaryQuotationInput,
   ValidateOptions,
+  WarehouseGroup,
   WindowMonths,
 } from "../types/quotations.types";
 
@@ -220,15 +221,15 @@ export function useBillingCenters() {
 
 /**
  * Which of the ticked centers costs the most for this quotation's references,
- * while two or more are ticked, counting only the ticked warehouses. Keyed by
- * the version: a priced line changes it.
+ * while two or more are ticked, counting only the ticked warehouse groups.
+ * Keyed by the version: a priced line changes it.
  */
-export function useCostCentersComparison(id: string, version: number, codes: string[], warehouses: string[]) {
+export function useCostCentersComparison(id: string, version: number, codes: string[], groups: WarehouseGroup[]) {
   const sorted = [...codes].sort();
-  const stores = [...warehouses].sort();
+  const keys = groups.map((group) => `${group.center_code}:${group.classification}`).sort();
   return useQuery({
-    queryKey: [...quotationKeys.all, "compare-centers", id, version, sorted.join(","), stores.join(",")] as const,
-    queryFn: () => compareCostCenters(id, sorted, stores),
+    queryKey: [...quotationKeys.all, "compare-centers", id, version, sorted.join(","), keys.join(",")] as const,
+    queryFn: () => compareCostCenters(id, sorted, groups),
     enabled: sorted.length > 1,
     staleTime: 5 * 60_000,
     retry: false,
@@ -238,8 +239,8 @@ export function useCostCentersComparison(id: string, version: number, codes: str
 export function useUpdateCostCenters(id: string) {
   const store = useStoreQuotation();
   return useMutation({
-    mutationFn: ({ version, codes, warehouses }: { version: number; codes: string[]; warehouses: string[] }) =>
-      updateCostCenters(id, version, codes, warehouses),
+    mutationFn: ({ version, codes, groups }: { version: number; codes: string[]; groups: WarehouseGroup[] }) =>
+      updateCostCenters(id, version, codes, groups),
     onSuccess: store,
   });
 }
