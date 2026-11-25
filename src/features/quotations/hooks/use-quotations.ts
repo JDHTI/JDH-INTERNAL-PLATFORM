@@ -32,6 +32,7 @@ import {
   updateCostCenters,
   updateLines,
   updateOffer,
+  uploadListTemplate,
   validateQuotation,
 } from "../services/quotations.service";
 import type {
@@ -290,6 +291,18 @@ export function useRemoveLine(id: string) {
   return useMutation({
     mutationFn: ({ version, sku }: { version: number; sku: string }) => removeLine(id, sku, version),
     onSuccess: store,
+  });
+}
+
+/** Previews or applies a list template; an applied one stores the update it returns. */
+export function useListTemplateUpload(id: string) {
+  const store = useStoreQuotation();
+  return useMutation({
+    mutationFn: ({ file, version, apply }: { file: File; version: number; apply: boolean }) =>
+      uploadListTemplate(id, file, version, apply),
+    onSuccess: (result) => {
+      if (result.quotation) store(result.quotation);
+    },
   });
 }
 

@@ -60,6 +60,22 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
 - **Detalle del ítem:** la revisión y la observación (se guarda con su botón), las existencias por
   bodega y «Cómo ha variado el precio» (`price-history-chart.tsx`): el precio de lista en
   escalones y el precio de venta por mes, con leyenda, tooltip por punto y la tabla de datos.
+- **Quitar referencias con la plantilla** (`list-template.tsx`, API #128; solo `kind="lista"`): sirve
+  para las listas grandes, por ejemplo la lista 5 de Sodexo, con 3.652 referencias.
+  - **Descargar:** el menú «Quitar referencias» de la barra de acciones descarga la plantilla
+    (`GET /list-template.xlsx`). La puede bajar cualquiera que vea la actualización, porque no trae
+    costos.
+  - **Subir:** «Subir plantilla» es solo para quien la edita y en borrador. Se borran las filas que
+    sobran y se sube el archivo.
+  - **Vista previa:** al elegir el archivo se envía con `apply=false` y se muestra qué se quitará, qué
+    referencias del archivo se ignoran (colapsable) y cuántas quedan.
+  - **Aplicar:** «Quitar N referencias» reenvía el archivo con `apply=true` y la misma versión. La
+    actualización vuelve a borrador.
+  - **Qué se lee:** solo la columna Referencia; los precios del archivo no se leen.
+  - **Cabecera:** con `excluded_skus`, dice «N referencias quitadas con la plantilla», con los SKU en
+    un popover, para que quien valida lo vea.
+  - **En SIESA:** esas referencias no cambian de precio, pero no se borran de la lista. Un refresco
+    no las trae de vuelta; agregarlas otra vez sí.
 - **Por cargar** (`staging-view.tsx`, `/<área>/<módulo>/por-cargar`): los ítems validados sin cargar,
   por lista. Quien valida elige la fecha de activación, descarga el Excel o el plano de la lista y
   marca la carga. Abajo, las últimas cargas.
