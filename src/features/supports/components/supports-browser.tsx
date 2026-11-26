@@ -117,7 +117,7 @@ export default function SupportsBrowser({ view = "general" }: { view?: SupportsV
   const [deleteOpen, setDeleteOpen] = useState(false);
   const permissions = useSupportPermissions();
   // Whoever does not manage only reads: margins are asked as internal supports, from the quoter
-  // or from «Solicitudes de apoyo», not by ticking rows here.
+  // or from «Excepciones de margen», not by ticking rows here.
   const readOnly = permissions.data?.can_manage !== true;
   const [composeId, setComposeId] = useState<string | null>(null);
   const [bulkAttach, setBulkAttach] = useState<{ document: ExistingDocument | null } | null>(null);

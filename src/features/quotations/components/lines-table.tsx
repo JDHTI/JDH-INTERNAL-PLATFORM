@@ -88,6 +88,11 @@ interface LinesProps {
   quantitiesEditable: boolean;
   /** BI (who validates) sees the highest cost under the suggested prices, with its breakdown. */
   showCost: boolean;
+  /**
+   * False in the commercial view: no tooltip on the margins or the suggested prices, and the
+   * last sale's only says its invoice. BI keeps them all.
+   */
+  marginHints?: boolean;
   /** What each line is compared against: "Último precio", or "Precio actual" (the list's) on a list update. */
   basePriceLabel?: string;
   /** A list update: the last sale goes in a tooltip beside the list price. */
@@ -212,6 +217,7 @@ export function LinesTable(props: LinesProps) {
   const pinned = (offset: number) => (scrolls ? { className: "sticky z-[1]", style: { left: offset } } : { className: "", style: undefined });
   const pinCheck = pinned(0);
   const pinProduct = pinned(selection ? CHECK_WIDTH : 0);
+  const hints = props.marginHints ?? true;
 
   return (
     <div className={cn("rounded-lg border border-border bg-surface", scrolls ? "overflow-x-auto" : "hidden @min-[70rem]:block")}>
@@ -324,11 +330,11 @@ export function LinesTable(props: LinesProps) {
                   <Product line={line} {...props} />
                 </td>
                 <td className={cn(td, divided, "text-right")}>
-                  <LastSale line={line} forList={props.showLastSale} />
+                  <LastSale line={line} forList={props.showLastSale} hints={hints} />
                 </td>
-                <td className={cn(td, divided)}><Bounds line={line} showCost={props.showCost} /></td>
+                <td className={cn(td, divided)}><Bounds line={line} showCost={props.showCost} hints={hints} /></td>
                 <td className={cn(td, divided)}>
-                  <NewPrice line={line} editor={props.editor} editable={props.editable} />
+                  <NewPrice line={line} editor={props.editor} editable={props.editable} hints={hints} />
                 </td>
                 <td className={cn(td, divided)}><SupportBadge line={line} onOpen={props.onOpenDetail} /></td>
                 <td className={cn(td, divided, "whitespace-nowrap text-right tabular-nums")}><Vat line={line} /></td>
@@ -366,6 +372,7 @@ export function LinesTable(props: LinesProps) {
  */
 export function LinesList(props: LinesProps) {
   const { lines, editor, editable, selection, withQuantities } = props;
+  const hints = props.marginHints ?? true;
   // Quoting with quantities is always the table: the quantities are compared down a column.
   if (withQuantities) return null;
   return (
@@ -386,9 +393,9 @@ export function LinesList(props: LinesProps) {
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <Pair label={`${props.basePriceLabel ?? "Último precio"} sin IVA`}>
-              <LastSale line={line} alignStart forList={props.showLastSale} />
+              <LastSale line={line} alignStart forList={props.showLastSale} hints={hints} />
             </Pair>
-            <Pair label="Precios sugeridos"><Bounds line={line} showCost={props.showCost} /></Pair>
+            <Pair label="Precios sugeridos"><Bounds line={line} showCost={props.showCost} hints={hints} /></Pair>
             <Pair label="Apoyo"><SupportBadge line={line} onOpen={props.onOpenDetail} /></Pair>
             <Pair label="IVA · imp. consumo">
               <span className="block text-[13px] tabular-nums">
@@ -400,7 +407,7 @@ export function LinesList(props: LinesProps) {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">
               <span className="block text-xs text-text-secondary">Precio nuevo sin IVA</span>
-              <NewPrice line={line} editor={editor} editable={editable} wide />
+              <NewPrice line={line} editor={editor} editable={editable} hints={hints} wide />
             </div>
             {withQuantities && (
               <div className="space-y-1">
@@ -642,13 +649,13 @@ const STANDING_LOOK: Record<Standing, { tone: BadgeTone; icon: typeof ThumbsUp; 
  * the words for screen readers. A badge, not colored text: its opaque
  * background keeps AA on a hovered or flashing row in both themes (§3.5).
  */
-export function MarginMark({ value, standing }: { value: string | null; standing: Standing | null }) {
+export function MarginMark({ value, standing, hint = true }: { value: string | null; standing: Standing | null; hint?: boolean }) {
   if (toNumber(value) === null) return dash;
   if (!standing) return <span className="font-medium tabular-nums">{formatMargin(value)}</span>;
   const look = STANDING_LOOK[standing];
   const Icon = look.icon;
   return (
-    <Badge tone={look.tone} className="px-1.5 py-0 tabular-nums" title={`Margen con apoyo: ${look.words}`}>
+    <Badge tone={look.tone} className="px-1.5 py-0 tabular-nums" title={hint ? `Margen con apoyo: ${look.words}` : undefined}>
       {formatMargin(value)}
       <Icon aria-hidden="true" />
       <span className="sr-only">, {look.words}</span>
@@ -659,30 +666,42 @@ export function MarginMark({ value, standing }: { value: string | null; standing
 /**
  * The last sale: price, the margin it left (with support) and when it was
  * invoiced. On a list update, the list's price in force and its margin, with
- * the last sale under it (its cost only for whoever sees costs).
+ * the last sale under it (its cost only for whoever sees costs). Without hints
+ * (the commercial view) the price's tooltip is the invoice number alone.
  */
 function LastSale({
   line,
   alignStart = false,
   forList = false,
+  hints,
 }: {
   line: QuotationLine;
   alignStart?: boolean;
   forList?: boolean;
+  hints: boolean;
 }) {
-  if (forList) return <ListPrice line={line} alignStart={alignStart} />;
+  if (forList) return <ListPrice line={line} alignStart={alignStart} hints={hints} />;
   if (toNumber(line.last_price) === null) {
     return <span className="text-[13px] text-text-secondary">{isLocal(line) ? "—" : "Sin compras en la ventana"}</span>;
   }
-  const origin = [line.last_document ? `Documento ${line.last_document}` : null, line.last_sale_unit ? `vendido en ${line.last_sale_unit}` : null]
-    .filter(Boolean)
-    .join(", ");
+  const origin = hints
+    ? [line.last_document ? `Documento ${line.last_document}` : null, line.last_sale_unit ? `vendido en ${line.last_sale_unit}` : null]
+        .filter(Boolean)
+        .join(", ")
+    : line.last_document
+      ? `Factura ${line.last_document}`
+      : "";
   return (
     <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
       <span className="block whitespace-nowrap font-semibold" title={origin || undefined}>{formatMoney(line.last_price)}</span>
-      <span className="block"><MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} /></span>
+      <span className="block">
+        <MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} hint={hints} />
+      </span>
       {line.last_sale_date && (
-        <span className="block whitespace-nowrap text-xs text-text-secondary" title={`Facturado el ${formatDay(line.last_sale_date)}`}>
+        <span
+          className="block whitespace-nowrap text-xs text-text-secondary"
+          title={hints ? `Facturado el ${formatDay(line.last_sale_date)}` : undefined}
+        >
           facturado {formatShortDay(line.last_sale_date)}
         </span>
       )}
@@ -695,7 +714,7 @@ function LastSale({
  * the item sold, and at what price, stays out of sight in a small mark beside
  * the price: hover, focus or tap it to read it.
  */
-function ListPrice({ line, alignStart }: { line: QuotationLine; alignStart: boolean }) {
+function ListPrice({ line, alignStart, hints }: { line: QuotationLine; alignStart: boolean; hints: boolean }) {
   const hasPrice = toNumber(line.last_price) !== null;
   return (
     <div className={cn("space-y-0.5 tabular-nums", alignStart ? "text-left" : "text-right")}>
@@ -705,7 +724,9 @@ function ListPrice({ line, alignStart }: { line: QuotationLine; alignStart: bool
             {formatMoney(line.last_price)}
             <SaleMark line={line} />
           </span>
-          <span className="block"><MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} /></span>
+          <span className="block">
+            <MarginMark value={line.current_margin_with_support_pct} standing={lastPriceStanding(line)} hint={hints} />
+          </span>
         </>
       ) : (
         <span className={cn("flex items-center gap-1 text-[13px] text-text-secondary", alignStart ? "justify-start" : "justify-end")}>
@@ -890,24 +911,24 @@ function ListItemMeta({ line, meta, onOpenDetail }: { line: QuotationLine; meta:
  * mínimo. The advisors never see the cost behind them; BI (who validates)
  * gets the highest cost right below, and its breakdown on hover or focus.
  */
-function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) {
+function Bounds({ line, showCost, hints }: { line: QuotationLine; showCost: boolean; hints: boolean }) {
   if (isLocal(line)) return <span className="text-[13px] text-text-secondary">Sin costo ni regla</span>;
   const row = "flex items-baseline justify-between gap-2";
   return (
     <dl className="space-y-0.5 text-[13px] tabular-nums">
       {/* Each price with the margin it leaves, in the same chip as the new price's (decided 2026-11-23). */}
-      <div className={row} title={`Óptimo. ${OPTIMAL_PRICE_HELP}`}>
+      <div className={row} title={hints ? `Óptimo. ${OPTIMAL_PRICE_HELP}` : undefined}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">Óptimo</dt>
         <dd className="flex items-center justify-end gap-1.5 whitespace-nowrap font-semibold">
           {toNumber(line.optimal_price) === null ? dash : formatMoney(line.optimal_price)}
-          <SuggestedMarginChip line={line} which="optimal" />
+          <SuggestedMarginChip line={line} which="optimal" hint={hints} />
         </dd>
       </div>
-      <div className={row} title={`Mínimo. ${MIN_PRICE_HELP}`}>
+      <div className={row} title={hints ? `Mínimo. ${MIN_PRICE_HELP}` : undefined}>
         <dt className="whitespace-nowrap text-xs text-text-secondary">Mínimo</dt>
         <dd className="flex items-center justify-end gap-1.5 whitespace-nowrap font-semibold">
           {toNumber(line.min_price) === null ? dash : formatMoney(line.min_price)}
-          <SuggestedMarginChip line={line} which="minimum" />
+          <SuggestedMarginChip line={line} which="minimum" hint={hints} />
         </dd>
       </div>
       {showCost && (
@@ -922,10 +943,10 @@ function Bounds({ line, showCost }: { line: QuotationLine; showCost: boolean }) 
 }
 
 /** The margin a suggested price leaves, as the new price's chip; nothing when it cannot be told. */
-function SuggestedMarginChip({ line, which }: { line: QuotationLine; which: "optimal" | "minimum" }) {
+function SuggestedMarginChip({ line, which, hint }: { line: QuotationLine; which: "optimal" | "minimum"; hint: boolean }) {
   const margin = suggestedMargin(line, which);
   if (!margin) return null;
-  return <MarginMark value={margin.value} standing={margin.standing} />;
+  return <MarginMark value={margin.value} standing={margin.standing} hint={hint} />;
 }
 
 /**
@@ -1012,7 +1033,19 @@ function typedLine(line: QuotationLine, editor: LineEditor): QuotationLine {
   return "value" in typed && typed.value !== null ? previewLine(line, Number(typed.value)) : line;
 }
 
-function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLine; editor: LineEditor; editable: boolean; wide?: boolean }) {
+function NewPrice({
+  line,
+  editor,
+  editable,
+  hints,
+  wide = false,
+}: {
+  line: QuotationLine;
+  editor: LineEditor;
+  editable: boolean;
+  hints: boolean;
+  wide?: boolean;
+}) {
   const error = editor.errorFor(line.sku);
   const errorId = `price-error-${line.sku}-${wide ? "card" : "row"}`;
   const disabled = !editable || !line.is_active;
@@ -1036,7 +1069,7 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
         }}
         disabled={disabled}
         placeholder={disabled ? "" : "Sin cambio"}
-        title={error ?? (!line.is_active ? INACTIVE_HELP : "Escribe el precio: el margen se ve mientras escribes y Enter lo guarda")}
+        title={error ?? (!line.is_active ? INACTIVE_HELP : hints ? "Escribe el precio: el margen se ve mientras escribes y Enter lo guarda" : undefined)}
         aria-label={`Precio nuevo de ${line.description ?? line.sku}, sin IVA. Enter confirma, Escape deshace`}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
@@ -1050,8 +1083,11 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
       />
       {error && <span id={errorId} className="sr-only">{error}</span>}
       {shown.new_price !== null && !isLocal(line) && (
-        <span className={cn("block", shown !== line && "opacity-80")} title={shown !== line ? "Margen con el precio escrito; se guarda con Enter" : undefined}>
-          <NewMargin line={shown} />
+        <span
+          className={cn("block", shown !== line && "opacity-80")}
+          title={hints && shown !== line ? "Margen con el precio escrito; se guarda con Enter" : undefined}
+        >
+          <NewMargin line={shown} hint={hints} />
         </span>
       )}
     </div>
@@ -1062,12 +1098,12 @@ function NewPrice({ line, editor, editable, wide = false }: { line: QuotationLin
  * The margin the new price leaves, with where it stands; or why the rule
  * cannot judge it (no cost, no target). Right under the price that makes it.
  */
-export function NewMargin({ line }: { line: QuotationLine }) {
+export function NewMargin({ line, hint = true }: { line: QuotationLine; hint?: boolean }) {
   if (line.new_price === null || isLocal(line)) return dash;
   if (line.compliance === "sin_costo" || line.compliance === "sin_objetivo") {
     return <ComplianceBadge compliance={line.compliance} label={line.compliance_label} className="whitespace-normal text-right" />;
   }
-  return <MarginMark value={line.new_margin_with_support_pct ?? line.new_margin_pct} standing={newPriceStanding(line)} />;
+  return <MarginMark value={line.new_margin_with_support_pct ?? line.new_margin_pct} standing={newPriceStanding(line)} hint={hint} />;
 }
 
 /**

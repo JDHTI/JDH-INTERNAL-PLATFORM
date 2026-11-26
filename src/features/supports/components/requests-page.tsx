@@ -40,7 +40,7 @@ export default function RequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Solicitudes de apoyo"
+        title="Excepciones de margen"
         description={
           review
             ? "Revisa los apoyos que piden desde las cotizaciones, decide y consulta su historial."

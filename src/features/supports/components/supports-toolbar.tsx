@@ -35,7 +35,7 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
     if (permissions?.can_review_internal === true) {
       return (
         <Link href={requests} className={buttonVariants({ variant: "outline" })}>
-          Solicitudes de apoyo
+          Excepciones de margen
         </Link>
       );
     }
@@ -50,7 +50,7 @@ export default function SupportsToolbar({ area, openNew = false }: { area: strin
   return (
     <div className="flex flex-wrap gap-2 md:justify-end">
       {requests && permissions.can_review_internal && (
-        <Link href={requests} className={buttonVariants({ variant: "outline" })}>Solicitudes de apoyo</Link>
+        <Link href={requests} className={buttonVariants({ variant: "outline" })}>Excepciones de margen</Link>
       )}
       <Link href={`${base}/carga`} className={buttonVariants({ variant: "outline", className: "max-sm:h-11" })}>
         <Upload aria-hidden="true" /> Carga masiva
