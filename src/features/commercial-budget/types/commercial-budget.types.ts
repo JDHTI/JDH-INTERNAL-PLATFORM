@@ -97,6 +97,12 @@ export interface GroupTotals extends Totals {
 
 export type Grouping = "regional" | "business_unit" | "team";
 
+/** A team's subtotal inside one regional (`groups.team` adds a team name up across regionals). */
+export interface TeamGroupTotals extends Totals {
+  regional: string | null;
+  team: string | null;
+}
+
 export interface SalespersonOption {
   code: string;
   name: string | null;
@@ -110,6 +116,8 @@ export interface BudgetBoard {
   totals: Totals;
   rows: RepRow[];
   groups: Partial<Record<Grouping, GroupTotals[]>>;
+  /** One subtotal per (regional, team), by regional then team, blanks last: the table's team rows. */
+  team_groups: TeamGroupTotals[];
   options: { regionals: string[]; business_units: string[]; teams: string[]; salespeople: SalespersonOption[] };
   /** Months of the window whose sales are not copied from the DWH yet. */
   missing_months: Period[];

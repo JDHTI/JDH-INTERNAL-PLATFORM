@@ -30,7 +30,9 @@ La sección «Gestión comercial» se agregó el 2026-11-26. Las reglas de cada 
    - Una búsqueda que espera una pausa al escribir.
    - «Limpiar filtros».
 6. **Tabla.**
-   - **Agrupación:** regional → equipo → vendedor, con los subtotales de `groups`, que se pueden contraer. El total de la compañía va al pie.
+   - **Agrupación:** regional → equipo → vendedor, con subtotales que se pueden contraer. El total de la compañía va al pie.
+     - El subtotal de cada regional sale de `groups.regional`.
+     - El de cada equipo sale de `team_groups`, que trae uno por (regional, equipo). No sale de `groups.team`, porque ese suma el mismo nombre de equipo en todas las regionales.
    - **Columnas:** el mismo mes del año anterior, el promedio de los tres meses anteriores y el mes (venta, margen y clientes de cada uno); después el presupuesto (venta, % de margen, # de clientes y recaudo), la variación contra el año anterior y el cumplimiento.
    - **Vendedor:** la columna queda fija al desplazarse hacia los lados. «Sin vendedor asignado» se muestra, pero nunca es editable.
 7. **Edición** (`can_manage` y mes abierto).

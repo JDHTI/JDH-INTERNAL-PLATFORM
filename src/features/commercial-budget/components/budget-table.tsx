@@ -81,7 +81,7 @@ function TotalCells({ totals }: { totals: Totals }) {
 interface TeamNode {
   key: string;
   label: string;
-  totals: GroupTotals | undefined;
+  totals: Totals | undefined;
   rows: RepRow[];
 }
 
@@ -92,10 +92,18 @@ interface RegionalNode {
   teams: TeamNode[];
 }
 
-/** Regional → team → rep, in the API's order; the subtotals come from its groups. */
+const pairKey = (regional: string | null, team: string | null) => `${keyOf(regional)}|${keyOf(team)}`;
+
+/**
+ * Regional → team → rep. The regional subtotals come from `groups.regional`; a team's from
+ * `team_groups`, one per (regional, team): a team name can repeat in two regionals, and
+ * `groups.team` would add both up. Regionals and teams follow the API's order.
+ */
 function buildTree(board: BudgetBoard): RegionalNode[] {
   const regionalTotals = new Map((board.groups.regional ?? []).map((group) => [keyOf(group.key), group]));
-  const teamTotals = new Map((board.groups.team ?? []).map((group) => [keyOf(group.key), group]));
+  const teamGroups = board.team_groups ?? [];
+  const teamTotals = new Map(teamGroups.map((group) => [pairKey(group.regional, group.team), group]));
+  const teamOrder = teamGroups.map((group) => pairKey(group.regional, group.team));
   const regionals = new Map<string, RegionalNode>();
   for (const row of board.rows) {
     const regionalKey = keyOf(row.regional);
@@ -107,13 +115,17 @@ function buildTree(board: BudgetBoard): RegionalNode[] {
     const teamKey = keyOf(row.team);
     let team = regional.teams.find((item) => item.key === teamKey);
     if (!team) {
-      team = { key: teamKey, label: row.team ?? "Sin equipo", totals: teamTotals.get(teamKey), rows: [] };
+      team = { key: teamKey, label: row.team ?? "Sin equipo", totals: teamTotals.get(pairKey(row.regional, row.team)), rows: [] };
       regional.teams.push(team);
     }
     team.rows.push(row);
   }
   const order = (board.groups.regional ?? []).map((group) => keyOf(group.key));
-  return [...regionals.values()].sort((a, b) => rank(order, a.key) - rank(order, b.key));
+  const tree = [...regionals.values()].sort((a, b) => rank(order, a.key) - rank(order, b.key));
+  for (const regional of tree) {
+    regional.teams.sort((a, b) => rank(teamOrder, `${regional.key}|${a.key}`) - rank(teamOrder, `${regional.key}|${b.key}`));
+  }
+  return tree;
 }
 
 const rank = (order: string[], key: string) => {
@@ -271,7 +283,7 @@ function GroupRow({
 }: {
   level: "regional" | "team";
   label: string;
-  totals: GroupTotals | undefined;
+  totals: Totals | undefined;
   open: boolean;
   onToggle: () => void;
   count: number;
