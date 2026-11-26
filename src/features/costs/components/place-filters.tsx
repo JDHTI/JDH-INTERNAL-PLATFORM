@@ -1,47 +1,11 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 
-import { SearchableDropdown } from "@/shared/components/ui/searchable-dropdown";
+import OptionFilter from "@/shared/components/option-filter";
 
 import { formatCo } from "../lib/format";
 import type { EntryOptions } from "../types/costs.types";
-
-/** One filterable dropdown; empty is every value. */
-function OptionFilter({
-  label,
-  allLabel,
-  value,
-  options,
-  loading,
-  onChange,
-}: {
-  label: string;
-  allLabel: string;
-  value: string;
-  options: { value: string; label: string }[];
-  loading: boolean;
-  onChange: (next: string) => void;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
-      <SearchableDropdown
-        id={id}
-        value={value}
-        options={options}
-        onValueChange={onChange}
-        placeholder={loading ? "Cargando…" : allLabel}
-        emptyMessage="Ninguno con ese texto."
-        clearLabel={`Quitar el filtro de ${label.toLowerCase()}`}
-        disabled={loading && options.length === 0}
-      />
-    </div>
-  );
-}
 
 /** The period's C.O., «003 · Antioquia». */
 export function CoFilter({

@@ -23,6 +23,7 @@ import {
   FileWarning,
   FolderKanban,
   FolderOpen,
+  Gauge,
   HandCoins,
   Handshake,
   History,
@@ -130,6 +131,8 @@ export const MODULE_CATEGORIES = [
   "Gestión comercial",
   // Abastecimiento's purchase cost control: four views, each with its own key.
   "Costos",
+  // Abastecimiento's service level, out of the area's Power BI board: the pending lines and the board (2026-11-26).
+  "Nivel de servicio",
   "Reportes",
   "Monitoreo",
   // The supplier supports and what each supplier owes for them in the month.
@@ -556,6 +559,9 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     available: true,
     permission: "acumulado-alzas",
   },
+  // The fulfilled orders' lines with something undispatched, each with its reason.
+  { key: "pendientes-pedidos", name: "Pendientes de pedidos", category: "Nivel de servicio", icon: ClipboardList, available: true, permission: "pendientes-pedidos" },
+  { key: "nivel-servicio", name: "Nivel de servicio", category: "Nivel de servicio", icon: Gauge, available: true, permission: "nivel-servicio" },
   {
     key: "monitoreo",
     segment: BOARD_SEGMENT,

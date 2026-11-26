@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import ReasonPicker from "@/shared/components/reason-picker";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import ConfirmDeleteDialog from "@/shared/components/ui/confirm-delete-dialog";
@@ -16,7 +17,6 @@ import { useCostReasons, useDetachCreditNote, useNovelty, useSetNoveltyReason } 
 import { ENTRY_STATUS, NOVELTY_STATUS, formatCo, formatSignedCop, formatSignedPct } from "../lib/format";
 import type { CostPermissions, NoveltyDetail, NoveltyEvent, NoveltyKind } from "../types/costs.types";
 import CreditNotePreview from "./credit-note-preview";
-import ReasonPicker from "./reason-picker";
 
 const KIND_LABELS: Record<NoveltyKind, string> = {
   diferencia: "diferencia con la cotización",
