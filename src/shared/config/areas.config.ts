@@ -75,6 +75,12 @@ export const SUPPORT_SETTLEMENTS_SEGMENT = "liquidacion-apoyos";
 /** The quoter's cost rules in one place, edited by BI with their history (features/cost-settings). */
 export const COST_SETTINGS_SEGMENT = "ajuste-costos";
 
+/** Sales, margin and customers by sales rep against the month's budget (features/commercial-budget). */
+export const COMMERCIAL_BUDGET_SEGMENT = "presupuesto-comercial";
+
+/** The rep master upload to the DWH, moved from the supplier platform (features/commercial-budget). */
+export const VENDOR_MASTER_SEGMENT = "maestro-vendedores";
+
 /** Prospects on the map, commercial zones and visit routes (features/commercial-map). */
 export const COMMERCIAL_MAP_SEGMENT = "mapa-comercial";
 
@@ -120,6 +126,8 @@ export const MODULE_CATEGORIES = [
   "Listas de precios",
   // The internal support requests and the rules the cost is calculated with.
   "Solicitudes y costos",
+  // The sales force: each rep's month against its budget, and the rep master (2026-11-26).
+  "Gestión comercial",
   // Abastecimiento's purchase cost control: four views, each with its own key.
   "Costos",
   "Reportes",
@@ -476,6 +484,24 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
     icon: ClipboardList,
     available: true,
     permission: "solicitudes-apoyos",
+  },
+  {
+    // On by default in BI and Comercial; the API answers each person with the reps of their scope.
+    key: COMMERCIAL_BUDGET_SEGMENT,
+    name: "Presupuesto comercial",
+    category: "Gestión comercial",
+    icon: Target,
+    available: true,
+    permission: "presupuesto-comercial",
+  },
+  {
+    // On by default in BI: the upload writes straight to the DWH through dwh-platform.
+    key: VENDOR_MASTER_SEGMENT,
+    name: "Maestro de vendedores",
+    category: "Gestión comercial",
+    icon: BriefcaseBusiness,
+    available: true,
+    permission: "maestro-vendedores",
   },
   {
     key: COMMERCIAL_MAP_SEGMENT,
