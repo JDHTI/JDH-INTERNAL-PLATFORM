@@ -6,6 +6,7 @@ import { formatCount } from "../lib/format";
 import { INDICATORS, type Indicator } from "../lib/line-status";
 import type { QuotationLine } from "../types/quotations.types";
 
+/** The three standings (with a tone) explain a margin: no tooltip in the commercial view. */
 const ITEMS: { key: Indicator; label: string; tone?: "success" | "warning" | "danger"; help: string }[] = [
   { key: "all", label: "Líneas totales", help: "Todas las referencias de la cotización." },
   {
@@ -57,7 +58,16 @@ const TONE_BAR = { success: "bg-success", warning: "bg-warning", danger: "bg-dan
  * meaning by color alone. One card per figure: eight in a row on a wide
  * container, four or two on narrower ones.
  */
-export default function QuotationIndicators({ lines, forList = false }: { lines: QuotationLine[]; forList?: boolean }) {
+export default function QuotationIndicators({
+  lines,
+  forList = false,
+  marginHints = true,
+}: {
+  lines: QuotationLine[];
+  forList?: boolean;
+  /** False in the commercial view: the bar and the standings say nothing on hover. */
+  marginHints?: boolean;
+}) {
   // A list update has no products only for quoting, and its reference price is the list's.
   const items = forList ? ITEMS.filter((item) => item.key !== "local").map((item) => LIST_COPY[item.key] ?? item) : ITEMS;
   const counts = Object.fromEntries(items.map((item) => [item.key, lines.filter(INDICATORS[item.key]).length])) as Record<Indicator, number>;
@@ -74,7 +84,7 @@ export default function QuotationIndicators({ lines, forList = false }: { lines:
             ? "Aún no hay precios que evaluar contra la regla."
             : `${formatCount(counts.objetivo)} cumplen el objetivo, ${formatCount(counts.rango)} en rango y ${formatCount(counts.minimo)} bajo el mínimo.`
         }
-        title={`Según el precio nuevo de cada línea, o ${forList ? "el de la lista" : "el último"} si aún no tiene.`}
+        title={marginHints ? `Según el precio nuevo de cada línea, o ${forList ? "el de la lista" : "el último"} si aún no tiene.` : undefined}
       >
         {(["objetivo", "rango", "minimo"] as const).map((key, index) => {
           const tone = (["success", "warning", "danger"] as const)[index];
@@ -85,7 +95,9 @@ export default function QuotationIndicators({ lines, forList = false }: { lines:
       </div>
       <dl className={cn("grid grid-cols-2 gap-3 @2xl:grid-cols-4", forList ? "@6xl:grid-cols-7" : "@6xl:grid-cols-8")}>
         {items.map((item) => (
-          <div key={item.key} className="min-w-0 space-y-1 rounded-lg border border-border bg-surface px-3 py-2.5" title={item.help}>
+          <div key={item.key} className="min-w-0 space-y-1 rounded-lg border border-border bg-surface px-3 py-2.5"
+            title={item.tone && !marginHints ? undefined : item.help}
+          >
             <dt className="truncate text-[13px] text-text-secondary">{item.label}</dt>
             <dd className={cn("text-2xl font-semibold tabular-nums", item.tone && counts[item.key] > 0 && TONE_TEXT[item.tone])}>
               {formatCount(counts[item.key])}

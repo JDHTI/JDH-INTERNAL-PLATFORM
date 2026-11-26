@@ -49,6 +49,7 @@ export default function BulkPricingPanel({
   filteredSkus,
   onSelectionChange,
   disabled,
+  marginLegend = true,
 }: {
   quotation: Quotation;
   selected: Set<string>;
@@ -57,6 +58,8 @@ export default function BulkPricingPanel({
   onSelectionChange: (next: Set<string>) => void;
   /** Prices unsaved or another write running: a bulk write needs the current version. */
   disabled: boolean;
+  /** The «Alertas de margen» legend; the commercial view goes without it. */
+  marginLegend?: boolean;
 }) {
   const update = useUpdateLines(quotation.id);
   const clear = useUpdateLines(quotation.id);
@@ -168,9 +171,11 @@ export default function BulkPricingPanel({
           </button>
         </h2>
         <span className="text-[13px] tabular-nums text-text-secondary" aria-live="polite">{countLabel}</span>
-        <InfoPopover label="Alertas de margen" title="Cómo leer los márgenes">
-          <MarginLegend />
-        </InfoPopover>
+        {marginLegend && (
+          <InfoPopover label="Alertas de margen" title="Cómo leer los márgenes">
+            <MarginLegend />
+          </InfoPopover>
+        )}
       </div>
 
       {open && (

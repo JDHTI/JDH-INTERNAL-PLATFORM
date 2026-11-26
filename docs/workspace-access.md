@@ -45,7 +45,7 @@ un área fija vive en `AREA_ROWS`: «Solicitudes de soporte» y Administración 
 - **Operación**
 - **Cotización y pedidos:** Cotizador y Validador de pedidos.
 - **Listas de precios:** Actualización de listas y Listas principales.
-- **Solicitudes y costos:** Solicitudes de apoyo y Ajuste de costos.
+- **Solicitudes y costos:** Excepciones de margen y Ajuste de costos.
 - **Costos**, **Reportes**, **Monitoreo**, **Apoyos proveedores**, **Maestros generales**, **Administración** y **Documentación**.
 
 La categoría va en la plantilla, y el menú solo arma las secciones que tienen al menos un módulo visible. Por eso una sección aparece en un área en cuanto se le enciende uno de sus módulos; por ejemplo, Actualización de listas trae «Listas de precios».
@@ -80,7 +80,7 @@ las que creó (`docs/cotizador.md`).
 | Maestro de apoyos | `apoyos` |
 | Ajuste de costos (encendido por defecto en BI) | `ajuste-costos`; `read` consulta los parámetros del costo, las reglas de sucursal por C.O. y el historial, `manage` los cambia (`GET /cost-settings/permissions`) |
 | Liquidación de apoyos (bloqueado a BI) | `liquidacion-apoyos`; `read` consulta y descarga, `manage` recalcula y cierra el mes; reabrir un mes cerrado es del líder de BI o de un administrador (`GET /support-settlements/permissions`) |
-| Solicitudes de apoyo (apoyo interno: pedir y revisar) | `solicitudes-apoyos` |
+| Excepciones de margen (antes Solicitudes de apoyo; apoyo interno: pedir y revisar) | `solicitudes-apoyos`; la clave y la ruta no cambian |
 | Mapa comercial | `mapa-comercial`; `read` ve mapa, zonas y rutas, `manage` importa, corrige ubicaciones y edita zonas y rutas (`GET /territory/permissions`, `docs/mapa-comercial.md`) |
 | Maestros (`/{área}/maestros`) | `maestros` |
 | Costos · Análisis de entradas | `analisis-entradas`; `manage` (o el de `novedades-compras`) pone el motivo de una línea (`GET /costs/permissions`, `docs/costos.md`) |

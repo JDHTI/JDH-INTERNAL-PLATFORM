@@ -138,6 +138,8 @@ type ChipFilter = {
   label: string;
   help: string;
   forLists: boolean;
+  /** It explains a margin standing: no tooltip in the commercial view. */
+  margin?: boolean;
   /** A list update's words, where its reference (the list's price) changes them. */
   list?: { label: string; help: string };
 };
@@ -155,9 +157,9 @@ const CHIP_FILTERS: ChipFilter[] = [
   { key: "modificados", label: "Modificados", help: "Solo las referencias a las que les escribiste un precio nuevo.", forLists: true },
   { key: "sin_cambios", label: "Sin cambios", help: "Las referencias que conservan su precio: sin precio nuevo.", forLists: true },
   { key: "nuevos", label: "Ítems nuevos", help: "Las agregadas a mano y los productos creados para cotizar.", forLists: true },
-  { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: true },
-  { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: true },
-  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: true },
+  { key: "objetivo", label: "Cumplen objetivo", help: "El margen con apoyo llega al objetivo o lo supera.", forLists: true, margin: true },
+  { key: "rango", label: "En rango", help: "Entre el mínimo y el objetivo.", forLists: true, margin: true },
+  { key: "minimo", label: "Bajo mínimo", help: "Por debajo del margen mínimo.", forLists: true, margin: true },
   { key: "apoyo", label: "Con apoyo", help: "Con un apoyo del proveedor que entra en el margen.", forLists: true },
   {
     key: "sin_referencia",
@@ -260,6 +262,9 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
   // the whole editor on the ones they may edit (`can_edit`); a team's quotation opens read-only.
   const canManage = permissions?.can_manage === true && quotation.can_edit !== false;
   const canValidate = permissions?.can_validate === true;
+  // The commercial view (whoever does not validate) has no margin tooltips; the last sale keeps
+  // one, with its invoice number (decided 2026-11-26).
+  const marginHints = canValidate;
   const pendingReview = quotation.status === "pendiente_validacion";
   // Validated or loaded: nothing changes any more, the API answers 409 to every edit.
   const closed = isClosed(quotation.status);
@@ -408,7 +413,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       active={chipActive(item.key)}
       onClick={() => toggleChip(item.key)}
       count={item.key === "all" ? undefined : quickCounts[item.key]}
-      title={item.help}
+      title={item.margin && !marginHints ? undefined : item.help}
     >
       {item.label}
     </ToggleChip>
@@ -642,6 +647,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
     quantitiesEditable: offerEditable,
     // Only BI, who validates, sees the cost behind the suggested prices.
     showCost: canValidate,
+    marginHints,
     basePriceLabel: copy.basePrice,
     // A list update keeps the last sale in a tooltip beside the list's price.
     showLastSale: isList,
@@ -809,7 +815,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
       <CustomerCards quotation={quotation} canChangeCenter={editable && !busy} />
       {/* The figures right under who and where: how the quotation stands before anything else. */}
       {/* A list update shows the same figures (decided 2026-11-20); only the main lists keep their review panel. */}
-      {quotation.lines.length > 0 && !perItemReview && <QuotationIndicators lines={quotation.lines} forList={isList} />}
+      {quotation.lines.length > 0 && !perItemReview && <QuotationIndicators lines={quotation.lines} forList={isList} marginHints={marginHints} />}
       <ReviewBanner quotation={quotation} canManage={canManage} canValidate={canValidate} />
       {/* A draft never sent to validation is deleted 30 days after it was created; the API says when. */}
       <DeletionNotice deletedOn={quotation.deleted_on} />
@@ -828,6 +834,7 @@ function Editor({ quotation, basePath, rulesBasePath }: { quotation: Quotation; 
           filteredSkus={filteredSkus}
           onSelectionChange={setSelected}
           disabled={busy}
+          marginLegend={marginHints}
         />
       )}
 

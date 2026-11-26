@@ -255,7 +255,16 @@ proveedor y unidad), «Último precio sin IVA» (margen con apoyo y fecha), «Pr
 debajo del campo, apoyo, IVA, «Imp. consumo» (impuesto al consumo por unidad, `value_tax_amount`),
 «Precio con IVA», cantidad (si se cotiza con cantidades) y variación. Cada margen lleva un badge
 con ícono y palabras: cumple, en rango o bajo el mínimo; el tooltip «Alertas de margen» de la
-asignación masiva los explica. El precio con IVA es `precio × (1 + IVA) + impuesto al consumo`,
+asignación masiva los explica.
+
+**Vista comercial sin tooltips de margen** (2026-11-26). Quien no valida (`can_validate` falso) no
+ve ningún tooltip de margen: ni los badges de margen, ni «Óptimo» y «Mínimo», ni el margen al
+escribir, ni «Alertas de margen», ni los indicadores y filtros de cumple, en rango y bajo el mínimo.
+El único que queda es el del último precio, y solo dice la factura («Factura {last_document}»).
+Los badges siguen a la vista; solo se quita lo que sale al pasar el cursor. BI los conserva todos
+(`marginHints` en `LinesTable`, `QuotationIndicators` y `BulkPricingPanel`).
+
+El precio con IVA es `precio × (1 + IVA) + impuesto al consumo`,
 con el `vat_pct` de la venta. Tabla cuando su contenedor deja unos 11rem al producto (70rem, 77rem
 con cantidades; container query, así el sidebar abierto o cerrado decide); por debajo, tarjetas.
 

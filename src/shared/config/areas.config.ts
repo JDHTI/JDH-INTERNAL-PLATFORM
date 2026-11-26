@@ -471,7 +471,7 @@ const MODULE_TEMPLATES: ModuleTemplate[] = [
   },
   {
     key: SUPPORT_REQUESTS_SEGMENT,
-    name: "Solicitudes de apoyo",
+    name: "Excepciones de margen",
     category: "Solicitudes y costos",
     icon: ClipboardList,
     available: true,
