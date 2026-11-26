@@ -298,6 +298,7 @@ export default function MainListsBoard() {
           <ListFilters
             counts={page_?.counts}
             total={page_?.counts.todos}
+            board
             active={(filters.chip ?? "all") as ListFilter}
             onSelect={(next) => change({ chip: next === "all" ? null : (next as BoardChip) })}
           />

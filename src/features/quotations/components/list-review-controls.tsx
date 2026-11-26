@@ -3,7 +3,7 @@
 import { cn } from "@/shared/lib/utils";
 
 import { formatCount } from "../lib/format";
-import { LIST_FILTERS, type ListFilter, MARGIN_FILTERS, REVIEW_FILTERS } from "../lib/list-review";
+import { BOARD_MARGIN_FILTERS, LIST_FILTERS, type ListFilter, MARGIN_FILTERS, REVIEW_FILTERS } from "../lib/list-review";
 import type { QuotationLine } from "../types/quotations.types";
 
 const TONE_TEXT = { success: "text-success", warning: "text-warning", danger: "text-danger" } as const;
@@ -59,6 +59,7 @@ export function ListFilters({
   active,
   onSelect,
   withReview = true,
+  board = false,
 }: {
   /** The lines to count, in the browser; or `counts` and `total` from the API (the board). */
   lines?: QuotationLine[];
@@ -67,7 +68,10 @@ export function ListFilters({
   active: ListFilter;
   onSelect: (filter: ListFilter) => void;
   withReview?: boolean;
+  /** The main lists board: its margin chips follow the floor rule of API #142. */
+  board?: boolean;
 }) {
+  const margins = board ? BOARD_MARGIN_FILTERS : MARGIN_FILTERS;
   const count = (key: Exclude<ListFilter, "all">) => (counts ? (counts[key] ?? 0) : lines.filter(LIST_FILTERS[key]).length);
   const toggle = (key: ListFilter) => onSelect(active === key ? "all" : key);
   return (
@@ -99,7 +103,7 @@ export function ListFilters({
       </div>}
       <div className="space-y-1">
         <h2 className="px-3 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">
-          Margen del precio actual contra el objetivo (±0,5 puntos)
+          {board ? "Precio actual contra el piso y el objetivo" : "Margen del precio actual contra el objetivo (±0,5 puntos)"}
         </h2>
         <div className={cn("grid grid-cols-2 gap-1", withReview ? "@lg:grid-cols-4" : "@lg:grid-cols-5")}>
           {!withReview && (
@@ -111,7 +115,7 @@ export function ListFilters({
               onClick={() => onSelect("all")}
             />
           )}
-          {MARGIN_FILTERS.map((item) => (
+          {margins.map((item) => (
             <FilterButton
               key={item.key}
               label={item.label}

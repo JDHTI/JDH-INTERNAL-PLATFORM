@@ -91,6 +91,31 @@ export const MARGIN_FILTERS: { key: MarginBand | "alerta"; label: string; help: 
   { key: "alerta", label: "Alerta", help: "Bajo el mínimo, sin costo para calcular el margen o con un precio marcador de $1 en la lista." },
 ];
 
+/**
+ * The same chips on the main lists board, whose counts come from the API (#142): «Con alza» is
+ * the current price under the floor (the highest cost at the minimum margin), and those rows
+ * are in neither of the other two. A list update in the editor keeps MARGIN_FILTERS and
+ * `marginBand` until Daniel decides whether the floor rule goes there too.
+ */
+export const BOARD_MARGIN_FILTERS: typeof MARGIN_FILTERS = [
+  {
+    key: "alza",
+    label: "Con alza",
+    help: "Precio actual bajo el piso (costo más alto al margen mínimo): hay que subirlo.",
+  },
+  {
+    key: "objetivo",
+    label: "En el objetivo",
+    help: "Cubre el piso y su margen no pasa de 0,5 puntos sobre el objetivo. Las que están bajo el piso van en «Con alza».",
+  },
+  {
+    key: "encima",
+    label: "Por encima",
+    help: "Cubre el piso y su margen pasa más de 0,5 puntos sobre el objetivo: el precio puede bajar, o hay que revisar el costo.",
+  },
+  MARGIN_FILTERS[3],
+];
+
 export const REVIEW_FILTERS: { key: ReviewView; label: string }[] = [
   { key: "sin_marcar", label: "Sin marcar" },
   { key: "por_validar", label: "Por validar" },
