@@ -107,9 +107,20 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
   existencia la guarda la sincronización). La vista no lleva descripción bajo el título.
   - **Filtros rápidos** (decisión del 2026-11-25): van en una segunda fila de la barra de filtros,
     no como más cifras. Las cifras de revisión y margen son un solo bloque.
-    - **Desplegable de tendencia:** «Precio nuevo: todas / sube / baja / estable», con el conteo en
-      cada opción. Compara el precio nuevo con el actual de la lista; sin precio nuevo cuenta como
-      estable. Envía `trend` y lee `counts.sube|baja|estable`.
+    - **Desplegable de tendencia:** «Precio actual vs. piso: todas / sube / baja», con el conteo en
+      cada opción (API #142, 2026-11-26).
+      - **El piso:** `ceil(costo más alto / (1 − margen mínimo))`. Sube el precio actual que está por
+        debajo; baja el que lo iguala o lo supera.
+      - **Sin «estable»:** ya no existe; el API responde 400 a `trend=estable` y no la cuenta.
+      - **Qué envía:** `trend`, y lee `counts.sube|baja`.
+      - **Tooltip:** «Piso = costo más alto al margen mínimo; por debajo sube».
+      - **Detalle:** el de una lista muestra el piso junto al precio actual.
+      - **Chips de margen del tablero:** también siguen el piso. Su encabezado dice «Precio actual
+        contra el piso y el objetivo», y sus textos están en `BOARD_MARGIN_FILTERS`.
+        - **«Con alza»:** el precio actual está bajo el piso.
+        - **«En el objetivo» y «Por encima»:** solo las que cubren el piso.
+        - **Actualización de listas:** no cambia; sigue con `MARGIN_FILTERS` y `marginBand`, la regla
+          de ±0,5 puntos y subida de al menos 1 %, hasta que Daniel decida si el piso aplica ahí.
     - **«Con existencia»:** encendido por defecto. Al apagarlo envía `in_stock=false` (API #133) y
       aparecen también las referencias que la sincronización leyó en 0.
     - **«Sin precio de lista»:** envía `without_list_price=true`, con `counts.sin_precio` en el botón.

@@ -296,6 +296,11 @@ function Detail({
   const options = line.support_options ?? [];
   const basis = line.margin_basis ? line.margin_basis_label || MARGIN_BASIS_LABELS[line.margin_basis] : null;
   const liquor = toNumber(line.value_tax_amount);
+  // The main lists' floor (API #142): the highest cost at the minimum margin, rounded up to the peso.
+  // Below it the list's price goes up («sube»); at it or above, down («baja»).
+  const floorCost = toNumber(line.cost);
+  const floorMargin = toNumber(line.min_margin_pct);
+  const floor = forList && floorCost !== null && floorMargin !== null && floorMargin < 1 ? Math.ceil(floorCost / (1 - floorMargin)) : null;
 
   return (
     <div className="space-y-5 text-sm">
@@ -334,6 +339,14 @@ function Detail({
         {forList && (
           <>
             <Row label="Precio actual sin IVA">{toNumber(line.last_price) === null ? "Sin precio en la lista" : formatMoney(line.last_price)}</Row>
+            {floor !== null && (
+              <Row label="Piso">
+                {formatMoney(String(floor))}{" "}
+                <span className="text-text-secondary">
+                  · costo más alto al margen mínimo{toNumber(line.last_price) !== null ? (Number(line.last_price) < floor ? "; el precio actual está por debajo" : "; el precio actual lo cubre") : ""}
+                </span>
+              </Row>
+            )}
             <Row label="Última venta">
               {toNumber(line.last_sale_price ?? null) === null ? NO_SALE_TEXT : formatMoney(line.last_sale_price ?? null)}
             </Row>
