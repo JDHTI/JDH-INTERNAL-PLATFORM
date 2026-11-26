@@ -43,7 +43,11 @@ La sección «Gestión comercial» se agregó el 2026-11-26. Las reglas de cada 
    - Mientras carga otro mes u otro filtro, la tabla anterior queda atenuada y sin edición.
 8. **Historial.** El reloj de cada vendedor abre sus cambios del mes: antes y después de cada campo, el origen (manual o archivo), la nota, quién y cuándo.
 9. **Acciones.**
-   - **«Sincronizar ventas»** (`can_manage`): `POST /sync`, que tarda unas decenas de segundos.
+   - **«Sincronizar ventas»** (`can_manage`). Corre en segundo plano desde el API #139, porque dentro de la petición tardaba 46 s y el proxy corta a los 30 s.
+     - **Cola:** `POST /sync` la encola (202). Un 409, porque ya hay una en curso o el worker está apagado, muestra el motivo.
+     - **Estado:** el botón dice «En cola» o «Sincronizando…» y `GET /sync` se vuelve a leer cada 5 s mientras dure.
+     - **Al terminar:** cuando termina una, iniciada aquí o automática, se vuelven a leer los meses y la tabla. La iniciada desde el botón avisa «Ventas sincronizadas: N meses» o el error.
+     - **Junto al botón:** la última sincronización terminada, con la fecha y quién la corrió («automática» si fue `dwh`, `scheduled` o `startup`). Si falló, su error queda a la vista. Quien solo consulta ve la fecha sin el botón.
    - **Menú «Excel»:**
      - el mes con los filtros (`/export`);
      - la plantilla del mes;

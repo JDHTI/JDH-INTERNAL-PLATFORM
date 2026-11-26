@@ -10,7 +10,7 @@ import type {
   BudgetUploadReport,
   Period,
   RepBudget,
-  SyncResult,
+  SyncRun,
   VendorMasterResult,
   VendorMasterStatus,
   VendorMasterUpload,
@@ -79,9 +79,17 @@ export function downloadBudgetExport(period: Period, filters: BudgetFilters): Pr
   return apiDownload(`${month(period)}/export`, { query: filterQuery(filters), fallbackName: `presupuesto-comercial-${period}.xlsx` });
 }
 
-/** Copies the rep master and the sales from the DWH now: it can take tens of seconds. */
-export function syncBudgetSales(): Promise<SyncResult> {
-  return apiFetch<SyncResult>(`${BASE}/sync`, { method: "POST" });
+/**
+ * Queues the copy of the rep master and the sales (202 at once; it runs in the background).
+ * 409 when one is already queued or running, or the worker is off.
+ */
+export function startBudgetSync(): Promise<SyncRun> {
+  return apiFetch<SyncRun>(`${BASE}/sync`, { method: "POST" });
+}
+
+/** The latest sync, or null when none ran yet. */
+export function getBudgetSync(): Promise<SyncRun | null> {
+  return apiFetch<SyncRun | null>(`${BASE}/sync`);
 }
 
 const VENDOR_MASTER = "/vendor-master";

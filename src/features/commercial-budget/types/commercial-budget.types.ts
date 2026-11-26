@@ -167,11 +167,24 @@ export interface BudgetUploadReport {
   warnings: UploadProblem[];
 }
 
-/** POST /commercial-budget/sync: the reps saved, the months copied and the ones still missing. */
-export interface SyncResult {
-  vendedores: number;
-  meses: Record<Period, { clientes: number; lineas: number; venta: Decimal }>;
-  pendientes: Period[];
+/**
+ * A copy of the rep master and the sales from the DWH, run in the background (API #139):
+ * POST /sync queues one (202), GET /sync reads the latest.
+ */
+export interface SyncRun {
+  id: string;
+  status: "queued" | "running" | "success" | "partial" | "failed";
+  /** `manual` from the button; `dwh`, `scheduled` or `startup` when it ran by itself. */
+  trigger: string;
+  triggered_by: string | null;
+  queued_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  /** The months copied. */
+  months: Period[];
+  /** History months still missing, copied in the next runs. */
+  pending: Period[];
 }
 
 /** GET /vendor-master/status: open. `configured` says whether the upload to dwh-platform works. */
