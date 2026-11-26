@@ -11,6 +11,10 @@ const API_URL = (
   "http://localhost:8000/api/v1"
 ).replace(/\/+$/, "")
 
+// Every page waits on this call: same limit as backendFetch, under the 30 s at
+// which the infrastructure proxy answers 504.
+const REFRESH_TIMEOUT_MS = 10_000
+
 const ACCESS_COOKIE = "internal_platform_access"
 const REFRESH_COOKIE = "internal_platform_refresh"
 
@@ -32,6 +36,7 @@ async function refreshSession(request: NextRequest): Promise<string[] | null> {
       method: "POST",
       headers: { cookie: request.headers.get("cookie") ?? "" },
       cache: "no-store",
+      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
     })
     if (!response.ok) return null
     return response.headers.getSetCookie()
