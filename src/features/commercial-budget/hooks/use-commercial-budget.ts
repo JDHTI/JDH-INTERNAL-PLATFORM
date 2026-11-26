@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/shared/lib/api-client";
@@ -8,23 +9,25 @@ import {
   closeBudgetPeriod,
   getBudgetBoard,
   getBudgetPermissions,
+  getBudgetSync,
   getVendorMasterStatus,
   listBudgetChanges,
   listBudgetPeriods,
   listVendorMasterUploads,
   reopenBudgetPeriod,
-  syncBudgetSales,
+  startBudgetSync,
   updateBudgets,
   uploadBudget,
   uploadVendorMaster,
 } from "../services/commercial-budget.service";
-import type { BudgetFilters, BudgetItem, Period } from "../types/commercial-budget.types";
+import type { BudgetFilters, BudgetItem, Period, SyncRun } from "../types/commercial-budget.types";
 
 export const budgetKeys = {
   all: ["commercial-budget"] as const,
   permissions: () => [...budgetKeys.all, "permissions"] as const,
   periods: () => [...budgetKeys.all, "periods"] as const,
   month: (period: Period) => [...budgetKeys.all, "month", period] as const,
+  sync: () => [...budgetKeys.all, "sync"] as const,
 };
 
 export const vendorMasterKeys = {
@@ -96,12 +99,39 @@ export function usePeriodAction() {
   });
 }
 
-/** Every month is read again after: the copy can bring any of them. */
-export function useSyncSales() {
+export const isSyncing = (status: SyncRun["status"] | undefined) => status === "queued" || status === "running";
+
+/**
+ * The latest sync, read again every 5 seconds while it is queued or running. When one ends
+ * (started here or by itself), the months and their figures are read again: the copy can
+ * bring any of them.
+ */
+export function useBudgetSync() {
+  const client = useQueryClient();
+  const [wasSyncing, setWasSyncing] = useState(false);
+  const query = useQuery({
+    queryKey: budgetKeys.sync(),
+    queryFn: getBudgetSync,
+    retry: retryTransient,
+    refetchInterval: (current) => (isSyncing(current.state.data?.status) ? 5000 : false),
+  });
+  const now = isSyncing(query.data?.status);
+  if (now !== wasSyncing) {
+    setWasSyncing(now);
+    if (!now) {
+      void client.invalidateQueries({ queryKey: [...budgetKeys.all, "month"] });
+      void client.invalidateQueries({ queryKey: budgetKeys.periods() });
+    }
+  }
+  return query;
+}
+
+/** Queues a sync; its answer seeds the latest run, so the polling starts at once. */
+export function useStartSync() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: syncBudgetSales,
-    onSettled: () => client.invalidateQueries({ queryKey: budgetKeys.all }),
+    mutationFn: startBudgetSync,
+    onSuccess: (run) => client.setQueryData(budgetKeys.sync(), run),
   });
 }
 
