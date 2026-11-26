@@ -46,12 +46,13 @@ import { QuotationLoadError } from "./quotations-gate";
 
 const PAGE_SIZE = 100;
 
-/** The new price against the list's current one; without a new price the item is stable. */
+/** The list's current price against the floor (API #142): below it, it goes up; at it or above, down. */
 const TRENDS: { key: BoardTrend; label: string }[] = [
   { key: "sube", label: "Sube" },
   { key: "baja", label: "Baja" },
-  { key: "estable", label: "Estable" },
 ];
+
+const FLOOR_HELP = "Piso = costo más alto al margen mínimo; por debajo sube";
 
 const ALL_TRENDS = "todas";
 
@@ -255,15 +256,19 @@ export default function MainListsBoard() {
           {/* The quick filters, in the filter bar, not as more figures: the figures below stay one block. */}
           <div role="group" aria-label="Filtros rápidos" className="flex flex-wrap items-center gap-2">
             <Dropdown
-              aria-label="Tendencia del precio nuevo"
+              aria-label={`Precio actual contra el piso. ${FLOOR_HELP}`}
+              title={FLOOR_HELP}
               value={filters.trend ?? ALL_TRENDS}
               // One group of options with «Sin precio de lista» in the API (API #131): a trend turns it off.
               onValueChange={(next) => change({ trend: next === ALL_TRENDS ? null : (next as BoardTrend), withoutListPrice: false })}
               options={[
-                { value: ALL_TRENDS, label: `Precio nuevo: todas${counted(page_?.counts.todos)}` },
-                ...TRENDS.map((item) => ({ value: item.key, label: `Precio nuevo: ${item.label.toLowerCase()}${counted(page_?.counts[item.key])}` })),
+                { value: ALL_TRENDS, label: `Precio actual vs. piso: todas${counted(page_?.counts.todos)}` },
+                ...TRENDS.map((item) => ({
+                  value: item.key,
+                  label: `Precio actual vs. piso: ${item.label.toLowerCase()}${counted(page_?.counts[item.key])}`,
+                })),
               ]}
-              className="w-full @lg:w-60"
+              className="w-full @lg:w-72"
             />
             <ToggleChip
               active={filters.inStock}

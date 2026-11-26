@@ -243,11 +243,11 @@ export interface BoardRow extends QuotationLine {
 export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion" | "existencia";
 
 /**
- * Where the new price leaves the item against the list's current one: `sube` and `baja` by the
- * new price, `estable` when it is the same or there is none yet. An item without a current price
- * is in neither: `without_list_price` finds those.
+ * The list's current price against the floor, ceil(highest cost / (1 − minimum margin)) (API #142):
+ * `sube` below the floor, `baja` at it or above. There is no `estable` any more (the API answers
+ * 400). An item without a current price is in neither: `without_list_price` finds those.
  */
-export type BoardTrend = "sube" | "baja" | "estable";
+export type BoardTrend = "sube" | "baja";
 
 export interface BoardFilters {
   lists: string[];
