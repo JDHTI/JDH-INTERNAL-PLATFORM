@@ -14,6 +14,14 @@ const BASE_URL = (
   "http://localhost:8000/api/v1"
 ).replace(/\/+$/, "")
 
+/**
+ * Longest wait for one API call. The infrastructure proxy cuts a page at 30 s
+ * with a bare 504; failing first shows the intranet's own error page, with its
+ * retry. Every server-side call is a light read that answers in milliseconds,
+ * so ten seconds only runs out when the API is not answering.
+ */
+export const BACKEND_TIMEOUT_MS = 10_000
+
 export class BackendUnauthenticatedError extends Error {}
 
 export async function backendFetch(
@@ -31,10 +39,12 @@ export async function backendFetch(
   if (forwardedFor) requestHeaders.set("x-forwarded-for", forwardedFor)
   requestHeaders.set("accept", "application/json")
 
+  const timeout = AbortSignal.timeout(BACKEND_TIMEOUT_MS)
   return fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: requestHeaders,
     cache: "no-store",
+    signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
   })
 }
 
