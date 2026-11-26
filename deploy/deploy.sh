@@ -45,7 +45,10 @@ echo "> Build $GIT_SHA for https://$PUBLIC_HOST"
 "${COMPOSE[@]}" build ui
 
 echo "> Up"
-"${COMPOSE[@]}" up -d ui
+# --wait holds until the ui container reports healthy (see its healthcheck in
+# compose.prod.yaml), so the deploy never leaves a started-but-not-serving window
+# for the edge proxy to mark the backend down on.
+"${COMPOSE[@]}" up -d --wait ui
 
 echo "> Check"
 for _ in $(seq 1 40); do
