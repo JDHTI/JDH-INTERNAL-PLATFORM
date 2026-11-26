@@ -32,6 +32,7 @@ function filterQuery(filters: BoardFilters) {
     q: filters.q.trim() || undefined,
     suppliers: filters.suppliers,
     categories: filters.categories,
+    warehouses: filters.warehouses,
     chip: filters.chip ?? undefined,
     trend: filters.trend ?? undefined,
     without_list_price: filters.withoutListPrice ? "true" : undefined,

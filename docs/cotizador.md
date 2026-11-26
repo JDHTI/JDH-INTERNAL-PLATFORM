@@ -117,6 +117,18 @@ El mismo motor actualiza una lista vigente de SIESA: módulo `actualizacion-list
     - **«Limpiar filtros»:** cierra la fila.
     - **En `/keys`:** van los tres, así que las acciones sobre «todas las del filtro» respetan la
       selección.
+  - **Bodegas** (API #140, 2026-11-26): un filtro de varios valores en la primera fila, con las
+    opciones de `GET /main` (`warehouses`).
+    - **Qué hace:** envía `warehouses` a `/rows` y `/keys`, deja solo las listas que tienen alguna
+      de esas bodegas y, con «Con existencia», solo las filas con existencia en ellas.
+    - **Existencia:** la de la fila pasa a ser la suma de las bodegas elegidas, y el orden por
+      existencia usa esa suma.
+    - **Filtros y URL:** entra en «Limpiar filtros» y se puede abrir desde la URL con
+      `?bodega=MDE1&bodega=BTA8`.
+    - **Desglose:** la existencia de la fila abre, al pasar el cursor, con foco o con un toque, cada
+      bodega de la lista con existencia (`stock_by_warehouse`), con las del filtro resaltadas. Hasta la
+      primera sincronización después del API #140 dice «Sin desglose: sincroniza las listas».
+    - **Tarjetas de las listas:** el tooltip de cada una dice sus bodegas.
   - **Todo es inmediato:** un precio nuevo se ve en la fila al salir del campo o con Enter, y la
     fila pasa a «Por validar» en ese momento; el campo no se bloquea mientras guarda. El estado del
     chip también cambia al instante. Las cachés de la página se cambian antes de la respuesta
