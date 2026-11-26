@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Popover } from "@base-ui/react/popover";
 import { Eraser, FilterX, ListOrdered, Loader2, MessageSquareText, RefreshCw, Search, Target, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -89,6 +90,7 @@ export default function MainListsBoard() {
     q: "",
     suppliers: [],
     categories: [],
+    warehouses: params.getAll("bodega"),
     chip: null,
     trend: null,
     withoutListPrice: false,
@@ -140,13 +142,14 @@ export default function MainListsBoard() {
     q !== "" ||
     filters.suppliers.length > 0 ||
     filters.categories.length > 0 ||
+    filters.warehouses.length > 0 ||
     filters.chip !== null ||
     filters.trend !== null ||
     filters.withoutListPrice ||
     !filters.inStock;
   const clear = () => {
     setText("");
-    change({ lists: [], suppliers: [], categories: [], chip: null, trend: null, withoutListPrice: false, inStock: true });
+    change({ lists: [], suppliers: [], categories: [], warehouses: [], chip: null, trend: null, withoutListPrice: false, inStock: true });
   };
 
   if (overview.isPending) return <TableSkeleton rows={8} label="Cargando las listas principales" />;
@@ -157,6 +160,7 @@ export default function MainListsBoard() {
   const listLabel = (item: BoardList) => `${item.code} · ${item.name ?? "Sin nombre"}`;
   const listOptions = lists.map(listLabel);
   const byLabel = new Map(lists.map((item) => [listLabel(item), item.code]));
+  const warehouseOptions = overview.data?.warehouses ?? [];
   const page_ = rows.data;
   const pageRows = page_?.items ?? [];
   const pageKeys = pageRows.map((row) => ({ quotation_id: row.quotation_id, sku: row.sku }));
@@ -226,6 +230,16 @@ export default function MainListsBoard() {
                 className="min-w-0 @3xl:flex-1"
               />
             )}
+            {warehouseOptions.length > 0 && (
+              <MultiSelect
+                label="Bodegas"
+                allLabel="Todas las bodegas"
+                options={warehouseOptions}
+                value={filters.warehouses}
+                onValueChange={(next) => change({ warehouses: next })}
+                className="min-w-0 @3xl:flex-1"
+              />
+            )}
             <Dropdown
               aria-label="Ordenar la tabla"
               options={SORT_OPTIONS}
@@ -256,7 +270,7 @@ export default function MainListsBoard() {
               onClick={() => change({ inStock: !filters.inStock })}
               title={
                 filters.inStock
-                  ? "Solo las referencias con existencia en las bodegas de la lista. Apágalo para ver también las que la sincronización leyó en 0."
+                  ? `Solo las referencias con existencia en ${filters.warehouses.length > 0 ? "las bodegas elegidas" : "las bodegas de la lista"}. Apágalo para ver también las que la sincronización leyó en 0.`
                   : "Se ven también las referencias sin existencia."
               }
             >
@@ -334,6 +348,7 @@ export default function MainListsBoard() {
                   })
                 }
                 onOpen={setDetail}
+                warehouses={filters.warehouses}
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs tabular-nums text-text-secondary">
@@ -341,6 +356,8 @@ export default function MainListsBoard() {
                   {formatCount(page_?.total ?? 0)} {page_?.total === 1 ? "referencia" : "referencias"}
                   {filters.inStock ? " con existencia" : ""} en{" "}
                   {filters.lists.length === 0 ? "todas las listas" : `${filters.lists.length} ${filters.lists.length === 1 ? "lista" : "listas"}`}
+                  {filters.warehouses.length > 0 &&
+                    ` · ${filters.warehouses.length === 1 ? "bodega" : "bodegas"} ${filters.warehouses.join(", ")}`}
                 </span>
                 <Pager page={page} size={PAGE_SIZE} total={page_?.total ?? 0} count={pageRows.length} onPageChange={setPage} />
               </div>
@@ -452,6 +469,7 @@ function ListsPanel({ lists, sync, syncEnabled, canManage }: { lists: BoardList[
             item.quotation_id === null
               ? "Sin armar"
               : `${formatCount(item.counts.sin_marcar ?? 0)} sin marcar · ${formatCount(item.counts.por_validar ?? 0)} por validar · ${formatCount(item.counts.validada ?? 0)} validadas · ${formatCount(item.counts.cargada ?? 0)} cargadas`,
+            item.warehouses && item.warehouses.length > 0 ? `Bodegas: ${item.warehouses.join(", ")}` : null,
             item.built_at ? `Leída de SIESA el ${formatDateTime(item.built_at)}` : null,
             ...item.warnings.map((warning) => warning.label),
           ]
@@ -563,8 +581,11 @@ function BoardTable({
   onToggle,
   onTogglePage,
   onOpen,
+  warehouses,
 }: {
   rows: BoardRow[];
+  /** The warehouse filter, marked in each row's stock breakdown. */
+  warehouses: string[];
   canManage: boolean;
   canValidate: boolean;
   review: ReviewControl;
@@ -618,7 +639,7 @@ function BoardTable({
                       />
                     </td>
                   )}
-                  <td className={cn(td, "min-w-0")}><ProductCell row={row} review={review} onOpen={onOpen} /></td>
+                  <td className={cn(td, "min-w-0")}><ProductCell row={row} review={review} chosen={warehouses} onOpen={onOpen} /></td>
                   <td className={td}><ListCell row={row} /></td>
                   <td className={cn(td, "text-right")}><CurrentPrice row={row} /></td>
                   <td className={td}><Suggested row={row} showCost={canValidate} /></td>
@@ -651,7 +672,7 @@ function BoardTable({
                     className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
                   />
                 )}
-                <div className="min-w-0 flex-1"><ProductCell row={row} review={review} onOpen={onOpen} /></div>
+                <div className="min-w-0 flex-1"><ProductCell row={row} review={review} chosen={warehouses} onOpen={onOpen} /></div>
                 <ListCell row={row} />
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -676,7 +697,88 @@ function BoardTable({
   );
 }
 
-function ProductCell({ row, review, onOpen }: { row: BoardRow; review: ReviewControl; onOpen: (row: BoardRow) => void }) {
+/**
+ * The row's stock: the total (the chosen warehouses' when the filter is on), and on hover, focus
+ * or a tap, each warehouse of the list with stock, the chosen ones marked. Before the first sync
+ * after API #140 the breakdown is empty: it says so instead of an empty panel.
+ */
+function StockCell({ row, chosen, onHand, available }: { row: BoardRow; chosen: string[]; onHand: number | null; available: number | null }) {
+  const breakdown = row.stock_by_warehouse ?? [];
+  const filtered = chosen.length > 0;
+  const where = filtered ? "en las bodegas elegidas" : "en las bodegas de la lista";
+  const text = (
+    <>
+      <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />
+      {onHand === null ? "Sin existencia" : `Existencia ${quantity.format(onHand)}`}
+      {onHand !== null && available !== null && available < onHand && <span>({quantity.format(available)} disp.)</span>}
+    </>
+  );
+  if (onHand === null && breakdown.length === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 tabular-nums" title={`Sin existencia ${where}, según la foto de SIESA de esta mañana`}>
+        {text}
+      </span>
+    );
+  }
+  const chosenSet = new Set(chosen);
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        openOnHover
+        delay={150}
+        aria-label={`Existencia de ${row.description ?? row.sku} ${where}: ${onHand === null ? "sin existencia" : quantity.format(onHand)}. Ver por bodega`}
+        className="inline-flex items-center gap-1 rounded-sm tabular-nums underline decoration-dotted underline-offset-4 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring max-xl:min-h-8"
+      >
+        {text}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
+          <Popover.Popup className="w-72 max-w-[calc(100vw-2rem)] rounded-md border border-border bg-surface-raised p-2.5 text-[13px] text-text-primary shadow-modal outline-none">
+            <Popover.Title className="mb-1.5 text-xs font-semibold text-text-secondary">
+              Existencia por bodega · lista {row.price_list_id}
+            </Popover.Title>
+            {breakdown.length === 0 ? (
+              <p className="text-text-secondary">Sin desglose: sincroniza las listas.</p>
+            ) : (
+              <table className="w-full tabular-nums">
+                <thead className="text-[11px] text-text-secondary">
+                  <tr>
+                    <th scope="col" className="pb-1 text-left font-medium">Bodega</th>
+                    <th scope="col" className="pb-1 text-right font-medium">Existencia</th>
+                    <th scope="col" className="pb-1 text-right font-medium">Disp.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((item) => {
+                    const picked = chosenSet.has(item.warehouse);
+                    const itemOnHand = toNumber(item.on_hand);
+                    const itemAvailable = toNumber(item.available);
+                    return (
+                      <tr key={item.warehouse} className={cn(picked && "bg-primary-subtle font-semibold")}>
+                        <th scope="row" className="max-w-36 py-0.5 pl-1 pr-2 text-left font-[inherit]">
+                          <span className="font-mono">{item.warehouse}</span>
+                          {picked && <span className="sr-only">, elegida en el filtro</span>}
+                          {item.warehouse_name && <span className="block truncate text-[11px] font-normal text-text-secondary" title={item.warehouse_name}>{item.warehouse_name}</span>}
+                        </th>
+                        <td className="py-0.5 text-right align-top">{itemOnHand === null ? "—" : quantity.format(itemOnHand)}</td>
+                        <td className="py-0.5 pr-1 text-right align-top">{itemAvailable === null ? "—" : quantity.format(itemAvailable)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            {filtered && breakdown.length > 0 && (
+              <p className="mt-1.5 text-[11px] text-text-secondary">Resaltadas: las bodegas del filtro, que suman el total de la fila.</p>
+            )}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function ProductCell({ row, review, chosen, onOpen }: { row: BoardRow; review: ReviewControl; chosen: string[]; onOpen: (row: BoardRow) => void }) {
   const onHand = toNumber(row.stock_on_hand);
   const available = toNumber(row.stock_available);
   return (
@@ -696,11 +798,7 @@ function ProductCell({ row, review, onOpen }: { row: BoardRow; review: ReviewCon
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-xs text-text-secondary">
         <ReviewSelect line={row} control={review} />
         {!row.is_active && <Badge tone="danger" className="px-1.5 py-0 text-xs">Inactiva</Badge>}
-        <span className="inline-flex items-center gap-1 tabular-nums" title="En las bodegas de la lista, según la foto de SIESA de esta mañana">
-          <Warehouse className="size-3.5 shrink-0" aria-hidden="true" />
-          {onHand === null ? "Sin existencia" : `Existencia ${quantity.format(onHand)}`}
-          {onHand !== null && available !== null && available < onHand && <span>({quantity.format(available)} disp.)</span>}
-        </span>
+        <StockCell row={row} chosen={chosen} onHand={onHand} available={available} />
         {row.note && (
           <button
             type="button"

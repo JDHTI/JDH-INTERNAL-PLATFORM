@@ -186,6 +186,8 @@ export interface BoardList {
   /** Rows of each review state: sin_marcar, por_validar, validada, cargada. */
   counts: Record<string, number>;
   warnings: QuotationWarning[];
+  /** The list's own warehouses (001: MDE1, MDE3). API #140; absent before it. */
+  warehouses?: string[];
 }
 
 /** The latest sync of the main lists: the background job that builds or refreshes all 14. */
@@ -206,9 +208,19 @@ export interface BoardOverview {
   lists: BoardList[];
   suppliers: string[];
   categories: string[];
+  /** Every warehouse of the main lists, in list order, without repeats: the filter's options (API #140). */
+  warehouses?: string[];
   sync: BoardSync | null;
   /** False when the background worker is off: the sync cannot run. */
   sync_enabled: boolean;
+}
+
+/** One warehouse's stock of a board row. */
+export interface WarehouseStock {
+  warehouse: string;
+  warehouse_name: string | null;
+  on_hand: DecimalText | null;
+  available: DecimalText | null;
 }
 
 /** A SKU on one main list, with the update it lives in and its stock in the list's warehouses. */
@@ -217,9 +229,15 @@ export interface BoardRow extends QuotationLine {
   quotation_version: number;
   price_list_id: string;
   price_list_name: string | null;
+  /** With a warehouse filter, the sum of the chosen ones; otherwise, of all the list's. */
   stock_on_hand: DecimalText | null;
   stock_available: DecimalText | null;
   stock_warehouses: number;
+  /**
+   * Every warehouse of the list with stock, the largest first, whatever the filter (API #140).
+   * Empty until the lists are synced once after it.
+   */
+  stock_by_warehouse?: WarehouseStock[];
 }
 
 export type BoardSort = "lista" | "sku" | "precio_actual" | "margen_actual" | "precio_nuevo" | "variacion" | "existencia";
@@ -236,6 +254,11 @@ export interface BoardFilters {
   q: string;
   suppliers: string[];
   categories: string[];
+  /**
+   * Warehouse codes (API #140): only the lists that have one of them; with `inStock`, only rows
+   * with stock in them, and the stock figures become their sum.
+   */
+  warehouses: string[];
   chip: BoardChip | null;
   /** Combines with the chip and the rest; one group with `withoutListPrice`, so never both. */
   trend: BoardTrend | null;
