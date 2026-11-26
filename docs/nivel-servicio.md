@@ -80,5 +80,10 @@ Solo con `can_manage`:
   - «Recalcular» (`POST /classes/recompute`) aparece con `can_manage`.
   - No toma el periodo de los filtros.
 
-Mientras el DWH no publique su vista, el API responde vacío (`as_of` en null). Las dos vistas lo
-dicen en vez de mostrar ceros.
+Mientras el job no haya copiado nada, el API responde vacío con `as_of` en null, y las dos vistas
+dicen que todavía no hay pedidos copiados. Un filtro sin resultados también trae los niveles en
+null, pero con `as_of`. Ahí la vista dice que nada coincide y ofrece limpiar los filtros.
+
+En los desgloses, las líneas pendientes sin motivo llegan con `key` en null y el «SIN MOTIVO» del
+API; se muestran como «Sin motivo». Un ítem sin clase ABCD llega con `key` y `name` en null y se
+muestra como «Sin clasificar».

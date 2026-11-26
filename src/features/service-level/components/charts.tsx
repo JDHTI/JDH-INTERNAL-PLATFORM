@@ -189,7 +189,8 @@ export function DailyLevels({ daily, bands }: { daily: Dashboard["daily"]; bands
  */
 export function ResponsibleBars({ groups }: { groups: Group[] }) {
   const rows = groups
-    .map((group) => ({ name: group.name || group.key || "Sin motivo", value: toNumber(group.value_pending) ?? 0, lines: group.lines_pending }))
+    // The pending lines without a reason come with no key and the API's «SIN MOTIVO».
+    .map((group) => ({ name: group.key === null ? "Sin motivo" : group.name || group.key, value: toNumber(group.value_pending) ?? 0, lines: group.lines_pending }))
     .filter((row) => row.value > 0)
     .sort((a, b) => b.value - a.value);
   const total = rows.reduce((sum, row) => sum + row.value, 0);

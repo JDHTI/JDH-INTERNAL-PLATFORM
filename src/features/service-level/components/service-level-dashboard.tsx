@@ -20,10 +20,10 @@ import { cn } from "@/shared/lib/utils";
 
 import { useBreakdown, useClassStatus, useDashboard, usePareto, useRecomputeClasses } from "../hooks/use-service-level";
 import { bandLook, bandOf, formatCop, formatDay, formatNumber, formatPct, formatWhen } from "../lib/format";
-import type { Bands, Dashboard, Dimension, GroupSort, Kpis, ParetoKind, ServiceLevelFilters, ServiceLevelPermissions } from "../types/service-level.types";
+import type { Bands, Dashboard, Dimension, Group, GroupSort, Kpis, ParetoKind, ServiceLevelFilters, ServiceLevelPermissions } from "../types/service-level.types";
 import { CoLevels, DailyLevels, ParetoChart, ResponsibleBars } from "./charts";
 import KpiCards from "./kpi-cards";
-import ServiceLevelFilterPanel, { EMPTY_FILTERS } from "./service-level-filters";
+import ServiceLevelFilterPanel, { EMPTY_FILTERS, hasFilters } from "./service-level-filters";
 
 const count = new Intl.NumberFormat("es-CO");
 
@@ -62,6 +62,20 @@ export default function ServiceLevelDashboard({ permissions }: { permissions: Se
         <StatePanel icon={FileX2} title="Todavía no hay pedidos copiados">
           La plataforma copia los pedidos cumplidos del DWH de lunes a sábado después de las 11:50. El tablero se llena con la primera
           copia.
+        </StatePanel>
+      ) : board.kpis.orders === 0 ? (
+        <StatePanel
+          icon={FileX2}
+          title="Ningún pedido cumplido coincide con los filtros"
+          action={
+            hasFilters(filters) && (
+              <Button variant="outline" onClick={() => setFilters({ ...EMPTY_FILTERS, since: filters.since, until: filters.until })}>
+                Limpiar filtros
+              </Button>
+            )
+          }
+        >
+          {formatIsoRange({ from: board.since, to: board.until })}. Prueba con otro periodo o quita algún filtro.
         </StatePanel>
       ) : (
         <div className={cn("space-y-4", query.isPlaceholderData && "opacity-60")}>
@@ -175,6 +189,17 @@ const DIMENSIONS: { key: Dimension; label: string; column: string; pendingOnly?:
 ];
 const PAGE_SIZE = 20;
 
+/**
+ * A group's name. The pending lines without a reason come with no key and the API's «SIN MOTIVO»;
+ * an item without an ABCD class comes with neither key nor name.
+ */
+function groupName(row: Group, dimension: Dimension): string {
+  if (row.key === null && (dimension === "responsible" || dimension === "reason" || dimension === "reason_item")) return "Sin motivo";
+  if (row.key === null && (dimension === "product_class" || dimension === "customer_class")) return "Sin clasificar";
+  if (dimension === "product_class" || dimension === "customer_class") return `Clase ${row.name || row.key}`;
+  return row.name || row.key || "Sin dato";
+}
+
 /** The lines grouped by one dimension at a time, with the value asked, invoiced and pending. */
 function Breakdowns({ filters, bands }: { filters: ServiceLevelFilters; bands: Bands }) {
   const [dimension, setDimension] = useState<Dimension>("supplier");
@@ -261,7 +286,7 @@ function Breakdowns({ filters, bands }: { filters: ServiceLevelFilters; bands: B
                     <tr key={`${row.key ?? "none"}-${row.detail_key ?? ""}-${index}`} className="hover:bg-primary-subtle">
                       <td className={td}>
                         <span className="block truncate" title={row.name ?? undefined}>
-                          {row.name || row.key || (dimension === "responsible" || dimension === "reason" || dimension === "reason_item" ? "Sin motivo" : "Sin dato")}
+                          {groupName(row, dimension)}
                         </span>
                         {row.detail_key && (
                           <span className="block truncate text-xs text-text-secondary" title={row.detail_name ?? undefined}>
