@@ -11,19 +11,37 @@ import { Dialog, DialogError, DialogFooter } from "@/shared/components/ui/dialog
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
-import { errorMessage } from "@/shared/lib/api-client";
+import { ApiError, errorMessage } from "@/shared/lib/api-client";
 import { cn } from "@/shared/lib/utils";
 
 import { useSaveVendorTeam, useVendorTeams } from "../hooks/use-commercial-budget";
 import { formatCount } from "../lib/format";
 import type { VendorTeam } from "../types/commercial-budget.types";
 
+const SAVED_IN_DWH = "Se guarda en el maestro de equipos del DWH. Los vendedores y reportes lo ven después de la siguiente actualización del DWH.";
+const WAITS_FOR_UPLOAD = "Queda disponible en la plantilla de inmediato, y llega al DWH con la siguiente carga del maestro.";
+const HIDE_HELP = "Solo lo quita de la plantilla; el equipo no se borra del DWH.";
+
+/**
+ * A team write's failure in words: 409 is a team someone (or an upload) already created; 503,
+ * with `writesTeams`, is the DWH not answering, and then nothing was saved (API #146).
+ */
+function teamError(failure: unknown): string {
+  if (failure instanceof ApiError && failure.status === 409) return "Ese equipo ya está en el maestro.";
+  if (failure instanceof ApiError && failure.status === 503) {
+    return "No se pudo guardar en el DWH; intenta de nuevo en un momento. No se guardó ningún cambio.";
+  }
+  return errorMessage(failure);
+}
+
 /**
  * The team master the template offers (API #145): the warehouse's teams and the ones created
  * here, each with its class, how many active reps it has today and whether the template offers
- * it. Whoever manages creates teams, changes a class in place and turns a team off.
+ * it. Whoever manages creates teams, changes a class in place and turns a team off. With
+ * `writesTeams` (API #146) a new team or class goes to the DWH's `externo.equipo` at once;
+ * without it, it waits for the next upload. Hiding only takes it off the template either way.
  */
-export default function VendorTeams({ canManage }: { canManage: boolean }) {
+export default function VendorTeams({ canManage, writesTeams }: { canManage: boolean; writesTeams: boolean }) {
   const teams = useVendorTeams(true);
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
@@ -59,7 +77,8 @@ export default function VendorTeams({ canManage }: { canManage: boolean }) {
             Maestro de equipos
           </h2>
           <p className="text-[13px] text-text-secondary">
-            La plantilla solo deja escoger estos equipos, y su clase sale de aquí. Un equipo apagado deja de ofrecerse.
+            La plantilla solo deja escoger estos equipos, y su clase sale de aquí. {writesTeams ? SAVED_IN_DWH : WAITS_FOR_UPLOAD} Apagar un
+            equipo solo lo quita de la plantilla; no se borra del DWH.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -101,7 +120,7 @@ export default function VendorTeams({ canManage }: { canManage: boolean }) {
             </thead>
             <tbody className="divide-y divide-border">
               {shown.map((team) => (
-                <TeamRow key={team.name} team={team} canManage={canManage} />
+                <TeamRow key={team.name} team={team} canManage={canManage} writesTeams={writesTeams} />
               ))}
               {shown.length === 0 && (
                 <tr>
@@ -115,13 +134,14 @@ export default function VendorTeams({ canManage }: { canManage: boolean }) {
         </div>
       )}
 
-      <NewTeamDialog open={creating} onClose={() => setCreating(false)} />
+      <NewTeamDialog open={creating} onClose={() => setCreating(false)} writesTeams={writesTeams} />
     </section>
   );
 }
 
-function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) {
+function TeamRow({ team, canManage, writesTeams }: { team: VendorTeam; canManage: boolean; writesTeams: boolean }) {
   const save = useSaveVendorTeam();
+  const hideHelpId = useId();
   const stored = team.team_class ?? "";
   const [text, setText] = useState(stored);
   const [synced, setSynced] = useState(stored);
@@ -145,8 +165,13 @@ function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) 
     save.mutate(
       { create: false, name: team.name, team_class: clean },
       {
-        onSuccess: () => toast.success(`${team.name}: clase ${clean}. Llega al DWH con la próxima carga.`),
-        onError: (failure) => setError(errorMessage(failure)),
+        onSuccess: () =>
+          toast.success(
+            writesTeams
+              ? `${team.name}: clase ${clean}, guardada en el DWH. Los vendedores y reportes la ven después de la siguiente actualización del DWH.`
+              : `${team.name}: clase ${clean}. Llega al DWH con la siguiente carga del maestro.`
+          ),
+        onError: (failure) => setError(teamError(failure)),
       }
     );
   };
@@ -177,6 +202,7 @@ function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) 
               disabled={save.isPending}
               placeholder="Sin clase"
               aria-label={`Clase de ${team.name}`}
+              title={writesTeams ? SAVED_IN_DWH : WAITS_FOR_UPLOAD}
               aria-invalid={error ? true : undefined}
               className={cn("h-8 text-[13px] max-md:h-11", error && "border-danger")}
             />
@@ -196,8 +222,9 @@ function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) 
             DWH
           </Badge>
         ) : (
-          <Badge tone="info" className="px-1.5 py-0 text-xs" title="Creado aquí; entra al DWH con la próxima carga que lo use">
-            Nueva
+          // Created here before API #146, or without the DWH role: it reaches the DWH with an upload.
+          <Badge tone="info" className="px-1.5 py-0 text-xs" title="Creado en la plataforma; entra al DWH con la siguiente carga del maestro">
+            Plataforma
           </Badge>
         )}
       </td>
@@ -211,11 +238,20 @@ function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) 
               onCheckedChange={(next) =>
                 save.mutate(
                   { create: false, name: team.name, is_active: next },
-                  { onError: (failure) => toast.error(errorMessage(failure), { duration: Infinity }) }
+                  {
+                    onSuccess: () => {
+                      if (!next) toast.success(`${team.name} ya no se ofrece en la plantilla. El equipo no se borra del DWH.`);
+                    },
+                    onError: (failure) => toast.error(teamError(failure), { duration: Infinity }),
+                  }
                 )
               }
               aria-label={`${team.name} se ofrece en la plantilla`}
+              aria-describedby={hideHelpId}
             />
+            <span id={hideHelpId} className="sr-only">
+              {HIDE_HELP}
+            </span>
             <span className="text-xs">{team.is_active ? "Se ofrece" : "Apagado"}</span>
             {save.isPending && <Loader2 className="size-3.5 animate-spin text-text-secondary" aria-hidden="true" />}
           </span>
@@ -229,7 +265,7 @@ function TeamRow({ team, canManage }: { team: VendorTeam; canManage: boolean }) 
   );
 }
 
-function NewTeamDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NewTeamDialog({ open, onClose, writesTeams }: { open: boolean; onClose: () => void; writesTeams: boolean }) {
   return (
     <Dialog
       open={open}
@@ -237,7 +273,7 @@ function NewTeamDialog({ open, onClose }: { open: boolean; onClose: () => void }
       isForm
       narrow
       title="Nuevo equipo"
-      description="Queda disponible en la plantilla de inmediato, y entra al DWH con la primera carga que lo use."
+      description={writesTeams ? SAVED_IN_DWH : WAITS_FOR_UPLOAD}
     >
       {open && <NewTeamForm onClose={onClose} />}
     </Dialog>
@@ -282,7 +318,8 @@ function NewTeamForm({ onClose }: { onClose: () => void }) {
       <Field label="Nota" htmlFor={noteId} optional>
         <Input id={noteId} value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} />
       </Field>
-      <DialogError message={save.isError ? errorMessage(save.error) : null} />
+      {/* The dialog stays open with what was typed: a 409 or a 503 (nothing saved) can be retried. */}
+      <DialogError message={save.isError ? teamError(save.error) : null} />
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={save.isPending}>
           Cancelar

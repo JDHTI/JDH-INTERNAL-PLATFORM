@@ -78,6 +78,11 @@ Se trajo de la plataforma de proveedores (`maestro-vendedores-card.tsx`).
      - la tabla tiene nombre, clase, origen (DWH o «Nueva») y vendedores activos;
      - un interruptor decide si la plantilla ofrece el equipo;
      - con `can_manage` se edita la clase en la celda (`PATCH`) y se crean equipos con «Nuevo equipo» (`POST`, 409 si ya existe).
+     - **Escritura en el DWH** (API #146, `writes_teams` en `/status`).
+       - **Con escritura:** crear un equipo o cambiarle la clase se guarda al instante en `externo.equipo`, y el equipo nuevo sale como «DWH». Los vendedores y reportes lo ven después de la siguiente actualización del DWH.
+       - **Sin escritura (o antes del #146):** el cambio espera en la plataforma a la siguiente carga, y el equipo sale como «Plataforma».
+       - **Apagar:** solo lo quita de la plantilla; nunca se borra del DWH.
+       - **Errores:** un 409 dice «Ese equipo ya está en el maestro». Un 503 dice «No se pudo guardar en el DWH; intenta de nuevo en un momento. No se guardó ningún cambio», y el diálogo queda abierto con lo escrito.
 3. **Carga** (`can_manage`).
    - Se elige un .xlsx de hasta 10 MB y se confirma: «Escribe directamente en el DWH; los vendedores que no vengan en el archivo no cambian».
    - La respuesta de dwh-platform se muestra tal cual:
