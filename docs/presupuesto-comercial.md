@@ -63,7 +63,22 @@ Se trajo de la plataforma de proveedores (`maestro-vendedores-card.tsx`).
 1. **Estado** (`GET /vendor-master/status`).
    - Sin `can_read`, la pantalla explica por qué.
    - Con `configured = false`, dice «La carga no está configurada»; la plantilla se puede bajar igual.
-2. **Carga** (`can_manage`).
+2. **Pestañas** (API #145, 2026-11-27): «Carga» y «Equipos».
+   - **Plantilla:** «Descargar plantilla con el maestro actual» (`GET /template`) baja vendedores, coordinadores y directores de hoy, con el EQUIPO como lista del maestro de equipos y la CLASE como fórmula. «Plantilla vacía» (`?empty=true`) trae solo los encabezados y las listas.
+   - **Simular** (`POST /preview`, sin escribir nada):
+     - los conteos;
+     - las filas rechazadas, en rojo;
+     - los cambios por campo, como «antes → después»;
+     - los equipos nuevos, vaciados y con otro número de vendedores;
+     - los vendedores con ventas que el archivo deja fuera;
+     - los coordinadores cuyo vínculo se rompe;
+     - las advertencias.
+   - **Bloqueo:** una fila con un equipo fuera del maestro (su motivo dice «maestro de equipos») bloquea la carga. «Cargar al DWH» se habilita solo después de simular ese mismo archivo sin filas así.
+   - **Equipos** (`/teams`):
+     - la tabla tiene nombre, clase, origen (DWH o «Nueva») y vendedores activos;
+     - un interruptor decide si la plantilla ofrece el equipo;
+     - con `can_manage` se edita la clase en la celda (`PATCH`) y se crean equipos con «Nuevo equipo» (`POST`, 409 si ya existe).
+3. **Carga** (`can_manage`).
    - Se elige un .xlsx de hasta 10 MB y se confirma: «Escribe directamente en el DWH; los vendedores que no vengan en el archivo no cambian».
    - La respuesta de dwh-platform se muestra tal cual:
      - los conteos;
@@ -71,4 +86,4 @@ Se trajo de la plataforma de proveedores (`maestro-vendedores-card.tsx`).
      - la tabla de filas rechazadas;
      - las advertencias.
    - Los errores 400 (archivo rechazado) y 503 (sin configurar o sin respuesta) muestran su motivo.
-3. **Cargas anteriores** (`GET /uploads`): fecha, archivo y tamaño, estado, filas rechazadas, advertencias y quién. El archivo no se guarda porque trae datos personales.
+4. **Cargas anteriores** (`GET /uploads`): fecha, archivo y tamaño, estado, filas rechazadas, advertencias y quién. El archivo no se guarda porque trae datos personales.

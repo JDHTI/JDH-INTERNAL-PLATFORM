@@ -214,6 +214,57 @@ export interface VendorMasterResult {
   transformacion?: { estado: string; selector?: string; motivo?: string };
 }
 
+/**
+ * A team of the master the template offers (API #145): `dwh` is published by the warehouse,
+ * `plataforma` was created here and is not loaded yet. An inactive one leaves the template.
+ */
+export interface VendorTeam {
+  name: string;
+  team_class: string | null;
+  source: "dwh" | "plataforma";
+  is_active: boolean;
+  /** Active reps in the team in the warehouse today. */
+  reps: number;
+  note: string | null;
+}
+
+export type VendorField = "team" | "team_class" | "regional" | "business_unit";
+
+export interface VendorChange {
+  salesperson_code: string;
+  name: string | null;
+  field: VendorField;
+  field_label: string;
+  current: string | null;
+  new: string | null;
+}
+
+export interface VendorProblem {
+  sheet: string;
+  row: number;
+  value: string | null;
+  reason: string;
+}
+
+/** POST /vendor-master/preview: what the upload would change; nothing is written. */
+export interface VendorPreview {
+  reps_read: number;
+  reps_resolved: number;
+  changed_reps: number;
+  unchanged: number;
+  changes: VendorChange[];
+  rejected: VendorProblem[];
+  warnings: VendorProblem[];
+  new_teams: string[];
+  emptied_teams: string[];
+  /** Active reps per team today and after the upload. */
+  teams: { team: string; current: number; new: number }[];
+  /** Active reps with sales this month or last that the file leaves out: they keep their team. */
+  missing: { salesperson_code: string; name: string | null; team: string | null; lines: number }[];
+  /** Coordinators whose team is no rep's team in the file: the link to their reps breaks. */
+  coordinators: { document: string | null; name: string | null; team: string | null; reason: string }[];
+}
+
 export interface VendorMasterUpload {
   id: string;
   filename: string;

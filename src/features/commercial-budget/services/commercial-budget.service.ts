@@ -14,6 +14,8 @@ import type {
   VendorMasterResult,
   VendorMasterStatus,
   VendorMasterUpload,
+  VendorPreview,
+  VendorTeam,
 } from "../types/commercial-budget.types";
 
 const BASE = "/commercial-budget";
@@ -98,8 +100,32 @@ export function getVendorMasterStatus(): Promise<VendorMasterStatus> {
   return apiFetch<VendorMasterStatus>(`${VENDOR_MASTER}/status`);
 }
 
-export function downloadVendorMasterTemplate(): Promise<void> {
-  return apiDownload(`${VENDOR_MASTER}/template`, { fallbackName: "Plantilla Maestro Vendedores JDH.xlsx" });
+/** Filled with today's master by default; `empty` gives the headers and the lists only. */
+export function downloadVendorMasterTemplate(empty = false): Promise<void> {
+  return apiDownload(`${VENDOR_MASTER}/template`, {
+    query: { empty: empty ? "true" : undefined },
+    fallbackName: "Plantilla Maestro Vendedores JDH.xlsx",
+  });
+}
+
+export function listVendorTeams(): Promise<VendorTeam[]> {
+  return apiFetch<VendorTeam[]>(`${VENDOR_MASTER}/teams`);
+}
+
+/** 409 when the master already has it. */
+export function createVendorTeam(body: { name: string; team_class: string; note?: string }): Promise<VendorTeam> {
+  return apiFetch<VendorTeam>(`${VENDOR_MASTER}/teams`, { method: "POST", body });
+}
+
+export function updateVendorTeam(name: string, body: { team_class?: string; is_active?: boolean; note?: string }): Promise<VendorTeam> {
+  return apiFetch<VendorTeam>(`${VENDOR_MASTER}/teams/${encodeURIComponent(name)}`, { method: "PATCH", body });
+}
+
+/** What uploading the file would change; nothing is written. */
+export function previewVendorMaster(file: File): Promise<VendorPreview> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<VendorPreview>(`${VENDOR_MASTER}/preview`, { method: "POST", body: form });
 }
 
 /** Forwarded to dwh-platform: 400 with its reason when it rejects the file, 503 when unreachable. */

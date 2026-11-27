@@ -1,16 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { AlertTriangle, CloudOff, Download, FileSpreadsheet, FileUp, History, Loader2, Lock, RefreshCw, Upload } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { AlertTriangle, CloudOff, Download, FileSpreadsheet, FileUp, FlaskConical, History, Loader2, Lock, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import StatePanel from "@/shared/components/state-panel";
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogFooter } from "@/shared/components/ui/dialog";
+import { ViewTab } from "@/shared/components/ui/view-tab";
 import { errorMessage } from "@/shared/lib/api-client";
 
-import { useUploadVendorMaster, useVendorMasterStatus, useVendorMasterUploads } from "../hooks/use-commercial-budget";
+import {
+  usePreviewVendorMaster,
+  useUploadVendorMaster,
+  useVendorMasterStatus,
+  useVendorMasterUploads,
+} from "../hooks/use-commercial-budget";
+import VendorPreviewReport, { blocksUpload } from "./vendor-preview-report";
+import VendorTeams from "./vendor-teams";
 import { formatCount, formatMoment } from "../lib/format";
 import { downloadVendorMasterTemplate } from "../services/commercial-budget.service";
 import type { VendorMasterResult, VendorMasterStatus, VendorMasterUpload } from "../types/commercial-budget.types";
@@ -54,10 +62,37 @@ export default function VendorMasterScreen() {
       </StatePanel>
     );
   }
+  return <VendorMasterTabs status={status.data} />;
+}
+
+type Tab = "carga" | "equipos";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "carga", label: "Carga" },
+  { key: "equipos", label: "Equipos" },
+];
+
+function VendorMasterTabs({ status }: { status: VendorMasterStatus }) {
+  const [tab, setTab] = useState<Tab>("carga");
+  const panelId = useId();
   return (
-    <div className="space-y-6">
-      <UploadCard status={status.data} />
-      <UploadHistory />
+    <div className="space-y-4">
+      <div role="tablist" aria-label="Vistas del maestro de vendedores" className="flex gap-1 border-b border-border [&>button]:-mb-px max-md:[&>button]:min-h-11">
+        {TABS.map((item) => (
+          <ViewTab key={item.key} selected={tab === item.key} onSelect={() => setTab(item.key)} controls={panelId}>
+            {item.label}
+          </ViewTab>
+        ))}
+      </div>
+      <div id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.key === tab)?.label}>
+        {tab === "carga" ? (
+          <div className="space-y-6">
+            <UploadCard status={status} />
+            <UploadHistory />
+          </div>
+        ) : (
+          <VendorTeams canManage={status.can_manage} />
+        )}
+      </div>
     </div>
   );
 }
@@ -68,13 +103,19 @@ function UploadCard({ status }: { status: VendorMasterStatus }) {
   const [fileError, setFileError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<VendorMasterResult | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"filled" | "empty" | null>(null);
   const upload = useUploadVendorMaster();
+  const simulate = usePreviewVendorMaster();
+  // The preview of the file chosen now; choosing another one asks for a new simulation.
+  const preview = simulate.data && simulate.variables === file ? simulate.data : null;
+  const teamRejections = preview ? preview.rejected.filter(blocksUpload).length : 0;
+  const canUpload = status.can_manage && status.configured && preview !== null && teamRejections === 0;
 
   const choose = (chosen: File | undefined) => {
     if (!chosen) return;
     setResult(null);
     upload.reset();
+    simulate.reset();
     if (!/\.xlsx$/i.test(chosen.name)) {
       setFile(null);
       setFileError(`El archivo debe ser un .xlsx. Elegiste «${chosen.name}».`);
@@ -100,14 +141,14 @@ function UploadCard({ status }: { status: VendorMasterStatus }) {
     });
   };
 
-  const downloadTemplate = async () => {
-    setDownloading(true);
+  const downloadTemplate = async (kind: "filled" | "empty") => {
+    setDownloading(kind);
     try {
-      await downloadVendorMasterTemplate();
+      await downloadVendorMasterTemplate(kind === "empty");
     } catch (failure) {
       toast.error(errorMessage(failure));
     } finally {
-      setDownloading(false);
+      setDownloading(null);
     }
   };
 
@@ -118,8 +159,8 @@ function UploadCard({ status }: { status: VendorMasterStatus }) {
           Cargar el maestro
         </h2>
         <p className="text-sm text-text-secondary">
-          Sube la plantilla «Maestro Vendedores JDH» (.xlsx, hasta 10 MB) completa, con las hojas {REQUIRED_SHEETS.join(", ")}. Trae la
-          lista de regionales y las instrucciones.
+          Descarga la plantilla con el maestro actual, cámbiala y súbela completa (.xlsx, hasta 10 MB, con las hojas {REQUIRED_SHEETS.join(", ")}).
+          El equipo se escoge de la lista del maestro de equipos y la clase sale sola. Primero se simula: nada se escribe hasta cargar.
         </p>
       </div>
 
@@ -137,43 +178,77 @@ function UploadCard({ status }: { status: VendorMasterStatus }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" onClick={downloadTemplate} disabled={downloading}>
-          {downloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />} Descargar plantilla
+        <Button variant="outline" onClick={() => downloadTemplate("filled")} disabled={downloading !== null}>
+          {downloading === "filled" ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+          Descargar plantilla con el maestro actual
         </Button>
-        {status.can_manage && (
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              className="sr-only"
-              tabIndex={-1}
-              aria-label="Archivo del maestro de vendedores"
-              onChange={(event) => {
-                choose(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
-            <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={upload.isPending || !status.configured}>
-              <FileUp aria-hidden="true" /> {file ? "Cambiar archivo" : "Elegir archivo"}
-            </Button>
-            {file && (
-              <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
-                <FileSpreadsheet className="size-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">{file.name}</span>
-              </span>
-            )}
-            <Button className="sm:ml-auto" onClick={() => setConfirming(true)} disabled={!file || upload.isPending || !status.configured}>
+        <Button variant="ghost" onClick={() => downloadTemplate("empty")} disabled={downloading !== null}>
+          {downloading === "empty" && <Loader2 className="animate-spin" aria-hidden="true" />} Plantilla vacía
+        </Button>
+      </div>
+
+      {/* Two steps: «Simular» reads the file with nothing written; «Cargar al DWH» waits for a
+          simulation of this same file with no row outside the team master. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Archivo del maestro de vendedores"
+          onChange={(event) => {
+            choose(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={upload.isPending || simulate.isPending}>
+          <FileUp aria-hidden="true" /> {file ? "Cambiar archivo" : "Elegir archivo"}
+        </Button>
+        {file && (
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
+            <FileSpreadsheet className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{file.name}</span>
+          </span>
+        )}
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <Button
+            variant={preview ? "outline" : "primary"}
+            onClick={() => file && simulate.mutate(file)}
+            disabled={!file || simulate.isPending || upload.isPending}
+          >
+            {simulate.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FlaskConical aria-hidden="true" />}
+            {simulate.isPending ? "Simulando" : "Simular"}
+          </Button>
+          {status.can_manage && (
+            <Button
+              onClick={() => setConfirming(true)}
+              disabled={!canUpload || upload.isPending}
+              title={
+                !status.configured
+                  ? "La carga no está configurada."
+                  : !preview
+                    ? "Simula el archivo primero."
+                    : teamRejections > 0
+                      ? "Hay filas con un equipo fuera del maestro: corrígelas y vuelve a simular."
+                      : undefined
+              }
+            >
               {upload.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
               {upload.isPending ? "Cargando" : "Cargar al DWH"}
             </Button>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {fileError && (
         <p role="alert" className="rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
           {fileError}
+        </p>
+      )}
+      {simulate.isError && (
+        <p role="alert" className="rounded-md bg-danger-surface px-3 py-2 text-sm text-danger">
+          {errorMessage(simulate.error)}
         </p>
       )}
       {upload.isError && (
@@ -187,6 +262,7 @@ function UploadCard({ status }: { status: VendorMasterStatus }) {
         </p>
       )}
 
+      {preview && !result && <VendorPreviewReport preview={preview} />}
       {result && <LoadResult result={result} />}
 
       <Dialog open={confirming} onOpenChange={setConfirming} title="Cargar el maestro al DWH" description={<>Vas a cargar «{file?.name}». {DIRECT_WRITE}</>}>
