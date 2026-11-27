@@ -7,6 +7,10 @@ import { ApiError } from "@/shared/lib/api-client";
 
 import {
   closeBudgetPeriod,
+  createVendorTeam,
+  listVendorTeams,
+  previewVendorMaster,
+  updateVendorTeam,
   getBudgetBoard,
   getBudgetPermissions,
   getBudgetSync,
@@ -34,6 +38,7 @@ export const vendorMasterKeys = {
   all: ["vendor-master"] as const,
   status: () => [...vendorMasterKeys.all, "status"] as const,
   uploads: () => [...vendorMasterKeys.all, "uploads"] as const,
+  teams: () => [...vendorMasterKeys.all, "teams"] as const,
 };
 
 const retryTransient = (count: number, error: Error) =>
@@ -141,6 +146,26 @@ export function useVendorMasterStatus() {
 
 export function useVendorMasterUploads(enabled: boolean) {
   return useQuery({ queryKey: vendorMasterKeys.uploads(), queryFn: () => listVendorMasterUploads(20), enabled, retry: retryTransient });
+}
+
+export function useVendorTeams(enabled: boolean) {
+  return useQuery({ queryKey: vendorMasterKeys.teams(), queryFn: listVendorTeams, enabled, retry: retryTransient });
+}
+
+/** Creating a team, or changing its class or whether the template offers it. */
+export function useSaveVendorTeam() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { create: true; name: string; team_class: string; note?: string } | { create: false; name: string; team_class?: string; is_active?: boolean }) =>
+      input.create
+        ? createVendorTeam({ name: input.name, team_class: input.team_class, note: input.note })
+        : updateVendorTeam(input.name, { team_class: input.team_class, is_active: input.is_active }),
+    onSettled: () => client.invalidateQueries({ queryKey: vendorMasterKeys.teams() }),
+  });
+}
+
+export function usePreviewVendorMaster() {
+  return useMutation({ mutationFn: previewVendorMaster });
 }
 
 /** The history is read again whatever happens: a rejected file is recorded too. */
