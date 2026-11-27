@@ -43,7 +43,7 @@ export const megaMenuConfig: MegaMenuConfig = {
       title: "Recursos",
       moduleIds: [
         "induccion",
-        "documentos",
+        "sig",
         "directorio",
         "catalogo",
         "marca",

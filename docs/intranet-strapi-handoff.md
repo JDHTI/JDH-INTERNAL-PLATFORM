@@ -39,7 +39,7 @@ Tag `noticias`. Servicio: `modules/noticias/server/strapi-noticias.service.ts`. 
 | `findNoticias` (listado, `/noticias`, `/api/noticias`) | `tipo[$eq]` (si ≠ all), `zona[code][$eq]` (si ≠ all) | SORT | `page`, `pageSize=9` | POPULATE |
 | `findNoticiaBySlug` | `slug[$eq]` | ninguno | `pageSize=1` | POPULATE |
 | `findRelated` | `$or[0][categoria][name][$eq]`, `$or[1][zona][code][$eq]`, y `slug[$ne]` | SORT | `pageSize=limit` (default 3) | POPULATE |
-| `findDestacadasPool` (pie de `/documentos`) | ninguno | SORT | `pageSize=max(limit*3, 9)`; muestrea `limit` (3) al azar en el UI | POPULATE |
+| `findDestacadasPool` (pie de `/sig/control-documental`) | ninguno | SORT | `pageSize=max(limit*3, 9)`; muestrea `limit` (3) al azar en el UI | POPULATE |
 | `findUltimasPorTipo` (home: noticias y comunicado destacado) | `tipo[$eq]` | `publishedAt:desc` (sin `pinned`) | `pageSize=6` (noticias: `NOTICIAS_LIMIT=6`; comunicado: pool de 6, uno al azar) | POPULATE |
 | `findFacetRows` (conteos de chips) | `tipo`/`zona` opcionales | ninguno | pagina de 100 en 100 hasta `pageCount` | `fields[0]=id&fields[1]=tipo`, `populate[zona][fields][0]=code` |
 
@@ -55,16 +55,34 @@ Tag `eventos`. Sin populate. `SORT = ["startDate:asc","startTime:asc"]`.
 
 Campos: `documentId`, `title`, `slug`, `startDate` (YYYY-MM-DD), `startTime` (llega `HH:mm:ss.SSS`; el UI corta a `HH:mm`), `locationName`, `address`, `requiresRsvp`, `createdAt`. `today` se calcula con `todayIsoDate()` (`eventos.config.ts`); la home usa zona `America/Bogota`.
 
-#### documento → `GET /api/documentos`
-Tag `documentos`. `POPULATE = ["file","area","categoria"]`, `SORT = ["revisionDate:desc"]`.
+#### documento → `GET /api/documentos` (SIG)
+Desde el 2026-11-27 los documentos alimentan el **SIG** (`/sig`, código en `src/intranet/modules/sig`), que reemplazó a «Documentos y políticas». La estructura (3 módulos y sus secciones) es fija en `sig.config.ts`; cada `documento` se ubica con su campo `seccion`. Tag `documentos`. Las funciones están en `server/strapi-documentos.service.ts`.
 
-| Función | filters | pagination | otros |
-|---|---|---|---|
-| `findDocumentos` | `categoria[slug][$eq]` (si ≠ all), `title[$containsi]` (búsqueda) | `page`, `pageSize=10` | POPULATE |
-| `findCategoriaFacetRows` | `title[$containsi]` (opcional) | páginas de 100 | `fields[0]=id`, `populate[categoria][fields][0]=slug&…[1]=name` |
-| `findDestacados` | `featured[$eq]=true` | `pageSize=3` | POPULATE |
+| Función | Pantalla | filters | sort | pagination | populate / fields |
+|---|---|---|---|---|---|
+| `findDocumentos` | `/sig/control-documental` (tabla) | `categoria[slug][$eq]` y `componente[$eq]` (cada uno si ≠ all), `title[$containsi]` | `revisionDate:desc` | `page`, `pageSize=10` | `populate=file,area,categoria` |
+| `findCategoriaFacetRows` | chips de categoría | búsqueda y componente activos | ninguno | de 100 en 100 | `fields[0]=id`, `populate[categoria][fields]=slug,name` |
+| `findComponenteRows` | chips de componente | búsqueda, categoría y `componente[$notNull]` | ninguno | de 100 en 100 | `fields[0]=componente` |
+| `findDestacados` | pie del control documental | `featured[$eq]=true` | `revisionDate:desc` | `pageSize=3` | `populate=file,area,categoria` |
+| `findSigDocumentos` | portada (obligatorios, políticas) y cada módulo | `seccion[$in]=…` o `seccion[$notNull]`, opcional `obligatorio[$eq]=true` | `orden:asc,title:asc` | de 100 en 100 (tope 10 páginas) | `fields` explícitos (sin `contenido` salvo en los módulos), `populate[file][fields]=url,ext,size,mime,name`, `populate[area][fields]=name`, `populate[categoria][fields]=name,slug` |
+| `findSigDocumentoBySlug` | `/sig/[modulo]/[slug]` | `slug[$eq]` | ninguno | `pageSize=1` | el mismo populate, todos los campos |
 
-Campos: `documentId`, `title`, `slug`, `description`, `revisionDate`, `featured`, `file.ext` (etiqueta PDF/DOCX…), `file.size` (**en KB, float**), `categoria.{name,slug}`, `area.name`. La URL de descarga no sale de `file.url` (§1.4).
+Campos que usa el UI (`documento.mapper.ts`): `documentId`, `title`, `slug`, `description`, `revisionDate`, `featured`, `file.{url,ext,size,mime}` (`size` **en KB, float**), `categoria.{name,slug}`, `area.name`, y los del SIG:
+
+| Campo | Tipo en el CMS | Uso en el UI |
+|---|---|---|
+| `seccion` | enum: `cultura_historia`, `cultura_mision`, `cultura_vision`, `cultura_codigo_etica`, `sig_politicas`, `sig_mapa_procesos`, `sst_seguridad_salud`, `sst_emergencias`, `sst_sig`, `sst_sagrilaft_etica`, `sst_habeas_data` | Módulo y sección. Vacío = solo en el control documental. Un valor que el UI no conoce se trata como vacío |
+| `componente` | enum: `calidad`, `ambiental`, `sst`, `rh` | Tarjetas de políticas y filtro del control documental |
+| `presentacion` | enum `pagina` \| `descarga` (default `descarga`) | `pagina` (o sin archivo) da página de lectura `/sig/<modulo>/<slug>` |
+| `contenido` | Blocks | Texto de lectura. El UI renderiza párrafos, títulos, citas, listas, marcas, enlaces (`http(s)`, `mailto`, `tel`, rutas `/`) e imágenes |
+| `obligatorio` | boolean | Insignia «Obligatorio» y franja de la portada |
+| `evaluacionUrl` | string, validado `^https?://\S+$` en el CMS | Botón «Presentar evaluación» (enlace externo, no se registra el resultado) |
+| `codigo`, `version` | string | Meta del documento controlado |
+| `orden` | integer | Orden dentro de la sección; vacío al final |
+
+Un `file` de imagen se muestra dentro de la página (mapa de procesos); cualquier otro se descarga. La URL de descarga no sale de `file.url` (§1.4). El CMS exige archivo al publicar un `descarga`.
+
+Antes de que el CMS tenga estos campos, `strictParams` responde 400 a las consultas del SIG: la capa `queries.ts` lo convierte en estados vacíos o en el aviso «No pudimos cargar los documentos», y la tabla sigue funcionando porque no envía campos nuevos salvo que se elija un componente. Despliegue: CMS primero, UI después.
 
 #### contenido-semanal → `GET /api/contenidos-semanales`
 Tag `contenido-semanal`. Home. Filtro `fechaPublicacion[$lte]=<hoy Colombia>`, `sort=fechaPublicacion:desc`, `pageSize=1`, `populate[0]=image&populate[1]=secciones`. Campos: `documentId`, `title`, `eyebrow`, `secciones[].texto` (Blocks; el componente `contenido.seccion` solo tiene `texto`; mínimo 3 en el schema), `image` (`medium`), `fechaPublicacion`. Los componentes y la media **no llegan sin `populate` explícito**.

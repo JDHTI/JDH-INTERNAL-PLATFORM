@@ -1,8 +1,11 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { Download, FileText } from "lucide-react"
+import type { Route } from "next"
+import Link from "next/link"
+import { BookOpen, Download, FileText } from "lucide-react"
 
+import { ContentBadge } from "@/intranet/components/common/content-badge"
 import { EmptyState } from "@/intranet/components/common/empty-state"
 import { JdhButton } from "@/intranet/components/common/jdh-button"
 import { actionColumn, DataTable } from "@/intranet/components/data/data-table"
@@ -19,15 +22,30 @@ import type { Documento } from "../types"
  * `DataTable` ya es un Client Component — las columnas tienen que
  * construirse de este lado de la frontera, no en `DocumentosView` (RSC).
  *
- * NO se usa `rowHref`: está tipado `(row) => \`/${string}\`` y renderiza un
- * `next/link`, así que no admite la URL absoluta de descarga del CMS; además
- * no existe una ruta de detalle `/documentos/[slug]`. La descarga vive en la
- * columna de acción, que ya se dibuja sobre el overlay de fila.
+ * NO se usa `rowHref`: está tipado `(row) => \`/${string}\`` y no todos los
+ * documentos tienen página de lectura (los de solo descarga no). El título
+ * enlaza a la página cuando existe, y la columna de acción descarga el
+ * archivo o, si no hay archivo, abre la página.
  *
  * `enableSorting` queda apagado a propósito: el orden lo resuelve Strapi
  * (`sort=revisionDate:desc`) sobre el catálogo completo — ordenar en cliente
  * solo reordenaría las 10 filas visibles, que es peor que no ordenar.
  */
+function documentoDetalle(documento: Documento): string {
+  const codigo = [
+    documento.codigo,
+    documento.version ? `v${documento.version}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const archivo = documento.downloadUrl
+    ? [documento.fileType, formatFileSize(documento.fileSizeKb)]
+        .filter(Boolean)
+        .join(" · ")
+    : "Página"
+  return [codigo, archivo].filter(Boolean).join(" · ")
+}
+
 const columns: ColumnDef<Documento, unknown>[] = [
   {
     accessorKey: "title",
@@ -39,14 +57,23 @@ const columns: ColumnDef<Documento, unknown>[] = [
           aria-hidden
         />
         <span className="min-w-0">
-          <span className="block truncate font-medium">
-            {row.original.title}
+          <span className="flex min-w-0 items-center gap-2">
+            {row.original.href ? (
+              <Link
+                href={row.original.href as Route}
+                className="truncate rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {row.original.title}
+              </Link>
+            ) : (
+              <span className="truncate font-medium">{row.original.title}</span>
+            )}
+            {row.original.obligatorio ? (
+              <ContentBadge badge="obligatorio" className="shrink-0" />
+            ) : null}
           </span>
           <span className="block truncate font-mono text-xs text-muted-foreground">
-            {row.original.fileType}
-            {row.original.fileSizeKb != null
-              ? ` · ${formatFileSize(row.original.fileSizeKb)}`
-              : ""}
+            {documentoDetalle(row.original)}
           </span>
         </span>
       </span>
@@ -79,18 +106,31 @@ const columns: ColumnDef<Documento, unknown>[] = [
       </span>
     ),
   },
-  actionColumn<Documento>((row) => (
-    <JdhButton
-      asChild
-      variant="ghost"
-      size="icon-sm"
-      aria-label={`Descargar ${row.title}`}
-    >
-      <a href={row.downloadUrl} download>
-        <Download />
-      </a>
-    </JdhButton>
-  )),
+  actionColumn<Documento>((row) =>
+    row.downloadUrl ? (
+      <JdhButton
+        asChild
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Descargar ${row.title}`}
+      >
+        <a href={row.downloadUrl} download>
+          <Download />
+        </a>
+      </JdhButton>
+    ) : row.href ? (
+      <JdhButton
+        asChild
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Leer ${row.title}`}
+      >
+        <Link href={row.href as Route}>
+          <BookOpen />
+        </Link>
+      </JdhButton>
+    ) : null
+  ),
 ]
 
 export function DocumentosTable({ items }: { items: Documento[] }) {
@@ -103,7 +143,7 @@ export function DocumentosTable({ items }: { items: Documento[] }) {
         <EmptyState
           icon={FileText}
           title="No hay documentos"
-          description="Ajusta la búsqueda o el filtro de categoría para ver más resultados."
+          description="Ajusta la búsqueda o los filtros para ver más resultados."
         />
       }
     />

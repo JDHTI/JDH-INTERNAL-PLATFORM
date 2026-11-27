@@ -88,7 +88,7 @@ function shuffle<T>(items: T[]): T[] {
 
 /**
  * Noticias destacadas para incrustar en otras páginas (hoy: pie de
- * `/documentos`, vía `NoticiasDestacadas`): trae un pool de recientes y
+ * `/sig/control-documental`, vía `NoticiasDestacadas`): trae un pool de recientes y
  * muestrea `limit` al azar en cada vista, para que la sección no repita
  * siempre las mismas tarjetas.
  */

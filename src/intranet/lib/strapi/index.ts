@@ -8,7 +8,12 @@ export { buildStrapiQuery } from "./query"
 export { strapiMediaUrl } from "./media"
 export { strapiConfig, STRAPI_API_BASE } from "./config"
 export { resolveTagsForModel } from "./webhook-tag-map"
-export { mapBlocks, type ArticleBlock, type StrapiBlock } from "./blocks"
+export {
+  mapBlocks,
+  type ArticleBlock,
+  type ArticleInline,
+  type StrapiBlock,
+} from "./blocks"
 export type {
   StrapiEntity,
   StrapiListResponse,

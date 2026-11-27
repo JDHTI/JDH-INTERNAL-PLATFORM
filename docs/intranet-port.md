@@ -9,7 +9,8 @@ mismas pantallas, mismo diseño. El espacio de trabajo por áreas no cambia. Dec
 | De la intranet | En la plataforma |
 | --- | --- |
 | Shell (barra de anuncio, header negro, menú principal, "Explorar todo", footer, navegación inferior en móvil) | `src/app/(app)/(general)/layout.tsx` |
-| Inicio, noticias, documentos, directorio (perfil y cumpleaños), organigrama, catálogo, autogestión, inducción, ayuda, marca, perfil, notificaciones | Mismas rutas bajo `(general)` |
+| Inicio, noticias, directorio (perfil y cumpleaños), organigrama, catálogo, autogestión, inducción, ayuda, marca, perfil, notificaciones | Mismas rutas bajo `(general)` |
+| Documentos y políticas | **SIG** (`/sig`, 2026-11-27): portada, tres módulos (`/sig/cultura`, `/sig/gestion`, `/sig/sst-cumplimiento`), páginas de lectura y la tabla de antes como `/sig/control-documental`. `/documentos` redirige ahí. Contrato con Strapi en `docs/intranet-strapi-handoff.md` |
 | Completar perfil (sede y contacto) | `src/app/(app)/(onboarding)/completar-perfil` |
 | Inicio de sesión | `src/app/login`, con el diseño de la intranet |
 | Eventos, vacaciones, certificados, solicitudes | **No**: se gestionan en otro portal |
@@ -35,7 +36,7 @@ también los reciban. El tema (claro, oscuro, sistema) es uno solo para los dos 
 - `src/proxy.ts` renueva el token de acceso cuando vence (dura una hora) y manda cada sesión nueva a
   `/completar-perfil/verificar`.
 - Directorio, cumpleaños, nuevos integrantes y fotos: `/directory` del API.
-- Noticias, documentos, contenido semanal, frases y quinquenios: Strapi, leído desde el servidor de
+- Noticias, documentos del SIG, contenido semanal, frases y quinquenios: Strapi, leído desde el servidor de
   la UI como lo hacía la intranet (`src/intranet/lib/strapi`), con caché e invalidación por el
   webhook `POST /api/revalidate`.
 

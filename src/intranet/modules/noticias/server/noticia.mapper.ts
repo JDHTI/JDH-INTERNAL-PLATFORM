@@ -27,6 +27,7 @@ export interface StrapiNoticia extends StrapiEntity {
 /** Estimación de tiempo de lectura (≈200 palabras/min, mínimo 1). */
 function estimateReadingTime(body: ArticleBlock[]): number {
   const words = body.reduce((acc, block) => {
+    if (block.type === "image") return acc
     const text = block.type === "list" ? block.items.join(" ") : block.text
     return acc + text.trim().split(/\s+/).filter(Boolean).length
   }, 0)

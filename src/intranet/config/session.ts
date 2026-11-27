@@ -2,7 +2,7 @@
 export const GENERAL_VIEW_PREFIXES = [
   "/",
   "/noticias",
-  "/documentos",
+  "/sig",
   "/directorio",
   "/organigrama",
   "/catalogo",

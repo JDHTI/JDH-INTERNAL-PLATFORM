@@ -15,6 +15,7 @@ por **http** al Caddy del servidor:
 ```
 https://intranet.jdh.com.co      → proxy de infra (TLS) → http → intranet-caddy → /api/v1/*      → platform-api:8000
                                                                                   /cms/uploads/* → intranet-cms:1337
+                                                                                  /cms/api/documentos/<id>/download → intranet-cms:1337
                                                                                   /*             → platform-ui:3000
 https://cms-intranet.jdh.com.co  → proxy de infra (TLS) → http → intranet-caddy → intranet-cms:1337 (panel de Strapi)
 ```

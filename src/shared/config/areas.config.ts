@@ -217,7 +217,7 @@ export function visibleModules(
 }
 
 /** Slugs the UI routes itself, so an area can never take them. */
-export const UI_RESERVED_SLUGS = ["workspace", "login", "api", "completar-perfil"] as const;
+export const UI_RESERVED_SLUGS = ["workspace", "login", "api", "completar-perfil", "sig"] as const;
 
 /**
  * Whether the route is the module's own screen or a page under it. A module

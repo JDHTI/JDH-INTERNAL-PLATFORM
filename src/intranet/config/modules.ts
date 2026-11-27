@@ -4,13 +4,13 @@ import { autogestionModule } from "@/intranet/modules/autogestion"
 import { ayudaModule } from "@/intranet/modules/ayuda"
 import { catalogoModule } from "@/intranet/modules/catalogo"
 import { directorioModule } from "@/intranet/modules/directorio"
-import { documentosModule } from "@/intranet/modules/documentos"
 import { induccionModule } from "@/intranet/modules/induccion"
 import { marcaModule } from "@/intranet/modules/marca"
 import { noticiasModule } from "@/intranet/modules/noticias"
 import { notificacionesModule } from "@/intranet/modules/notificaciones"
 import { organigramaModule } from "@/intranet/modules/organigrama"
 import { perfilModule } from "@/intranet/modules/perfil"
+import { sigModule } from "@/intranet/modules/sig"
 
 /**
  * The intranet module registry — the single place every feature module is
@@ -26,7 +26,7 @@ import { perfilModule } from "@/intranet/modules/perfil"
  */
 export const modules = createRegistry([
   noticiasModule,
-  documentosModule,
+  sigModule,
   directorioModule,
   induccionModule,
   organigramaModule,
