@@ -184,7 +184,7 @@ export function CardsSection() {
             title="Nueva política de seguridad"
             description="Lectura obligatoria antes del 30 de julio."
             badges={<ContentBadge badge="obligatorio" overlay />}
-            href="/documentos"
+            href="/sig"
           />
           <OverlayCard
             src={PLACEHOLDER}

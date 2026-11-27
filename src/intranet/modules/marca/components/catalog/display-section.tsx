@@ -89,7 +89,7 @@ export function DisplaySection() {
         <Breadcrumbs
           items={[
             { label: "Inicio", href: "/" },
-            { label: "Documentos", href: "/documentos" },
+            { label: "SIG", href: "/sig" },
             { label: "Política de seguridad" },
           ]}
         />

@@ -28,9 +28,9 @@ export const footerConfig: FooterConfig = {
     {
       title: "Institucional",
       links: [
-        { label: "Privacidad", href: "/privacidad" },
+        { label: "Privacidad", href: "/sig/sst-cumplimiento#habeas-data" },
         { label: "Seguridad de la información", href: "/seguridad" },
-        { label: "Código de conducta", href: "/codigo-de-conducta" },
+        { label: "Código de ética", href: "/sig/cultura#codigo-de-etica" },
       ],
     },
     {

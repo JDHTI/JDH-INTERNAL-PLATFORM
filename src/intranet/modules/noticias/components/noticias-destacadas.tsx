@@ -14,7 +14,7 @@ import type { Noticia } from "../types"
  * imagen al 100%, texto al hover"), no uno nuevo.
  *
  * Pensado para incrustarse en cualquier página de la intranet (hoy: pie de
- * `/documentos`), por eso vive en el barrel público del módulo en vez de
+ * `/sig/control-documental`), por eso vive en el barrel público del módulo en vez de
  * quedar privado a una sola ruta.
  *
  * Server Component: recibe las noticias ya resueltas, no llama a Strapi. Si
