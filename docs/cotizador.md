@@ -30,8 +30,13 @@ Las reglas con las que el cotizador calcula el costo se editan en el módulo **A
 (`ajuste-costos`, `/bi/ajuste-costos`, `src/features/cost-settings`, API #132, `/cost-settings`).
 Tiene tres bloques:
 - **Parámetros del costo:** cada uno con su valor, su rango y si sigue por defecto o quién lo ajustó.
-  - Los factores se muestran como «1,004 (+0,4 %)» y los márgenes en puntos: se escribe 1 y se
-    envía 0.01.
+  - **Incrementos de costo** (`incremento_costo_generales|market|mayoristas`, unidad `incremento`,
+    desde 2026-11-27):
+    - antes eran factores (`factor_costo_*`, 1,004);
+    - se muestran como «+0,4 %», y 0 se muestra como «0 % (costo estándar)»;
+    - se escriben en porcentaje (0,4) y viajan como fracción (0.004);
+    - van entre 0 % y 10 %, y por defecto 0,4 %, 0,4 % y 0 %.
+  - **Márgenes:** van en puntos: se escribe 1 y se envía 0.01.
   - Quien gestiona los edita en línea, con una nota opcional, y un solo «Guardar cambios» envía
     solo lo que cambió.
   - Aplica a las cotizaciones que se armen o refresquen desde ese momento.
@@ -498,8 +503,9 @@ migración `0052`.
      (con impuesto saludable si lo trae). Solo gana si es estrictamente mayor
      ([alzas-precios.md](alzas-precios.md)).
 
-   El mayor se redondea hacia arriba y se multiplica por el factor de la familia de la lista:
-   **1,004** en Generales, Salsamentarias y Market; **1** en Mayoristas. La cotización indica de
+   El mayor se redondea hacia arriba y se le suma el incremento de la familia de la lista, que se
+   edita en Ajuste de costos. Por defecto es **0,4 %** en Generales, Salsamentarias y Market, y **0 %**
+   (costo estándar) en Mayoristas. La cotización indica de
    dónde salió (`cost_source`: `cotizacion`, `inventario` o `alza`) y trae los valores
    (`quote_cost`, `inventory_cost`, `increase_cost`).
    - **Cotización fuera de rango**: una cotización mayor que **3 veces la mediana del último
@@ -620,7 +626,7 @@ dicen cosas distintas. **Nunca lleva costo, márgenes, apoyos ni datos de la reg
 ## Fórmulas
 
 ```
-costo                 = techo(máx(cotización, inventario)) × factor de la familia
+costo                 = techo(máx(cotización, inventario)) × (1 + incremento de la familia)
 apoyo por unidad      = participación del apoyo sobre el costo × costo
 margen sin apoyo      = (precio − costo) / precio
 margen con apoyo      = (precio − (costo − apoyo)) / precio

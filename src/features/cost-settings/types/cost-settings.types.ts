@@ -7,8 +7,11 @@ export interface CostSettingsPermissions {
   can_manage: boolean;
 }
 
-/** `factor` multiplies the cost (1.004 is +0.4 %); `margen` is a fraction (0.01 is one point). */
-export type ParameterUnit = "factor" | "margen";
+/**
+ * `incremento` is a fraction added over the cost (0.004 is +0,4 %; 0 leaves the standard cost);
+ * `margen` is a fraction too (0.01 is one point). Both are typed ×100.
+ */
+export type ParameterUnit = "incremento" | "margen";
 
 export interface CostParameter {
   key: string;
