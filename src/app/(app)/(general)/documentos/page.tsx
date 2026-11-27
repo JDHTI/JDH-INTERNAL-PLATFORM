@@ -1,10 +1,10 @@
-import { DocumentosView } from "@/intranet/modules/documentos"
-import { documentoFiltersSchema } from "@/intranet/modules/documentos/schemas/documento.schema"
+import { DocumentosView } from "@/intranet/modules/sig"
+import { documentoFiltersSchema } from "@/intranet/modules/sig/schemas/documento.schema"
 import {
   getCategoriaFacets,
   getDocumentos,
   getDocumentosDestacados,
-} from "@/intranet/modules/documentos/server/queries"
+} from "@/intranet/modules/sig/server/queries"
 // Deep import al seam de OTRO módulo: excepción consciente a la regla de
 // barrel-only, justificada porque quien compone dos dominios en una sola
 // página es la capa de rutas (thin), no un módulo importando los internos de
