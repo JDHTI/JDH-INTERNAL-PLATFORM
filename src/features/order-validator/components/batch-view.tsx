@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import Pager from "@/shared/components/pager";
 import StatePanel from "@/shared/components/state-panel";
 import { Button } from "@/shared/components/ui/button";
+import { DateRangePicker, type IsoDateRange } from "@/shared/components/ui/date-range-picker";
 import { Dropdown } from "@/shared/components/ui/dropdown";
 import { Input } from "@/shared/components/ui/input";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
@@ -71,6 +72,8 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const [text, setText] = useState("");
   const [operationCenter, setOperationCenter] = useState(ALL);
   const [salesperson, setSalesperson] = useState(ALL);
+  // Order dates, inclusive (API #147); bounded by the file's first and last order.
+  const [dates, setDates] = useState<IsoDateRange>({});
   const [thresholdText, setThresholdText] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -94,7 +97,19 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
       : "";
 
   // The rows come in the server's order (the pages are the server's too) and are never re-sorted here.
-  const orders = useBatchOrders({ batchId, sort, status, thresholdPreview, q, operationCenter, salesperson, page, size: PAGE_SIZE });
+  const orders = useBatchOrders({
+    batchId,
+    sort,
+    status,
+    thresholdPreview,
+    q,
+    operationCenter,
+    salesperson,
+    dateFrom: dates.from ?? "",
+    dateTo: dates.to ?? "",
+    page,
+    size: PAGE_SIZE,
+  });
   const result = orders.data;
   const rows = useMemo(() => result?.items ?? [], [result]);
   // The API lists every C.O. of the file whatever the filters, so the options never shrink.
@@ -126,7 +141,14 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
   const statusLabel = (value: ValidationStatus) =>
     catalogs?.statuses.find((entry) => entry.value === value)?.label ?? value;
 
-  const filtered = status !== ALL || q !== "" || operationCenter !== ALL || salesperson !== ALL;
+  const filtered = status !== ALL || q !== "" || operationCenter !== ALL || salesperson !== ALL || Boolean(dates.from || dates.to);
+  // The file's first and last order dates, whatever the filters; older API builds send none.
+  const firstDate = result?.first_date ?? undefined;
+  const lastDate = result?.last_date ?? undefined;
+  // Files validated before API #147 carry no inventory until they are revalidated. `null` (not
+  // absent) is how the API says so; against an older API the fields are absent and nothing shows.
+  const pageLines = rows.flatMap((order) => order.lines);
+  const withoutInventory = pageLines.length > 0 && pageLines.every((line) => line.inventory_date === null);
 
   // Any change to what is listed starts over on page 1 with nothing ticked, so
   // an approval never reaches an order that is no longer in view.
@@ -160,6 +182,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
     setText("");
     setOperationCenter(ALL);
     setSalesperson(ALL);
+    setDates({});
     setPage(1);
     setSelected(new Set());
   };
@@ -274,6 +297,18 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             emptyMessage="Ningún vendedor coincide."
           />
         )}
+        {(firstDate || dates.from || dates.to) && (
+          <div className="w-full lg:w-64">
+            <DateRangePicker
+              label="Fecha del pedido"
+              placeholder="Todas las fechas"
+              value={dates}
+              min={firstDate}
+              max={lastDate}
+              onChange={(next) => reset(() => setDates(next))}
+            />
+          </div>
+        )}
         {/* Phones only: from md up the table's headers sort. */}
         <Dropdown
           aria-label="Orden de los pedidos"
@@ -348,7 +383,7 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
             title="Ningún pedido coincide con los filtros"
             action={<Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button>}
           >
-            Prueba con otro texto, otro C.O. o quita el estado.
+            Prueba con otro texto, otro C.O., otras fechas o quita el estado.
           </StatePanel>
         ) : (
           <StatePanel icon={FileX2} title="Este archivo no tiene pedidos">
@@ -357,6 +392,11 @@ export default function BatchView({ batchId, basePath }: { batchId: string; base
         )
       ) : (
         <div className={cn("space-y-3", orders.isPlaceholderData && "opacity-60")}>
+          {withoutInventory && (
+            <p role="note" className="text-[13px] text-text-secondary">
+              Revalida el archivo para ver el costo promedio y las existencias por bodega.
+            </p>
+          )}
           <OrdersList
             rows={rows}
             expanded={expanded}

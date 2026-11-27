@@ -9,8 +9,9 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
+import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin, reviewAlerts } from "../lib/format";
 import type { OrderLine } from "../types/order-validator.types";
+import { InventoryCost } from "./inventory-cost";
 import { LineAlertBadges, LiquorTaxBadge, NoEffectBadge, OutcomeBadge } from "./status-badges";
 
 /**
@@ -45,6 +46,11 @@ export default function OrderLinesTable({
           <th scope="col" className="px-2 py-1">Descripción</th>
           <th scope="col" className="px-2 py-1 text-right">Cant.</th>
           <th scope="col" className="px-2 py-1 text-right">Precio</th>
+          <th scope="col" className="px-2 py-1 text-right" title="Descuento a pie de factura">Desc. prom.</th>
+          <th scope="col" className="px-2 py-1 text-right" title="Costo promedio de la referencia en la bodega de la línea, del inventario de SIESA del día en que se validó">
+            Costo prom.
+          </th>
+          <th scope="col" className="px-2 py-1 text-right" title="Existencias en la bodega de la línea">Existencias</th>
           <th scope="col" className="px-2 py-1 text-right">Margen en pedido</th>
           <th scope="col" className="px-2 py-1 text-right">Objetivo</th>
           <th scope="col" className="px-2 py-1">Motivo</th>
@@ -53,7 +59,7 @@ export default function OrderLinesTable({
       </thead>
       {lines.map((line) => {
         const open = withChecks.has(line.id);
-        const flagged = alertedRows.has(line.row_number) || (line.alerts?.length ?? 0) > 0;
+        const flagged = alertedRows.has(line.row_number) || reviewAlerts(line).length > 0;
         return (
           <tbody key={line.id} className="border-t border-border">
             <LineRow
@@ -65,7 +71,7 @@ export default function OrderLinesTable({
             />
             {open && (
               <tr>
-                <td colSpan={8} className="px-4 pb-2">
+                <td colSpan={11} className="px-4 pb-2">
                   <ul className="divide-y divide-border rounded-md border border-border bg-surface">
                     {line.checks.map((check, index) => (
                       <li key={`${check.support_id}-${index}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
@@ -135,6 +141,15 @@ function LineRow({
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatNumber(line.quantity)}</td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatCop(line.unit_price)}</td>
+      <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
+        {toNumber(line.discount_pct ?? null) === null ? <span className="text-text-secondary">—</span> : formatMarginPct(line.discount_pct)}
+      </td>
+      <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
+        <InventoryCost line={line} />
+      </td>
+      <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
+        {toNumber(line.inventory_stock ?? null) === null ? <span className="text-text-secondary">—</span> : formatNumber(line.inventory_stock ?? null)}
+      </td>
       <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
         {margin === null ? "—" : formatMarginPct(margin)}
         {supportMoved && <span className="block text-xs text-text-secondary">Archivo {formatMarginPct(fileMargin)}</span>}

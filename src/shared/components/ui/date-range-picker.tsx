@@ -62,6 +62,7 @@ export function DateRangePicker({
   id,
   value,
   onChange,
+  min,
   max,
   placeholder = "Cualquier fecha",
   label,
@@ -69,6 +70,8 @@ export function DateRangePicker({
   id?: string;
   value: IsoDateRange;
   onChange: (next: IsoDateRange) => void;
+  /** First selectable day, "YYYY-MM-DD". */
+  min?: string;
   /** Last selectable day, "YYYY-MM-DD". */
   max?: string;
   placeholder?: string;
@@ -82,11 +85,13 @@ export function DateRangePicker({
   // The ends being typed; null shows the draft's day.
   const [typed, setTyped] = useState<Record<End, string | null>>({ from: null, to: null });
   const [errors, setErrors] = useState<Record<End, string | null>>({ from: null, to: null });
+  const minDate = toDate(min);
   const maxDate = toDate(max);
   const today = maxDate ?? toDate(toIso(new Date()))!;
   const hasValue = Boolean(value.from || value.to);
   const summary = formatIsoRange(value);
-  const bounds = calendarBounds({ max: maxDate, include: [draft?.from, draft?.to] });
+  const bounds = calendarBounds({ min: minDate, max: maxDate, include: [draft?.from, draft?.to] });
+  const outOfBounds = [...(minDate ? [{ before: minDate }] : []), ...(maxDate ? [{ after: maxDate }] : [])];
 
   const openChange = (next: boolean) => {
     if (next) {
@@ -103,14 +108,14 @@ export function DateRangePicker({
 
   const textOf = (end: End) => typed[end] ?? (draft?.[end] ? formatIso(toIso(draft[end]!)) : "");
 
-  /** A typed end applies to the draft when it is a real day, not after `max` and in order with the other end. */
+  /** A typed end applies to the draft when it is a real day, within `min` and `max` and in order with the other end. */
   const commit = (end: End) => {
     const text = typed[end];
     if (text === null) return;
     const fail = (message: string) => setErrors((current) => ({ ...current, [end]: message }));
     let date: Date | undefined;
     if (text.trim() !== "") {
-      const checked = dateTextError(text, undefined, max);
+      const checked = dateTextError(text, min, max);
       if (!checked.iso) return fail(checked.error ?? "");
       date = toDate(checked.iso);
     }
@@ -245,7 +250,7 @@ export function DateRangePicker({
                     setTyped({ from: null, to: null });
                     setErrors({ from: null, to: null });
                   }}
-                  disabled={maxDate ? { after: maxDate } : undefined}
+                  disabled={outOfBounds.length > 0 ? outOfBounds : undefined}
                   startMonth={bounds.startMonth}
                   endMonth={bounds.endMonth}
                   showOutsideDays={false}

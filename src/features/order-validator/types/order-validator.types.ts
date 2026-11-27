@@ -16,8 +16,11 @@ export interface ReasonEntry {
   status: ValidationStatus;
 }
 
-/** A warning on an order or a line. Older API builds send none. */
-export type AlertCode = "margen_100" | "bajo_objetivo" | "falta_impuesto_licor";
+/**
+ * A warning on an order or a line. Older API builds send none. `costo_distinto` (API #147) only
+ * informs: the cost the file implies is not the warehouse's average cost.
+ */
+export type AlertCode = "margen_100" | "bajo_objetivo" | "falta_impuesto_licor" | "costo_distinto";
 
 /** Labels come from the API so the UI never spells a status, a reason or an alert by hand. */
 export interface ValidatorCatalogs {
@@ -148,6 +151,22 @@ export interface OrderLine {
   points_below_target?: Decimal | null;
   alerts?: AlertCode[];
   checks: SupportCheck[];
+  /**
+   * API #147, from SIESA's inventory the day the file was validated; null on files validated
+   * before it (until they are revalidated). The average cost of the SKU in the line's warehouse,
+   * the one SIESA's margin is computed on.
+   */
+  inventory_cost?: Decimal | null;
+  /** Stock in the line's warehouse. */
+  inventory_stock?: Decimal | null;
+  /** The day of that inventory picture, "YYYY-MM-DD". */
+  inventory_date?: string | null;
+  /** The invoice discount, as a fraction: 0.15 is 15 %. */
+  discount_pct?: Decimal | null;
+  /** The cost the file implies: price × (1 − discount) × (1 − margin). */
+  file_cost?: Decimal | null;
+  /** `file_cost` is more than 1 % away from `inventory_cost`. */
+  cost_differs?: boolean;
 }
 
 /**
@@ -197,6 +216,8 @@ export interface ValidationOrder {
   without_support_line_count?: number;
   /** True when some line is missing its liquor tax; the rest leave it out. */
   has_liquor_tax?: boolean;
+  /** The invoice discount weighted by value, as a fraction (API #147). */
+  discount_pct?: Decimal | null;
   alerts?: OrderAlert[];
   lines: OrderLine[];
 }
@@ -212,6 +233,9 @@ export interface OrderPage {
   operation_centers?: OperationCenterCount[];
   /** Every salesperson of the file («Nombre vendedor cliente»), by name, whatever the filters. Older API builds send none. */
   salespeople?: SalespersonCount[];
+  /** The first and last order dates of the whole file, whatever the filters (API #147). */
+  first_date?: string | null;
+  last_date?: string | null;
 }
 
 export interface OperationCenterCount {
@@ -246,6 +270,9 @@ export interface OrderParams {
   operationCenter: string;
   /** One salesperson's orders, by name (the API ignores case and repeated spaces); empty for all. */
   salesperson: string;
+  /** Order dates, "YYYY-MM-DD", inclusive; an order without a date is left out. Empty for none. */
+  dateFrom: string;
+  dateTo: string;
   page: number;
   size: number;
 }

@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Clock, Scale, SlidersHorizontal, TrendingDown, UserCheck, Wine, type LucideIcon } from "lucide-react";
+import { Ban, CheckCircle2, Clock, Info, Scale, SlidersHorizontal, TrendingDown, UserCheck, Wine, type LucideIcon } from "lucide-react";
 
 import { Badge, type BadgeTone } from "@/shared/components/ui/badge";
 import { toNumber, type Decimal } from "@/shared/lib/format";
@@ -95,6 +95,8 @@ const ALERT_LOOK: Record<AlertCode, { tone: BadgeTone; icon: LucideIcon; short: 
   margen_100: { tone: "danger", icon: Ban, short: "Margen 100 %, revisar" },
   bajo_objetivo: { tone: "warning", icon: TrendingDown, short: "Bajo objetivo" },
   falta_impuesto_licor: { tone: "warning", icon: Wine, short: "Licor" },
+  // Only informs (API #147): the file's cost is not the warehouse's average; nothing is held for it.
+  costo_distinto: { tone: "info", icon: Info, short: "Costo distinto" },
 };
 
 /**
