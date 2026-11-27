@@ -54,6 +54,16 @@ async function safe<T>(
   }
 }
 
+/**
+ * La tabla y los destacados no muestran el texto, pero sus consultas no
+ * limitan `fields` (con `strictParams`, nombrar un campo que el CMS aún no
+ * tiene daría 400). Se vacía aquí para no mandarlo al navegador: la tabla es
+ * un Client Component y serializa cada fila completa.
+ */
+function sinContenido(documento: Documento): Documento {
+  return { ...documento, contenido: [] }
+}
+
 /** `orden` ascendente con los vacíos al final; empates por título. */
 function byOrden(a: Documento, b: Documento): number {
   if (a.orden !== b.orden) {
@@ -75,7 +85,7 @@ export async function getDocumentos(
       const { pagination } = res.meta
 
       return {
-        items: res.data.map(mapDocumento),
+        items: res.data.map(mapDocumento).map(sinContenido),
         total: pagination.total,
         page: pagination.page,
         pageSize: pagination.pageSize,
@@ -90,7 +100,7 @@ export async function getCategoriaFacets(
   componente: SigComponente | "all"
 ): Promise<{ all: number; facets: CategoriaFacet[] }> {
   return safe("getCategoriaFacets", { all: 0, facets: [] }, async () => {
-    const rows = await findCategoriaFacetRows(q, componente)
+    const { total, rows } = await findCategoriaFacetRows(q, componente)
 
     const bySlug = new Map<string, CategoriaFacet>()
     for (const row of rows) {
@@ -100,7 +110,7 @@ export async function getCategoriaFacets(
     }
 
     return {
-      all: rows.length,
+      all: total,
       facets: [...bySlug.values()].sort((a, b) =>
         a.label.localeCompare(b.label, "es")
       ),
@@ -133,7 +143,7 @@ export async function getComponenteFacets(
 export async function getDocumentosDestacados(): Promise<Documento[]> {
   return safe("getDocumentosDestacados", [], async () => {
     const res = await findDestacados()
-    return res.data.map(mapDocumento)
+    return res.data.map(mapDocumento).map(sinContenido)
   })
 }
 

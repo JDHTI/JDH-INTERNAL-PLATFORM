@@ -138,17 +138,22 @@ interface CategoriaFacetEntity {
 export async function findCategoriaFacetRows(
   q: string,
   componente: SigComponente | "all"
-): Promise<DocumentoFacetRow[]> {
+): Promise<{ total: number; rows: DocumentoFacetRow[] }> {
   const entities = await findAll<CategoriaFacetEntity>({
     filters: buildFilters({ categoria: "all", componente, q }),
     fields: ["id"],
     populate: { categoria: { fields: ["slug", "name"] } },
   })
-  return entities.flatMap((entity) =>
-    entity.categoria
-      ? [{ slug: entity.categoria.slug, label: entity.categoria.name }]
-      : []
-  )
+  // `total` cuenta también los documentos sin categoría (los del SIG suelen
+  // no tenerla): es el número del chip «Todas».
+  return {
+    total: entities.length,
+    rows: entities.flatMap((entity) =>
+      entity.categoria
+        ? [{ slug: entity.categoria.slug, label: entity.categoria.name }]
+        : []
+    ),
+  }
 }
 
 /**
