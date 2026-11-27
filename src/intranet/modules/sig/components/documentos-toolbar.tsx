@@ -8,13 +8,18 @@ import { SearchInput } from "@/intranet/components/forms/search-input"
 import { FilterChipGroup } from "@/intranet/components/navigation/filter-chip-group"
 
 import { documentosHref, SEARCH_DEBOUNCE_MS } from "../documentos.config"
+import { isSigComponente } from "../sig.config"
+import type { SigComponente } from "../sig.config"
 import type { CategoriaFacet } from "../types"
 
 interface DocumentosToolbarProps {
   categoria: string
+  componente: SigComponente | "all"
   q: string
   facets: CategoriaFacet[]
   totalAll: number
+  /** Vacío mientras ningún documento tenga componente: el grupo no se muestra. */
+  componenteFacets: CategoriaFacet[]
   total: number
   from: number
   to: number
@@ -46,9 +51,11 @@ interface DocumentosToolbarProps {
  */
 export function DocumentosToolbar({
   categoria,
+  componente,
   q,
   facets,
   totalAll,
+  componenteFacets,
   total,
   from,
   to,
@@ -72,18 +79,44 @@ export function DocumentosToolbar({
     const id = setTimeout(() => {
       lastSyncedRef.current = term
       startTransition(() => {
-        router.replace(documentosHref({ categoria, q: term }) as Route, {
-          scroll: false,
-        })
+        router.replace(
+          documentosHref({ categoria, componente, q: term }) as Route,
+          { scroll: false }
+        )
       })
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(id)
-  }, [term, categoria, router])
+  }, [term, categoria, componente, router])
 
   const options = [
     { value: "all", label: "Todas", count: totalAll },
     ...facets.map((f) => ({ value: f.slug, label: f.label, count: f.count })),
   ]
+
+  // «Todos» va sin conteo: incluye los documentos sin componente, que los
+  // conteos por componente no cubren, y una suma parcial engañaría.
+  const componenteOptions = [
+    { value: "all", label: "Todos" },
+    ...componenteFacets.map((f) => ({
+      value: f.slug,
+      label: f.label,
+      count: f.count,
+    })),
+  ]
+
+  function navigate(next: { categoria?: string; componente?: string }) {
+    const nextComponente = next.componente ?? componente
+    startTransition(() => {
+      router.replace(
+        documentosHref({
+          categoria: next.categoria ?? categoria,
+          componente: isSigComponente(nextComponente) ? nextComponente : "all",
+          q: term,
+        }) as Route,
+        { scroll: false }
+      )
+    })
+  }
 
   return (
     <div className="mb-8 space-y-4 border-b border-border pb-6">
@@ -96,6 +129,16 @@ export function DocumentosToolbar({
         />
       </div>
 
+      {componenteFacets.length > 0 ? (
+        <FilterChipGroup
+          label="Componente"
+          aria-label="Filtrar por componente del SIG"
+          options={componenteOptions}
+          value={componente}
+          onChange={(value) => navigate({ componente: value })}
+        />
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <FilterChipGroup
           label="Categoría"
@@ -103,16 +146,7 @@ export function DocumentosToolbar({
           options={options}
           value={categoria}
           visibleCount={8}
-          onChange={(value) =>
-            startTransition(() => {
-              router.replace(
-                documentosHref({ categoria: value, q: term }) as Route,
-                {
-                  scroll: false,
-                }
-              )
-            })
-          }
+          onChange={(value) => navigate({ categoria: value })}
         />
         <span
           aria-live="polite"

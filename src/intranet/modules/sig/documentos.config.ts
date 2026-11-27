@@ -1,3 +1,4 @@
+import { CONTROL_DOCUMENTAL_PATH } from "./sig.config"
 import type { DocumentoFilters } from "./types"
 
 /** Filas por página, resuelto por Strapi (`pagination[pageSize]`). */
@@ -13,13 +14,11 @@ export const GRID_TEMPLATE = "2fr 160px 160px 140px 40px"
 /** Espera antes de reflejar el término de búsqueda en la URL. */
 export const SEARCH_DEBOUNCE_MS = 300
 
-const BASE_PATH = "/documentos"
-
 /**
- * Construye la URL del listado a partir de filtros parciales, omitiendo los
- * valores por defecto (`categoria: "all"`, `q: ""`, `page: 1`) para no
- * ensuciar la URL. Usado por el toolbar (buscador + chips) y por la
- * paginación para que `q`/`categoria` sobrevivan al cambio de página.
+ * Construye la URL del control documental a partir de filtros parciales,
+ * omitiendo los valores por defecto (`"all"`, `q: ""`, `page: 1`) para no
+ * ensuciar la URL. Usado por el toolbar (buscador + chips), la paginación y
+ * los atajos por componente del módulo de gestión.
  */
 export function documentosHref(
   filters: Partial<DocumentoFilters>
@@ -28,11 +27,16 @@ export function documentosHref(
   if (filters.categoria && filters.categoria !== "all") {
     params.set("categoria", filters.categoria)
   }
+  if (filters.componente && filters.componente !== "all") {
+    params.set("componente", filters.componente)
+  }
   if (filters.q) params.set("q", filters.q)
   if (filters.page && filters.page > 1) params.set("page", String(filters.page))
 
   const qs = params.toString()
-  return (qs ? `${BASE_PATH}?${qs}` : BASE_PATH) as `/${string}`
+  return (
+    qs ? `${CONTROL_DOCUMENTAL_PATH}?${qs}` : CONTROL_DOCUMENTAL_PATH
+  ) as `/${string}`
 }
 
 /**

@@ -10,7 +10,7 @@ import { noticiasModule } from "@/intranet/modules/noticias"
 import { notificacionesModule } from "@/intranet/modules/notificaciones"
 import { organigramaModule } from "@/intranet/modules/organigrama"
 import { perfilModule } from "@/intranet/modules/perfil"
-import { documentosModule } from "@/intranet/modules/sig"
+import { sigModule } from "@/intranet/modules/sig"
 
 /**
  * The intranet module registry — the single place every feature module is
@@ -26,7 +26,7 @@ import { documentosModule } from "@/intranet/modules/sig"
  */
 export const modules = createRegistry([
   noticiasModule,
-  documentosModule,
+  sigModule,
   directorioModule,
   induccionModule,
   organigramaModule,
