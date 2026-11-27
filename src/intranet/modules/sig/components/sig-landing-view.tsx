@@ -60,7 +60,7 @@ export function SigLandingView({
                 >
                   {modulo.title}
                 </h2>
-                <p className="max-w-2xl text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {modulo.description}
                 </p>
               </header>

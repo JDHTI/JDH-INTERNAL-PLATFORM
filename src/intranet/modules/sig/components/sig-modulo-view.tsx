@@ -65,11 +65,13 @@ function DocumentoEnLinea({
     <article className="space-y-4">
       {conTitulo ? <Title className="text-lg font-bold">{documento.title}</Title> : null}
       {/* `text-foreground`: el gris secundario de la intranet (#919189) da
-          3,17:1 sobre blanco y este es texto que se lee completo. */}
+          3,17:1 sobre blanco y este es texto que se lee completo.
+          `max-w-none`: en el SIG el texto ocupa todo el ancho del contenido
+          (decisión del usuario, 2026-11-27), no la medida de 68ch de noticias. */}
       {tieneTexto ? (
         <ArticleBody
           blocks={documento.contenido}
-          className="mt-0 text-foreground"
+          className="mt-0 max-w-none text-foreground"
         />
       ) : null}
       {documento.imageUrl ? (
@@ -167,7 +169,7 @@ function SeccionContenido({
 function SeccionEnlace({ seccion }: { seccion: SigSeccionEnlace }) {
   return (
     <div className="space-y-4">
-      <p className="max-w-2xl text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {seccion.description}
       </p>
       <JdhButton asChild variant="secondary">

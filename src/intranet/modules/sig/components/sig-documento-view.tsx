@@ -52,11 +52,11 @@ export function SigDocumentoView({
           </span>
         </div>
 
-        <h1 className="max-w-[36ch] text-2xl leading-tight font-bold tracking-tight text-balance sm:text-3xl">
+        <h1 className="text-2xl leading-tight font-bold tracking-tight text-balance sm:text-3xl">
           {documento.title}
         </h1>
         {documento.description ? (
-          <p className="mt-3 max-w-[68ch] text-muted-foreground">
+          <p className="mt-3 text-muted-foreground">
             {documento.description}
           </p>
         ) : null}
@@ -75,7 +75,10 @@ export function SigDocumentoView({
         {/* `text-foreground`: el gris secundario de la intranet (#919189)
             da 3,17:1 sobre blanco y aquí es el texto que se debe leer completo. */}
         {tieneTexto ? (
-          <ArticleBody blocks={documento.contenido} className="text-foreground" />
+          <ArticleBody
+            blocks={documento.contenido}
+            className="max-w-none text-foreground"
+          />
         ) : null}
 
         {documento.imageUrl ? (
@@ -90,7 +93,7 @@ export function SigDocumentoView({
         ) : null}
 
         {!tieneTexto && !documento.imageUrl ? (
-          <p className="mt-8 max-w-[68ch] text-muted-foreground">
+          <p className="mt-8 text-muted-foreground">
             {documento.downloadUrl
               ? "Este documento se consulta en el archivo adjunto. Descárgalo con el botón de arriba."
               : "Este documento todavía no tiene texto publicado."}
@@ -98,7 +101,7 @@ export function SigDocumentoView({
         ) : null}
 
         {documento.evaluacionUrl ? (
-          <div className="mt-12 flex max-w-[68ch] flex-col gap-4 rounded-[var(--jdh-radius-md)] border border-border p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-12 flex flex-col gap-4 rounded-[var(--jdh-radius-md)] border border-border p-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <h2 className="font-bold">Evaluación de aprobación</h2>
               <p className="text-sm text-muted-foreground">
