@@ -9,44 +9,56 @@ const plain = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 8, useGrou
 const tidy = (value: number) => Number(value.toFixed(8));
 
 /**
- * How a value reads: a factor as «1,004 (+0,4 %)», a margin in points («1 punto», «1,5 puntos»).
+ * How a value reads. An increment is a fraction over the cost: 0.004 reads «+0,4 %», and 0
+ * «0 % (costo estándar)». A margin is in points: «1 punto», «1,5 puntos».
  */
 export function formatParameter(value: string | number, unit: ParameterUnit): string {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  if (unit === "factor") {
-    const pct = tidy((number - 1) * 100);
-    const sign = pct > 0 ? "+" : pct < 0 ? "−" : "";
-    return `${decimals(6).format(number)} (${sign}${decimals(3).format(Math.abs(pct))} %)`;
+  if (unit === "incremento") {
+    const pct = tidy(number * 100);
+    if (pct === 0) return "0 % (costo estándar)";
+    return `${pct > 0 ? "+" : "−"}${decimals(2).format(Math.abs(pct))} %`;
   }
   const points = tidy(number * 100);
   return `${decimals(3).format(points)} ${Math.abs(points) === 1 ? "punto" : "puntos"}`;
 }
 
-/** What the input shows: the factor itself, or the margin in points. */
-export function toInputText(value: string, unit: ParameterUnit): string {
+/** A range bound without the «+» or the standard-cost note: «0 %», «10 %», «1 punto». */
+function formatBound(value: string | number, unit: ParameterUnit): string {
+  if (unit !== "incremento") return formatParameter(value, unit);
   const number = Number(value);
-  if (!Number.isFinite(number)) return "";
-  return plain.format(unit === "factor" ? number : tidy(number * 100));
+  return Number.isFinite(number) ? `${decimals(2).format(tidy(number * 100))} %` : "—";
 }
 
-/** The typed text as the API's value (points back to a fraction), or null when it is not a number. */
-export function fromInputText(text: string, unit: ParameterUnit): number | null {
-  const normalized = text.trim().replace(/\s/g, "").replace(",", ".");
+/** «Entre 0 % y 10 %», for the card's help and the range error. */
+export function formatRange(parameter: CostParameter): string {
+  return `Entre ${formatBound(parameter.minimum, parameter.unit)} y ${formatBound(parameter.maximum, parameter.unit)}`;
+}
+
+/** What the input shows: both units are typed ×100 (percent or points). */
+export function toInputText(value: string): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return plain.format(tidy(number * 100));
+}
+
+/** The typed text (percent or points, «%» allowed) as the API's fraction, or null when it is not a number. */
+export function fromInputText(text: string): number | null {
+  const normalized = text.trim().replace(/\s/g, "").replace("%", "").replace(",", ".");
   if (!/^-?\d+(\.\d+)?$/.test(normalized)) return null;
-  const number = Number(normalized);
-  return unit === "factor" ? number : tidy(number / 100);
+  return tidy(Number(normalized) / 100);
 }
 
 /** Why a typed value is refused, or null when it fits the parameter's range. */
 export function parameterError(text: string, parameter: CostParameter): string | null {
-  const value = fromInputText(text, parameter.unit);
-  if (value === null) return parameter.unit === "factor" ? "Escribe un número, por ejemplo 1,004." : "Escribe los puntos, por ejemplo 1 o 0,5.";
+  const value = fromInputText(text);
+  if (value === null) {
+    return parameter.unit === "incremento" ? "Escribe el porcentaje, por ejemplo 0,4 o 0." : "Escribe los puntos, por ejemplo 1 o 0,5.";
+  }
   const min = Number(parameter.minimum);
   const max = Number(parameter.maximum);
-  if (value < min || value > max) {
-    return `Debe estar entre ${formatParameter(min, parameter.unit)} y ${formatParameter(max, parameter.unit)}.`;
-  }
+  if (value < min || value > max) return `${formatRange(parameter)}.`;
   return null;
 }
 

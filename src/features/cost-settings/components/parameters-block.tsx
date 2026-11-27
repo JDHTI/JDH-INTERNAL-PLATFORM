@@ -10,7 +10,7 @@ import { Input } from "@/shared/components/ui/input";
 import { errorMessage } from "@/shared/lib/api-client";
 
 import { useUpdateParameters } from "../hooks/use-cost-settings";
-import { formatDay, formatParameter, fromInputText, parameterError, toInputText } from "../lib/format";
+import { formatDay, formatParameter, formatRange, fromInputText, parameterError, toInputText } from "../lib/format";
 import type { CostParameter } from "../types/cost-settings.types";
 
 /**
@@ -36,7 +36,7 @@ export default function ParametersBlock({ parameters, canManage }: { parameters:
     parameters.flatMap((parameter) => {
       const text = drafts[parameter.key];
       if (text === undefined || errors[parameter.key]) return [];
-      const value = fromInputText(text, parameter.unit);
+      const value = fromInputText(text);
       return value !== null && value !== Number(parameter.value) ? [[parameter.key, value]] : [];
     })
   ) as Record<string, number>;
@@ -145,9 +145,9 @@ function ParameterCard({
   onChange: (text: string) => void;
 }) {
   const inputId = useId();
-  const typed = text !== undefined ? fromInputText(text, parameter.unit) : null;
+  const typed = text !== undefined ? fromInputText(text) : null;
   const edited = typed !== null && !error && typed !== Number(parameter.value);
-  const range = `Entre ${formatParameter(parameter.minimum, parameter.unit)} y ${formatParameter(parameter.maximum, parameter.unit)}.`;
+  const range = `${formatRange(parameter)}.`;
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
@@ -171,18 +171,25 @@ function ParameterCard({
         {canManage && (
           <div className="space-y-1">
             <label htmlFor={inputId} className="block text-[13px] font-medium">
-              {parameter.unit === "factor" ? "Nuevo factor" : "Nuevo margen, en puntos"}
+              {parameter.unit === "incremento" ? "Nuevo incremento, en porcentaje" : "Nuevo margen, en puntos"}
             </label>
-            <Input
-              id={inputId}
-              inputMode="decimal"
-              value={text ?? toInputText(parameter.value, parameter.unit)}
-              onChange={(event) => onChange(event.target.value)}
-              disabled={disabled}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={`${inputId}-help`}
-              className="tabular-nums max-md:h-11"
-            />
+            <div className="relative">
+              <Input
+                id={inputId}
+                inputMode="decimal"
+                value={text ?? toInputText(parameter.value)}
+                onChange={(event) => onChange(event.target.value)}
+                disabled={disabled}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={`${inputId}-help`}
+                className={parameter.unit === "incremento" ? "pr-7 tabular-nums max-md:h-11" : "tabular-nums max-md:h-11"}
+              />
+              {parameter.unit === "incremento" && (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-text-secondary" aria-hidden="true">
+                  %
+                </span>
+              )}
+            </div>
             <p id={`${inputId}-help`} className={error ? "text-[13px] text-danger" : "text-[13px] text-text-secondary"}>
               {error ?? (edited ? `Quedará en ${formatParameter(typed, parameter.unit)}. ${range}` : range)}
             </p>
