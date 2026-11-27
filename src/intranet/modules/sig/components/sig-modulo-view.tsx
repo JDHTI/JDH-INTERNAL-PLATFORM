@@ -1,20 +1,23 @@
 import type { Route } from "next"
 import Link from "next/link"
+import { ArrowLeft, ArrowRight } from "lucide-react"
 
-import { JdhButton } from "@/intranet/components/common/jdh-button"
 import { JdhAlert } from "@/intranet/components/common/jdh-alert"
+import { JdhButton } from "@/intranet/components/common/jdh-button"
 import { PageHeader } from "@/intranet/components/common/page-header"
 import { SectionBlock } from "@/intranet/components/common/section-block"
 import { ArticleBody } from "@/intranet/components/content/article-body"
 import { Breadcrumbs } from "@/intranet/components/navigation/breadcrumbs"
 
 import { DocumentoAcciones, DocumentoCard, documentoMeta } from "./documento-card"
+import { SigTabs } from "./sig-tabs"
 import { documentosHref } from "../documentos.config"
 import {
   componenteLabel,
   CONTROL_DOCUMENTAL_PATH,
   SIG_BASE_PATH,
   SIG_COMPONENTES,
+  SIG_MODULOS,
   sigModuloHref,
 } from "../sig.config"
 import type {
@@ -25,7 +28,10 @@ import type {
 } from "../sig.config"
 import type { Documento } from "../types"
 
-type DocumentosPorSeccion = Partial<Record<string, Documento[]>>
+export type DocumentosPorSeccion = Partial<Record<string, Documento[]>>
+
+/** Nivel del título de cada sección; los documentos dentro van un nivel abajo. */
+type Nivel = 2 | 3
 
 const SECCION_NAV_LINK =
   "inline-flex min-h-11 items-center rounded-[var(--jdh-radius-sm)] px-3 text-sm text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
@@ -43,20 +49,23 @@ function SeccionVacia({ children }: { children: string }) {
 function DocumentoEnLinea({
   documento,
   conTitulo,
+  titleAs,
 }: {
   documento: Documento
   conTitulo: boolean
+  titleAs: "h3" | "h4"
 }) {
   const tieneTexto = documento.contenido.length > 0
   if (!tieneTexto && !documento.imageUrl) {
-    return <DocumentoCard documento={documento} />
+    return <DocumentoCard documento={documento} titleAs={titleAs} />
   }
+  const Title = titleAs
 
   return (
     <article className="space-y-4">
-      {conTitulo ? (
-        <h3 className="text-lg font-bold">{documento.title}</h3>
-      ) : null}
+      {conTitulo ? <Title className="text-lg font-bold">{documento.title}</Title> : null}
+      {/* `text-foreground`: el gris secundario de la intranet (#919189) da
+          3,17:1 sobre blanco y este es texto que se lee completo. */}
       {tieneTexto ? (
         <ArticleBody
           blocks={documento.contenido}
@@ -76,7 +85,9 @@ function DocumentoEnLinea({
               src={documento.imageUrl}
               alt={documento.description || documento.title}
               loading="lazy"
-              className="h-auto w-full rounded-[var(--jdh-radius-md)] border border-border bg-muted"
+              // Papel (blanco en ambos temas): un diagrama con fondo transparente
+              // sigue legible en tema oscuro.
+              className="h-auto w-full rounded-[var(--jdh-radius-md)] border border-border bg-[var(--color-paper)]"
             />
             <span className="sr-only">
               Abrir la imagen en tamaño completo (se abre en otra pestaña)
@@ -104,11 +115,15 @@ function SeccionContenido({
   seccion,
   documentos,
   disponible,
+  nivel,
 }: {
   seccion: SigSeccionContenido
   documentos: Documento[]
   disponible: boolean
+  nivel: Nivel
 }) {
+  const titleAs = nivel === 2 ? "h3" : "h4"
+
   if (!disponible) {
     return <SeccionVacia>No se pudo cargar esta sección.</SeccionVacia>
   }
@@ -124,6 +139,7 @@ function SeccionContenido({
             key={documento.id}
             documento={documento}
             conTitulo={documentos.length > 1}
+            titleAs={titleAs}
           />
         ))}
       </div>
@@ -136,6 +152,7 @@ function SeccionContenido({
         <DocumentoCard
           key={documento.id}
           documento={documento}
+          titleAs={titleAs}
           eyebrow={
             seccion.layout === "politicas" && documento.componente
               ? componenteLabel(documento.componente)
@@ -180,11 +197,132 @@ function SeccionEnlace({ seccion }: { seccion: SigSeccionEnlace }) {
 }
 
 /**
- * Página de un módulo del SIG (`/sig/[modulo]`): todas sus secciones en una
- * sola página, con un índice de anclas arriba. Las secciones caben en una
- * pantalla o dos, así que el colaborador ve todo al llegar, y cada sección
- * tiene una URL estable (`/sig/cultura#codigo-de-etica`) para enlazarla
- * desde otras partes de la intranet.
+ * Las secciones de un módulo con su índice de anclas. Lo comparten la página
+ * del módulo (secciones `h2`, anclas `#codigo-de-etica`) y el recorrido de
+ * `/sig`, donde el módulo ya es un `h2` y sus secciones bajan a `h3`, con el
+ * slug del módulo de prefijo en el ancla para que no choquen entre módulos.
+ */
+export function SigModuloSecciones({
+  modulo,
+  documentos,
+  disponible,
+  nivel,
+  idPrefix = "",
+}: {
+  modulo: SigModulo
+  documentos: DocumentosPorSeccion
+  disponible: boolean
+  nivel: Nivel
+  idPrefix?: string
+}) {
+  const docsDe = (seccion: SigSeccion) =>
+    seccion.kind === "contenido" ? (documentos[seccion.cmsValue] ?? []) : []
+
+  return (
+    <div className="space-y-6">
+      <nav
+        aria-label={`Secciones de ${modulo.title}`}
+        className="border-b border-border pb-2"
+      >
+        <ul className="-mx-3 flex flex-wrap">
+          {modulo.secciones.map((seccion) => (
+            <li key={seccion.slug}>
+              <a href={`#${idPrefix}${seccion.slug}`} className={SECCION_NAV_LINK}>
+                {seccion.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div className="space-y-14 pt-4">
+        {modulo.secciones.map((seccion) => (
+          <SectionBlock
+            key={seccion.slug}
+            id={`${idPrefix}${seccion.slug}`}
+            title={seccion.label}
+            as={nivel === 2 ? "h2" : "h3"}
+          >
+            {seccion.kind === "contenido" ? (
+              <SeccionContenido
+                seccion={seccion}
+                documentos={docsDe(seccion)}
+                disponible={disponible}
+                nivel={nivel}
+              />
+            ) : (
+              <SeccionEnlace seccion={seccion} />
+            )}
+          </SectionBlock>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function SigAvisoNoDisponible() {
+  return (
+    <JdhAlert variant="warning" title="No pudimos cargar los documentos">
+      El gestor de contenidos no respondió. Recarga la página en unos minutos;
+      las secciones que llevan a otras pantallas siguen funcionando.
+    </JdhAlert>
+  )
+}
+
+/** Anterior y siguiente en el orden del recorrido, al pie de cada módulo. */
+function SecuenciaModulos({ modulo }: { modulo: SigModulo }) {
+  const index = SIG_MODULOS.findIndex((m) => m.slug === modulo.slug)
+  const anterior = SIG_MODULOS[index - 1]
+  const siguiente = SIG_MODULOS[index + 1]
+
+  return (
+    <nav
+      aria-label="Recorrido del SIG"
+      className="flex flex-col gap-4 border-t border-border pt-8 sm:flex-row sm:justify-between"
+    >
+      {anterior ? (
+        <Link
+          href={sigModuloHref(anterior.slug) as Route}
+          className="group flex min-h-11 flex-col gap-1 rounded-[var(--jdh-radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <ArrowLeft className="size-3.5" aria-hidden />
+            Anterior
+          </span>
+          <span className="font-medium group-hover:underline">{anterior.title}</span>
+        </Link>
+      ) : (
+        <span />
+      )}
+      {siguiente ? (
+        <Link
+          href={sigModuloHref(siguiente.slug) as Route}
+          className="group flex min-h-11 flex-col gap-1 rounded-[var(--jdh-radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-ring sm:items-end sm:text-right"
+        >
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            Siguiente
+            <ArrowRight className="size-3.5" aria-hidden />
+          </span>
+          <span className="font-medium group-hover:underline">{siguiente.title}</span>
+        </Link>
+      ) : (
+        <Link
+          href={SIG_BASE_PATH as Route}
+          className="group flex min-h-11 flex-col gap-1 rounded-[var(--jdh-radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-ring sm:items-end sm:text-right"
+        >
+          <span className="text-xs text-muted-foreground">Fin del recorrido</span>
+          <span className="font-medium group-hover:underline">Ver todo el SIG</span>
+        </Link>
+      )}
+    </nav>
+  )
+}
+
+/**
+ * Página de un módulo del SIG (`/sig/[modulo]`): el mismo contenido que tiene
+ * en el recorrido de `/sig`, solo, con anterior y siguiente al pie. Cada
+ * sección tiene una URL estable (`/sig/cultura#codigo-de-etica`) para
+ * enlazarla desde otras partes de la intranet.
  */
 export function SigModuloView({
   modulo,
@@ -195,8 +333,7 @@ export function SigModuloView({
   documentos: DocumentosPorSeccion
   disponible: boolean
 }) {
-  const docsDe = (seccion: SigSeccion) =>
-    seccion.kind === "contenido" ? (documentos[seccion.cmsValue] ?? []) : []
+  const paso = SIG_MODULOS.findIndex((m) => m.slug === modulo.slug) + 1
 
   return (
     <div className="space-y-6">
@@ -208,10 +345,12 @@ export function SigModuloView({
         ]}
       />
       <PageHeader title={modulo.title} description={modulo.description} />
+      <SigTabs />
 
       {modulo.slug !== "cultura" ? (
         <p className="text-sm text-muted-foreground">
-          ¿Es tu primera vez en el SIG? Empieza por{" "}
+          Módulo {paso} de {SIG_MODULOS.length}. ¿Es tu primera vez en el SIG?
+          Empieza por{" "}
           <Link
             href={sigModuloHref("cultura") as Route}
             className="rounded-sm font-medium text-foreground underline decoration-1 underline-offset-2 outline-none hover:decoration-2 focus-visible:ring-2 focus-visible:ring-ring"
@@ -222,44 +361,16 @@ export function SigModuloView({
         </p>
       ) : null}
 
-      {!disponible ? (
-        <JdhAlert variant="warning" title="No pudimos cargar los documentos">
-          El gestor de contenidos no respondió. Recarga la página en unos
-          minutos; las secciones que llevan a otras pantallas siguen
-          funcionando.
-        </JdhAlert>
-      ) : null}
+      {!disponible ? <SigAvisoNoDisponible /> : null}
 
-      <nav
-        aria-label={`Secciones de ${modulo.title}`}
-        className="border-b border-border pb-2"
-      >
-        <ul className="-mx-3 flex flex-wrap">
-          {modulo.secciones.map((seccion) => (
-            <li key={seccion.slug}>
-              <a href={`#${seccion.slug}`} className={SECCION_NAV_LINK}>
-                {seccion.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SigModuloSecciones
+        modulo={modulo}
+        documentos={documentos}
+        disponible={disponible}
+        nivel={2}
+      />
 
-      <div className="space-y-14 pt-4">
-        {modulo.secciones.map((seccion) => (
-          <SectionBlock key={seccion.slug} id={seccion.slug} title={seccion.label}>
-            {seccion.kind === "contenido" ? (
-              <SeccionContenido
-                seccion={seccion}
-                documentos={docsDe(seccion)}
-                disponible={disponible}
-              />
-            ) : (
-              <SeccionEnlace seccion={seccion} />
-            )}
-          </SectionBlock>
-        ))}
-      </div>
+      <SecuenciaModulos modulo={modulo} />
     </div>
   )
 }

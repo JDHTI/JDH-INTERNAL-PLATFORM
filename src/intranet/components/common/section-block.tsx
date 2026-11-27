@@ -16,6 +16,7 @@ export function SectionBlock({
   eyebrow,
   title,
   description,
+  as: Heading = "h2",
   className,
   children,
 }: {
@@ -23,6 +24,8 @@ export function SectionBlock({
   eyebrow?: string
   title: string
   description?: React.ReactNode
+  /** `h3` cuando la sección cuelga de otra sección `h2` de la misma página. */
+  as?: "h2" | "h3"
   className?: string
   children: React.ReactNode
 }) {
@@ -35,9 +38,14 @@ export function SectionBlock({
               {eyebrow}
             </p>
           ) : null}
-          <h2 className="text-2xl font-bold tracking-tight text-balance">
+          <Heading
+            className={cn(
+              "font-bold tracking-tight text-balance",
+              Heading === "h2" ? "text-2xl" : "text-xl"
+            )}
+          >
             {title}
-          </h2>
+          </Heading>
           {description ? (
             <div className="max-w-3xl text-sm text-muted-foreground">
               {description}

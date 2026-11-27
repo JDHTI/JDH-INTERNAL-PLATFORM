@@ -84,7 +84,7 @@ export function SigDocumentoView({
             <img
               src={documento.imageUrl}
               alt={documento.description || documento.title}
-              className="h-auto w-full rounded-[var(--jdh-radius-md)] border border-border bg-muted"
+              className="h-auto w-full rounded-[var(--jdh-radius-md)] border border-border bg-[var(--color-paper)]"
             />
           </figure>
         ) : null}

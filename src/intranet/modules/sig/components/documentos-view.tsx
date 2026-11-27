@@ -7,6 +7,7 @@ import { DocumentosDestacados } from "./documentos-destacados"
 import { DocumentosPagination } from "./documentos-pagination"
 import { DocumentosTable } from "./documentos-table"
 import { DocumentosToolbar } from "./documentos-toolbar"
+import { SigTabs } from "./sig-tabs"
 import { SIG_BASE_PATH } from "../sig.config"
 import type {
   CategoriaFacet,
@@ -61,6 +62,7 @@ export function DocumentosView({
         title="Control documental"
         description="Todos los documentos vigentes de la compañía, con su código, versión y fecha de revisión. Busca por nombre o filtra por componente y categoría."
       />
+      <SigTabs />
 
       <DocumentosToolbar
         categoria={filters.categoria}

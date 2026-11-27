@@ -170,23 +170,16 @@ async function lectura<T>(
   }
 }
 
-/** Documentos obligatorios de todo el SIG, para la portada. */
-export async function getSigObligatorios(): Promise<SigLectura<Documento[]>> {
-  return lectura("getSigObligatorios", [], async () => {
-    const entities = await findSigDocumentos({ soloObligatorios: true })
-    return entities.map(mapDocumento).sort(byOrden)
-  })
-}
-
-/** Políticas SIG (una por componente), para la portada y el módulo de gestión. */
-export async function getSigPoliticas(): Promise<SigLectura<Documento[]>> {
-  return lectura("getSigPoliticas", [], async () => {
-    const entities = await findSigDocumentos({ secciones: ["sig_politicas"] })
-    return entities.map(mapDocumento).sort(byOrden)
-  })
-}
-
 export type DocumentosPorSeccion = Partial<Record<SigSeccionValue, Documento[]>>
+
+function agruparPorSeccion(documentos: Documento[]): DocumentosPorSeccion {
+  const grouped: DocumentosPorSeccion = {}
+  for (const documento of [...documentos].sort(byOrden)) {
+    if (!documento.seccion) continue
+    ;(grouped[documento.seccion] ??= []).push(documento)
+  }
+  return grouped
+}
 
 /**
  * Documentos de un módulo agrupados por sección. Trae `contenido` porque las
@@ -199,14 +192,18 @@ export async function getSigModulo(
   return lectura(`getSigModulo:${modulo.slug}`, {}, async () => {
     const entities = await findSigDocumentos({
       secciones: moduloCmsValues(modulo),
-      conContenido: true,
     })
-    const grouped: DocumentosPorSeccion = {}
-    for (const documento of entities.map(mapDocumento).sort(byOrden)) {
-      if (!documento.seccion) continue
-      ;(grouped[documento.seccion] ??= []).push(documento)
-    }
-    return grouped
+    return agruparPorSeccion(entities.map(mapDocumento))
+  })
+}
+
+/** Todo el SIG agrupado por sección, para el recorrido de `/sig`. */
+export async function getSigRecorrido(): Promise<
+  SigLectura<DocumentosPorSeccion>
+> {
+  return lectura("getSigRecorrido", {}, async () => {
+    const entities = await findSigDocumentos({})
+    return agruparPorSeccion(entities.map(mapDocumento))
   })
 }
 

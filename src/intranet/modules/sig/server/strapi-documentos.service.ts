@@ -23,10 +23,9 @@ const MAX_PAGE_SIZE = 100
 const MAX_PAGES = 10
 
 /**
- * Campos de los listados del SIG. Todos menos `contenido` (Blocks), que solo
- * hace falta al leer un documento o en las secciones de texto. Con
- * `strictParams` en el CMS, pedir un campo que aún no existe responde 400: la
- * capa `queries.ts` lo convierte en lista vacía.
+ * Campos de los listados del SIG (más `contenido`, que se agrega al pedirlos).
+ * Con `strictParams` en el CMS, pedir un campo que aún no existe responde 400:
+ * la capa `queries.ts` lo convierte en el aviso de no disponible.
  */
 const SIG_LIST_FIELDS = [
   "title",
@@ -194,31 +193,21 @@ export function findDestacados(): Promise<StrapiListResponse<StrapiDocumento>> {
   )
 }
 
-interface FindSigDocumentosArgs {
-  /** Secciones a traer; sin valor, cualquier documento con sección. */
-  secciones?: SigSeccionValue[]
-  soloObligatorios?: boolean
-  /** Trae también `contenido` (Blocks), para las secciones de texto. */
-  conContenido?: boolean
-}
-
 /**
- * Documentos del SIG, ordenados por `orden` y título. Una sola consulta por
- * pantalla: la portada pide los obligatorios, cada módulo sus secciones.
+ * Documentos del SIG con su texto, ordenados por `orden` y título. Una sola
+ * consulta por pantalla: el recorrido de `/sig` pide todo, cada módulo sus
+ * secciones. `secciones` vacío = cualquier documento con sección.
  */
 export function findSigDocumentos({
   secciones,
-  soloObligatorios = false,
-  conContenido = false,
-}: FindSigDocumentosArgs): Promise<StrapiDocumento[]> {
-  const filters: Record<string, unknown> = {
-    seccion: secciones ? { $in: secciones } : { $notNull: true },
-  }
-  if (soloObligatorios) filters.obligatorio = { $eq: true }
-
+}: {
+  secciones?: SigSeccionValue[]
+}): Promise<StrapiDocumento[]> {
   return findAll<StrapiDocumento>({
-    filters,
-    fields: conContenido ? [...SIG_LIST_FIELDS, "contenido"] : SIG_LIST_FIELDS,
+    filters: {
+      seccion: secciones ? { $in: secciones } : { $notNull: true },
+    },
+    fields: [...SIG_LIST_FIELDS, "contenido"],
     populate: SIG_POPULATE,
     sort: ["orden:asc", "title:asc"],
   })
