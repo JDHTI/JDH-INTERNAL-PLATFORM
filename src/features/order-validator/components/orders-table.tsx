@@ -261,7 +261,7 @@ export function OrdersTable({
 }) {
   return (
     <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
-      <table className="w-full min-w-[56rem] text-left text-[13px]">
+      <table className="w-full min-w-[60rem] text-left text-[13px]">
         <caption className="sr-only">Pedidos del archivo con su estado de validación</caption>
         <thead className="bg-canvas-subtle text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">
           <tr>
@@ -280,6 +280,9 @@ export function OrdersTable({
             <th scope="col" className="px-2 py-1.5">Estado</th>
             <th scope="col" className="px-2 py-1.5">Cliente</th>
             <SortHeader label="Margen pedido" column="margin" sort={sort} onSort={onSort} numeric />
+            <th scope="col" className="px-2 py-1.5 text-right" title="Descuento a pie de factura del pedido, ponderado por valor">
+              Desc. prom.
+            </th>
             <th scope="col" className="px-2 py-1.5 text-right">Objetivo</th>
             <th scope="col" className="px-2 py-1.5">Líneas</th>
             <th scope="col" className="px-2 py-1.5 text-right">Valor</th>
@@ -330,6 +333,9 @@ export function OrdersTable({
                 <td className="whitespace-nowrap px-2 py-1 text-right">
                   <OrderMargin order={order} />
                 </td>
+                <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
+                  {toNumber(order.discount_pct ?? null) === null ? <span className="text-text-secondary">—</span> : formatMarginPct(order.discount_pct)}
+                </td>
                 <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{target === null ? "—" : formatMarginPct(target)}</td>
                 <td className="max-w-52 px-2 py-1">
                   <LineGroups order={order} />
@@ -338,7 +344,7 @@ export function OrdersTable({
               </tr>
               {open && (
                 <tr id={panelId}>
-                  <td colSpan={canManage ? 8 : 7} className="bg-canvas-subtle p-0">
+                  <td colSpan={canManage ? 9 : 8} className="bg-canvas-subtle p-0">
                     <OrderMeta order={order} />
                     <OrderAlerts order={order} canManage={canManage} />
                     <ApprovalSummary order={order} canManage={canManage} onRevoke={() => onRevoke(order.document)} />
@@ -391,7 +397,8 @@ export function OrdersList({ rows, expanded, canManage, selected, onToggle, onSe
                   <OrderBadges order={order} />
                 </span>
                 <span className="text-xs text-text-secondary">
-                  Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatMarginPct(target)}</>} · {formatCop(order.total_amount)}
+                  Margen <OrderMargin order={order} /> {target !== null && <>· Objetivo {formatMarginPct(target)}</>}
+                  {toNumber(order.discount_pct ?? null) !== null && <> · Desc. {formatMarginPct(order.discount_pct)}</>} · {formatCop(order.total_amount)}
                 </span>
                 <LineGroups order={order} />
               </button>

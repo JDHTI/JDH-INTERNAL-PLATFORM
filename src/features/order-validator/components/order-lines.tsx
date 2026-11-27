@@ -9,8 +9,9 @@ import { toNumber } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { calcMethodLabel, formatCop, formatDay, formatNumber, humanize } from "@/features/supports/lib/format";
 
-import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin } from "../lib/format";
+import { MARGIN_BASIS_LABELS, differs, formatMarginPct, lineOrderMargin, reviewAlerts } from "../lib/format";
 import type { OrderLine, SupportCheck } from "../types/order-validator.types";
+import { InventoryCost } from "./inventory-cost";
 import { LineAlertBadges, LiquorTaxBadge, NoEffectBadge, OutcomeBadge, StatusBadge } from "./status-badges";
 
 /**
@@ -32,7 +33,7 @@ export default function OrderLines({
   return (
     <ul className="divide-y divide-border">
       {lines.map((line) => {
-        const flagged = alertedRows.has(line.row_number) || (line.alerts?.length ?? 0) > 0;
+        const flagged = alertedRows.has(line.row_number) || reviewAlerts(line).length > 0;
         const full = line.alerts?.includes("margen_100") || line.reason === "margen_100";
         return (
           <li
@@ -94,6 +95,14 @@ function LineBlock({ line, onOpenSupport }: { line: OrderLine; onOpenSupport: (s
         />
         <Figure label="Precio unitario" value={formatCop(line.unit_price)} />
         <Figure label="Cantidad" value={formatNumber(line.quantity)} />
+        <Figure label="Desc. prom." value={toNumber(line.discount_pct ?? null) === null ? "—" : formatMarginPct(line.discount_pct)} />
+        <div>
+          <dt className="text-xs text-text-secondary">Costo prom.</dt>
+          <dd className="font-medium tabular-nums">
+            <InventoryCost line={line} />
+          </dd>
+        </div>
+        <Figure label="Existencias" value={toNumber(line.inventory_stock ?? null) === null ? "—" : formatNumber(line.inventory_stock ?? null)} />
         <Figure label="Lista · bodega" value={[line.price_list, line.warehouse].filter(Boolean).join(" · ") || "—"} plain />
       </dl>
 

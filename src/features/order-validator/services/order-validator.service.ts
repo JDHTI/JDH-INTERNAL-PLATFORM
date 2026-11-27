@@ -55,6 +55,8 @@ export async function listOrders({
   q,
   operationCenter,
   salesperson,
+  dateFrom,
+  dateTo,
   page,
   size,
 }: OrderParams): Promise<OrderPage> {
@@ -66,6 +68,9 @@ export async function listOrders({
       q,
       operation_center: operationCenter,
       salesperson,
+      // 422 when the first is after the last; the picker never sends that.
+      date_from: dateFrom,
+      date_to: dateTo,
       page,
       size,
     },

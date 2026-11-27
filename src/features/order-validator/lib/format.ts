@@ -1,12 +1,18 @@
 import { formatPct } from "@/features/supports/lib/format";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 
-import type { CheckOutcome, MarginBasis, OrderLine, RuleEffect, ValidationOrder } from "../types/order-validator.types";
+import type { AlertCode, CheckOutcome, MarginBasis, OrderLine, RuleEffect, ValidationOrder } from "../types/order-validator.types";
 
-/** File rows the order's alerts point at, to mark those lines. */
+/** Alerts that only inform (API #147): they never mark a line's edge as one to review. */
+export const INFO_ALERTS: ReadonlySet<AlertCode> = new Set<AlertCode>(["costo_distinto"]);
+
+/** File rows the order's alerts point at, to mark those lines; informative ones are left out. */
 export function alertedRows(order: ValidationOrder): Set<number> {
-  return new Set((order.alerts ?? []).flatMap((alert) => alert.row_numbers));
+  return new Set((order.alerts ?? []).filter((alert) => !INFO_ALERTS.has(alert.code)).flatMap((alert) => alert.row_numbers));
 }
+
+/** A line's own alerts that ask for a look (not the informative ones). */
+export const reviewAlerts = (line: OrderLine): AlertCode[] => (line.alerts ?? []).filter((code) => !INFO_ALERTS.has(code));
 
 /** The margin a line brings to the order: with its support when one with money decided it. */
 export function lineOrderMargin(line: OrderLine): number | null {
