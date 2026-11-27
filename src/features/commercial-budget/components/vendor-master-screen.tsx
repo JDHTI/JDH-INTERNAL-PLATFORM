@@ -90,7 +90,7 @@ function VendorMasterTabs({ status }: { status: VendorMasterStatus }) {
             <UploadHistory />
           </div>
         ) : (
-          <VendorTeams canManage={status.can_manage} />
+          <VendorTeams canManage={status.can_manage} writesTeams={status.writes_teams === true} />
         )}
       </div>
     </div>

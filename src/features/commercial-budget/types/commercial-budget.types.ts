@@ -192,6 +192,11 @@ export interface VendorMasterStatus {
   configured: boolean;
   can_read: boolean;
   can_manage: boolean;
+  /**
+   * API #146: creating a team or changing its class writes `externo.equipo` in the DWH at once.
+   * False (or absent, before #146) and the change waits on the platform for the next upload.
+   */
+  writes_teams?: boolean;
 }
 
 export interface RejectedRow {
