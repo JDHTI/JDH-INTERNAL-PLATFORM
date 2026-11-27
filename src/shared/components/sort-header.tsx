@@ -5,13 +5,13 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Menu, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator } from "@/shared/components/ui/menu";
 import { cn } from "@/shared/lib/utils";
 
-import type { SortOrder } from "../types/costs.types";
+export type SortOrder = "asc" | "desc";
 
 /** The quoter's table grammar: tight header, cells aligned to the top. */
 export const th = "h-11 px-2.5 py-1.5 align-middle leading-tight";
 export const td = "px-2.5 py-2 align-top";
 
-const TEXT_SORTS = ["sku", "supplier"];
+const TEXT_SORTS = ["sku", "supplier", "document", "co", "customer", "seller", "name", "key"];
 
 /** How each direction reads: text alphabetically, dates by age, figures by size. */
 function orderWords(field: string): Record<SortOrder, string> {

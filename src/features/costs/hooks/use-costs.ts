@@ -17,7 +17,7 @@ import {
   setEntryReason,
   setNoveltyReason,
 } from "../services/costs.service";
-import type { CreditNoteInput, EntryParams, NoveltyParams } from "../types/costs.types";
+import type { CostReason, CreditNoteInput, EntryParams, NoveltyParams } from "../types/costs.types";
 
 export const costKeys = {
   all: ["costs"] as const,
@@ -42,10 +42,15 @@ export function useCostPermissions() {
 }
 
 /** The 26 reasons change only when a manager edits the catalog. */
+/** The reason picker's second line: what the reason asks for. Module level, so the selection is kept between renders. */
+const withPickerDetail = (reasons: CostReason[]) =>
+  reasons.map((reason) => ({ ...reason, detail: reason.requires_credit_note ? "Pide nota crédito" : null }));
+
 export function useCostReasons(enabled = true) {
   return useQuery({
     queryKey: costKeys.reasons(),
     queryFn: listCostReasons,
+    select: withPickerDetail,
     retry: retryTransient,
     staleTime: 10 * 60_000,
     enabled,

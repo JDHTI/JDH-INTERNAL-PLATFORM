@@ -1,4 +1,7 @@
+import type { SortOrder } from "@/shared/components/sort-header";
 import type { Decimal } from "@/shared/lib/format";
+
+export type { SortOrder };
 
 /** The four Costos views, by their API permission key. */
 export type CostModuleKey = "analisis-entradas" | "novedades-compras" | "alzas-proveedor" | "acumulado-alzas";
@@ -21,8 +24,6 @@ export interface CostReason {
 export type EntryStatus = "ok" | "novedad" | "sin_cotizacion";
 export type NoveltyStatus = "pendiente" | "espera_nota_credito" | "resuelta" | "anulada";
 export type NoveltyKind = "diferencia" | "sin_cotizacion" | "sin_novedad";
-export type SortOrder = "asc" | "desc";
-
 /** A purchase entry line against the quotation in force on its day. */
 export interface EntryLine {
   line_key: string;

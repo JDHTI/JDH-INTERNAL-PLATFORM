@@ -7,7 +7,13 @@ import { Check, ChevronDown, Loader2, Search } from "lucide-react";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 
-import type { CostReason } from "../types/costs.types";
+/** A catalog reason as the picker needs it; `detail` is its second line (who answers for it, what it asks for). */
+export interface PickerReason {
+  id: string;
+  name: string;
+  is_active: boolean;
+  detail?: string | null;
+}
 
 const normalize = (text: string) =>
   text
@@ -31,7 +37,7 @@ export default function ReasonPicker({
   label,
   className,
 }: {
-  reasons: CostReason[] | undefined;
+  reasons: PickerReason[] | undefined;
   /** The current reason id, or null. */
   value: string | null;
   /** Its name, for when the catalog has not loaded or no longer lists it. */
@@ -159,10 +165,8 @@ export default function ReasonPicker({
                         {selected ? <Check className="size-4" aria-hidden="true" /> : <span />}
                         <span className="min-w-0">
                           <span className="block">{reason.name}</span>
-                          {(reason.requires_credit_note || !reason.is_active) && (
-                            <span className="block text-xs text-text-secondary">
-                              {!reason.is_active ? "Desactivado" : "Pide nota crédito"}
-                            </span>
+                          {(reason.detail || !reason.is_active) && (
+                            <span className="block text-xs text-text-secondary">{!reason.is_active ? "Desactivado" : reason.detail}</span>
                           )}
                         </span>
                       </button>

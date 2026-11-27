@@ -2,6 +2,7 @@
 
 import { INCREASE_STATUS } from "@/features/commercial-masters/components/increase-format";
 import { formatCop, formatDay, formatPct } from "@/features/supports/lib/format";
+import { th, td } from "@/shared/components/sort-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { toNumber, type Decimal } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
@@ -10,7 +11,6 @@ import { formatSignedCop, formatSignedPct } from "../lib/format";
 import { regionalLabel, regionalList } from "../lib/regionals";
 import { NATIONAL, REST, type RequestLine } from "../types/increase-requests.types";
 import { Figures, secondary } from "./line-cells";
-import { th, td } from "./sort-header";
 
 const cop = (value: Decimal | null) => (toNumber(value) === null ? null : formatCop(value));
 
